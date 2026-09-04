@@ -16,7 +16,7 @@ internal sealed class PanelFileViewerService
     private readonly InteractiveSurfaceHost _surfaces;
     private readonly ModalDialogHost _modalDialogs;
     private readonly DialogService _dialogs;
-    private readonly Func<ConsolePalette> _palette;
+    private readonly Func<CSharpFarPalette> _palette;
     private readonly FilePanelSourceRegistry _sourceRegistry;
     private readonly IHistoryStore _history;
     private readonly ITextClipboard _clipboard;
@@ -31,7 +31,7 @@ internal sealed class PanelFileViewerService
         InteractiveSurfaceHost surfaces,
         ModalDialogHost modalDialogs,
         DialogService dialogs,
-        Func<ConsolePalette> palette,
+        Func<CSharpFarPalette> palette,
         FilePanelSourceRegistry sourceRegistry,
         IHistoryStore history,
         ITextClipboard clipboard,

@@ -5,10 +5,10 @@ using CSharpFar.Ui;
 
 namespace CSharpFar.App.Rendering;
 
-internal sealed class FileUsageRenderer(IUiCanvas canvas, ConsolePalette palette,
+internal sealed class FileUsageRenderer(IUiCanvas canvas, CSharpFarPalette palette,
     Func<HoverMarqueeRegistration, string>? renderHoverMarquee = null)
 {
-    private readonly CellStyle _normal = PaletteStyles.FileUsageNormal(palette);
+    private readonly CellStyle _normal = CSharpFarPaletteStyles.FileUsageNormal(palette);
     private readonly CellStyle _border = new(palette.PanelBorderActiveFg, palette.PanelBackground);
     private readonly CellStyle _title = new(palette.PanelTitleFocusedFg, palette.PanelBackground);
 
@@ -36,7 +36,7 @@ internal sealed class FileUsageRenderer(IUiCanvas canvas, ConsolePalette palette
 
     private void DrawRow(int x, int y, int width, FileUsageRow row, bool action, FileUsagePanelController state)
     {
-        canvas.Write(x, y, new string(' ', width), action ? PaletteStyles.FileUsageActionLabel(palette) : _normal);
+        canvas.Write(x, y, new string(' ', width), action ? CSharpFarPaletteStyles.FileUsageActionLabel(palette) : _normal);
         int offset = 0;
         foreach (FileUsageRun run in row.Runs)
         {
@@ -65,13 +65,13 @@ internal sealed class FileUsageRenderer(IUiCanvas canvas, ConsolePalette palette
 
     private CellStyle Style(FileUsageStyleRole role) => role switch
     {
-        FileUsageStyleRole.Secondary => PaletteStyles.FileUsageSecondary(palette),
-        FileUsageStyleRole.Blocked => PaletteStyles.FileUsageBlocked(palette),
-        FileUsageStyleRole.ReasonHeading => PaletteStyles.FileUsageReasonHeading(palette),
-        FileUsageStyleRole.ReasonText => PaletteStyles.FileUsageReasonText(palette),
-        FileUsageStyleRole.SelectedOwner => PaletteStyles.FileUsageSelectedOwner(palette),
-        FileUsageStyleRole.ActionKey => PaletteStyles.FileUsageActionKey(palette),
-        FileUsageStyleRole.ActionLabel => PaletteStyles.FileUsageActionLabel(palette),
+        FileUsageStyleRole.Secondary => CSharpFarPaletteStyles.FileUsageSecondary(palette),
+        FileUsageStyleRole.Blocked => CSharpFarPaletteStyles.FileUsageBlocked(palette),
+        FileUsageStyleRole.ReasonHeading => CSharpFarPaletteStyles.FileUsageReasonHeading(palette),
+        FileUsageStyleRole.ReasonText => CSharpFarPaletteStyles.FileUsageReasonText(palette),
+        FileUsageStyleRole.SelectedOwner => CSharpFarPaletteStyles.FileUsageSelectedOwner(palette),
+        FileUsageStyleRole.ActionKey => CSharpFarPaletteStyles.FileUsageActionKey(palette),
+        FileUsageStyleRole.ActionLabel => CSharpFarPaletteStyles.FileUsageActionLabel(palette),
         _ => _normal,
     };
 

@@ -14,7 +14,7 @@ internal sealed class FileOperationUiRunner
     private readonly IFileOperationService _fileOperations;
     private readonly Func<bool> _showTotalProgress;
 
-    public FileOperationUiRunner(ModalDialogHost _, DialogService dialogs, Func<ConsolePalette> palette, IFileOperationService fileOperations, Func<bool> showTotalProgress, FormFieldFactory fields)
+    public FileOperationUiRunner(ModalDialogHost _, DialogService dialogs, Func<CSharpFarPalette> palette, IFileOperationService fileOperations, Func<bool> showTotalProgress, FormFieldFactory fields)
     {
         _dialogs = dialogs;
         _fileOperations = fileOperations;
@@ -128,8 +128,8 @@ internal sealed class FileOperationUiRunner
         public void Render(IUiCanvas canvas, ICompositeDialogContentFrame rawFrame)
         {
             var frame = Require(rawFrame); var snapshot = state();
-            canvas.FillRegion(frame.Bounds, FarDialogStyles.Fill);
-            if (snapshot.Progress is not { } progress) { canvas.Write(frame.Bounds.X, frame.Bounds.Y, "Preparing operation...", FarDialogStyles.Fill); return; }
+            canvas.FillRegion(frame.Bounds, DialogStyles.Fill);
+            if (snapshot.Progress is not { } progress) { canvas.Write(frame.Bounds.X, frame.Bounds.Y, "Preparing operation...", DialogStyles.Fill); return; }
             Write(canvas, frame.Bounds, 0, snapshot.Status == FileOperationUiStatus.Stopping ? "Stopping..." : PhaseText(progress));
             Write(canvas, frame.Bounds, 1, progress.CurrentPath);
             if (progress.Phase == FileOperationPhase.Scanning)
@@ -151,7 +151,7 @@ internal sealed class FileOperationUiRunner
         public CompositeDialogContentInputResult RouteInput(ConsoleInputEvent input, ICompositeDialogContentFrame frame, UiInputRouteContext route) => CompositeDialogContentInputResult.NotHandled;
         public void ApplyCommittedFrame(ICompositeDialogContentFrame frame) { }
         private static Frame Require(ICompositeDialogContentFrame frame) => frame as Frame ?? throw new ArgumentException("Frame belongs to a different content component.", nameof(frame));
-        private static void Write(IUiCanvas canvas, Rect bounds, int row, string? value) { if (row < bounds.Height) canvas.Write(bounds.X, bounds.Y + row, ConsoleTextMetrics.FitToCells(value ?? string.Empty, bounds.Width), FarDialogStyles.Fill); }
+        private static void Write(IUiCanvas canvas, Rect bounds, int row, string? value) { if (row < bounds.Height) canvas.Write(bounds.X, bounds.Y + row, ConsoleTextMetrics.FitToCells(value ?? string.Empty, bounds.Width), DialogStyles.Fill); }
         private static string PhaseText(FileOperationProgress p) => p.Phase switch { FileOperationPhase.Scanning when p.Kind == FileOperationKind.Delete => "Scanning files for deletion", FileOperationPhase.Scanning => "Scanning the folder", FileOperationPhase.Deleting => "Deleting the file", FileOperationPhase.Validating => p.StatusMessage ?? "Validating partial file...", _ => "Copying the file" };
         private static string Percent(long done, long total) => total <= 0 ? "0%" : $"{Math.Clamp(done * 100 / total, 0, 100)}%";
         private sealed record Frame(Rect Bounds) : ICompositeDialogContentFrame;

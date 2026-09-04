@@ -300,7 +300,7 @@ internal sealed class FormDialogs
 
     private static IDisposable BeginRenderScope(FormDialogOptions options)
     {
-        IDisposable appearanceScope = FarDialogStyles.UseAppearance(options.Appearance);
+        IDisposable appearanceScope = DialogStyles.UseAppearance(options.Appearance);
         if (options.Theme is null)
             return appearanceScope;
 

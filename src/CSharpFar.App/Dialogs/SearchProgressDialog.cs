@@ -14,7 +14,7 @@ internal sealed class SearchProgressDialog
     private readonly DialogService _dialogs;
     private readonly ISearchService _searchService;
 
-    public SearchProgressDialog(ModalDialogHost _, ISearchService searchService, DialogService dialogs, ConsolePalette? palette = null)
+    public SearchProgressDialog(ModalDialogHost _, ISearchService searchService, DialogService dialogs, CSharpFarPalette? palette = null)
     {
         _searchService = searchService;
         _dialogs = dialogs;

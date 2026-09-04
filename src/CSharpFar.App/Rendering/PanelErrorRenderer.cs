@@ -15,7 +15,7 @@ internal static class PanelErrorRenderer
         Rect bounds,
         FilePanelState state,
         PanelViewMode mode,
-        ConsolePalette palette,
+        CSharpFarPalette palette,
         AppSettings.PanelOptionsSettings? options)
     {
         if (state.LoadError is null ||

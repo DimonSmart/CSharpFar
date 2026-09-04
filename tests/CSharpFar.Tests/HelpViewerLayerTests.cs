@@ -383,7 +383,7 @@ public sealed class HelpViewerLayerTests
         composition.Render();
         Assert.True(driver.CursorVisible);
 
-        var layer = new HelpViewerLayer([new HelpLine(HelpLineKind.Plain, Description: "body")], PaletteRegistry.Default);
+        var layer = new HelpViewerLayer([new HelpLine(HelpLineKind.Plain, Description: "body")], CSharpFarPaletteRegistry.Default);
         using (composition.OpenSurface(new InteractiveSurface(screen), layer))
         {
             composition.Render();
@@ -401,15 +401,15 @@ public sealed class HelpViewerLayerTests
     [Fact]
     public void Rendering_KeyLineUsesSeparateStylesAcrossHorizontalBoundary()
     {
-        var palette = PaletteRegistry.Default;
+        var palette = CSharpFarPaletteRegistry.Default;
         HelpLine[] lines = [new(HelpLineKind.KeyLine, "ABC", "description")];
         var (_, driver, layer) = Render(lines, width: 28, height: 4, palette);
 
         SnapshotCell keyCell = driver.GetCell(2, 1);
         SnapshotCell descriptionCell = driver.GetCell(HelpKeyColumnWidth(), 1);
 
-        Assert.Equal(PaletteStyles.HelpKey(palette).Foreground, keyCell.Foreground);
-        Assert.Equal(PaletteStyles.HelpBody(palette).Foreground, descriptionCell.Foreground);
+        Assert.Equal(PaletteStyles.HelpKey(palette.Ui).Foreground, keyCell.Foreground);
+        Assert.Equal(PaletteStyles.HelpBody(palette.Ui).Foreground, descriptionCell.Foreground);
 
         var composition = Open(lines, width: 8, height: 4, out driver, out layer, palette);
         composition.Render();
@@ -422,17 +422,17 @@ public sealed class HelpViewerLayerTests
 
         Assert.Contains(driver.WriteRecords, record =>
             record.Y == 1 &&
-            record.Foreground == PaletteStyles.HelpKey(palette).Foreground);
+            record.Foreground == PaletteStyles.HelpKey(palette.Ui).Foreground);
         Assert.Contains(driver.WriteRecords, record =>
             record.Y == 1 &&
-            record.Foreground == PaletteStyles.HelpBody(palette).Foreground);
+            record.Foreground == PaletteStyles.HelpBody(palette.Ui).Foreground);
     }
 
     private static (UiCompositionHost Composition, FakeConsoleDriver Driver, HelpViewerLayer Layer) Render(
         HelpLine[] lines,
         int width,
         int height,
-        ConsolePalette? palette = null,
+        CSharpFarPalette? palette = null,
         int firstVisibleIndex = 0)
     {
         var composition = Open(lines, width, height, out var driver, out var layer, palette, firstVisibleIndex);
@@ -446,14 +446,14 @@ public sealed class HelpViewerLayerTests
         int height,
         out FakeConsoleDriver driver,
         out HelpViewerLayer layer,
-        ConsolePalette? palette = null,
+        CSharpFarPalette? palette = null,
         int firstVisibleIndex = 0)
     {
         driver = new FakeConsoleDriver(width, height);
         var host = UiTestHost.Create(driver);
         var screen = host.Screen;
         var composition = host.Composition;
-        layer = new HelpViewerLayer(lines, palette ?? PaletteRegistry.Default, firstVisibleIndex);
+        layer = new HelpViewerLayer(lines, palette ?? CSharpFarPaletteRegistry.Default, firstVisibleIndex);
         composition.OpenSurface(new InteractiveSurface(screen), layer);
         return composition;
     }

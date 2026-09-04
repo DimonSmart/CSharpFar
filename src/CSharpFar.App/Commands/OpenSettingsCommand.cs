@@ -30,7 +30,7 @@ internal sealed class OpenSettingsCommand : IApplicationCommand
         context.Settings.Ui.Palette = result.PaletteName;
         context.Settings.Panels.FileHighlighting.Enabled = result.FileHighlightingEnabled;
         context.Settings.Editor.SyntaxHighlightingEnabled = result.EditorSyntaxHighlightingEnabled;
-        context.CommandPalette = PaletteRegistry.Resolve(result.PaletteName);
+        context.CommandPalette = CSharpFarPaletteRegistry.Resolve(result.PaletteName);
         context.HighlightService = context.CreateHighlightService();
         context.Controller.MoveCursor(context.LeftPanel, 0, context.VisibleRows(PanelSide.Left));
         context.Controller.MoveCursor(context.RightPanel, 0, context.VisibleRows(PanelSide.Right));

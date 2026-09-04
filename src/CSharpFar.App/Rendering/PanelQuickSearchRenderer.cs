@@ -11,13 +11,13 @@ internal sealed class PanelQuickSearchRenderer
     private const int OverlayHeight = 3;
 
     private readonly IUiCanvas _screen;
-    private readonly ConsolePalette _palette;
+    private readonly CSharpFarPalette _palette;
     private readonly DialogFrameRenderer _frameRenderer = new();
 
-    public PanelQuickSearchRenderer(IUiCanvas screen, ConsolePalette? palette = null)
+    public PanelQuickSearchRenderer(IUiCanvas screen, CSharpFarPalette? palette = null)
     {
         _screen = screen;
-        _palette = palette ?? PaletteRegistry.Default;
+        _palette = palette ?? CSharpFarPaletteRegistry.Default;
     }
 
     public PanelQuickSearchRenderLayout? Render(Rect panelBounds, string searchText)
@@ -30,7 +30,7 @@ internal sealed class PanelQuickSearchRenderer
         int x = panelBounds.X + Math.Max(1, (panelBounds.Width - width) / 2);
         int y = Math.Max(panelBounds.Y + 1, panelBounds.Bottom - OverlayHeight - 1);
         var bounds = new Rect(x, y, width, OverlayHeight);
-        var options = PaletteStyles.DialogPopupOptions(_palette) with
+        var options = CSharpFarPaletteStyles.DialogPopupOptions(_palette) with
         {
             DrawShadow = false,
         };
@@ -45,7 +45,7 @@ internal sealed class PanelQuickSearchRenderer
                 contentBounds.X,
                 contentBounds.Y,
                 visibleText.PadRight(contentBounds.Width),
-                PaletteStyles.InputField(_palette));
+                CSharpFarPaletteStyles.InputField(_palette));
 
             cursorX = contentBounds.X + searchText.Length - visibleStart;
             cursorY = contentBounds.Y;

@@ -151,14 +151,14 @@ internal sealed class ListWithButtonsDialog<T>
         ListWithButtonsLayout layout = CalculateLayout(context.Size);
         ListViewFrame list = _list.CalculateFrame(layout.ListBounds);
         ScrollableFormFrame? buttons = null;
-        _modalRenderer.Render(context.Canvas, layout.Modal, Title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, _) =>
+        _modalRenderer.Render(context.Canvas, layout.Modal, Title, true, DialogStyles.OuterOptions, DialogStyles.FrameOptions, (_, _) =>
         {
             buttons = layout.FooterBounds.Height > 0
                 ? _form.Render(
                     new FormRenderContext(
                         context,
                         layout.ListBounds,
-                        FarDialogStyles.Border,
+                        DialogStyles.Border,
                         layout.FooterBounds),
                     focusScope,
                     [new UiFocusEntry(_list.ListTarget, 0, _list.HasItems)],

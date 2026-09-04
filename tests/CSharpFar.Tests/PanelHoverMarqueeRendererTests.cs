@@ -24,7 +24,7 @@ public sealed class PanelHoverMarqueeRendererTests
         var registrations = new List<HoverMarqueeRegistration>();
 
         UiTestRender.Render(screen, canvas =>
-            new PanelRenderer(canvas, PaletteRegistry.Default, new FixedHighlightService(), renderHoverMarquee: registration =>
+            new PanelRenderer(canvas, CSharpFarPaletteRegistry.Default, new FixedHighlightService(), renderHoverMarquee: registration =>
             {
                 registrations.Add(registration);
                 int finalOffset = Math.Max(0,
@@ -42,12 +42,12 @@ public sealed class PanelHoverMarqueeRendererTests
         });
         Assert.EndsWith("ending.txt", Row(driver, 1, 1, 19).TrimEnd());
         Assert.Equal(ConsoleColor.Magenta, driver.GetCell(1, 1).Foreground);
-        Assert.Equal(PaletteRegistry.Default.CursorActiveBg, driver.GetCell(1, 1).Background);
-        Assert.Equal(PaletteRegistry.Default.SelectedBg, driver.GetCell(1, 2).Background);
-        Assert.Equal(PaletteRegistry.Default.DirectoryFg, driver.GetCell(1, 3).Foreground);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.CursorActiveBg, driver.GetCell(1, 1).Background);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.Ui.SelectedBg, driver.GetCell(1, 2).Background);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.DirectoryFg, driver.GetCell(1, 3).Foreground);
 
         // The size field starts after the registered name bound and keeps its own row style.
-        Assert.Equal(PaletteRegistry.Default.CursorActiveBg, driver.GetCell(21, 1).Background);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.CursorActiveBg, driver.GetCell(21, 1).Background);
         Assert.DoesNotContain(registrations, registration => registration.Bounds.Contains(21, 1));
     }
 
@@ -66,7 +66,7 @@ public sealed class PanelHoverMarqueeRendererTests
         UiTestRender.Render(screen, canvas =>
             new BriefTwoColumnsPanelRenderer(
                 canvas,
-                PaletteRegistry.Default,
+                CSharpFarPaletteRegistry.Default,
                 renderHoverMarquee: registration =>
                 {
                     registrations.Add(registration);
@@ -91,7 +91,7 @@ public sealed class PanelHoverMarqueeRendererTests
         Assert.All(registrations.Where(registration => registration.Bounds.X == 13),
             registration => Assert.Equal(new Rect(13, registration.Bounds.Y, 10, 1), registration.Bounds));
         Assert.EndsWith("ending", Row(driver, 13, 2, 10).TrimEnd());
-        Assert.Equal(PaletteRegistry.Default.PanelBackground, driver.GetCell(13, 2).Background);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.PanelBackground, driver.GetCell(13, 2).Background);
     }
 
     [Fact]

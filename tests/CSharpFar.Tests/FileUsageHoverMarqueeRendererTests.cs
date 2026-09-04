@@ -21,7 +21,7 @@ public sealed class FileUsageHoverMarqueeRendererTests
         var registrations = new List<HoverMarqueeRegistration>();
 
         UiTestRender.Render(new ScreenRenderer(driver), canvas =>
-            new FileUsageRenderer(canvas, PaletteRegistry.Default, registration =>
+            new FileUsageRenderer(canvas, CSharpFarPaletteRegistry.Default, registration =>
             {
                 registrations.Add(registration);
                 int final = ConsoleTextMetrics.GetCellWidth(registration.Text) - registration.VisibleCellWidth;
@@ -38,10 +38,10 @@ public sealed class FileUsageHoverMarqueeRendererTests
         Assert.EndsWith("visible-ending", Row(driver, owner.Bounds).TrimEnd());
         Assert.EndsWith("editor-ending.exe", Row(driver, executable.Bounds).TrimEnd());
 
-        CellStyle selected = PaletteStyles.FileUsageSelectedOwner(PaletteRegistry.Default);
+        CellStyle selected = CSharpFarPaletteStyles.FileUsageSelectedOwner(CSharpFarPaletteRegistry.Default);
         Assert.Equal(selected.Foreground, driver.GetCell(owner.Bounds.X, owner.Bounds.Y).Foreground);
         Assert.Equal(selected.Background, driver.GetCell(owner.Bounds.X, owner.Bounds.Y).Background);
-        CellStyle normal = PaletteStyles.FileUsageNormal(PaletteRegistry.Default);
+        CellStyle normal = CSharpFarPaletteStyles.FileUsageNormal(CSharpFarPaletteRegistry.Default);
         Assert.Equal(normal.Foreground, driver.GetCell(executable.Bounds.X, executable.Bounds.Y).Foreground);
     }
 
@@ -54,7 +54,7 @@ public sealed class FileUsageHoverMarqueeRendererTests
         var driver = new FakeConsoleDriver(32, 18);
 
         UiTestRender.Render(new ScreenRenderer(driver), canvas =>
-            new FileUsageRenderer(canvas, PaletteRegistry.Default, registration =>
+            new FileUsageRenderer(canvas, CSharpFarPaletteRegistry.Default, registration =>
             {
                 registrations.Add(registration);
                 return registration.Text;
@@ -92,7 +92,7 @@ public sealed class FileUsageHoverMarqueeRendererTests
         var result = new List<HoverMarqueeRegistration>();
         var driver = new FakeConsoleDriver(32, 18);
         UiTestRender.Render(new ScreenRenderer(driver), canvas =>
-            new FileUsageRenderer(canvas, PaletteRegistry.Default, registration =>
+            new FileUsageRenderer(canvas, CSharpFarPaletteRegistry.Default, registration =>
             {
                 result.Add(registration);
                 return registration.Text;

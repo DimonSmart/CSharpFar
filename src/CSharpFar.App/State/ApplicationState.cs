@@ -2,7 +2,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.State;
 
-internal sealed class ApplicationState(ConsolePalette palette)
+internal sealed class ApplicationState(CSharpFarPalette palette)
 {
     public bool Running { get; set; } = true;
 
@@ -13,7 +13,7 @@ internal sealed class ApplicationState(ConsolePalette palette)
     public bool FileUsage { get; set; }
     public bool RestoreQuickViewAfterFileUsage { get; set; }
 
-    public ConsolePalette Palette { get; set; } = palette;
+    public CSharpFarPalette Palette { get; set; } = palette;
 }
 
 internal enum ApplicationWorkspaceMode

@@ -5,12 +5,12 @@ namespace CSharpFar.App.Viewer;
 internal sealed class HelpViewer
 {
     private readonly InteractiveSurfaceHost _surfaces;
-    private readonly ConsolePalette _palette;
+    private readonly CSharpFarPalette _palette;
 
-    public HelpViewer(InteractiveSurfaceHost surfaces, ConsolePalette? palette = null)
+    public HelpViewer(InteractiveSurfaceHost surfaces, CSharpFarPalette? palette = null)
     {
         _surfaces = surfaces ?? throw new ArgumentNullException(nameof(surfaces));
-        _palette = palette ?? PaletteRegistry.Default;
+        _palette = palette ?? CSharpFarPaletteRegistry.Default;
     }
 
     public void Show(HelpTopic topic = HelpTopic.Main)

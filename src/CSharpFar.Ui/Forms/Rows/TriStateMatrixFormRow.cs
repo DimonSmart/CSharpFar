@@ -56,9 +56,9 @@ public sealed class TriStateMatrixFormRow : FormRow, IFormFocusTarget, IFormCurs
 
     internal override void Render(FormRowRenderContext context)
     {
-        context.Canvas.FillRegion(context.Bounds, FarDialogStyles.Fill);
+        context.Canvas.FillRegion(context.Bounds, DialogStyles.Fill);
         (int labelWidth, FormGridLayout layout) = CalculateLayout(context.Bounds);
-        CellStyle style = DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill);
+        CellStyle style = DisabledFormControlPresentation.Style(Enabled, DialogStyles.Fill);
         for (int column = 0; column < _columns.Length; column++)
         {
             if (layout.TryGetCell(new FormGridPosition(column, 0), out FormGridCell header))
@@ -74,7 +74,7 @@ public sealed class TriStateMatrixFormRow : FormRow, IFormFocusTarget, IFormCurs
                     continue;
                 char marker = _values[row, column] switch { CheckState.Checked => 'x', CheckState.Indeterminate => '-', _ => ' ' };
                 context.Canvas.Write(cell.Bounds.X, context.Bounds.Y + row + 1, ScrollableFormDialog.Fit($"[{marker}]", cell.Bounds.Width),
-                    context.Focused && Enabled && current == new FormGridPosition(column, row) ? FarDialogStyles.FocusedInput : style);
+                    context.Focused && Enabled && current == new FormGridPosition(column, row) ? DialogStyles.FocusedInput : style);
             }
         }
     }

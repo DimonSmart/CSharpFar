@@ -57,7 +57,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormFocusTarget, IFormCu
             context.Bounds.X,
             context.Bounds.Y,
             ScrollableFormDialog.Fit(!Enabled ? DisabledFormControlPresentation.WithReason(_label, DisabledReason) : _label, labelWidth),
-            DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill));
+            DisabledFormControlPresentation.Style(Enabled, DialogStyles.Fill));
 
         _field.Render(context, layout.InputBounds);
 
@@ -69,9 +69,9 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormFocusTarget, IFormCu
                 _buttonState,
                 context.Focused && Enabled,
                 Enabled ? null : new DialogButtonBarStyle(
-                    FarDialogStyles.DisabledControl(FarDialogStyles.Fill),
-                    FarDialogStyles.DisabledControl(FarDialogStyles.Fill),
-                    FarDialogStyles.DisabledControl(FarDialogStyles.Fill)));
+                    DialogStyles.DisabledControl(DialogStyles.Fill),
+                    DialogStyles.DisabledControl(DialogStyles.Fill),
+                    DialogStyles.DisabledControl(DialogStyles.Fill)));
         }
     }
 

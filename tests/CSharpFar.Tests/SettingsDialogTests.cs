@@ -117,9 +117,9 @@ public sealed class SettingsDialogTests
         {
             void ThrowDuringTemporaryScope()
             {
-                using (UiTheme.UseTemporary(PaletteRegistry.FarClassic))
+                using (UiTheme.UseTemporary(CSharpFarPaletteRegistry.FarClassic.Ui))
                 {
-                    Assert.Same(PaletteRegistry.FarClassic, UiTheme.Current);
+                    Assert.Same(CSharpFarPaletteRegistry.FarClassic.Ui, UiTheme.Current);
                     throw new InvalidOperationException("render failed");
                 }
             }
@@ -141,12 +141,12 @@ public sealed class SettingsDialogTests
         UiTheme.Initialize(PaletteRegistry.Default);
         try
         {
-            using (UiTheme.UseTemporary(PaletteRegistry.FarClassic))
+            using (UiTheme.UseTemporary(CSharpFarPaletteRegistry.FarClassic.Ui))
             {
-                Assert.Same(PaletteRegistry.FarClassic, UiTheme.Current);
+                Assert.Same(CSharpFarPaletteRegistry.FarClassic.Ui, UiTheme.Current);
                 using (UiTheme.UseTemporary(PaletteRegistry.Default))
                     Assert.Same(PaletteRegistry.Default, UiTheme.Current);
-                Assert.Same(PaletteRegistry.FarClassic, UiTheme.Current);
+                Assert.Same(CSharpFarPaletteRegistry.FarClassic.Ui, UiTheme.Current);
             }
 
             Assert.Same(PaletteRegistry.Default, UiTheme.Current);

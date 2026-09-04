@@ -53,7 +53,7 @@ public sealed class ModalFormHostTests
         var driver = new FakeConsoleDriver();
         driver.EnqueueKey(Key(ConsoleKey.Escape));
         var host = new ModalFormHost(ModalTestHost.Create(driver));
-        var form = new ScrollableFormDialog([new LabelRow("Value", FarDialogStyles.Fill)]);
+        var form = new ScrollableFormDialog([new LabelRow("Value", DialogStyles.Fill)]);
         FormInputResult handled = FormInputResult.NotHandled;
         ScrollableFormFrame? frame = null;
 
@@ -83,7 +83,7 @@ public sealed class ModalFormHostTests
         Rect expectedContent = default;
 
         host.Run(
-            new ScrollableFormDialog([new LabelRow("Value", FarDialogStyles.Fill)]),
+            new ScrollableFormDialog([new LabelRow("Value", DialogStyles.Fill)]),
             Options,
             layout =>
             {
@@ -143,16 +143,16 @@ public sealed class ModalFormHostTests
         var driver = new FakeConsoleDriver();
         driver.EnqueueKey(Key(ConsoleKey.Escape));
         var host = new ModalFormHost(ModalTestHost.Create(driver));
-        var outer = FarDialogStyles.OuterOptions with
+        var outer = DialogStyles.OuterOptions with
         {
             DrawBorder = false,
             DrawShadow = false,
             BackgroundStyle = new CellStyle(ConsoleColor.Red, ConsoleColor.DarkRed),
         };
-        var frame = FarDialogStyles.FrameOptions with { DrawBorder = false, DrawShadow = false };
+        var frame = DialogStyles.FrameOptions with { DrawBorder = false, DrawShadow = false };
 
         host.Run(
-            new ScrollableFormDialog([new LabelRow("Value", FarDialogStyles.Fill)]),
+            new ScrollableFormDialog([new LabelRow("Value", DialogStyles.Fill)]),
             Options with { OuterRenderOptions = outer, FrameRenderOptions = frame },
             Layout,
             (_, input) => ModalDialogLoopResult<object?>.Complete(null));

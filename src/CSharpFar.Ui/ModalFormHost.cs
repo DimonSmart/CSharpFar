@@ -206,13 +206,13 @@ public sealed class ModalFormHost
             layout,
             options.Title,
             options.DoubleBorder,
-            options.OuterRenderOptions ?? FarDialogStyles.OuterOptions,
-            options.FrameRenderOptions ?? FarDialogStyles.FrameOptions,
+            options.OuterRenderOptions ?? DialogStyles.OuterOptions,
+            options.FrameRenderOptions ?? DialogStyles.FrameOptions,
             (_, modalLayout) =>
             {
                 ModalFormLayout formLayout = InsetHorizontally(calculateLayout(modalLayout));
                 frame = form.Render(
-                    new FormRenderContext(context, formLayout.BodyBounds, FarDialogStyles.Border, formLayout.FooterBounds),
+                    new FormRenderContext(context, formLayout.BodyBounds, DialogStyles.Border, formLayout.FooterBounds),
                     focusScope);
             });
 

@@ -2,20 +2,20 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
 
-public readonly record struct FormGridPosition(int Column, int Row);
+internal readonly record struct FormGridPosition(int Column, int Row);
 
-public readonly record struct FormGridCell(int Column, int Row, Rect Bounds)
+internal readonly record struct FormGridCell(int Column, int Row, Rect Bounds)
 {
     public FormGridPosition Position => new(Column, Row);
 }
 
-public enum FormGridTraversalOrder
+internal enum FormGridTraversalOrder
 {
     RowMajor,
     ColumnMajor,
 }
 
-public sealed class FormGridShape
+internal sealed class FormGridShape
 {
     private readonly IReadOnlyList<FormGridPosition> _positions;
 
@@ -41,7 +41,7 @@ public sealed class FormGridShape
 }
 
 /// <summary>Immutable geometry for the small, form-owned grids used by CSharpFar.</summary>
-public sealed class FormGridLayout
+internal sealed class FormGridLayout
 {
     private readonly IReadOnlyList<FormGridCell> _cells;
 
@@ -118,7 +118,7 @@ public sealed class FormGridLayout
 }
 
 /// <summary>Mutable focus state; all navigation is calculated from the current grid and enabled predicate.</summary>
-public sealed class FormGridNavigationState
+internal sealed class FormGridNavigationState
 {
     public FormGridPosition? Current { get; private set; }
 

@@ -139,7 +139,7 @@ public sealed class Spec007ScrollbarTests
 
         UiTestRender.Render(screen, canvas =>
         {
-            var renderer = new PanelRenderer(canvas, PaletteRegistry.Default);
+            var renderer = new PanelRenderer(canvas, CSharpFarPaletteRegistry.Default);
             renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
         });
 
@@ -164,7 +164,7 @@ public sealed class Spec007ScrollbarTests
 
         UiTestRender.Render(screen, canvas =>
         {
-            var renderer = new BriefTwoColumnsPanelRenderer(canvas, PaletteRegistry.Default);
+            var renderer = new BriefTwoColumnsPanelRenderer(canvas, CSharpFarPaletteRegistry.Default);
             renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
         });
 
@@ -186,7 +186,7 @@ public sealed class Spec007ScrollbarTests
 
         UiTestRender.Render(screen, canvas =>
         {
-            var renderer = new PanelRenderer(canvas, PaletteRegistry.Default);
+            var renderer = new PanelRenderer(canvas, CSharpFarPaletteRegistry.Default);
             renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
         });
 

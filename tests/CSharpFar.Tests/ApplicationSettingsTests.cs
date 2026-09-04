@@ -129,7 +129,7 @@ public sealed class ApplicationSettingsTests : IDisposable
     {
         var driver = new FakeConsoleDriver(width: 20, height: 5);
         var renderer = new ClockRenderer(
-            () => PaletteRegistry.Default,
+            () => CSharpFarPaletteRegistry.Default,
             () => new DateTime(2026, 7, 27, 9, 7, 0));
         ApplicationClockFrame? frame = null;
 
@@ -143,8 +143,8 @@ public sealed class ApplicationSettingsTests : IDisposable
             if (cell.Character == ' ')
                 continue;
 
-            Assert.Equal(PaletteRegistry.Default.PanelPathActiveFg, cell.Foreground);
-            Assert.Equal(PaletteRegistry.Default.PanelPathActiveBg, cell.Background);
+            Assert.Equal(CSharpFarPaletteRegistry.Default.PanelPathActiveFg, cell.Foreground);
+            Assert.Equal(CSharpFarPaletteRegistry.Default.PanelPathActiveBg, cell.Background);
         }
     }
 

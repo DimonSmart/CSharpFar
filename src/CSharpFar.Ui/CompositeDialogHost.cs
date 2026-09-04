@@ -152,14 +152,14 @@ public sealed class CompositeDialogHost
             modal,
             options.Title,
             options.DoubleBorder,
-            popup is null ? FarDialogStyles.OuterOptions : popup with { DrawBorder = false },
-            popup is null ? FarDialogStyles.FrameOptions : popup with { DrawShadow = false },
+            popup is null ? DialogStyles.OuterOptions : popup with { DrawBorder = false },
+            popup is null ? DialogStyles.FrameOptions : popup with { DrawShadow = false },
             (_, _) =>
             {
-                formFrame = form.Render(new FormRenderContext(context, header, FarDialogStyles.Border, footer), focus);
+                formFrame = form.Render(new FormRenderContext(context, header, DialogStyles.Border, footer), focus);
                 content.Render(context.Canvas, contentFrame);
                 if (statusBounds.Height > 0)
-                    context.Canvas.Write(statusBounds.X, statusBounds.Y, ConsoleTextMetrics.FitToCells(status?.Invoke() ?? string.Empty, statusBounds.Width), FarDialogStyles.Fill);
+                    context.Canvas.Write(statusBounds.X, statusBounds.Y, ConsoleTextMetrics.FitToCells(status?.Invoke() ?? string.Empty, statusBounds.Width), DialogStyles.Fill);
             });
         return new(modal, formFrame, contentFrame);
     }

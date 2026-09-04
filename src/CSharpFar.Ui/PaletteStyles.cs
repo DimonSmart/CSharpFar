@@ -4,9 +4,6 @@ namespace CSharpFar.Ui;
 
 public static class PaletteStyles
 {
-    public static CellStyle PathHeaderActive(ConsolePalette palette) =>
-        new(palette.PanelPathActiveFg, palette.PanelPathActiveBg);
-
     public static CellStyle DialogFill(ConsolePalette palette) =>
         new(palette.MenuNormalFg, palette.MenuNormalBg);
 
@@ -40,20 +37,14 @@ public static class PaletteStyles
             TitleStyle = DialogTitle(palette),
         };
 
-    public static CellStyle CommandLine(ConsolePalette palette) =>
-        new(palette.CommandLineFg, palette.CommandLineBg);
-
     public static CellStyle KeyBarNum(ConsolePalette palette) =>
         new(palette.FunctionKeyNumFg, palette.FunctionKeyNumBg);
 
     public static CellStyle KeyBarLabel(ConsolePalette palette) =>
         new(palette.FunctionKeyTextFg, palette.FunctionKeyBarBg);
 
-    public static CellStyle DirectoryShortcutBarNumber(ConsolePalette palette) =>
-        new(palette.DirectoryShortcutBarNumberFg, palette.DirectoryShortcutBarNumberBg);
-
-    public static CellStyle DirectoryShortcutBarLabel(ConsolePalette palette) =>
-        new(palette.DirectoryShortcutBarTextFg, palette.DirectoryShortcutBarBg);
+    public static CellStyle KeyBarGap(ConsolePalette palette) =>
+        new(palette.FunctionKeyGapFg, palette.FunctionKeyGapBg);
 
     public static CellStyle HelpBody(ConsolePalette palette) =>
         new(palette.HelpBodyFg, palette.HelpBodyBg);
@@ -67,12 +58,4 @@ public static class PaletteStyles
     public static CellStyle HelpSeparator(ConsolePalette palette) =>
         new(palette.HelpSeparatorFg, palette.HelpSeparatorBg);
 
-    public static CellStyle FileUsageNormal(ConsolePalette palette) => new(palette.FileUsageNormalFg, palette.PanelBackground);
-    public static CellStyle FileUsageSecondary(ConsolePalette palette) => new(palette.FileUsageSecondaryFg, palette.PanelBackground);
-    public static CellStyle FileUsageBlocked(ConsolePalette palette) => new(palette.FileUsageBlockedFg, palette.PanelBackground, TextAttributes.Bold);
-    public static CellStyle FileUsageReasonHeading(ConsolePalette palette) => new(palette.FileUsageReasonHeadingFg, palette.PanelBackground, TextAttributes.Bold);
-    public static CellStyle FileUsageReasonText(ConsolePalette palette) => new(palette.FileUsageReasonTextFg, palette.PanelBackground);
-    public static CellStyle FileUsageSelectedOwner(ConsolePalette palette) => new(palette.FileUsageSelectedOwnerFg, palette.FileUsageSelectedOwnerBg);
-    public static CellStyle FileUsageActionKey(ConsolePalette palette) => new(palette.FileUsageActionKeyFg, palette.FileUsageActionKeyBg);
-    public static CellStyle FileUsageActionLabel(ConsolePalette palette) => new(palette.FileUsageActionLabelFg, palette.FileUsageActionBarBg);
 }

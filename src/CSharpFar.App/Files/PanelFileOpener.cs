@@ -8,14 +8,14 @@ internal sealed class PanelFileOpener
 {
     private readonly IFileLauncher _fileLauncher;
     private readonly DialogService _dialogs;
-    private readonly Func<ConsolePalette> _palette;
+    private readonly Func<CSharpFarPalette> _palette;
     private readonly Action<FilePanelState, FilePanelItem> _viewPanelFile;
     private readonly Action<string, string, Action> _executeInCurrentConsole;
 
     public PanelFileOpener(
         IFileLauncher fileLauncher,
         DialogService dialogs,
-        Func<ConsolePalette> palette,
+        Func<CSharpFarPalette> palette,
         Action<FilePanelState, FilePanelItem> viewPanelFile,
         Action<string, string, Action> executeInCurrentConsole)
     {

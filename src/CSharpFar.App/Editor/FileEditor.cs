@@ -21,7 +21,7 @@ internal sealed partial class FileEditor
     private readonly ModalDialogHost _modalDialogs;
     private readonly DialogService _dialogs;
     private readonly InteractiveSurfaceHost _surfaces;
-    private readonly ConsolePalette _palette;
+    private readonly CSharpFarPalette _palette;
     private readonly AppSettings.EditorSettings _settings;
     private readonly EditorFileService _fileService;
     private readonly ITextClipboard _clipboard;
@@ -41,7 +41,7 @@ internal sealed partial class FileEditor
         InteractiveSurfaceHost surfaces,
         ModalDialogHost modalDialogs,
         DialogService dialogs,
-        ConsolePalette? palette,
+        CSharpFarPalette? palette,
         AppSettings.EditorSettings? settings,
         ITextClipboard? clipboard,
         FormFieldFactory fields,
@@ -53,7 +53,7 @@ internal sealed partial class FileEditor
         _surfaces = surfaces ?? throw new ArgumentNullException(nameof(surfaces));
         _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
-        _palette = palette ?? PaletteRegistry.Default;
+        _palette = palette ?? CSharpFarPaletteRegistry.Default;
         _settings = settings ?? new AppSettings.EditorSettings();
         _fileService = new EditorFileService(_settings);
         _clipboard = clipboard ?? TextCopyTextClipboard.Instance;
@@ -1019,7 +1019,7 @@ internal sealed partial class FileEditor
         int rightWidth = ConsoleTextMetrics.GetCellWidth(right);
         int leftWidth = Math.Max(0, size.Width - rightWidth);
         string fittedRight = ConsoleTextMetrics.TruncateToCells(right, Math.Max(0, size.Width - leftWidth));
-        canvas.Write(0, 0, Fit(left, leftWidth) + fittedRight, PaletteStyles.PathHeaderActive(_palette));
+        canvas.Write(0, 0, Fit(left, leftWidth) + fittedRight, CSharpFarPaletteStyles.PathHeaderActive(_palette));
     }
 
     private EditorSyntaxHighlightResult ResolveSyntaxHighlighting(EditorSession session, int contentHeight, int topLine)
@@ -1081,7 +1081,7 @@ internal sealed partial class FileEditor
                 bounds,
                 scrollState,
                 new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false },
-                PaletteStyles.DialogBorder(_palette));
+                CSharpFarPaletteStyles.DialogBorder(_palette));
         }
     }
 
@@ -1116,7 +1116,7 @@ internal sealed partial class FileEditor
             session.UndoHistory.CanUndo,
             session.UndoHistory.CanRedo,
             session.SyntaxDiagnostics.StatusText);
-        canvas.Write(0, y, Fit(status, size.Width), PaletteStyles.CommandLine(_palette));
+        canvas.Write(0, y, Fit(status, size.Width), CSharpFarPaletteStyles.CommandLine(_palette));
     }
 
     private static string FormatStatus(

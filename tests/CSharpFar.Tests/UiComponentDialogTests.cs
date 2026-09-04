@@ -453,8 +453,8 @@ public sealed class UiComponentDialogTests
         Assert.Null(down.ButtonId);
 
         UiTestRender.Render(screen, canvas => buttonBar.Render(canvas, layout, down.State, isFocused: true));
-        Assert.Equal(FarDialogStyles.PressedButton.Foreground, driver.GetCell(x, 1).Foreground);
-        Assert.Equal(FarDialogStyles.PressedButton.Background, driver.GetCell(x, 1).Background);
+        Assert.Equal(DialogStyles.PressedButton.Foreground, driver.GetCell(x, 1).Foreground);
+        Assert.Equal(DialogStyles.PressedButton.Background, driver.GetCell(x, 1).Background);
 
         DialogButtonBarInputResult moveOutside = buttonBar.HandleMouse(UiTestInput.Mouse(39, 7, MouseEventKind.Move), layout, down.State);
         Assert.Null(moveOutside.State.PressedButtonIndex);

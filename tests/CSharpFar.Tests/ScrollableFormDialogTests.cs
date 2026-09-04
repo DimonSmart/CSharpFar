@@ -53,14 +53,14 @@ public sealed class ScrollableFormDialogTests
         var history = TextFieldHistoryTestProvider.CreateState(["saved"]);
         var form = new ScrollableFormDialog([
             new TextInputRow(new CommandLineState(), history) { Id = "input" },
-            new LabelRow("second", FarDialogStyles.Fill),
+            new LabelRow("second", DialogStyles.Fill),
         ]);
         var driver = new FakeConsoleDriver(20, 4);
         var screen = new ScreenRenderer(driver);
         var layer = new TestFormLayer(
             screen,
             form,
-            context => new FormRenderContext(context, new Rect(0, 0, 20, 1), FarDialogStyles.Border));
+            context => new FormRenderContext(context, new Rect(0, 0, 20, 1), DialogStyles.Border));
         UiTestHost.Create(screen, layer).Composition.Render();
 
         FormTargetFrame row = Assert.Single(layer.CommittedFrame.Targets, target => target.Target == FormTargetIds.ForExplicitRow("input"));
@@ -74,7 +74,7 @@ public sealed class ScrollableFormDialogTests
     public void FocusedRowId_ReturnsCurrentFocusableRowId()
     {
         var form = new ScrollableFormDialog([
-            new LabelRow("label", FarDialogStyles.Fill),
+            new LabelRow("label", DialogStyles.Fill),
             new TextInputRow(new CommandLineState()) { Id = "first" },
             new CheckBoxRow(new CheckBoxLine("second")) { Id = "second" },
         ]);
@@ -107,7 +107,7 @@ public sealed class ScrollableFormDialogTests
     {
         var form = new ScrollableFormDialog([
             new CheckBoxRow(new CheckBoxLine("first")) { Id = "first" },
-            new LabelRow("label", FarDialogStyles.Fill),
+            new LabelRow("label", DialogStyles.Fill),
             new CheckBoxRow(new CheckBoxLine("target")) { Id = "target" },
         ]);
         Render(form, visibleRows: 1);
@@ -135,7 +135,7 @@ public sealed class ScrollableFormDialogTests
         var layer = new TestFormLayer(
             screen,
             form,
-            context => new FormRenderContext(context, new Rect(0, 0, 20, 2), FarDialogStyles.Border));
+            context => new FormRenderContext(context, new Rect(0, 0, 20, 2), DialogStyles.Border));
         UiTestHost.Create(screen, layer).Composition.Render();
 
         FormTargetFrame target = Assert.Single(layer.CommittedFrame.Targets, target => target.Target == FormTargetIds.ForExplicitRow("last"));
@@ -192,7 +192,7 @@ public sealed class ScrollableFormDialogTests
         var layer = new TestFormLayer(
             screen,
             form,
-            context => new FormRenderContext(context, new Rect(0, 0, 20, 2), FarDialogStyles.Border));
+            context => new FormRenderContext(context, new Rect(0, 0, 20, 2), DialogStyles.Border));
 
         UiTestHost.Create(screen, layer).Composition.Render();
 
@@ -244,7 +244,7 @@ public sealed class ScrollableFormDialogTests
     public void InitialFocus_UsesFirstFocusableRow()
     {
         var form = new ScrollableFormDialog([
-            new LabelRow("label", FarDialogStyles.Fill),
+            new LabelRow("label", DialogStyles.Fill),
             new CheckBoxRow(new CheckBoxLine("one")),
             new CheckBoxRow(new CheckBoxLine("two")),
         ]);
@@ -258,7 +258,7 @@ public sealed class ScrollableFormDialogTests
     public void RenderFrame_PublishesFocusEntriesHitRegionsAndScrollbarTarget()
     {
         var form = new ScrollableFormDialog([
-            new LabelRow("label", FarDialogStyles.Fill) { Id = "label" },
+            new LabelRow("label", DialogStyles.Fill) { Id = "label" },
             new TextInputRow(new CommandLineState()) { Id = "first" },
             new CheckBoxRow(new CheckBoxLine("second")) { Id = "second" },
             new CheckBoxRow(new CheckBoxLine("third")) { Id = "third" },
@@ -323,7 +323,7 @@ public sealed class ScrollableFormDialogTests
     {
         var form = new ScrollableFormDialog([
             new CheckBoxRow(new CheckBoxLine("one")),
-            new LabelRow("label", FarDialogStyles.Fill),
+            new LabelRow("label", DialogStyles.Fill),
             new CheckBoxRow(new CheckBoxLine("two")),
         ]);
         Render(form, visibleRows: 3);
@@ -534,7 +534,7 @@ public sealed class ScrollableFormDialogTests
     {
         var form = new ScrollableFormDialog([
             new CheckBoxRow(new CheckBoxLine("one")),
-            new LabelRow("label", FarDialogStyles.Fill),
+            new LabelRow("label", DialogStyles.Fill),
         ]);
         Render(form, visibleRows: 2);
 
@@ -905,7 +905,7 @@ public sealed class ScrollableFormDialogTests
         var form = new ScrollableFormDialog([disabled, new CheckBoxRow(new CheckBoxLine("enabled")) { Id = "enabled" }]);
         var driver = new FakeConsoleDriver(20, 5);
         var screen = new ScreenRenderer(driver);
-        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 2), FarDialogStyles.Border));
+        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 2), DialogStyles.Border));
         var host = UiTestHost.Create(screen, layer);
         host.Composition.Render();
         ScrollableFormFrame frame = layer.CommittedFrame;
@@ -1245,17 +1245,17 @@ public sealed class ScrollableFormDialogTests
         Assert.True(history.OpenAll(availableContentRows: 3));
         var form = new ScrollableFormDialog([
             new TextInputRow(new CommandLineState(), history) { Id = "pattern" },
-            new LabelRow("two", FarDialogStyles.Fill),
-            new LabelRow("three", FarDialogStyles.Fill),
-            new LabelRow("four", FarDialogStyles.Fill),
-            new LabelRow("five", FarDialogStyles.Fill),
+            new LabelRow("two", DialogStyles.Fill),
+            new LabelRow("three", DialogStyles.Fill),
+            new LabelRow("four", DialogStyles.Fill),
+            new LabelRow("five", DialogStyles.Fill),
         ]);
         var driver = new FakeConsoleDriver(20, 8);
         var screen = new ScreenRenderer(driver);
         var layer = new TestFormLayer(
             screen,
             form,
-            context => new FormRenderContext(context, new Rect(0, 0, 20, 2), FarDialogStyles.Border));
+            context => new FormRenderContext(context, new Rect(0, 0, 20, 2), DialogStyles.Border));
         var host = UiTestHost.Create(screen, layer);
         host.Composition.Render();
 
@@ -1307,11 +1307,11 @@ public sealed class ScrollableFormDialogTests
         Assert.True(SingleLineTextInput.TryOpenHistoryDropdown(history, fieldY: 0, screenHeight: 8));
         var form = new ScrollableFormDialog([
             new TextInputRow(new CommandLineState(), history) { Id = "pattern" },
-            new LabelRow("covered", FarDialogStyles.Fill) { Id = "covered" },
-            new LabelRow("covered", FarDialogStyles.Fill),
-            new LabelRow("covered", FarDialogStyles.Fill),
-            new LabelRow("covered", FarDialogStyles.Fill),
-            new LabelRow("label", FarDialogStyles.Fill) { Id = "label" },
+            new LabelRow("covered", DialogStyles.Fill) { Id = "covered" },
+            new LabelRow("covered", DialogStyles.Fill),
+            new LabelRow("covered", DialogStyles.Fill),
+            new LabelRow("covered", DialogStyles.Fill),
+            new LabelRow("label", DialogStyles.Fill) { Id = "label" },
         ]);
         var driver = new FakeConsoleDriver(20, 12);
         var host = CreateRoutedFormHost(form, driver, visibleRows: 6);
@@ -1338,7 +1338,7 @@ public sealed class ScrollableFormDialogTests
         ]);
         var driver = new FakeConsoleDriver(20, 10);
         var screen = new ScreenRenderer(driver);
-        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 4), FarDialogStyles.Border));
+        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 4), DialogStyles.Border));
         var host = UiTestHost.Create(screen, layer);
         host.Composition.Render();
         FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.HistoryDropdown);
@@ -1379,7 +1379,7 @@ public sealed class ScrollableFormDialogTests
         ]);
         var driver = new FakeConsoleDriver(20, 10);
         var screen = new ScreenRenderer(driver);
-        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 3), FarDialogStyles.Border));
+        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 3), DialogStyles.Border));
         var host = UiTestHost.Create(screen, layer);
         host.Composition.Render();
         FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.HistoryScrollbar);
@@ -1434,11 +1434,11 @@ public sealed class ScrollableFormDialogTests
         text.SetText(history.Matches[0]);
         var form = new ScrollableFormDialog([
             new TextInputRow(text, history) { Id = "pattern" },
-            new LabelRow("outside", FarDialogStyles.Fill),
+            new LabelRow("outside", DialogStyles.Fill),
         ]);
         var driver = new FakeConsoleDriver(20, 10);
         var screen = new ScreenRenderer(driver);
-        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 2), FarDialogStyles.Border));
+        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 2), DialogStyles.Border));
         var host = UiTestHost.Create(screen, layer);
         host.Composition.Render();
         FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.HistoryDropdown);
@@ -1923,7 +1923,7 @@ public sealed class ScrollableFormDialogTests
         var form = LongForm();
         var driver = new FakeConsoleDriver(20, 8);
         var screen = new ScreenRenderer(driver);
-        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 4), FarDialogStyles.Border));
+        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 4), DialogStyles.Border));
         var host = UiTestHost.Create(screen, layer);
         host.Composition.Render();
         FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.BodyScrollbar);
@@ -1948,7 +1948,7 @@ public sealed class ScrollableFormDialogTests
         var form = new ScrollableFormDialog([new TextInputRow(new CommandLineState(), history) { Id = "pattern" }]);
         var driver = new FakeConsoleDriver(20, 10);
         var screen = new ScreenRenderer(driver);
-        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 1), FarDialogStyles.Border));
+        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 1), DialogStyles.Border));
         var host = UiTestHost.Create(screen, layer);
         host.Composition.Render();
         FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.HistoryScrollbar);
@@ -1971,7 +1971,7 @@ public sealed class ScrollableFormDialogTests
         var form = new ScrollableFormDialog([new LabeledTextInputRow("Value:", new CommandLineState(), history, inputWidth: 20) { Id = "pattern" }]);
         var driver = new FakeConsoleDriver(20, 10);
         var screen = new ScreenRenderer(driver);
-        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 1), FarDialogStyles.Border));
+        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 1), DialogStyles.Border));
         var host = UiTestHost.Create(screen, layer);
         host.Composition.Render();
         FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.HistoryScrollbar);
@@ -2115,7 +2115,7 @@ public sealed class ScrollableFormDialogTests
             context => new FormRenderContext(
                 context,
                 new Rect(0, 0, 20, visibleRows),
-                FarDialogStyles.Border));
+                DialogStyles.Border));
         var host = UiTestHost.Create(screen, layer);
         RegisterHarness(form, host, layer);
         host.Composition.Render();
@@ -2131,7 +2131,7 @@ public sealed class ScrollableFormDialogTests
             context => new FormRenderContext(
                 context,
                 new Rect(0, 0, 20, visibleRows),
-                FarDialogStyles.Border));
+                DialogStyles.Border));
         var host = UiTestHost.Create(screen, layer);
         RegisterHarness(form, host, layer);
         host.Composition.Render();
@@ -2153,7 +2153,7 @@ public sealed class ScrollableFormDialogTests
             context => new FormRenderContext(
                 context,
                 new Rect(0, 0, 20, bodyRows),
-                FarDialogStyles.Border,
+                DialogStyles.Border,
                 new Rect(0, footerY, 20, 1)));
         var host = UiTestHost.Create(screen, layer);
         RegisterHarness(form, host, layer);
@@ -2174,7 +2174,7 @@ public sealed class ScrollableFormDialogTests
             context => new FormRenderContext(
                 context,
                 new Rect(0, 0, 20, visibleRows),
-                FarDialogStyles.Border));
+                DialogStyles.Border));
         var host = UiTestHost.Create(screen, layer);
         RegisterHarness(form, host, layer);
         return (host, layer);
@@ -2193,7 +2193,7 @@ public sealed class ScrollableFormDialogTests
             context => new FormRenderContext(
                 context,
                 new Rect(0, 0, 24, bodyRows),
-                FarDialogStyles.Border,
+                DialogStyles.Border,
                 new Rect(0, footerY, 24, 1)));
         var host = UiTestHost.Create(screen, layer);
         RegisterHarness(form, host, layer);
@@ -2320,7 +2320,7 @@ public sealed class ScrollableFormDialogTests
         internal override void Render(FormRowRenderContext context)
         {
             RenderedFocused = context.Focused;
-            context.Canvas.Write(context.Bounds.X, context.Bounds.Y, "row", FarDialogStyles.Fill);
+            context.Canvas.Write(context.Bounds.X, context.Bounds.Y, "row", DialogStyles.Fill);
         }
 
         internal override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context) =>

@@ -96,7 +96,7 @@ internal sealed class ShowcaseWorkflows
         {
             var frame = (Frame)raw;
             PullProgress value = state();
-            canvas.FillRegion(frame.Bounds, FarDialogStyles.Fill);
+            canvas.FillRegion(frame.Bounds, DialogStyles.Fill);
             Write(canvas, frame.Bounds, 0, value.Cancelling ? "Stopping fake pull safely…" : value.Stage);
             int barWidth = Math.Max(0, frame.Bounds.Width - 2);
             int filled = barWidth * value.Percent / 100;
@@ -108,7 +108,7 @@ internal sealed class ShowcaseWorkflows
         public void ApplyCommittedFrame(ICompositeDialogContentFrame frame) { }
         private static void Write(IUiCanvas canvas, Rect bounds, int row, string text)
         {
-            if (row < bounds.Height) canvas.Write(bounds.X, bounds.Y + row, ConsoleTextMetrics.FitToCells(text, bounds.Width), FarDialogStyles.Fill);
+            if (row < bounds.Height) canvas.Write(bounds.X, bounds.Y + row, ConsoleTextMetrics.FitToCells(text, bounds.Width), DialogStyles.Fill);
         }
         private sealed record Frame(Rect Bounds) : ICompositeDialogContentFrame;
     }

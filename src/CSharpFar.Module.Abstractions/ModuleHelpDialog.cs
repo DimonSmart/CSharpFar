@@ -1,10 +1,11 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
+using CSharpFar.Ui;
 
-namespace CSharpFar.Ui;
+namespace CSharpFar.Module.Abstractions;
 
-public sealed class ModuleHelpDialog
+internal sealed class ModuleHelpDialog
 {
     private static readonly UiTargetScope Targets = new("module-help");
     private static readonly UiTargetId HelpTarget = Targets.Root;
@@ -19,7 +20,7 @@ public sealed class ModuleHelpDialog
     {
         ArgumentNullException.ThrowIfNull(lines);
         var viewport = new RoutedScrollableViewport(ContentTarget, ScrollbarTarget);
-        _modalDialogs.RunInteractive<ModuleHelpFrame, ConsoleInputEvent, Unit>(
+        _modalDialogs.RunInteractive<ModuleHelpFrame, ConsoleInputEvent, bool>(
             (context, _) =>
             {
                 ModuleHelpFrame frame = CalculateFrame(context.Size, lines.Count, viewport);
@@ -31,8 +32,8 @@ public sealed class ModuleHelpDialog
             (routed, input) =>
             {
                 if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape or ConsoleKey.F1 or ConsoleKey.F10 })
-                    return ModalDialogLoopResult<Unit>.Complete(default);
-                return ModalDialogLoopResult<Unit>.ContinueNoChange;
+                    return ModalDialogLoopResult<bool>.Complete(false);
+                return ModalDialogLoopResult<bool>.ContinueNoChange;
             },
             applyCommittedFrame: frame => viewport.ApplyCommittedFrame(frame.Viewport));
     }
@@ -69,7 +70,7 @@ public sealed class ModuleHelpDialog
     private static void Draw(IUiCanvas screen, string title, IReadOnlyList<string> lines, RoutedScrollableViewport viewport, ModuleHelpFrame frame)
     {
         var palette = UiTheme.Current;
-        var headerStyle = PaletteStyles.PathHeaderActive(palette);
+        var headerStyle = new CellStyle(palette.MenuBarNormalFg, palette.MenuBarNormalBg);
         string position = lines.Count == 0 ? " 0/0 " : $" {frame.Viewport.FirstVisibleIndex + 1}/{lines.Count} ";
         int titleWidth = Math.Max(0, frame.Size.Width - ConsoleTextMetrics.GetCellWidth(position));
         screen.Write(0, 0, ConsoleTextMetrics.FitToCells(" " + title + " ", titleWidth) + position, headerStyle);

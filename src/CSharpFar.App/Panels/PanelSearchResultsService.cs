@@ -15,7 +15,7 @@ internal sealed class PanelSearchResultsService
     private readonly ModalDialogHost _modalDialogs;
     private readonly DialogService _dialogs;
     private readonly ISearchService _searchService;
-    private readonly Func<ConsolePalette> _palette;
+    private readonly Func<CSharpFarPalette> _palette;
     private readonly PanelController _controller;
     private readonly IHistoryStore _history;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
@@ -30,7 +30,7 @@ internal sealed class PanelSearchResultsService
         ModalDialogHost modalDialogs,
         DialogService dialogs,
         ISearchService searchService,
-        Func<ConsolePalette> palette,
+        Func<CSharpFarPalette> palette,
         PanelController controller,
         IHistoryStore history,
         Func<AppSettingsAlias.PanelOptionsSettings> panelOptions,

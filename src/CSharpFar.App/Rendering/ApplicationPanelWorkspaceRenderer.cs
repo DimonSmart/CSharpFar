@@ -12,13 +12,13 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed class ApplicationPanelWorkspaceRenderer
 {
-    private readonly Func<ConsolePalette> _palette;
+    private readonly Func<CSharpFarPalette> _palette;
     private readonly PanelController _controller;
     private readonly Func<IFileHighlightService?> _highlightService;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
 
     public ApplicationPanelWorkspaceRenderer(
-        Func<ConsolePalette> palette,
+        Func<CSharpFarPalette> palette,
         PanelController controller,
         Func<IFileHighlightService?> highlightService,
         Func<AppSettingsAlias.PanelOptionsSettings> panelOptions)

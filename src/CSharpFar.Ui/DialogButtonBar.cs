@@ -89,7 +89,7 @@ internal sealed class DialogButtonBar
         DialogButtonBarStyle? style = null)
     {
         ArgumentNullException.ThrowIfNull(screen);
-        DialogButtonBarStyle buttonStyle = style ?? FarDialogStyles.ButtonBar;
+        DialogButtonBarStyle buttonStyle = style ?? DialogStyles.ButtonBar;
         screen.Write(
             layout.AreaBounds.X,
             layout.AreaBounds.Y,

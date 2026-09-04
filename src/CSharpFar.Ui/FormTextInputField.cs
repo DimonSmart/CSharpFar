@@ -34,8 +34,8 @@ internal sealed class FormTextInputField
 
     public void Render(FormRowRenderContext context, Rect bounds) =>
         SingleLineTextInput.Render(context.Canvas, bounds.X, bounds.Y, bounds.Width, _buffer,
-            Enabled && context.Focused ? FarDialogStyles.FocusedInput : DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Input),
-            DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Input), Enabled ? _history : null, maskInput: _maskInput, renderDropdown: false);
+            Enabled && context.Focused ? DialogStyles.FocusedInput : DisabledFormControlPresentation.Style(Enabled, DialogStyles.Input),
+            DisabledFormControlPresentation.Style(Enabled, DialogStyles.Input), Enabled ? _history : null, maskInput: _maskInput, renderDropdown: false);
 
     public bool TryGetCursor(FormRowRenderContext context, Rect bounds, out FormCursorPlacement cursor)
     {

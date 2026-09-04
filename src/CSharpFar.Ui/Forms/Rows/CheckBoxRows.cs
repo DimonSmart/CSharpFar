@@ -35,8 +35,8 @@ public sealed class CheckBoxRow : FormRow, IFormFocusTarget, IFormCursorProvider
     internal override void Render(FormRowRenderContext context)
     {
         CellStyle fill = Enabled
-            ? FarDialogStyles.Fill
-            : FarDialogStyles.DisabledControl(FarDialogStyles.Fill);
+            ? DialogStyles.Fill
+            : DialogStyles.DisabledControl(DialogStyles.Fill);
 
         _checkBox.Render(
             context.Canvas,
@@ -45,7 +45,7 @@ public sealed class CheckBoxRow : FormRow, IFormFocusTarget, IFormCursorProvider
             context.Bounds.Width,
             context.Focused && Enabled,
             fill,
-            FarDialogStyles.FocusedInput,
+            DialogStyles.FocusedInput,
             !Enabled ? DisabledFormControlPresentation.WithReason(_checkBox.Label, DisabledReason) : null);
     }
 
@@ -115,8 +115,8 @@ public sealed class TriStateCheckBoxRow : FormRow, IFormFocusTarget, IFormCursor
     internal override void Render(FormRowRenderContext context)
     {
         CellStyle fill = Enabled
-            ? FarDialogStyles.Fill
-            : FarDialogStyles.DisabledControl(FarDialogStyles.Fill);
+            ? DialogStyles.Fill
+            : DialogStyles.DisabledControl(DialogStyles.Fill);
         _checkBox.Render(
             context.Canvas,
             context.Bounds.X,
@@ -124,7 +124,7 @@ public sealed class TriStateCheckBoxRow : FormRow, IFormFocusTarget, IFormCursor
             context.Bounds.Width,
             context.Focused && Enabled,
             fill,
-            FarDialogStyles.FocusedInput,
+            DialogStyles.FocusedInput,
             !Enabled ? DisabledFormControlPresentation.WithReason(_checkBox.Label, DisabledReason) : null);
     }
 

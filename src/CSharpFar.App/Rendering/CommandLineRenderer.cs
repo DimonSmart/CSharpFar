@@ -11,11 +11,11 @@ internal sealed class CommandLineRenderer
     private readonly CellStyle _style;
     private readonly CellStyle _selectionStyle;
 
-    public CommandLineRenderer(IUiCanvas screen, ConsolePalette? palette = null)
+    public CommandLineRenderer(IUiCanvas screen, CSharpFarPalette? palette = null)
     {
         _screen = screen;
-        palette ??= PaletteRegistry.Default;
-        _style = PaletteStyles.CommandLine(palette);
+        palette ??= CSharpFarPaletteRegistry.Default;
+        _style = CSharpFarPaletteStyles.CommandLine(palette);
         _selectionStyle = new CellStyle(_style.Background, _style.Foreground);
     }
 

@@ -5,10 +5,10 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed class ClockRenderer
 {
-    private readonly Func<ConsolePalette> _palette;
+    private readonly Func<CSharpFarPalette> _palette;
     private readonly Func<DateTime> _now;
 
-    public ClockRenderer(Func<ConsolePalette> palette, Func<DateTime>? now = null)
+    public ClockRenderer(Func<CSharpFarPalette> palette, Func<DateTime>? now = null)
     {
         _palette = palette;
         _now = now ?? (() => DateTime.Now);

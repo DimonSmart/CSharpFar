@@ -17,9 +17,10 @@ public sealed class ExternalConsoleCommandRunnerTests
         var commandLine = new CommandLineState();
         commandLine.SetText("abc");
         commandLine.SelectAll();
-        var palette = new ConsolePalette
+        var palette = new CSharpFarPalette
         {
             Name = "Test",
+            Ui = PaletteRegistry.Default,
             CommandLineFg = ConsoleColor.Green,
             CommandLineBg = ConsoleColor.Magenta,
         };

@@ -48,7 +48,7 @@ public sealed record ScrollableFormFrame(
 
 public abstract record FormTargetFrame(UiTargetId Target, FormTargetKind Kind, Rect Bounds, Rect? HitBounds);
 
-public sealed record FormRowTargetFrame(
+internal sealed record FormRowTargetFrame(
     UiTargetId Target,
     FormRow Row,
     int RowIndex,
@@ -73,7 +73,7 @@ public sealed record FormBodyScrollbarTargetFrame : FormTargetFrame
     }
 }
 
-public sealed record FormCompositeChildTargetFrame : FormTargetFrame
+internal sealed record FormCompositeChildTargetFrame : FormTargetFrame
 {
     public FormCompositeChildTargetFrame(UiTargetId target, FormRowTargetFrame owner, FormCompositeFrame compositeFrame, FormCompositeTarget child)
         : base(target, child.Kind, child.Bounds, child.HitBounds ?? child.Bounds)

@@ -7,7 +7,7 @@ public static class FormFooter
     internal static FormRow Error(Func<string?> error)
     {
         ArgumentNullException.ThrowIfNull(error);
-        return new DynamicLabelRow(error, FarDialogStyles.Error);
+        return new DynamicLabelRow(error, DialogStyles.Error);
     }
 
     public static IReadOnlyList<FormRow> ErrorAndButtons(Func<string?> error, ButtonRow buttons)

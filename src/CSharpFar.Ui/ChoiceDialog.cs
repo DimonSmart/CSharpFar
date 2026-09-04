@@ -71,7 +71,7 @@ public sealed class ChoiceDialog
             layout.Bounds,
             options.Title,
             false,
-            FarDialogStyles.PopupOptions,
+            DialogStyles.PopupOptions,
             (_, contentBounds) =>
             {
                 int textX = contentBounds.X + 1;
@@ -83,14 +83,14 @@ public sealed class ChoiceDialog
                         textX,
                         contentBounds.Y + i,
                         Fit(line, textWidth),
-                        FarDialogStyles.Fill);
+                        DialogStyles.Fill);
                 }
 
                 frame = actions.Render(
                     new FormRenderContext(
                         context,
                         new Rect(textX, Math.Max(contentBounds.Y, layout.ButtonY - 1), textWidth, 1),
-                        FarDialogStyles.Border,
+                        DialogStyles.Border,
                         new Rect(textX, layout.ButtonY, textWidth, 1)),
                     focusScope);
             });

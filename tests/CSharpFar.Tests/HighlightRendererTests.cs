@@ -56,7 +56,7 @@ public class HighlightRendererTests
 
         UiTestRender.Render(screen, canvas =>
         {
-            var renderer = new PanelRenderer(canvas, PaletteRegistry.Default, svc);
+            var renderer = new PanelRenderer(canvas, CSharpFarPaletteRegistry.Default, svc);
             renderer.Render(bounds, state, isActive: true);
         });
 
@@ -73,7 +73,7 @@ public class HighlightRendererTests
 
         // Size cell (x = 1 + nameCol + 1) must use normal foreground (White = 15)
         var sizeCell = driver.GetCell(1 + nameCol + 1, fileRow);
-        Assert.Equal(PaletteRegistry.Default.NormalFileFg, sizeCell.Foreground);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.NormalFileFg, sizeCell.Foreground);
         Assert.NotEqual(ConsoleColor.Green, sizeCell.Foreground);
     }
 
@@ -88,13 +88,13 @@ public class HighlightRendererTests
 
         UiTestRender.Render(screen, canvas =>
         {
-            var renderer = new PanelRenderer(canvas, PaletteRegistry.Default);
+            var renderer = new PanelRenderer(canvas, CSharpFarPaletteRegistry.Default);
             renderer.Render(bounds, state, isActive: true);
         });
 
         // Without highlight, file name foreground is NormalFileFg
         var nameCell = driver.GetCell(1, bounds.Y + 1);
-        Assert.Equal(PaletteRegistry.Default.NormalFileFg, nameCell.Foreground);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.NormalFileFg, nameCell.Foreground);
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public class HighlightRendererTests
 
         UiTestRender.Render(screen, canvas =>
         {
-            var renderer = new PanelRenderer(canvas, PaletteRegistry.Default, svc);
+            var renderer = new PanelRenderer(canvas, CSharpFarPaletteRegistry.Default, svc);
             renderer.Render(bounds, state, isActive: true);
         });
 
@@ -128,7 +128,7 @@ public class HighlightRendererTests
 
         UiTestRender.Render(screen, canvas =>
         {
-            var renderer = new BriefTwoColumnsPanelRenderer(canvas, PaletteRegistry.Default, svc);
+            var renderer = new BriefTwoColumnsPanelRenderer(canvas, CSharpFarPaletteRegistry.Default, svc);
             renderer.Render(bounds, state, isActive: true);
         });
 
@@ -158,12 +158,12 @@ public class HighlightRendererTests
         // No highlight service
         UiTestRender.Render(screen, canvas =>
         {
-            var renderer = new BriefTwoColumnsPanelRenderer(canvas, PaletteRegistry.Default);
+            var renderer = new BriefTwoColumnsPanelRenderer(canvas, CSharpFarPaletteRegistry.Default);
             renderer.Render(bounds, state, isActive: true);
         });
 
         var nameCell = driver.GetCell(1, bounds.Y + 2);
-        Assert.Equal(PaletteRegistry.Default.NormalFileFg, nameCell.Foreground);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.NormalFileFg, nameCell.Foreground);
     }
 
     // ── Inactive panel – base background inherited ────────────────────────────
@@ -178,14 +178,14 @@ public class HighlightRendererTests
 
         UiTestRender.Render(screen, canvas =>
         {
-            var renderer = new PanelRenderer(canvas, PaletteRegistry.Default, svc);
+            var renderer = new PanelRenderer(canvas, CSharpFarPaletteRegistry.Default, svc);
             renderer.Render(bounds, state, isActive: false);
         });
 
         // Inactive panel, normal row: highlight fg=Green, bg inherited from fileStyle=PanelBackground
         var nameCell = driver.GetCell(1, bounds.Y + 1);
         Assert.Equal(ConsoleColor.Green, nameCell.Foreground);
-        Assert.Equal(PaletteRegistry.Default.PanelBackground, nameCell.Background);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.PanelBackground, nameCell.Background);
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public class HighlightRendererTests
 
         UiTestRender.Render(screen, canvas =>
         {
-            var renderer = new BriefTwoColumnsPanelRenderer(canvas, PaletteRegistry.Default, svc);
+            var renderer = new BriefTwoColumnsPanelRenderer(canvas, CSharpFarPaletteRegistry.Default, svc);
             renderer.Render(bounds, state, isActive: false);
         });
 
@@ -207,6 +207,6 @@ public class HighlightRendererTests
         // Highlight fg=Green, bg inherited from PanelBackground
         var nameCell = driver.GetCell(1, bounds.Y + 2);
         Assert.Equal(ConsoleColor.Green, nameCell.Foreground);
-        Assert.Equal(PaletteRegistry.Default.PanelBackground, nameCell.Background);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.PanelBackground, nameCell.Background);
     }
 }

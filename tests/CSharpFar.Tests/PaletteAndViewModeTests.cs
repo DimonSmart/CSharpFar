@@ -19,7 +19,7 @@ public class PaletteRegistryTests
     [InlineData("farclassic", "FarClassic")]
     public void Resolve_KnownPaletteName_ReturnsBuiltInPalette(string name, string expected)
     {
-        var palette = PaletteRegistry.Resolve(name);
+        var palette = CSharpFarPaletteRegistry.Resolve(name);
 
         Assert.Equal(expected, palette.Name);
     }
@@ -27,8 +27,8 @@ public class PaletteRegistryTests
     [Fact]
     public void Names_ContainsBuiltInPalettes()
     {
-        Assert.Contains("Default", PaletteRegistry.Names);
-        Assert.Contains("FarClassic", PaletteRegistry.Names);
+        Assert.Contains("Default", CSharpFarPaletteRegistry.Names);
+        Assert.Contains("FarClassic", CSharpFarPaletteRegistry.Names);
     }
 
     [Theory]
@@ -36,7 +36,7 @@ public class PaletteRegistryTests
     [InlineData("NoSuchPalette")]
     public void Resolve_MissingPaletteName_FallsBackToDefault(string? name)
     {
-        var palette = PaletteRegistry.Resolve(name);
+        var palette = CSharpFarPaletteRegistry.Resolve(name);
 
         Assert.Equal("Default", palette.Name);
     }
@@ -44,10 +44,10 @@ public class PaletteRegistryTests
     [Fact]
     public void FarClassic_HasDistinctSelectedColors()
     {
-        var fc = PaletteRegistry.FarClassic;
+        var fc = CSharpFarPaletteRegistry.FarClassic;
         // FarClassic selection = Black on Green (like Far Manager)
-        Assert.Equal(ConsoleColor.Black, fc.SelectedFg);
-        Assert.Equal(ConsoleColor.Green, fc.SelectedBg);
+        Assert.Equal(ConsoleColor.Black, fc.Ui.SelectedFg);
+        Assert.Equal(ConsoleColor.Green, fc.Ui.SelectedBg);
         Assert.Equal(ConsoleColor.Black, fc.CursorActiveFg);
         Assert.Equal(ConsoleColor.Green, fc.CursorActiveBg);
         Assert.Equal(ConsoleColor.DarkCyan, fc.PanelPathActiveBg);
@@ -56,41 +56,41 @@ public class PaletteRegistryTests
     [Fact]
     public void BuiltInPalettes_HaveFarLikeMenuWindowColors()
     {
-        foreach (var palette in PaletteRegistry.All)
+        foreach (var palette in CSharpFarPaletteRegistry.All)
         {
-            Assert.Equal(ConsoleColor.DarkCyan, palette.MenuBarNormalBg);
-            Assert.Equal(ConsoleColor.Black, palette.MenuBarActiveBg);
-            Assert.Equal(ConsoleColor.White, palette.MenuNormalFg);
-            Assert.Equal(ConsoleColor.DarkCyan, palette.MenuNormalBg);
-            Assert.Equal(ConsoleColor.White, palette.MenuActiveFg);
-            Assert.Equal(ConsoleColor.Black, palette.MenuActiveBg);
-            Assert.Equal(ConsoleColor.Yellow, palette.MenuHighlightFg);
-            Assert.Equal(ConsoleColor.DarkCyan, palette.MenuHighlightBg);
-            Assert.Equal(ConsoleColor.Yellow, palette.MenuActiveHighlightFg);
-            Assert.Equal(ConsoleColor.Black, palette.MenuActiveHighlightBg);
-            Assert.Equal(ConsoleColor.DarkGray, palette.MenuDisabledFg);
-            Assert.Equal(ConsoleColor.DarkCyan, palette.MenuDisabledBg);
-            Assert.Equal(ConsoleColor.White, palette.MenuBorderFg);
-            Assert.Equal(ConsoleColor.DarkCyan, palette.MenuBorderBg);
+            Assert.Equal(ConsoleColor.DarkCyan, palette.Ui.MenuBarNormalBg);
+            Assert.Equal(ConsoleColor.Black, palette.Ui.MenuBarActiveBg);
+            Assert.Equal(ConsoleColor.White, palette.Ui.MenuNormalFg);
+            Assert.Equal(ConsoleColor.DarkCyan, palette.Ui.MenuNormalBg);
+            Assert.Equal(ConsoleColor.White, palette.Ui.MenuActiveFg);
+            Assert.Equal(ConsoleColor.Black, palette.Ui.MenuActiveBg);
+            Assert.Equal(ConsoleColor.Yellow, palette.Ui.MenuHighlightFg);
+            Assert.Equal(ConsoleColor.DarkCyan, palette.Ui.MenuHighlightBg);
+            Assert.Equal(ConsoleColor.Yellow, palette.Ui.MenuActiveHighlightFg);
+            Assert.Equal(ConsoleColor.Black, palette.Ui.MenuActiveHighlightBg);
+            Assert.Equal(ConsoleColor.DarkGray, palette.Ui.MenuDisabledFg);
+            Assert.Equal(ConsoleColor.DarkCyan, palette.Ui.MenuDisabledBg);
+            Assert.Equal(ConsoleColor.White, palette.Ui.MenuBorderFg);
+            Assert.Equal(ConsoleColor.DarkCyan, palette.Ui.MenuBorderBg);
         }
     }
 
     [Fact]
     public void BuiltInPalettes_HaveFarLikeFunctionKeyColors()
     {
-        foreach (var palette in PaletteRegistry.All)
+        foreach (var palette in CSharpFarPaletteRegistry.All)
         {
-            Assert.Equal(ConsoleColor.White, palette.FunctionKeyNumFg);
-            Assert.Equal(ConsoleColor.Black, palette.FunctionKeyNumBg);
-            Assert.Equal(ConsoleColor.Black, palette.FunctionKeyTextFg);
-            Assert.Equal(palette.CursorActiveBg, palette.FunctionKeyBarBg);
+            Assert.Equal(ConsoleColor.White, palette.Ui.FunctionKeyNumFg);
+            Assert.Equal(ConsoleColor.Black, palette.Ui.FunctionKeyNumBg);
+            Assert.Equal(ConsoleColor.Black, palette.Ui.FunctionKeyTextFg);
+            Assert.Equal(palette.CursorActiveBg, palette.Ui.FunctionKeyBarBg);
         }
     }
 
     [Fact]
     public void BuiltInPalettes_HaveDirectoryShortcutNumberColors()
     {
-        foreach (var palette in PaletteRegistry.All)
+        foreach (var palette in CSharpFarPaletteRegistry.All)
         {
             Assert.Equal(ConsoleColor.White, palette.DirectoryShortcutBarNumberFg);
             Assert.Equal(ConsoleColor.Black, palette.DirectoryShortcutBarNumberBg);
@@ -100,22 +100,22 @@ public class PaletteRegistryTests
     [Fact]
     public void PaletteStyles_UseFarLikeDriveMenuColors()
     {
-        var palette = PaletteRegistry.Default;
+        var palette = CSharpFarPaletteRegistry.Default;
 
-        Assert.Equal(ConsoleColor.White, PaletteStyles.DialogFill(palette).Foreground);
-        Assert.Equal(ConsoleColor.DarkCyan, PaletteStyles.DialogFill(palette).Background);
-        Assert.Equal(ConsoleColor.White, PaletteStyles.DialogBorder(palette).Foreground);
-        Assert.Equal(ConsoleColor.DarkCyan, PaletteStyles.DialogBorder(palette).Background);
-        Assert.Equal(ConsoleColor.White, PaletteStyles.DialogTitle(palette).Foreground);
-        Assert.Equal(ConsoleColor.DarkCyan, PaletteStyles.DialogTitle(palette).Background);
-        Assert.Equal(ConsoleColor.Yellow, PaletteStyles.DialogHighlight(palette).Foreground);
-        Assert.Equal(ConsoleColor.DarkCyan, PaletteStyles.DialogHighlight(palette).Background);
-        Assert.Equal(ConsoleColor.White, PaletteStyles.InputField(palette).Foreground);
-        Assert.Equal(ConsoleColor.Black, PaletteStyles.InputField(palette).Background);
-        Assert.Equal(ConsoleColor.Yellow, PaletteStyles.InputHighlight(palette).Foreground);
-        Assert.Equal(ConsoleColor.Black, PaletteStyles.InputHighlight(palette).Background);
-        Assert.Equal(ConsoleColor.Yellow, PaletteStyles.DialogError(palette).Foreground);
-        Assert.Equal(ConsoleColor.DarkCyan, PaletteStyles.DialogError(palette).Background);
+        Assert.Equal(ConsoleColor.White, PaletteStyles.DialogFill(palette.Ui).Foreground);
+        Assert.Equal(ConsoleColor.DarkCyan, PaletteStyles.DialogFill(palette.Ui).Background);
+        Assert.Equal(ConsoleColor.White, PaletteStyles.DialogBorder(palette.Ui).Foreground);
+        Assert.Equal(ConsoleColor.DarkCyan, PaletteStyles.DialogBorder(palette.Ui).Background);
+        Assert.Equal(ConsoleColor.White, PaletteStyles.DialogTitle(palette.Ui).Foreground);
+        Assert.Equal(ConsoleColor.DarkCyan, PaletteStyles.DialogTitle(palette.Ui).Background);
+        Assert.Equal(ConsoleColor.Yellow, PaletteStyles.DialogHighlight(palette.Ui).Foreground);
+        Assert.Equal(ConsoleColor.DarkCyan, PaletteStyles.DialogHighlight(palette.Ui).Background);
+        Assert.Equal(ConsoleColor.White, PaletteStyles.InputField(palette.Ui).Foreground);
+        Assert.Equal(ConsoleColor.Black, PaletteStyles.InputField(palette.Ui).Background);
+        Assert.Equal(ConsoleColor.Yellow, PaletteStyles.InputHighlight(palette.Ui).Foreground);
+        Assert.Equal(ConsoleColor.Black, PaletteStyles.InputHighlight(palette.Ui).Background);
+        Assert.Equal(ConsoleColor.Yellow, PaletteStyles.DialogError(palette.Ui).Foreground);
+        Assert.Equal(ConsoleColor.DarkCyan, PaletteStyles.DialogError(palette.Ui).Background);
     }
 
 }
@@ -194,7 +194,7 @@ public class BriefTwoColumnsPanelRendererTests
         int titleX = driver.GetRow(0).IndexOf(@" C:\Test ", StringComparison.Ordinal);
         Assert.True(titleX > 1);
         for (int x = titleX; x < titleX + @" C:\Test ".Length; x++)
-            Assert.Equal(PaletteRegistry.Default.PanelPathActiveBg, driver.GetCell(x, 0).Background);
+            Assert.Equal(CSharpFarPaletteRegistry.Default.PanelPathActiveBg, driver.GetCell(x, 0).Background);
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public class BriefTwoColumnsPanelRendererTests
         var inactiveState = MakeState("alpha.txt", "beta.txt");
         UiTestRender.Render(screen, canvas =>
         {
-            var renderer = new BriefTwoColumnsPanelRenderer(canvas, PaletteRegistry.Default);
+            var renderer = new BriefTwoColumnsPanelRenderer(canvas, CSharpFarPaletteRegistry.Default);
             renderer.Render(new Rect(0, 0, 40, 12), activeState, isActive: true);
             renderer.Render(new Rect(40, 0, 40, 12), inactiveState, isActive: false);
         });
@@ -222,7 +222,7 @@ public class BriefTwoColumnsPanelRendererTests
         state.CursorIndex = 0;
         RenderBrief(screen, new Rect(0, 0, 40, 12), state, isActive: false);
 
-        Assert.Equal(PaletteRegistry.Default.PanelBackground, driver.GetCell(1, 2).Background);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.PanelBackground, driver.GetCell(1, 2).Background);
     }
 
     [Fact]
@@ -266,7 +266,7 @@ public class BriefTwoColumnsPanelRendererTests
 
         // Cursor row (row 2, col1) should use cursor background
         var cell = driver.GetCell(1, 2);
-        Assert.Equal(PaletteRegistry.Default.CursorActiveBg, cell.Background);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.CursorActiveBg, cell.Background);
     }
 
     [Fact]
@@ -288,11 +288,11 @@ public class BriefTwoColumnsPanelRendererTests
         int sepOffset = innerWidth / 2;
         int col2X = 1 + sepOffset + 1;
         var cellCol2 = driver.GetCell(col2X, 2);
-        Assert.Equal(PaletteRegistry.Default.CursorActiveBg, cellCol2.Background);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.CursorActiveBg, cellCol2.Background);
 
         // First column at row 2 should NOT have cursor background
         var cellCol1 = driver.GetCell(1, 2);
-        Assert.NotEqual(PaletteRegistry.Default.CursorActiveBg, cellCol1.Background);
+        Assert.NotEqual(CSharpFarPaletteRegistry.Default.CursorActiveBg, cellCol1.Background);
     }
 
     [Fact]
@@ -348,7 +348,7 @@ public class BriefTwoColumnsPanelRendererTests
     {
         UiTestRender.Render(screen, canvas =>
         {
-            var renderer = new BriefTwoColumnsPanelRenderer(canvas, PaletteRegistry.Default);
+            var renderer = new BriefTwoColumnsPanelRenderer(canvas, CSharpFarPaletteRegistry.Default);
             renderer.Render(bounds, state, isActive);
         });
     }

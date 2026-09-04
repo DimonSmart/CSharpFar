@@ -53,7 +53,7 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCu
     internal override void Render(FormRowRenderContext context) => ChoiceRenderer.Render(context.Canvas,
         ChoiceLayoutCalculator.Compact(context.Bounds), _choice.Selection, _choice.Format,
         !Enabled ? DisabledFormControlPresentation.WithReason(_label, DisabledReason) : _label,
-        new(DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill), DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.FocusedInput), context.Focused && Enabled));
+        new(DisabledFormControlPresentation.Style(Enabled, DialogStyles.Fill), DisabledFormControlPresentation.Style(Enabled, DialogStyles.FocusedInput), context.Focused && Enabled));
 
     bool IFormCursorProvider.TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {

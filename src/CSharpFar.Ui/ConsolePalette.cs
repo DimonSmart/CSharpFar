@@ -8,63 +8,20 @@ public sealed class ConsolePalette
 {
     public required string Name { get; init; }
 
-    // Common background (area outside panels)
+    public ConsoleColor Foreground { get; init; } = ConsoleColor.White;
     public ConsoleColor Background { get; init; } = ConsoleColor.DarkBlue;
-
-    // Panel background (shared between active and inactive)
-    public ConsoleColor PanelBackground { get; init; } = ConsoleColor.DarkBlue;
-
-    // ── Active panel ──────────────────────────────────────────────────────────
-    public ConsoleColor PanelBorderActiveFg { get; init; } = ConsoleColor.White;
-    public ConsoleColor PanelTitleFocusedFg { get; init; } = ConsoleColor.White;
-    public ConsoleColor PanelPathActiveFg { get; init; } = ConsoleColor.Black;
-    public ConsoleColor PanelPathActiveBg { get; init; } = ConsoleColor.DarkCyan;
-    public ConsoleColor NormalFileFg { get; init; } = ConsoleColor.White;
-    public ConsoleColor DirectoryFg { get; init; } = ConsoleColor.Cyan;
-    public ConsoleColor CursorActiveFg { get; init; } = ConsoleColor.Black;
-    public ConsoleColor CursorActiveBg { get; init; } = ConsoleColor.DarkCyan;
-    public ConsoleColor FooterActiveFg { get; init; } = ConsoleColor.DarkCyan;
-
-    // File Usage diagnostics
-    public ConsoleColor FileUsageNormalFg { get; init; } = ConsoleColor.White;
-    public ConsoleColor FileUsageSecondaryFg { get; init; } = ConsoleColor.DarkGray;
-    public ConsoleColor FileUsageBlockedFg { get; init; } = ConsoleColor.Yellow;
-    public ConsoleColor FileUsageReasonHeadingFg { get; init; } = ConsoleColor.Yellow;
-    public ConsoleColor FileUsageReasonTextFg { get; init; } = ConsoleColor.White;
-    public ConsoleColor FileUsageSelectedOwnerFg { get; init; } = ConsoleColor.Black;
-    public ConsoleColor FileUsageSelectedOwnerBg { get; init; } = ConsoleColor.DarkCyan;
-    public ConsoleColor FileUsageActionKeyFg { get; init; } = ConsoleColor.White;
-    public ConsoleColor FileUsageActionKeyBg { get; init; } = ConsoleColor.Black;
-    public ConsoleColor FileUsageActionLabelFg { get; init; } = ConsoleColor.Black;
-    public ConsoleColor FileUsageActionBarBg { get; init; } = ConsoleColor.DarkCyan;
-
-    // ── Inactive panel ────────────────────────────────────────────────────────
-    public ConsoleColor PanelBorderInactiveFg { get; init; } = ConsoleColor.DarkGray;
-    public ConsoleColor PanelTitleInactiveFg { get; init; } = ConsoleColor.DarkGray;
-    public ConsoleColor NormalFileInactiveFg { get; init; } = ConsoleColor.Gray;
-
-    // ── Column header (BriefTwoColumns mode) ─────────────────────────────────
-    public ConsoleColor ColumnHeaderFg { get; init; } = ConsoleColor.White;
 
     // ── Selection (same for active and inactive, like Far Manager) ────────────
     public ConsoleColor SelectedFg { get; init; } = ConsoleColor.Yellow;
     public ConsoleColor SelectedBg { get; init; } = ConsoleColor.DarkBlue;
-
-    // ── Command line ──────────────────────────────────────────────────────────
-    public ConsoleColor CommandLineFg { get; init; } = ConsoleColor.White;
-    public ConsoleColor CommandLineBg { get; init; } = ConsoleColor.Black;
 
     // ── Function key bar ──────────────────────────────────────────────────────
     public ConsoleColor FunctionKeyBarBg { get; init; } = ConsoleColor.DarkCyan;
     public ConsoleColor FunctionKeyNumFg { get; init; } = ConsoleColor.White;
     public ConsoleColor FunctionKeyNumBg { get; init; } = ConsoleColor.Black;
     public ConsoleColor FunctionKeyTextFg { get; init; } = ConsoleColor.Black;
-
-    // ── Directory shortcut bar ────────────────────────────────────────────────
-    public ConsoleColor DirectoryShortcutBarBg { get; init; } = ConsoleColor.Blue;
-    public ConsoleColor DirectoryShortcutBarNumberFg { get; init; } = ConsoleColor.White;
-    public ConsoleColor DirectoryShortcutBarNumberBg { get; init; } = ConsoleColor.Black;
-    public ConsoleColor DirectoryShortcutBarTextFg { get; init; } = ConsoleColor.White;
+    public ConsoleColor FunctionKeyGapFg { get; init; } = ConsoleColor.White;
+    public ConsoleColor FunctionKeyGapBg { get; init; } = ConsoleColor.Black;
 
     // Horizontal menu bar
     public ConsoleColor MenuBarNormalFg { get; init; } = ConsoleColor.Black;

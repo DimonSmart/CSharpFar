@@ -37,15 +37,15 @@ public sealed class TriStateCheckBoxColumnsRow : FormRow, IFormFocusTarget, IFor
 
     internal override void Render(FormRowRenderContext context)
     {
-        context.Canvas.FillRegion(context.Bounds, FarDialogStyles.Fill);
-        context.Canvas.Write(context.Bounds.X, context.Bounds.Y, _label, FarDialogStyles.Fill);
+        context.Canvas.FillRegion(context.Bounds, DialogStyles.Fill);
+        context.Canvas.Write(context.Bounds.X, context.Bounds.Y, _label, DialogStyles.Fill);
         FormGridLayout layout = CalculateLayout(context.Bounds);
         FormGridPosition? effectivePosition = _navigation.ResolveCurrent(_shape, IsCellEnabled);
         foreach (FormGridCell cell in layout.Cells)
         {
             TriStateCheckBoxLine line = _columns[cell.Column];
-            CellStyle fill = line.Enabled ? FarDialogStyles.Fill : FarDialogStyles.DisabledControl(FarDialogStyles.Fill);
-            line.Render(context.Canvas, cell.Bounds.X, cell.Bounds.Y, cell.Bounds.Width, context.Focused && effectivePosition == cell.Position && line.Enabled, fill, FarDialogStyles.FocusedInput);
+            CellStyle fill = line.Enabled ? DialogStyles.Fill : DialogStyles.DisabledControl(DialogStyles.Fill);
+            line.Render(context.Canvas, cell.Bounds.X, cell.Bounds.Y, cell.Bounds.Width, context.Focused && effectivePosition == cell.Position && line.Enabled, fill, DialogStyles.FocusedInput);
         }
     }
 

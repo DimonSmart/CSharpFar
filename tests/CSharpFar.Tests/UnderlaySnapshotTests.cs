@@ -128,7 +128,7 @@ public class UnderlaySnapshotTests
         underlay.PrepareHiddenOverlay(viewport, new Rect(0, row, viewport.Width, 1));
 
         UiTestRender.Render(renderer, canvas =>
-            new ApplicationCommandLineRenderer(() => PaletteRegistry.Default)
+            new ApplicationCommandLineRenderer(() => CSharpFarPaletteRegistry.Default)
                 .Render(canvas, row, viewport.Size, @"C:\Work", new CommandLineState()));
         Assert.Contains(">", driver.GetRow(row), StringComparison.Ordinal);
 
@@ -174,7 +174,7 @@ public class UnderlaySnapshotTests
         underlay.PrepareHiddenOverlay(viewport, new Rect(0, 7, viewport.Width, 1));
 
         UiTestRender.Render(renderer, canvas =>
-            new ApplicationCommandLineRenderer(() => PaletteRegistry.Default)
+            new ApplicationCommandLineRenderer(() => CSharpFarPaletteRegistry.Default)
                 .Render(canvas, 7, viewport.Size, @"C:\Work", new CommandLineState()));
 
         driver.SetViewportOrigin(0, 5);
@@ -211,7 +211,7 @@ public class UnderlaySnapshotTests
         int row = ApplicationLayoutService.CommandLineRow(viewport.Size);
         underlay.PrepareHiddenOverlay(viewport, new Rect(0, row, viewport.Width, 1));
         UiTestRender.Render(renderer, canvas =>
-            new ApplicationCommandLineRenderer(() => PaletteRegistry.Default)
+            new ApplicationCommandLineRenderer(() => CSharpFarPaletteRegistry.Default)
                 .Render(canvas, row, viewport.Size, @"C:\Work", new CommandLineState()));
         underlay.CaptureRenderedHiddenOverlay();
 

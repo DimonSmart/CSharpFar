@@ -357,7 +357,7 @@ internal static class ApplicationServicesBuilder
         {
             Screen = screen,
             ModalDialogs = modalDialogs,
-            Palette = () => session.App.Palette,
+            Palette = () => session.App.Palette.Ui,
             Fields = formFields,
             Dialogs = dialogs,
         };

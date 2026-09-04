@@ -13,7 +13,7 @@ public sealed class EditorSyntaxHighlightRequest
     public required int LineCount { get; init; }
     public required AppSettings.EditorSettings Settings { get; init; }
     public required EditorSyntaxHighlightCache Cache { get; init; }
-    public required ConsolePalette Palette { get; init; }
+    public required CSharpFarPalette Palette { get; init; }
     public required CellStyle BaseStyle { get; init; }
     public required bool IsEnabledForSession { get; init; }
     public required string SessionLanguage { get; init; }

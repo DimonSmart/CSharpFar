@@ -23,7 +23,7 @@ internal sealed class LargeFileViewer
 
     private readonly ModalDialogHost _modalDialogs;
     private readonly DialogService _dialogs;
-    private readonly ConsolePalette _palette;
+    private readonly CSharpFarPalette _palette;
     private readonly InteractiveSurfaceHost _surfaces;
     private readonly FormFieldFactory _fields;
 
@@ -32,12 +32,12 @@ internal sealed class LargeFileViewer
         ModalDialogHost modalDialogs,
         DialogService dialogs,
         FormFieldFactory fields,
-        ConsolePalette? palette = null)
+        CSharpFarPalette? palette = null)
     {
         _surfaces = surfaces ?? throw new ArgumentNullException(nameof(surfaces));
         _modalDialogs = modalDialogs;
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
-        _palette = palette ?? PaletteRegistry.Default;
+        _palette = palette ?? CSharpFarPaletteRegistry.Default;
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
@@ -477,7 +477,7 @@ internal sealed class LargeFileViewer
         string nameSection = FormatHeaderPath(filePath, nameWidth);
 
         string header = ConsoleTextMetrics.FitToCells(nameSection, nameWidth) + posSection;
-        canvas.WriteForced(0, 0, header, PaletteStyles.PathHeaderActive(_palette));
+        canvas.WriteForced(0, 0, header, CSharpFarPaletteStyles.PathHeaderActive(_palette));
     }
 
     private static string FormatHeaderPath(string filePath, int width)
@@ -525,7 +525,7 @@ internal sealed class LargeFileViewer
             }
             else
             {
-                canvas.WriteForced(0, row + 1, new string(' ', width), PaletteStyles.CommandLine(_palette));
+                canvas.WriteForced(0, row + 1, new string(' ', width), CSharpFarPaletteStyles.CommandLine(_palette));
             }
         }
 
@@ -575,7 +575,7 @@ internal sealed class LargeFileViewer
 
         while (row < contentHeight)
         {
-            canvas.WriteForced(0, row + 1, new string(' ', width), PaletteStyles.CommandLine(_palette));
+            canvas.WriteForced(0, row + 1, new string(' ', width), CSharpFarPaletteStyles.CommandLine(_palette));
             row++;
         }
 
@@ -602,8 +602,8 @@ internal sealed class LargeFileViewer
             rows.Add(new ScannedLine(rowOffset, Math.Min(reader.Length, rowOffset + BinaryBytesPerRow), text));
             nextOffset = Math.Min(reader.Length, rowOffset + BinaryBytesPerRow);
             var style = IsHexMatchOnRow(state.SearchMatch, rowOffset)
-                ? PaletteStyles.InputHighlight(_palette)
-                : PaletteStyles.CommandLine(_palette);
+                ? CSharpFarPaletteStyles.InputHighlight(_palette)
+                : CSharpFarPaletteStyles.CommandLine(_palette);
             canvas.WriteForced(0, row + 1, FormatLine(text, state.HorizontalOffset, width), style);
         }
 
@@ -630,7 +630,7 @@ internal sealed class LargeFileViewer
 
         var layout = new ViewerTextLayout(line);
         string visible = layout.Slice(scrollLeft, width);
-        canvas.WriteForced(0, y, visible, PaletteStyles.CommandLine(_palette));
+        canvas.WriteForced(0, y, visible, CSharpFarPaletteStyles.CommandLine(_palette));
         if (match is not { IsHex: false } || match.LineStartOffset != lineStartOffset)
             return;
 
@@ -645,7 +645,7 @@ internal sealed class LargeFileViewer
 
         string highlight = layout.Slice(highlightStart, highlightEnd - highlightStart);
         if (ConsoleTextMetrics.GetCellWidth(highlight) > 0)
-            canvas.Write(highlightStart - visibleStart, y, highlight, PaletteStyles.InputHighlight(_palette));
+            canvas.Write(highlightStart - visibleStart, y, highlight, CSharpFarPaletteStyles.InputHighlight(_palette));
     }
 
     private void DrawFooter(IUiCanvas canvas, ConsoleSize size, LargeFileViewerState state)

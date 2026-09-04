@@ -11,12 +11,12 @@ internal sealed class DirectoryShortcutBarRenderer
     private readonly CellStyle _numberStyle;
     private readonly CellStyle _nameStyle;
 
-    public DirectoryShortcutBarRenderer(IUiCanvas screen, ConsolePalette? palette = null)
+    public DirectoryShortcutBarRenderer(IUiCanvas screen, CSharpFarPalette? palette = null)
     {
         _screen = screen;
-        palette ??= PaletteRegistry.Default;
-        _numberStyle = PaletteStyles.DirectoryShortcutBarNumber(palette);
-        _nameStyle = PaletteStyles.DirectoryShortcutBarLabel(palette);
+        palette ??= CSharpFarPaletteRegistry.Default;
+        _numberStyle = CSharpFarPaletteStyles.DirectoryShortcutBarNumber(palette);
+        _nameStyle = CSharpFarPaletteStyles.DirectoryShortcutBarLabel(palette);
     }
 
     public ApplicationDirectoryShortcutBarFrame? Render(

@@ -15,14 +15,14 @@ namespace CSharpFar.App.Rendering;
 public sealed class BriefTwoColumnsPanelRenderer
 {
     private readonly IUiCanvas _screen;
-    private readonly ConsolePalette _palette;
+    private readonly CSharpFarPalette _palette;
     private readonly IFileHighlightService? _highlight;
     private readonly AppSettings.PanelOptionsSettings? _options;
     private readonly Func<HoverMarqueeRegistration, string>? _renderHoverMarquee;
 
     public BriefTwoColumnsPanelRenderer(
         IUiCanvas screen,
-        ConsolePalette palette,
+        CSharpFarPalette palette,
         IFileHighlightService? highlight = null,
         AppSettings.PanelOptionsSettings? options = null,
         Func<HoverMarqueeRegistration, string>? renderHoverMarquee = null)
@@ -55,7 +55,7 @@ public sealed class BriefTwoColumnsPanelRenderer
         var cursor = new CellStyle(p.CursorActiveFg, p.CursorActiveBg);
         var fileStyle = fill;
         var dirStyle = new CellStyle(p.DirectoryFg, p.PanelBackground);
-        var selStyle = new CellStyle(p.SelectedFg, p.SelectedBg);
+        var selStyle = new CellStyle(p.Ui.SelectedFg, p.Ui.SelectedBg);
 
         // Fill + border
         _screen.FillRegion(bounds, fill);

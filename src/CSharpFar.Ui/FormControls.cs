@@ -23,13 +23,13 @@ public static class FormControls
     public static FormRow Label(string text, TextAlignment alignment = TextAlignment.Left) => new LabelRow(text, alignment);
 
     /// <summary>Creates a standard dialog separator.</summary>
-    public static FormRow Separator() => new SeparatorRow(FarDialogStyles.Border);
+    public static FormRow Separator() => new SeparatorRow(DialogStyles.Border);
 
     /// <summary>Creates blank vertical space in a form.</summary>
     public static FormRow Spacer(int height = 1) => new SpacerRow(height);
 
     /// <summary>Creates an error message using the theme's error presentation.</summary>
-    public static FormRow Error(string text) => new LabelRow(text, FarDialogStyles.Error);
+    public static FormRow Error(string text) => new LabelRow(text, DialogStyles.Error);
 
     /// <summary>Creates an error message whose text is read when the form renders.</summary>
     public static FormRow Error(Func<string?> text) => FormFooter.Error(text);

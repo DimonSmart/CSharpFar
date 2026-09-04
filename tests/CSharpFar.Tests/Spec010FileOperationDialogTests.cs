@@ -445,7 +445,7 @@ public sealed class Spec010FileOperationDialogTests
         var runner = new FileOperationUiRunner(
             ModalTestHost.Create(screen),
             new DialogService(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())),
-            () => PaletteRegistry.Default,
+            () => CSharpFarPaletteRegistry.Default,
             new NoOpFileOperationService(),
             () => true,
             new FormFieldFactory(TextFieldHistoryTestProvider.Create()));
@@ -845,7 +845,7 @@ public sealed class Spec010FileOperationDialogTests
         new(
             ModalTestHost.Create(screen),
             new DialogService(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())),
-            () => PaletteRegistry.Default,
+            () => CSharpFarPaletteRegistry.Default,
             service,
             () => true,
             new FormFieldFactory(TextFieldHistoryTestProvider.Create()));

@@ -222,7 +222,7 @@ public sealed class EditorSyntaxHighlighterTests
             LineCount = session.Document.Buffer.LineCount,
             Settings = settings,
             Cache = session.SyntaxHighlightCache,
-            Palette = PaletteRegistry.Default,
+            Palette = CSharpFarPaletteRegistry.Default,
             BaseStyle = EditorBaseStyle,
             IsEnabledForSession = session.SyntaxHighlightingEnabled,
             SessionLanguage = session.SyntaxLanguage,

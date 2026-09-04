@@ -64,7 +64,7 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCursorPro
         var layout = CalculateLayout(context.Bounds);
         ChoiceRenderer.Render(context.Canvas, layout, _choice.Selection, _choice.Format,
             !Enabled ? DisabledFormControlPresentation.WithReason(_label, DisabledReason) : _label,
-            new(DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill), DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.FocusedInput), context.Focused && Enabled));
+            new(DisabledFormControlPresentation.Style(Enabled, DialogStyles.Fill), DisabledFormControlPresentation.Style(Enabled, DialogStyles.FocusedInput), context.Focused && Enabled));
     }
 
     bool IFormCursorProvider.TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
@@ -181,7 +181,7 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormFocusTarget, IForm
     {
         ChoiceRenderer.Render(context.Canvas, CalculateLayout(context.Bounds), _choice.Selection, _choice.Format,
             !Enabled ? DisabledFormControlPresentation.WithReason(_label, DisabledReason) : _label,
-            new(DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill), DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.FocusedInput), context.Focused && Enabled));
+            new(DisabledFormControlPresentation.Style(Enabled, DialogStyles.Fill), DisabledFormControlPresentation.Style(Enabled, DialogStyles.FocusedInput), context.Focused && Enabled));
     }
 
     bool IFormCursorProvider.TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)

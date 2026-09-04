@@ -30,7 +30,7 @@ public sealed class FunctionKeyBar
         var palette = UiTheme.Current;
         var numStyle = PaletteStyles.KeyBarNum(palette);
         var labelStyle = PaletteStyles.KeyBarLabel(palette);
-        var gapStyle = PaletteStyles.CommandLine(palette);
+        var gapStyle = PaletteStyles.KeyBarGap(palette);
 
         screen.FillRegion(new Rect(0, y, totalWidth, 1), gapStyle);
         var labelsByKey = items

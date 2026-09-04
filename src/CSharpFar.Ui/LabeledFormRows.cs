@@ -66,7 +66,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormFocusTarget, IFormCursor
         FormRowLayout layout = context.Layout;
         if (layout.LabelBounds is Rect labelBounds)
             context.Canvas.Write(labelBounds.X, labelBounds.Y, ScrollableFormDialog.Fit(_label, labelBounds.Width),
-                DisabledFormControlPresentation.Style(Enabled, context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Fill));
+                DisabledFormControlPresentation.Style(Enabled, context.Focused ? DialogStyles.FocusedInput : DialogStyles.Fill));
         _field.Render(context, GetInputBounds(layout));
     }
 
@@ -117,8 +117,8 @@ public sealed class LabeledValueRow : FormRow, IFormLabeledRow
     internal override void Render(FormRowRenderContext context)
     {
         if (context.Layout.LabelBounds is Rect labelBounds)
-            context.Canvas.Write(labelBounds.X, labelBounds.Y, ScrollableFormDialog.Fit(_label, labelBounds.Width), FarDialogStyles.Fill);
+            context.Canvas.Write(labelBounds.X, labelBounds.Y, ScrollableFormDialog.Fit(_label, labelBounds.Width), DialogStyles.Fill);
         context.Canvas.Write(context.Layout.ControlBounds.X, context.Layout.ControlBounds.Y,
-            ScrollableFormDialog.Fit(_value() ?? string.Empty, context.Layout.ControlBounds.Width), FarDialogStyles.Fill);
+            ScrollableFormDialog.Fit(_value() ?? string.Empty, context.Layout.ControlBounds.Width), DialogStyles.Fill);
     }
 }

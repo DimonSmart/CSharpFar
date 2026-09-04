@@ -19,7 +19,7 @@ public sealed class FormRenderContext
 
         _renderContext = renderContext;
         BodyBounds = bodyBounds;
-        ScrollbarStyle = scrollbarStyle ?? FarDialogStyles.Border;
+        ScrollbarStyle = scrollbarStyle ?? DialogStyles.Border;
         FooterBounds = footerBounds;
     }
 

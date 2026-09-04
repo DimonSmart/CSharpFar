@@ -78,7 +78,7 @@ internal interface IFormCompositeKeyboardController
     FormInputResult RouteOverlayKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame);
 }
 
-public readonly record struct FormCompositeFrameContext(FormRowLayout Layout, ConsoleViewport Viewport, UiTargetId RowTarget)
+internal readonly record struct FormCompositeFrameContext(FormRowLayout Layout, ConsoleViewport Viewport, UiTargetId RowTarget)
 {
     public Rect RowBounds => Layout.RowBounds;
 
@@ -88,14 +88,14 @@ public readonly record struct FormCompositeFrameContext(FormRowLayout Layout, Co
     }
 }
 
-public interface IFormCompositeSnapshot;
+internal interface IFormCompositeSnapshot;
 internal sealed class EmptyFormCompositeSnapshot : IFormCompositeSnapshot
 {
     public static EmptyFormCompositeSnapshot Instance { get; } = new();
     private EmptyFormCompositeSnapshot() { }
 }
 
-public sealed class FormCompositeOverlayFrame
+internal sealed class FormCompositeOverlayFrame
 {
     public FormCompositeOverlayFrame(IReadOnlyList<FormCompositeTarget> childTargets)
     {
@@ -106,7 +106,7 @@ public sealed class FormCompositeOverlayFrame
     public IReadOnlyList<FormCompositeTarget> ChildTargets { get; }
 }
 
-public sealed class FormCompositeFrame
+internal sealed class FormCompositeFrame
 {
     private FormCompositeFrame(IFormCompositeSnapshot state, FormCompositeOverlayFrame? overlay)
     {
@@ -126,7 +126,7 @@ public sealed class FormCompositeFrame
     }
 }
 
-public sealed record FormCompositeTarget(UiTargetId Id, Rect Bounds, Rect? HitBounds = null, FormTargetKind Kind = FormTargetKind.CompositeChild, bool CapturesMouse = false);
+internal sealed record FormCompositeTarget(UiTargetId Id, Rect Bounds, Rect? HitBounds = null, FormTargetKind Kind = FormTargetKind.CompositeChild, bool CapturesMouse = false);
 
 internal readonly record struct FormCursorPlacement(int X, int Y);
 

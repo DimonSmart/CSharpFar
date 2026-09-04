@@ -12,7 +12,7 @@ internal sealed class FileViewer
     private readonly InteractiveSurfaceHost _surfaces;
     private readonly ModalDialogHost _modalDialogs;
     private readonly DialogService _dialogs;
-    private readonly ConsolePalette _palette;
+    private readonly CSharpFarPalette _palette;
     private readonly FormFieldFactory _fields;
 
     public FileViewer(
@@ -20,12 +20,12 @@ internal sealed class FileViewer
         ModalDialogHost modalDialogs,
         DialogService dialogs,
         FormFieldFactory fields,
-        ConsolePalette? palette = null)
+        CSharpFarPalette? palette = null)
     {
         _surfaces = surfaces;
         _modalDialogs = modalDialogs;
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
-        _palette = palette ?? PaletteRegistry.Default;
+        _palette = palette ?? CSharpFarPaletteRegistry.Default;
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 

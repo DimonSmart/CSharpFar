@@ -172,7 +172,7 @@ internal sealed class SelectionListDialog<T>
     private static PopupRenderOptions MenuPopupOptions()
     {
         ListAppearanceStyles styles = ListAppearanceStyles.From(ListAppearance.Menu);
-        return new() { BorderStyle = styles.Border, BackgroundStyle = styles.Normal, ShadowStyle = FarDialogStyles.Shadow, TitleStyle = styles.Header };
+        return new() { BorderStyle = styles.Border, BackgroundStyle = styles.Normal, ShadowStyle = DialogStyles.Shadow, TitleStyle = styles.Header };
     }
 
     private readonly record struct SelectionListFrame(

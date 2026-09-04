@@ -1031,7 +1031,7 @@ public sealed class ApplicationInputDispatcherTests
             new ScreenRenderer(new FakeConsoleDriver(80, 25)),
             canvas =>
             {
-                var renderer = new BriefTwoColumnsPanelRenderer(canvas, PaletteRegistry.Default);
+                var renderer = new BriefTwoColumnsPanelRenderer(canvas, CSharpFarPaletteRegistry.Default);
                 return renderer.Render(bounds, state, isActive: true, PanelSide.Left);
             });
         Assert.NotEmpty(frame.VisibleItems);

@@ -789,7 +789,7 @@ public sealed class FileEditorTests : IDisposable
     {
         string filePath = Path.Combine(_tempDir, "empty-selection.txt");
         File.WriteAllText(filePath, "a\n\nb");
-        var palette = PaletteRegistry.Default;
+        var palette = CSharpFarPaletteRegistry.Default;
 
         var driver = new FakeConsoleDriver(80, 25);
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, shift: false, alt: false, control: false));
@@ -883,7 +883,7 @@ public sealed class FileEditorTests : IDisposable
         string smile = char.ConvertFromUtf32(0x1F642);
         string filePath = Path.Combine(_tempDir, "utf8-four-byte-custom-cursor.txt");
         File.WriteAllText(filePath, "A" + smile + "B");
-        var palette = PaletteRegistry.Default;
+        var palette = CSharpFarPaletteRegistry.Default;
 
         var driver = new FakeConsoleDriver(80, 25);
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: false, alt: false, control: false));
@@ -905,7 +905,7 @@ public sealed class FileEditorTests : IDisposable
         string smile = char.ConvertFromUtf32(0x1F642);
         string filePath = Path.Combine(_tempDir, "utf8-four-byte-blink-cursor.txt");
         File.WriteAllText(filePath, "A" + smile + "B");
-        var palette = PaletteRegistry.Default;
+        var palette = CSharpFarPaletteRegistry.Default;
 
         bool sawCursorOn = false;
         bool sawCursorOffAfterOn = false;
@@ -1025,7 +1025,7 @@ public sealed class FileEditorTests : IDisposable
     {
         string filePath = Path.Combine(_tempDir, "plain-editor-background.unknown");
         File.WriteAllText(filePath, "abc");
-        var palette = PaletteRegistry.Default;
+        var palette = CSharpFarPaletteRegistry.Default;
 
         var driver = new FakeConsoleDriver(80, 25);
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
@@ -1046,7 +1046,7 @@ public sealed class FileEditorTests : IDisposable
         File.WriteAllText(filePath, "abc");
         var highlighter = new StaticSyntaxHighlighter(
             new EditorColorSpan(0, 0, 3, new CellStyle(ConsoleColor.Red, ConsoleColor.Black)));
-        var palette = PaletteRegistry.Default;
+        var palette = CSharpFarPaletteRegistry.Default;
 
         var driver = new FakeConsoleDriver(80, 25);
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F3, shift: false, alt: false, control: false));

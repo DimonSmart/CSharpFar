@@ -6,9 +6,9 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed class ApplicationCommandLineRenderer
 {
-    private readonly Func<ConsolePalette> _palette;
+    private readonly Func<CSharpFarPalette> _palette;
 
-    public ApplicationCommandLineRenderer(Func<ConsolePalette> palette)
+    public ApplicationCommandLineRenderer(Func<CSharpFarPalette> palette)
     {
         _palette = palette;
     }

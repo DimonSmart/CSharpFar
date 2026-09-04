@@ -13,7 +13,7 @@ internal static class PanelTitleRenderer
         Rect bounds,
         FilePanelState state,
         bool isActive,
-        ConsolePalette palette)
+        CSharpFarPalette palette)
     {
         int innerWidth = bounds.Width - 2;
         if (innerWidth <= 0)

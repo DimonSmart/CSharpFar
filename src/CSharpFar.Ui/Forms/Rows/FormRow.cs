@@ -32,7 +32,7 @@ public sealed class LabelRow : FormRow
     private readonly CellStyle _style;
     private readonly TextAlignment _alignment;
 
-    internal LabelRow(string text, TextAlignment alignment = TextAlignment.Left) : this(text, FarDialogStyles.Fill, alignment) { }
+    internal LabelRow(string text, TextAlignment alignment = TextAlignment.Left) : this(text, DialogStyles.Fill, alignment) { }
 
     internal LabelRow(string text, CellStyle style, TextAlignment alignment = TextAlignment.Left)
     {
@@ -57,7 +57,7 @@ public sealed class SeparatorRow : FormRow
 {
     private readonly CellStyle _style;
 
-    internal SeparatorRow() : this(FarDialogStyles.Fill) { }
+    internal SeparatorRow() : this(DialogStyles.Fill) { }
 
     internal SeparatorRow(CellStyle style)
     {
@@ -79,7 +79,7 @@ public sealed class SpacerRow : FormRow
 {
     private readonly CellStyle _style;
 
-    internal SpacerRow(int height = 1) : this(FarDialogStyles.Fill, height) { }
+    internal SpacerRow(int height = 1) : this(DialogStyles.Fill, height) { }
 
     internal SpacerRow(CellStyle style, int height = 1)
     {

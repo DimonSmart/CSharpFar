@@ -9,20 +9,20 @@ namespace CSharpFar.App.Rendering;
 internal sealed class PanelRenderer
 {
     private readonly IUiCanvas _screen;
-    private readonly ConsolePalette _palette;
+    private readonly CSharpFarPalette _palette;
     private readonly IFileHighlightService? _highlight;
     private readonly AppSettings.PanelOptionsSettings? _options;
     private readonly Func<HoverMarqueeRegistration, string>? _renderHoverMarquee;
 
     public PanelRenderer(
         IUiCanvas screen,
-        ConsolePalette? palette = null,
+        CSharpFarPalette? palette = null,
         IFileHighlightService? highlight = null,
         AppSettings.PanelOptionsSettings? options = null,
         Func<HoverMarqueeRegistration, string>? renderHoverMarquee = null)
     {
         _screen = screen;
-        _palette = palette ?? PaletteRegistry.Default;
+        _palette = palette ?? CSharpFarPaletteRegistry.Default;
         _highlight = highlight;
         _options = options;
         _renderHoverMarquee = renderHoverMarquee;
@@ -67,7 +67,7 @@ internal sealed class PanelRenderer
         var dirStyle = new CellStyle(p.DirectoryFg, p.PanelBackground);
         var cursor = new CellStyle(p.CursorActiveFg, p.CursorActiveBg);
         var footer = new CellStyle(p.FooterActiveFg, p.PanelBackground);
-        var selStyle = new CellStyle(p.SelectedFg, p.SelectedBg);
+        var selStyle = new CellStyle(p.Ui.SelectedFg, p.Ui.SelectedBg);
 
         // Fill background + draw border
         _screen.FillRegion(bounds, fill);

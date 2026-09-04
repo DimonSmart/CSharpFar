@@ -52,7 +52,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
                 RoutedListFocusBehavior.None,
                 RoutedListKeyboardRouting.LayerAndFocusedTarget,
                 ListConfirmationBehavior.EnterOrMouseDown));
-        _presentation = new(static text => text.Replace('\n', '↵'), string.Empty, PaletteStyles.DialogFill(_context.App.Palette), PaletteStyles.InputField(_context.App.Palette), PaletteStyles.DialogFill(_context.App.Palette));
+        _presentation = new(static text => text.Replace('\n', '↵'), string.Empty, CSharpFarPaletteStyles.DialogFill(_context.App.Palette), CSharpFarPaletteStyles.InputField(_context.App.Palette), CSharpFarPaletteStyles.DialogFill(_context.App.Palette));
     }
 
     public override UiLayerInputPolicy InputPolicy =>
@@ -82,7 +82,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
             : null;
         ScrollableListFrame listFrame = list.CalculateFrame(layout.ContentBounds, scrollbarBounds);
 
-        var popupOptions = PaletteStyles.DialogPopupOptions(_context.App.Palette) with
+        var popupOptions = CSharpFarPaletteStyles.DialogPopupOptions(_context.App.Palette) with
         {
             DrawShadow = false,
             VerticalScrollState = completion.List.Count > layout.VisibleRows ? new ScrollState { TotalItems = completion.List.Count, ViewportItems = layout.VisibleRows, FirstVisibleIndex = listFrame.ScrollTop } : null,

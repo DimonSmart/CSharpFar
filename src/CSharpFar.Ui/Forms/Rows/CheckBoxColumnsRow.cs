@@ -39,7 +39,7 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormFocusTarget, IFormCursorP
 
     internal override void Render(FormRowRenderContext context)
     {
-        context.Canvas.FillRegion(context.Bounds, FarDialogStyles.Fill);
+        context.Canvas.FillRegion(context.Bounds, DialogStyles.Fill);
         FormGridLayout layout = CalculateLayout(context.Bounds);
         FormGridPosition? effectivePosition = _navigation.ResolveCurrent(_shape, IsCellEnabled);
         foreach (FormGridCell cell in layout.Cells)

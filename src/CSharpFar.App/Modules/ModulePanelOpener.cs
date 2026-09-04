@@ -16,7 +16,7 @@ internal sealed class ModulePanelOpener
     private readonly PanelController _controller;
     private readonly ScreenRenderer _screen;
     private readonly DialogService _dialogs;
-    private readonly Func<ConsolePalette> _palette;
+    private readonly Func<CSharpFarPalette> _palette;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
     private readonly Func<PanelSide, FilePanelState> _getPanelState;
     private readonly Action<PanelSide> _setActiveSide;
@@ -28,7 +28,7 @@ internal sealed class ModulePanelOpener
         PanelController controller,
         ScreenRenderer screen,
         DialogService dialogs,
-        Func<ConsolePalette> palette,
+        Func<CSharpFarPalette> palette,
         Func<AppSettingsAlias.PanelOptionsSettings> panelOptions,
         Func<PanelSide, FilePanelState> getPanelState,
         Action<PanelSide> setActiveSide,

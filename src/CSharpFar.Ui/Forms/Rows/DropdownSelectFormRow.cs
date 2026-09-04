@@ -69,11 +69,11 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormFocusTarget, IFormC
                 labelBounds.X,
                 labelBounds.Y,
                 ScrollableFormDialog.Fit(!Enabled ? DisabledFormControlPresentation.WithReason(_label, DisabledReason) : _label, labelBounds.Width),
-                DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill));
+                DisabledFormControlPresentation.Style(Enabled, DialogStyles.Fill));
         _dropdown.RenderField(
             context.Canvas,
             context.Layout.ControlBounds,
-            Enabled && context.Focused ? FarDialogStyles.FocusedInput : DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Input));
+            Enabled && context.Focused ? DialogStyles.FocusedInput : DisabledFormControlPresentation.Style(Enabled, DialogStyles.Input));
     }
 
     bool IFormCursorProvider.TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)

@@ -69,7 +69,7 @@ internal sealed class DemoApplication : UiLayer<DemoFrame>, IUiSurface
         int width = context.Size.Width;
         int height = context.Size.Height;
         var palette = UiTheme.Current;
-        canvas.FillRegion(new Rect(0, 0, width, height), new CellStyle(palette.NormalFileFg, palette.PanelBackground));
+        canvas.FillRegion(new Rect(0, 0, width, height), new CellStyle(palette.Foreground, palette.Background));
 
         string menuText = " Repository   Commit   Branch   View   Demo   Help ";
         canvas.FillRegion(new Rect(0, 0, width, Math.Min(1, height)), new CellStyle(palette.MenuBarNormalFg, palette.MenuBarNormalBg));
@@ -88,8 +88,9 @@ internal sealed class DemoApplication : UiLayer<DemoFrame>, IUiSurface
                 ? $"{selected.Hash}  {selected.ChangedFiles.Count} file(s)  " : string.Empty;
             selection += $"[{_repository.CurrentBranch.Name}] ";
             if (_search.IsActive) selection += "[FILTER ACTIVE] ";
-            canvas.FillRegion(new Rect(0, statusY, width, 1), PaletteStyles.CommandLine(palette));
-            canvas.Write(0, statusY, ConsoleTextMetrics.FitToCells(selection + _status, width), PaletteStyles.CommandLine(palette));
+            var statusStyle = new CellStyle(palette.Foreground, palette.Background);
+            canvas.FillRegion(new Rect(0, statusY, width, 1), statusStyle);
+            canvas.Write(0, statusY, ConsoleTextMetrics.FitToCells(selection + _status, width), statusStyle);
         }
         if (height > 0) _keyBar.Render(canvas, keyBarY, width, KeyItems);
         return new DemoFrame(tableBounds, tableFrame, statusY, keyBarY, width);

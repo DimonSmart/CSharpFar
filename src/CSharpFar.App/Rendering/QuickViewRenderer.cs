@@ -20,10 +20,10 @@ internal sealed class QuickViewRenderer
     private readonly CellStyle _titleStyle;
     private readonly CellStyle _errorStyle;
 
-    public QuickViewRenderer(IUiCanvas screen, ConsolePalette? palette = null)
+    public QuickViewRenderer(IUiCanvas screen, CSharpFarPalette? palette = null)
     {
         _screen = screen;
-        palette ??= PaletteRegistry.Default;
+        palette ??= CSharpFarPaletteRegistry.Default;
 
         _fillStyle = new CellStyle(palette.NormalFileFg, palette.PanelBackground);
         _borderStyle = new CellStyle(palette.PanelBorderActiveFg, palette.PanelBackground);

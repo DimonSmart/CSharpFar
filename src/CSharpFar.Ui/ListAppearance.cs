@@ -26,12 +26,12 @@ public readonly record struct ListAppearanceStyles(
                 new(palette.MenuActiveHighlightFg, palette.MenuActiveHighlightBg),
                 new(palette.MenuBorderFg, palette.MenuBorderBg))
             : new(
-                FarDialogStyles.Title,
-                FarDialogStyles.Border,
-                FarDialogStyles.Fill,
-                FarDialogStyles.FocusedInput,
-                FarDialogStyles.Title,
-                FarDialogStyles.FocusedInput,
-                FarDialogStyles.Border);
+                DialogStyles.Title,
+                DialogStyles.Border,
+                DialogStyles.Fill,
+                DialogStyles.FocusedInput,
+                DialogStyles.Title,
+                DialogStyles.FocusedInput,
+                DialogStyles.Border);
     }
 }

@@ -50,24 +50,24 @@ public sealed class ConfirmDialog
         IUiCanvas screen = context.Canvas;
         var outerBounds = _modalRenderer.CenteredOuterBounds(context.Size, DialogWidth, DialogHeight, minWidth: 20, minHeight: 5);
 
-        _modalRenderer.Render(screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
+        _modalRenderer.Render(screen, outerBounds, title, true, DialogStyles.OuterOptions, DialogStyles.FrameOptions, (_, layout) =>
         {
             Rect bounds = layout.FrameBounds;
             int contentX = bounds.X + 2;
             int contentWidth = Math.Max(1, bounds.Width - 4);
 
-            screen.Write(contentX, bounds.Y + 1, ConsoleTextMetrics.FitToCells(question, contentWidth), FarDialogStyles.Fill);
+            screen.Write(contentX, bounds.Y + 1, ConsoleTextMetrics.FitToCells(question, contentWidth), DialogStyles.Fill);
 
             string truncatedName = Truncate(itemName, contentWidth);
             int nameX = contentX + Math.Max(0, (contentWidth - ConsoleTextMetrics.GetCellWidth(truncatedName)) / 2);
-            screen.Write(contentX, bounds.Y + 2, new string(' ', contentWidth), FarDialogStyles.Fill);
-            screen.Write(nameX, bounds.Y + 2, truncatedName, FarDialogStyles.Fill);
+            screen.Write(contentX, bounds.Y + 2, new string(' ', contentWidth), DialogStyles.Fill);
+            screen.Write(nameX, bounds.Y + 2, truncatedName, DialogStyles.Fill);
 
             frame = actions.Render(
                 new FormRenderContext(
                     context,
                     new Rect(contentX, bounds.Y + bounds.Height - 3, contentWidth, 1),
-                    FarDialogStyles.Border,
+                    DialogStyles.Border,
                     new Rect(contentX, bounds.Y + bounds.Height - 2, contentWidth, 1)),
                 focusScope);
         });

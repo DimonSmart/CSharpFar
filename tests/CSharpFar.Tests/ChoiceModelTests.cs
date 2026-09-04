@@ -45,7 +45,7 @@ public sealed class ChoiceModelTests
         var selection = new ChoiceSelection<string>(["one", "two", "three"], "one");
         ChoiceLayout layout = ChoiceLayoutCalculator.Segmented(selection, static value => value, new Rect(0, 0, 40, 1), "Mode", 1, 3);
         var driver = new FakeConsoleDriver(40, 2);
-        UiTestRender.Render(new ScreenRenderer(driver), canvas => ChoiceRenderer.Render(canvas, layout, selection, static value => value, "Mode", new(FarDialogStyles.Fill, FarDialogStyles.FocusedInput, true)));
+        UiTestRender.Render(new ScreenRenderer(driver), canvas => ChoiceRenderer.Render(canvas, layout, selection, static value => value, "Mode", new(DialogStyles.Fill, DialogStyles.FocusedInput, true)));
 
         Assert.DoesNotContain("one", driver.GetRow(0));
         Assert.Equal(ChoiceInputResultKind.ValueChanged, ChoiceInput.HandleMouse(selection, new MouseConsoleInputEvent(layout.Targets[0].Bounds.X, 0, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None), layout));

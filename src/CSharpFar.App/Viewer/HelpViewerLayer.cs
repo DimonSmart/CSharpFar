@@ -25,12 +25,12 @@ internal sealed partial class HelpViewerLayer : InteractiveSurfaceLayer<HelpView
 
     private const int KeyColumnWidth = 20;
     private readonly HelpLine[] _lines;
-    private readonly ConsolePalette _palette;
+    private readonly CSharpFarPalette _palette;
     private readonly RoutedScrollableViewport _verticalViewport =
         new(Content, Scrollbar);
     private int _scrollLeft;
 
-    public HelpViewerLayer(HelpLine[] lines, ConsolePalette palette, int firstVisibleIndex = 0)
+    public HelpViewerLayer(HelpLine[] lines, CSharpFarPalette palette, int firstVisibleIndex = 0)
         : base(
             (_, _) => throw new InvalidOperationException("HelpViewerLayer uses overridden rendering."),
             _ => UiInteractionFrame.Empty,

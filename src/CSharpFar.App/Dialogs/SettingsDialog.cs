@@ -20,7 +20,7 @@ internal sealed class SettingsDialog
 {
 
     private static readonly PanelViewMode[] ViewModes = [PanelViewMode.Full, PanelViewMode.BriefTwoColumns];
-    private static readonly string[] PaletteNames = [.. PaletteRegistry.Names];
+    private static readonly string[] PaletteNames = [.. CSharpFarPaletteRegistry.Names];
 
     private readonly DialogService _dialogs;
 
@@ -48,7 +48,7 @@ internal sealed class SettingsDialog
             new FormDialogOptions("Settings")
             {
                 Layout = new FormLayoutOptions(CursorPolicy: FormCursorPolicy.Hidden),
-                Theme = () => PaletteRegistry.Resolve(palette.Value),
+                Theme = () => CSharpFarPaletteRegistry.Resolve(palette.Value).Ui,
             },
             rows: () =>
                 [

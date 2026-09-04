@@ -152,12 +152,16 @@ internal sealed class ApplicationCommandContext
 
     public DialogService Dialogs { get; }
 
-    public ConsolePalette Palette => _session.App.Palette;
+    public CSharpFarPalette Palette => _session.App.Palette;
 
-    public ConsolePalette CommandPalette
+    public CSharpFarPalette CommandPalette
     {
         get => _session.App.Palette;
-        set => _session.App.Palette = value;
+        set
+        {
+            _session.App.Palette = value;
+            UiTheme.Initialize(value.Ui);
+        }
     }
 
     public PanelController Controller { get; }

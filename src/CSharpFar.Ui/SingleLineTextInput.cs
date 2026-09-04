@@ -239,12 +239,12 @@ public static class SingleLineTextInput
 
         if (width == 1)
         {
-            screen.WriteChar(x, y, HistoryDropdownArrow, history.History.HasItems ? normalStyle : FarDialogStyles.DisabledControl(normalStyle));
+            screen.WriteChar(x, y, HistoryDropdownArrow, history.History.HasItems ? normalStyle : DialogStyles.DisabledControl(normalStyle));
             return;
         }
 
         Render(screen, x, y, width - 1, buffer, normalStyle, selectedStyle, maskInput);
-        screen.WriteChar(x + width - 1, y, HistoryDropdownArrow, history.History.HasItems ? normalStyle : FarDialogStyles.DisabledControl(normalStyle));
+        screen.WriteChar(x + width - 1, y, HistoryDropdownArrow, history.History.HasItems ? normalStyle : DialogStyles.DisabledControl(normalStyle));
         if (renderDropdown)
             RenderHistoryDropdown(screen, x, y, width, history);
     }

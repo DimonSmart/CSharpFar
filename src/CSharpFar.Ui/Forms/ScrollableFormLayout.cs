@@ -43,7 +43,7 @@ public sealed partial class ScrollableFormDialog
         ScrollableFormFrame frame = BuildFrame(context, effectiveScrollTop, effectiveFocusedTarget);
         UiInteractionFrame interactionFrame = BuildInteractionFrame(frame);
 
-        context.Canvas.FillRegion(context.BodyBounds, FarDialogStyles.Fill);
+        context.Canvas.FillRegion(context.BodyBounds, DialogStyles.Fill);
         foreach (FormRowTargetFrame targetFrame in frame.Targets.OfType<FormRowTargetFrame>().Where(target => !target.IsFooter && IsVisibleInBody(target.Bounds, context.BodyBounds)))
         {
             bool focused = targetFrame.Target == effectiveFocusedTarget;
@@ -71,7 +71,7 @@ public sealed partial class ScrollableFormDialog
 
         if (context.FooterBounds is Rect fixedFooterBounds)
         {
-            context.Canvas.FillRegion(fixedFooterBounds, FarDialogStyles.Fill);
+            context.Canvas.FillRegion(fixedFooterBounds, DialogStyles.Fill);
             foreach (FormRowTargetFrame targetFrame in frame.Targets.OfType<FormRowTargetFrame>().Where(target => target.IsFooter))
             {
                 bool focused = targetFrame.Target == effectiveFocusedTarget;

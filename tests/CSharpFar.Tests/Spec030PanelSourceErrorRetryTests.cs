@@ -142,7 +142,7 @@ public sealed class Spec030PanelSourceErrorRetryTests
         };
 
         UiTestRender.Render(screen, canvas =>
-            new PanelRenderer(canvas, PaletteRegistry.Default)
+            new PanelRenderer(canvas, CSharpFarPaletteRegistry.Default)
                 .Render(new Rect(0, 0, 60, 16), state, isActive: true));
 
         string panelText = driver.GetRegionText(new Rect(0, 0, 60, 16));

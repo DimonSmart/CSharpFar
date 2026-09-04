@@ -12,7 +12,7 @@ internal sealed partial class HelpViewerLayer
         IUiCanvas screen,
         HelpLine[] lines,
         HelpViewerFrame frame,
-        ConsolePalette palette)
+        CSharpFarPalette palette)
     {
         int width = frame.Viewport.Size.Width;
         int height = frame.Viewport.Size.Height;
@@ -25,8 +25,8 @@ internal sealed partial class HelpViewerLayer
             0,
             0,
             (" CSharpFar Help ".PadRight(nameWidth)[..nameWidth] + pos)[..width],
-            PaletteStyles.PathHeaderActive(palette));
-        CellStyle body = PaletteStyles.HelpBody(palette);
+            CSharpFarPaletteStyles.PathHeaderActive(palette));
+        CellStyle body = CSharpFarPaletteStyles.HelpBody(palette);
         for (int row = 0; row < frame.VisibleRows; row++)
         {
             int line = frame.ScrollTop + row;
@@ -50,7 +50,7 @@ internal sealed partial class HelpViewerLayer
         int y,
         int left,
         int width,
-        ConsolePalette palette)
+        CSharpFarPalette palette)
     {
         if (width <= 0)
             return;
@@ -65,7 +65,7 @@ internal sealed partial class HelpViewerLayer
                 0,
                 left,
                 width,
-                PaletteStyles.HelpKey(palette));
+                CSharpFarPaletteStyles.HelpKey(palette));
             WriteClipped(
                 screen,
                 0,
@@ -74,15 +74,15 @@ internal sealed partial class HelpViewerLayer
                 KeyColumnWidth,
                 left,
                 width,
-                PaletteStyles.HelpBody(palette));
+                CSharpFarPaletteStyles.HelpBody(palette));
             return;
         }
 
         CellStyle style = line.Kind switch
         {
-            HelpLineKind.Title or HelpLineKind.Heading => PaletteStyles.HelpHeading(palette),
-            HelpLineKind.Separator => PaletteStyles.HelpSeparator(palette),
-            _ => PaletteStyles.HelpBody(palette),
+            HelpLineKind.Title or HelpLineKind.Heading => CSharpFarPaletteStyles.HelpHeading(palette),
+            HelpLineKind.Separator => CSharpFarPaletteStyles.HelpSeparator(palette),
+            _ => CSharpFarPaletteStyles.HelpBody(palette),
         };
         WriteClipped(screen, 0, y, line.Description, 0, left, width, style);
     }

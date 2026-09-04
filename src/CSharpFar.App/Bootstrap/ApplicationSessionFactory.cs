@@ -33,9 +33,12 @@ internal static class ApplicationSessionFactory
         controller.LoadLocation(left, leftStart, options);
         controller.LoadLocation(right, rightStart, options);
 
+        CSharpFarPalette palette = CSharpFarPaletteRegistry.Resolve(settings.Ui.Palette);
+        UiTheme.Initialize(palette.Ui);
+
         return new ApplicationSession
         {
-            App = new ApplicationState(PaletteRegistry.Resolve(settings.Ui.Palette)),
+            App = new ApplicationState(palette),
             Ui = new UiTransientState(),
             Panels = new PanelSessionState
             {
