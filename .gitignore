@@ -485,4 +485,6 @@ $RECYCLE.BIN/
 /CSharpFar/history.json
 /csharpfar-apt-private.asc
 /csharpfar-apt-public.asc
-/.idd/factory/runtime.lock
+
+# Intent Driven Development
+.idd/factory/**
