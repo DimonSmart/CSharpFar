@@ -47,6 +47,16 @@ internal sealed class QuickViewRenderer
         const string title = " Quick View ";
         _screen.Write(bounds.X + (bounds.Width - title.Length) / 2, bounds.Y, title, _titleStyle);
 
+        if (monitor is { IsEnabled: true, HistoryRoot: { } monitoringRoot })
+        {
+            item = new FilePanelItem
+            {
+                Name = Path.GetFileName(monitoringRoot),
+                FullPath = monitoringRoot,
+                IsDirectory = true,
+            };
+        }
+
         int innerWidth = bounds.Width - 2;
         int contentTop = bounds.Y + 1;
         int visRows = Math.Max(0, bounds.Height - 2);
@@ -95,6 +105,7 @@ internal sealed class QuickViewRenderer
 
         Rect? monitorToggleBounds = null;
         long? normalizedSelectedChangeId = null;
+        bool showRecentChanges = monitor is not null && (monitor.IsEnabled || monitor.IsHistoryFor(item.FullPath));
         if (monitor is not null && rowIndex < visRows)
         {
             if (visRows - rowIndex >= 2)
@@ -103,7 +114,7 @@ internal sealed class QuickViewRenderer
             WriteRow(x, y + rowIndex, toggle, w);
             monitorToggleBounds = new Rect(x, y + rowIndex++, w, 1);
 
-            if (monitor.IsEnabled && rowIndex < visRows)
+            if (showRecentChanges && rowIndex < visRows)
             {
                 WriteRow(x, y + rowIndex++, "Recent changes", w);
                 DirectoryChange[] allChanges = monitor.GetRecentChanges().ToArray();
@@ -134,7 +145,7 @@ internal sealed class QuickViewRenderer
                 }
             }
         }
-        DirectoryChange[] retained = monitor?.GetRecentChanges().ToArray() ?? [];
+        DirectoryChange[] retained = showRecentChanges ? monitor!.GetRecentChanges().ToArray() : [];
         int first = hits.Count == 0 ? 0 : Math.Clamp(firstVisibleChangeIndex, 0, Math.Max(0, retained.Length - hits.Count));
         return new ApplicationQuickViewFrame(new Rect(x - 1, y - 1, w + 2, visRows + 2), monitorToggleBounds, hits, normalizedSelectedChangeId, retained.Select(change => change.Id).ToArray(), first);
     }
