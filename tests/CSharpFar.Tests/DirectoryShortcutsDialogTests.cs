@@ -30,6 +30,7 @@ public sealed class DirectoryShortcutsDialogTests : IDisposable
     {
         var driver = new FakeConsoleDriver();
         driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(new ConsoleKeyInfo('d', ConsoleKey.D, shift: false, alt: false, control: false));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
         driver.EnqueueKey(Key(ConsoleKey.Escape));
@@ -108,19 +109,20 @@ public sealed class DirectoryShortcutsDialogTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.DownArrow));
         driver.EnqueueKey(Key(ConsoleKey.Delete));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(new ConsoleKeyInfo('X', ConsoleKey.X, shift: false, alt: false, control: false));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.EnqueueKey(Key(ConsoleKey.Delete));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
         DirectoryShortcutsDialogResult result = Show(
             driver,
-            [Shortcut(2, "Work", _target)]);
+            [Shortcut(1, "Keep", _target), Shortcut(2, "Work", _target)]);
 
+        Assert.True(result.Changed);
         AppSettings.DirectoryShortcutItem item = Assert.Single(result.Items);
-        Assert.Equal(2, item.Number);
-        Assert.Equal(_target, item.Path);
-        Assert.EndsWith("X", item.Name, StringComparison.Ordinal);
+        Assert.Equal(1, item.Number);
+        Assert.Equal("Keep", item.Name);
+        Assert.Equal(1, driver.WriteRecords.Count(write =>
+            write.Text.Contains("Delete directory shortcut", StringComparison.Ordinal)));
     }
 
     private DirectoryShortcutsDialogResult Show(
