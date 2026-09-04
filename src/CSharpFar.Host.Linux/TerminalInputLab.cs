@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using CSharpFar.Console.Ansi;
+using TerminalInputLabEvent = CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent;
 
 internal sealed record TerminalInputLabOptions(
     bool Manual = true,
@@ -79,7 +80,7 @@ internal static class TerminalInputLab
         string jsonPath = Path.Combine(artifactDirectory, $"{stamp}-{environmentName}.jsonl");
         string summaryPath = Path.Combine(artifactDirectory, $"{stamp}-summary.md");
         using var log = new StreamWriter(jsonPath, append: false) { AutoFlush = true };
-        var parser = new TerminalInputLabParser();
+        var parser = new AnsiInputDiagnosticReader(driver);
         var observations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         string enhancedResponse = options.EnhancedKeyboard ? "timeout" : "disabled";
         bool enhancedPushed = false;
@@ -120,7 +121,7 @@ internal static class TerminalInputLab
 
     private static void RunManualSteps(
         AnsiTerminalConsoleDriver driver,
-        TerminalInputLabParser parser,
+        AnsiInputDiagnosticReader parser,
         StreamWriter log,
         TerminalInputLabOptions options,
         HashSet<string> observations)
@@ -147,10 +148,9 @@ internal static class TerminalInputLab
                     lastRemaining = remaining;
                 }
 
-                if (!driver.TryReadRawInput(100, options.EscapeTimeoutMilliseconds, out var input))
+                if (!parser.TryRead(100, options.EscapeTimeoutMilliseconds, out var parsed))
                     continue;
 
-                var parsed = parser.Parse(input.Bytes);
                 string signature = Signature(parsed);
                 observations.Add(signature);
                 stepObservations.Add(signature);
