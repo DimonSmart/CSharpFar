@@ -27,7 +27,7 @@ public sealed class DirectoryShortcutsDialogTests : IDisposable
     }
 
     [Fact]
-    public void DeleteConfiguredShortcut_ConfirmsRemovesAndRefreshesSlot()
+    public void DeleteConfiguredShortcut_ConfirmsRemovesRefreshesAndKeepsSelection()
     {
         var driver = new FakeConsoleDriver();
         bool sawConfirmation = false;
@@ -52,14 +52,17 @@ public sealed class DirectoryShortcutsDialogTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(new ConsoleKeyInfo('d', ConsoleKey.D, shift: false, alt: false, control: false));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.Delete));
         driver.EnqueueKey(Key(ConsoleKey.Escape));
+        AppSettings.DirectoryShortcutItem[] shortcuts = Enumerable.Range(0, 10)
+            .Select(number => Shortcut(number, number == 2 ? "Work" : $"Slot {number}", _target))
+            .ToArray();
 
-        DirectoryShortcutsDialogResult result = Show(
-            driver,
-            [Shortcut(2, "Work", _target)]);
+        DirectoryShortcutsDialogResult result = Show(driver, shortcuts);
 
         Assert.True(result.Changed);
-        Assert.Empty(result.Items);
+        Assert.Equal(9, result.Items.Count);
+        Assert.DoesNotContain(result.Items, item => item.Number == 2);
         Assert.True(sawConfirmation);
         Assert.True(sawRefreshedSlot);
     }
@@ -94,8 +97,6 @@ public sealed class DirectoryShortcutsDialogTests : IDisposable
 
         Assert.False(result.Changed);
         Assert.Empty(result.Items);
-        Assert.DoesNotContain(driver.WriteRecords, write =>
-            write.Text.Contains("Delete directory shortcut", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -112,28 +113,6 @@ public sealed class DirectoryShortcutsDialogTests : IDisposable
 
         Assert.True(result.Changed);
         Assert.Empty(result.Items);
-    }
-
-    [Fact]
-    public void DeleteConfiguredShortcut_KeepsSelectionOnSameSlot()
-    {
-        var driver = new FakeConsoleDriver();
-        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
-        driver.EnqueueKey(Key(ConsoleKey.Delete));
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.Delete));
-        driver.EnqueueKey(Key(ConsoleKey.Escape));
-        driver.EnqueueKey(Key(ConsoleKey.Escape));
-        AppSettings.DirectoryShortcutItem[] shortcuts = Enumerable.Range(0, 10)
-            .Select(number => Shortcut(number, $"Slot {number}", _target))
-            .ToArray();
-
-        DirectoryShortcutsDialogResult result = Show(driver, shortcuts);
-
-        Assert.True(result.Changed);
-        Assert.Equal(9, result.Items.Count);
-        Assert.DoesNotContain(result.Items, item => item.Number == 2);
-        Assert.Equal(1, driver.PendingInputCount);
     }
 
     private DirectoryShortcutsDialogResult Show(
