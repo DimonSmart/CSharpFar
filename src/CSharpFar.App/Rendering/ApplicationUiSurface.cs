@@ -573,12 +573,11 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
             frame.Actions.Where(action => IsVisible(action.Bounds, viewport)).Select(action => new RoutedPointerItem<ApplicationFunctionKeyHit>(action, action.Bounds)).ToArray());
     }
 
-    private static void AddQuickViewInteraction(UiInteractionFrameBuilder builder, ApplicationQuickViewFrame? frame, ConsoleViewport viewport)
+    internal static void AddQuickViewInteraction(UiInteractionFrameBuilder builder, ApplicationQuickViewFrame? frame, ConsoleViewport viewport)
     {
         if (frame is null)
             return;
-        if (frame.RecentChanges is { } recentChanges && frame.RecentChangesFrame is { } recentChangesFrame)
-            builder.AddFragment(recentChanges.BuildInteractionFragment(recentChangesFrame, 0));
+
         var collection = new RoutedPointerCollection<ApplicationQuickViewPointerHit>(
             new UiTargetId("application.quick-view"), hit => hit.Target switch
             {
@@ -594,6 +593,11 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
         builder.AddFragment(collection.BuildInteractionFragment(
             IsVisible(frame.Bounds, viewport) ? frame.Bounds : new Rect(0, 0, 0, 0),
             pointerHits.Where(hit => IsVisible(hit.Bounds, viewport)).Select(hit => new RoutedPointerItem<ApplicationQuickViewPointerHit>(hit, hit.Bounds)).ToArray()));
+
+        // Nested list targets must be published after the full Quick View surface because
+        // routed hit testing gives the last matching region precedence.
+        if (frame.RecentChanges is { } recentChanges && frame.RecentChangesFrame is { } recentChangesFrame)
+            builder.AddFragment(recentChanges.BuildInteractionFragment(recentChangesFrame, 0));
     }
 
     private static void AddFileUsageInteraction(UiInteractionFrameBuilder builder, ApplicationFileUsageFrame? frame, ConsoleViewport viewport)
