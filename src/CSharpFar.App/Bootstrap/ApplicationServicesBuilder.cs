@@ -288,7 +288,6 @@ internal static class ApplicationServicesBuilder
                 return false;
             controller.SetCursorByName(targetPanel, Path.GetFileName(target), callbacks.VisibleRowsForSide(targetSide));
             callbacks.StartWatching(targetPanel, targetSide);
-            callbacks.SetQuickView(false);
             return true;
         };
         mouseInputContext.ActivateQuickViewDirectoryMonitorChange = changeId =>
