@@ -125,8 +125,8 @@ internal sealed class ApplicationPanelWorkspaceRenderer
             quickViewFrame = quickViewRenderer.Render(
                 rightBounds,
                 item,
-                item is { IsDirectory: true } ? quickViewDirState : null,
-                item is { IsDirectory: true } ? monitor : null,
+                quickViewDirState,
+                monitor,
                 selectedChangeId,
                 quickViewIsBackgroundUpdating, firstVisibleQuickViewChangeIndex, recentChanges);
         }
@@ -136,8 +136,8 @@ internal sealed class ApplicationPanelWorkspaceRenderer
             quickViewFrame = quickViewRenderer.Render(
                 leftBounds,
                 item,
-                item is { IsDirectory: true } ? quickViewDirState : null,
-                item is { IsDirectory: true } ? monitor : null,
+                quickViewDirState,
+                monitor,
                 selectedChangeId,
                 quickViewIsBackgroundUpdating, firstVisibleQuickViewChangeIndex, recentChanges);
             rightFrame = panelRenderer.Render(rightBounds, right, true, PanelSide.Right, rightViewMode);
