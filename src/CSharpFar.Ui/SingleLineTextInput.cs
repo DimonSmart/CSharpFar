@@ -1,8 +1,6 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
-using CSharpFar.Core.Abstractions;
-using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 

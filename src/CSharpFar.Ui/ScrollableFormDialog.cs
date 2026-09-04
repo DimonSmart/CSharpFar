@@ -2,7 +2,6 @@ using System.Runtime.CompilerServices;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
-using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 

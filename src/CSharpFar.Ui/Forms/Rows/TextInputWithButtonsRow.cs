@@ -1,7 +1,7 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
-using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.Ui;
 

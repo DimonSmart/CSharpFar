@@ -1,11 +1,40 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Xml.Linq;
 using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 
 public sealed class FormControlApiArchitectureTests
 {
+    [Fact]
+    public void Ui_Project_DoesNotReferenceApplicationAssemblies()
+    {
+        string projectPath = FindRepositoryFile("src", "CSharpFar.Ui", "CSharpFar.Ui.csproj");
+        XDocument project = XDocument.Load(projectPath);
+        string[] projectReferences = project.Descendants("ProjectReference")
+            .Select(reference => (string?)reference.Attribute("Include"))
+            .Where(include => include is not null)
+            .Cast<string>()
+            .ToArray();
+
+        Assert.DoesNotContain(projectReferences, reference =>
+            reference.Contains("CSharpFar.Core", StringComparison.Ordinal) ||
+            reference.Contains("CSharpFar.App", StringComparison.Ordinal) ||
+            reference.Contains("CSharpFar.Platform", StringComparison.Ordinal) ||
+            reference.Contains("CSharpFar.Module", StringComparison.Ordinal));
+
+        string[] assemblyReferences = typeof(FormControls).Assembly
+            .GetReferencedAssemblies()
+            .Select(reference => reference.Name!)
+            .ToArray();
+        Assert.DoesNotContain(assemblyReferences, reference =>
+            reference.StartsWith("CSharpFar.Core", StringComparison.Ordinal) ||
+            reference.StartsWith("CSharpFar.App", StringComparison.Ordinal) ||
+            reference.StartsWith("CSharpFar.Platform", StringComparison.Ordinal) ||
+            reference.StartsWith("CSharpFar.Module", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void Ui_DoesNotGrantApplicationFriendAccess()
     {
@@ -89,5 +118,17 @@ public sealed class FormControlApiArchitectureTests
             return true;
 
         return type.IsGenericType && type.GetGenericArguments().Any(argument => ContainsImplementationType(argument, implementationTypes));
+    }
+
+    private static string FindRepositoryFile(params string[] parts)
+    {
+        for (DirectoryInfo? directory = new(Environment.CurrentDirectory); directory is not null; directory = directory.Parent)
+        {
+            string candidate = Path.Combine([directory.FullName, .. parts]);
+            if (File.Exists(candidate))
+                return candidate;
+        }
+
+        throw new FileNotFoundException("The repository UI project was not found.");
     }
 }

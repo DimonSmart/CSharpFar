@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\CSharpFar.Core\CSharpFar.Core.csproj" />
     <ProjectReference Include="..\CSharpFar.Console\CSharpFar.Console.csproj" />
   </ItemGroup>
 

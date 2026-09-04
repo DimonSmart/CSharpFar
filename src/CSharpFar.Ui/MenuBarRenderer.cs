@@ -1,6 +1,5 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
-using CSharpFar.Core.Menu;
 
 namespace CSharpFar.Ui;
 

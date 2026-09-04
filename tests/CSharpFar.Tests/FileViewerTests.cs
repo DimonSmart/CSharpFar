@@ -740,7 +740,7 @@ public class FileViewerTests : IDisposable
         return new string(row);
     }
 
-    private sealed class FakeTextClipboard : CSharpFar.Core.Abstractions.ITextClipboard
+    private sealed class FakeTextClipboard : ITextClipboard
     {
         public string? Text { get; private set; }
 
