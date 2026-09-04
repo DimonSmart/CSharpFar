@@ -78,7 +78,6 @@ public sealed class DirectorySummaryMonitorTests : IDisposable
     public async Task DeduplicatedChangedEvent_StillRequestsSummaryRefresh()
     {
         string path = Path.Combine(_root, "app.log");
-        File.WriteAllText(path, "initial");
         var requested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var monitor = new DirectorySummaryMonitor(() => { }, _ => requested.TrySetResult());
         monitor.Enable(_root);
