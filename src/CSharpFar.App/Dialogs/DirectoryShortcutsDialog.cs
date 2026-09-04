@@ -34,23 +34,46 @@ internal sealed class DirectoryShortcutsDialog
             Actions =
             [
                 DialogButton.Default("edit", "Edit", 'E'),
+                DialogButton.Action("delete", "Delete", 'D'),
                 DialogButton.Action("close", "Close", 'C'),
             ],
             DialogWidth = 68,
             MinDialogWidth = 40,
             MaxVisibleRows = 10,
             DefaultItemActionId = "edit",
+            DeleteActionId = "delete",
             Cancel = () => Result(initialItems, items),
             HandleAction = action =>
             {
                 if (action.ActionId == "close")
                     return DialogOutcome<DirectoryShortcutsDialogResult>.Complete(Result(initialItems, items));
 
+                if (action.ActionId == "delete" && action.SelectedItem is int deleteNumber)
+                    return Delete(items, deleteNumber)
+                        ? DialogOutcome<DirectoryShortcutsDialogResult>.RefreshOpen()
+                        : DialogOutcome<DirectoryShortcutsDialogResult>.ContinueOpen();
+
                 return action.ActionId == "edit" && action.SelectedItem is int number && Edit(items, number, activePanelPath)
                     ? DialogOutcome<DirectoryShortcutsDialogResult>.RefreshOpen()
                     : DialogOutcome<DirectoryShortcutsDialogResult>.ContinueOpen();
             },
         })!;
+    }
+
+    private bool Delete(
+        IDictionary<int, AppSettings.DirectoryShortcutItem> items,
+        int number)
+    {
+        if (!items.TryGetValue(number, out var item))
+            return false;
+
+        string itemText = string.IsNullOrWhiteSpace(item.Name)
+            ? item.Path
+            : $"{item.Name} — {item.Path}";
+        if (!_dialogs.Confirm("Directory shortcuts", $"Delete directory shortcut {number}?", itemText))
+            return false;
+
+        return items.Remove(number);
     }
 
     private bool Edit(
