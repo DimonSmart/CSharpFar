@@ -121,8 +121,10 @@ public sealed class DirectoryShortcutsDialogTests : IDisposable
         AppSettings.DirectoryShortcutItem item = Assert.Single(result.Items);
         Assert.Equal(1, item.Number);
         Assert.Equal("Keep", item.Name);
-        Assert.Equal(1, driver.WriteRecords.Count(write =>
-            write.Text.Contains("Delete directory shortcut", StringComparison.Ordinal)));
+        Assert.Contains(driver.WriteRecords, write =>
+            write.Text.Contains("Delete directory shortcut 2?", StringComparison.Ordinal));
+        Assert.DoesNotContain(driver.WriteRecords, write =>
+            write.Text.Contains("Delete directory shortcut 1?", StringComparison.Ordinal));
     }
 
     private DirectoryShortcutsDialogResult Show(
