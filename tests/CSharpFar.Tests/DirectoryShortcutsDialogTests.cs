@@ -1,5 +1,6 @@
 using CSharpFar.App.Dialogs;
 using CSharpFar.Console;
+using CSharpFar.Console.Models;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
@@ -29,6 +30,24 @@ public sealed class DirectoryShortcutsDialogTests : IDisposable
     public void DeleteConfiguredShortcut_ConfirmsRemovesAndRefreshesSlot()
     {
         var driver = new FakeConsoleDriver();
+        bool sawConfirmation = false;
+        bool sawRefreshedSlot = false;
+        driver.BeforeReadInput = currentDriver =>
+        {
+            ConsoleSize size = currentDriver.GetSize();
+            string screenText = currentDriver.GetRegionText(new Rect(0, 0, size.Width, size.Height));
+            if (screenText.Contains("Delete directory shortcut 2?", StringComparison.Ordinal))
+            {
+                sawConfirmation = true;
+                Assert.Contains("Work —", screenText, StringComparison.Ordinal);
+            }
+            else if (sawConfirmation &&
+                     screenText.Contains("2  ", StringComparison.Ordinal) &&
+                     !screenText.Contains("Work", StringComparison.Ordinal))
+            {
+                sawRefreshedSlot = true;
+            }
+        };
         driver.EnqueueKey(Key(ConsoleKey.DownArrow));
         driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(new ConsoleKeyInfo('d', ConsoleKey.D, shift: false, alt: false, control: false));
@@ -41,15 +60,8 @@ public sealed class DirectoryShortcutsDialogTests : IDisposable
 
         Assert.True(result.Changed);
         Assert.Empty(result.Items);
-        Assert.Contains(driver.WriteRecords, write =>
-            write.Text.Contains("Delete directory shortcut 2?", StringComparison.Ordinal));
-        Assert.Contains(driver.WriteRecords, write =>
-            write.Text.Contains("Work —", StringComparison.Ordinal));
-        var slotWrites = driver.WriteRecords
-            .Where(write => write.Text.StartsWith("2  ", StringComparison.Ordinal))
-            .ToArray();
-        Assert.NotEmpty(slotWrites);
-        Assert.DoesNotContain("Work", slotWrites[^1].Text, StringComparison.Ordinal);
+        Assert.True(sawConfirmation);
+        Assert.True(sawRefreshedSlot);
     }
 
     [Fact]
