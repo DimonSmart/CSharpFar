@@ -41,6 +41,7 @@
     <ProjectReference Include="..\..\src\CSharpFar.Platform.MacOs\CSharpFar.Platform.MacOs.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Platform.Windows\CSharpFar.Platform.Windows.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Shell\CSharpFar.Shell.csproj" />
+    <ProjectReference Include="..\..\samples\CSharpFar.Ui.Demo\CSharpFar.Ui.Demo.csproj" />
   </ItemGroup>
 
 </Project>

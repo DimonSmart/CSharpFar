@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/CSharpFar.Ui.Demo/CSharpFar.Ui.Demo.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/CSharpFar.App/CSharpFar.App.csproj" />
     <Project Path="src/CSharpFar.Console.Ansi/CSharpFar.Console.Ansi.csproj" />
