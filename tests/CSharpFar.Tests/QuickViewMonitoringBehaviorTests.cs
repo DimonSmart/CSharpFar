@@ -108,7 +108,7 @@ public sealed class QuickViewMonitoringBehaviorTests : IDisposable
             new UiTargetId("application.quick-view.recent-changes"),
             new UiTargetId("application.quick-view.recent-changes.scrollbar"),
             RoutedScrollableListOptions.DropdownPopup);
-        ScrollableListFrame listFrame = list.CalculateFrame(new Rect(2, 6, 20, 3), new Rect(22, 6, 1, 3));
+        ScrollableListFrame listFrame = list.CalculateFrame(new Rect(2, 6, 20, 2), new Rect(22, 6, 1, 3));
         var quickView = new ApplicationQuickViewFrame(
             new Rect(0, 0, 30, 20),
             new Rect(2, 4, 20, 1),
@@ -137,7 +137,7 @@ public sealed class QuickViewMonitoringBehaviorTests : IDisposable
         Assert.Equal(1, list.State.SelectedIndex);
 
         list.State.SetSelectedIndex(0, listFrame.ViewportRows);
-        listFrame = list.CalculateFrame(new Rect(2, 6, 20, 3), new Rect(22, 6, 1, 3));
+        listFrame = list.CalculateFrame(new Rect(2, 6, 20, 2), new Rect(22, 6, 1, 3));
         RoutedScrollableListInputResult boundary = list.RouteInput(
             Mouse(MouseButton.WheelUp, 3, 6),
             listFrame,
