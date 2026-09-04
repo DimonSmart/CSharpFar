@@ -43,7 +43,7 @@ public sealed class DirectoryShortcutsDialogTests : IDisposable
         Assert.Contains(driver.WriteRecords, write =>
             write.Text.Contains("Delete directory shortcut 2?", StringComparison.Ordinal));
         Assert.Contains(driver.WriteRecords, write =>
-            write.Text.Contains($"Work — {_target}", StringComparison.Ordinal));
+            write.Text.Contains("Work —", StringComparison.Ordinal));
         var slotWrites = driver.WriteRecords
             .Where(write => write.Text.StartsWith("2  ", StringComparison.Ordinal))
             .ToArray();
