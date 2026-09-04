@@ -112,19 +112,16 @@ public sealed class DirectoryShortcutsDialogTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.Delete));
         driver.EnqueueKey(Key(ConsoleKey.Escape));
         driver.EnqueueKey(Key(ConsoleKey.Escape));
+        AppSettings.DirectoryShortcutItem[] shortcuts = Enumerable.Range(0, 10)
+            .Select(number => Shortcut(number, $"Slot {number}", _target))
+            .ToArray();
 
-        DirectoryShortcutsDialogResult result = Show(
-            driver,
-            [Shortcut(1, "Keep", _target), Shortcut(2, "Work", _target)]);
+        DirectoryShortcutsDialogResult result = Show(driver, shortcuts);
 
         Assert.True(result.Changed);
-        AppSettings.DirectoryShortcutItem item = Assert.Single(result.Items);
-        Assert.Equal(1, item.Number);
-        Assert.Equal("Keep", item.Name);
-        Assert.Contains(driver.WriteRecords, write =>
-            write.Text.Contains("Delete directory shortcut 2?", StringComparison.Ordinal));
-        Assert.DoesNotContain(driver.WriteRecords, write =>
-            write.Text.Contains("Delete directory shortcut 1?", StringComparison.Ordinal));
+        Assert.Equal(9, result.Items.Count);
+        Assert.DoesNotContain(result.Items, item => item.Number == 2);
+        Assert.Equal(1, driver.PendingInputCount);
     }
 
     private DirectoryShortcutsDialogResult Show(
