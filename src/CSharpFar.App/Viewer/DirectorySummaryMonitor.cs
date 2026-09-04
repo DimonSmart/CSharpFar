@@ -24,6 +24,7 @@ internal sealed class DirectorySummaryMonitor : IDisposable
     private FileSystemWatcher? _watcher;
     private CancellationTokenSource? _delay;
     private string? _root;
+    private string? _historyRoot;
     private bool _scanning;
     private long _version;
     private long _scanVersion;
@@ -47,11 +48,30 @@ internal sealed class DirectorySummaryMonitor : IDisposable
         }
     }
 
+    public string? HistoryRoot
+    {
+        get
+        {
+            lock (_gate)
+                return _historyRoot;
+        }
+    }
+
     internal long CurrentGeneration => Interlocked.Read(ref _generation);
     public IReadOnlyList<DirectoryChange> GetRecentChanges()
     {
         lock (_gate)
             return _changes.ToArray();
+    }
+
+    public bool IsHistoryFor(string path)
+    {
+        string normalizedPath;
+        try { normalizedPath = Path.GetFullPath(path); }
+        catch { return false; }
+
+        lock (_gate)
+            return _historyRoot is not null && LocalFileSystemPathComparer.Current.Equals(_historyRoot, normalizedPath);
     }
 
     public bool TryGetMonitorTarget(long changeId, out string target)
@@ -69,10 +89,21 @@ internal sealed class DirectorySummaryMonitor : IDisposable
 
     public void Enable(string root)
     {
-        Disable();
+        string normalizedRoot;
+        try { normalizedRoot = Path.GetFullPath(root); }
+        catch
+        {
+            Disable();
+            return;
+        }
+
+        bool preserveHistory;
+        lock (_gate)
+            preserveHistory = _historyRoot is not null && LocalFileSystemPathComparer.Current.Equals(_historyRoot, normalizedRoot);
+
+        Disable(clearHistory: !preserveHistory);
         try
         {
-            string normalizedRoot = Path.GetFullPath(root);
             long generation = Interlocked.Increment(ref _generation);
             var watcher = new FileSystemWatcher(normalizedRoot)
             {
@@ -88,17 +119,20 @@ internal sealed class DirectorySummaryMonitor : IDisposable
             lock (_gate)
             {
                 _root = normalizedRoot;
+                _historyRoot = normalizedRoot;
                 _watcher = watcher;
             }
             watcher.EnableRaisingEvents = true;
         }
         catch (Exception)
         {
-            Disable();
+            Disable(clearHistory: false);
         }
     }
 
-    public void Disable()
+    public void Disable() => Disable(clearHistory: true);
+
+    internal void Disable(bool clearHistory)
     {
         Interlocked.Increment(ref _generation);
         FileSystemWatcher? watcher;
@@ -107,7 +141,11 @@ internal sealed class DirectorySummaryMonitor : IDisposable
             watcher = _watcher;
             _watcher = null;
             _root = null;
-            _changes.Clear();
+            if (clearHistory)
+            {
+                _historyRoot = null;
+                _changes.Clear();
+            }
             _scanning = false;
             _version++;
         }
