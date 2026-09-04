@@ -2,7 +2,7 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
 
-public static class WarningDialogStyles
+internal static class WarningDialogStyles
 {
     public static CellStyle Fill => new(UiTheme.Current.WarningForeground, UiTheme.Current.WarningBackground);
     public static CellStyle Border => Fill;

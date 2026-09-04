@@ -11,6 +11,7 @@ internal sealed class ModuleHelpDialog
     private static readonly UiTargetId HelpTarget = Targets.Root;
     private static readonly UiTargetId ContentTarget = Targets.Child("content");
     private static readonly UiTargetId ScrollbarTarget = Targets.Child("scrollbar");
+    private static readonly CellStyle BodyStyle = new(ConsoleColor.White, ConsoleColor.Black);
     private readonly ModalDialogHost _modalDialogs;
 
     public ModuleHelpDialog(ModalDialogHost modalDialogs) =>
@@ -75,12 +76,11 @@ internal sealed class ModuleHelpDialog
         int titleWidth = Math.Max(0, frame.Size.Width - ConsoleTextMetrics.GetCellWidth(position));
         screen.Write(0, 0, ConsoleTextMetrics.FitToCells(" " + title + " ", titleWidth) + position, headerStyle);
 
-        var bodyStyle = PaletteStyles.HelpBody(palette);
         for (int row = 0; row < frame.Viewport.ViewportItems; row++)
         {
             int lineIndex = frame.Viewport.FirstVisibleIndex + row;
             string text = lineIndex < lines.Count ? lines[lineIndex] : string.Empty;
-            screen.Write(0, row + 1, ConsoleTextMetrics.FitToCells(text, frame.Viewport.ContentBounds.Width), bodyStyle);
+            screen.Write(0, row + 1, ConsoleTextMetrics.FitToCells(text, frame.Viewport.ContentBounds.Width), BodyStyle);
         }
 
         viewport.RenderScrollbar(screen, frame.Viewport, PaletteStyles.DialogBorder(palette));

@@ -45,17 +45,4 @@ public static class PaletteStyles
 
     public static CellStyle KeyBarGap(ConsolePalette palette) =>
         new(palette.FunctionKeyGapFg, palette.FunctionKeyGapBg);
-
-    public static CellStyle HelpBody(ConsolePalette palette) =>
-        new(palette.HelpBodyFg, palette.HelpBodyBg);
-
-    public static CellStyle HelpHeading(ConsolePalette palette) =>
-        new(palette.HelpHeadingFg, palette.HelpHeadingBg);
-
-    public static CellStyle HelpKey(ConsolePalette palette) =>
-        new(palette.HelpKeyFg, palette.HelpKeyBg);
-
-    public static CellStyle HelpSeparator(ConsolePalette palette) =>
-        new(palette.HelpSeparatorFg, palette.HelpSeparatorBg);
-
 }

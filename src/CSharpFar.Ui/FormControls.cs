@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
@@ -48,7 +47,6 @@ public static class FormControls
         new(label, field, buttons);
 
     /// <summary>Creates a standard checkbox row with an application-owned identity.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
     public static CheckBoxRow CheckBox(
         string id,
         string label,
@@ -66,7 +64,6 @@ public static class FormControls
         new(label, isChecked) { Enabled = enabled, DisabledReason = disabledReason };
 
     /// <summary>Creates a standard tri-state checkbox row with an application-owned identity.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
     public static TriStateCheckBoxRow TriStateCheckBox(
         string id,
         string label,
@@ -83,8 +80,7 @@ public static class FormControls
         string? disabledReason = null) =>
         new(new TriStateCheckBoxLine(label, value)) { Enabled = enabled, DisabledReason = disabledReason };
 
-    /// <summary>Creates a tri-state permission matrix row.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
+    /// <summary>Creates a tri-state permission matrix row with an application-owned identity.</summary>
     public static TriStateMatrixFormRow TriStateMatrix(
         string id,
         IReadOnlyList<TriStateMatrixColumn> columns,
@@ -96,8 +92,7 @@ public static class FormControls
         IReadOnlyList<TriStateMatrixColumn> columns,
         IReadOnlyList<TriStateMatrixRow> rows) => new(columns, rows);
 
-    /// <summary>Creates a grid of related checkbox rows.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
+    /// <summary>Creates a grid of related checkbox rows with an application-owned identity.</summary>
     public static CheckBoxColumnsRow CheckBoxColumns(
         string id,
         IReadOnlyList<IReadOnlyList<CheckBoxRow>> columns)
@@ -109,8 +104,7 @@ public static class FormControls
     /// <summary>Creates a grid of related checkbox rows without an application-owned identity.</summary>
     public static CheckBoxColumnsRow CheckBoxColumns(IReadOnlyList<IReadOnlyList<CheckBoxRow>> columns) => new(columns);
 
-    /// <summary>Creates a standard form button row using the requested semantic visual treatment.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
+    /// <summary>Creates a standard form button row with an application-owned identity and the requested semantic visual treatment.</summary>
     public static ButtonRow Buttons(
         string id,
         IReadOnlyList<DialogButton> buttons,
@@ -121,8 +115,7 @@ public static class FormControls
         return new ButtonRow(buttons, tone: tone) { Id = id };
     }
 
-    /// <summary>Creates a standard form button row with the conventional default treatment.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
+    /// <summary>Creates a standard form button row with an application-owned identity and conventional default treatment.</summary>
     public static ButtonRow Buttons(string id, params DialogButton[] buttons) => Buttons(id, (IReadOnlyList<DialogButton>)buttons);
 
     /// <summary>Creates a standard button row without an application-owned identity.</summary>
@@ -145,8 +138,7 @@ public static class FormControls
         DialogButton.Default("ok", "OK", 'O'),
         DialogButton.Cancel());
 
-    /// <summary>Creates a segmented one-line choice row, using <paramref name="fallbackValue"/> when the selected value is absent.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
+    /// <summary>Creates a segmented one-line choice row with an application-owned identity.</summary>
     public static ChoiceFormRow<T> Choice<T>(
         string id,
         string label,
@@ -169,7 +161,7 @@ public static class FormControls
         string? disabledReason = null) =>
         new(CreateChoice(values, format, selectedValue, comparer), label) { Enabled = enabled, DisabledReason = disabledReason };
 
-    [EditorBrowsable(EditorBrowsableState.Never)]
+    /// <summary>Creates a segmented one-line choice row with an application-owned identity and explicit fallback value.</summary>
     public static ChoiceFormRow<T> Choice<T>(
         string id,
         string label,
@@ -193,8 +185,7 @@ public static class FormControls
         string? disabledReason = null) =>
         new(CreateChoice(values, format, selectedValue, fallbackValue, comparer), label) { Enabled = enabled, DisabledReason = disabledReason };
 
-    /// <summary>Creates the compact one-line choice presentation.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
+    /// <summary>Creates the compact one-line choice presentation with an application-owned identity.</summary>
     public static CompactChoiceFormRow<T> CompactChoice<T>(
         string id,
         string label,
@@ -217,8 +208,7 @@ public static class FormControls
         string? disabledReason = null) =>
         new(CreateChoice(values, format, selectedValue, comparer), label) { Enabled = enabled, DisabledReason = disabledReason };
 
-    /// <summary>Creates a multi-line choice row with an explicit fallback value; <paramref name="itemsPerRow"/> controls its visible grouping.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
+    /// <summary>Creates a multi-line choice row with an application-owned identity; <paramref name="itemsPerRow"/> controls its visible grouping.</summary>
     public static MultiLineChoiceFormRow<T> MultiLineChoice<T>(
         string id,
         string label,
@@ -246,7 +236,7 @@ public static class FormControls
         string? disabledReason = null) =>
         new(label, values, format, selectedValue, itemsPerRow, comparer) { Enabled = enabled, DisabledReason = disabledReason };
 
-    [EditorBrowsable(EditorBrowsableState.Never)]
+    /// <summary>Creates a multi-line choice row with an application-owned identity and explicit fallback value.</summary>
     public static MultiLineChoiceFormRow<T> MultiLineChoice<T>(
         string id,
         string label,
@@ -275,8 +265,7 @@ public static class FormControls
         string? disabledReason = null) =>
         new(label, values, format, selectedValue, fallbackValue, itemsPerRow, comparer) { Enabled = enabled, DisabledReason = disabledReason };
 
-    /// <summary>Creates a dropdown row without exposing its popup or selection model.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
+    /// <summary>Creates a dropdown row with an application-owned identity without exposing its popup or selection model.</summary>
     public static DropdownSelectFormRow<T> Dropdown<T>(
         string id,
         string label,
@@ -311,8 +300,7 @@ public static class FormControls
         return new DropdownSelectFormRow<T>(label, dropdown) { Enabled = enabled, DisabledReason = disabledReason };
     }
 
-    /// <summary>Creates a read-only labeled value row.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
+    /// <summary>Creates a read-only labeled value row with an application-owned identity.</summary>
     public static LabeledValueRow Value(string id, string label, Func<string> value)
     {
         id = RequiredId(id);

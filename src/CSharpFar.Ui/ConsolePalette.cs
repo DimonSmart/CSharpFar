@@ -1,7 +1,7 @@
 namespace CSharpFar.Ui;
 
 /// <summary>
-/// Colour palette for all UI elements. Renderers derive CellStyle values from
+/// Colour palette for reusable UI elements. Renderers derive CellStyle values from
 /// the active palette rather than using hard-coded colours directly.
 /// </summary>
 public sealed class ConsolePalette
@@ -64,14 +64,4 @@ public sealed class ConsolePalette
     public ConsoleColor WarningBackground { get; init; } = ConsoleColor.DarkRed;
     public ConsoleColor WarningButtonFocusedForeground { get; init; } = ConsoleColor.Black;
     public ConsoleColor WarningButtonFocusedBackground { get; init; } = ConsoleColor.Gray;
-
-    // ── Help viewer ───────────────────────────────────────────────────────────
-    public ConsoleColor HelpBodyFg { get; init; } = ConsoleColor.White;
-    public ConsoleColor HelpBodyBg { get; init; } = ConsoleColor.Black;
-    public ConsoleColor HelpHeadingFg { get; init; } = ConsoleColor.Yellow;
-    public ConsoleColor HelpHeadingBg { get; init; } = ConsoleColor.Black;
-    public ConsoleColor HelpKeyFg { get; init; } = ConsoleColor.Cyan;
-    public ConsoleColor HelpKeyBg { get; init; } = ConsoleColor.Black;
-    public ConsoleColor HelpSeparatorFg { get; init; } = ConsoleColor.DarkCyan;
-    public ConsoleColor HelpSeparatorBg { get; init; } = ConsoleColor.Black;
 }
