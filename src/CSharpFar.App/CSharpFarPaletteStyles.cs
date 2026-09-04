@@ -10,10 +10,10 @@ public static class CSharpFarPaletteStyles
     public static CellStyle InputField(CSharpFarPalette p) => PaletteStyles.InputField(p.Ui);
     public static CellStyle InputHighlight(CSharpFarPalette p) => PaletteStyles.InputHighlight(p.Ui);
     public static PopupRenderOptions DialogPopupOptions(CSharpFarPalette p) => PaletteStyles.DialogPopupOptions(p.Ui);
-    public static CellStyle HelpBody(CSharpFarPalette p) => PaletteStyles.HelpBody(p.Ui);
-    public static CellStyle HelpHeading(CSharpFarPalette p) => PaletteStyles.HelpHeading(p.Ui);
-    public static CellStyle HelpKey(CSharpFarPalette p) => PaletteStyles.HelpKey(p.Ui);
-    public static CellStyle HelpSeparator(CSharpFarPalette p) => PaletteStyles.HelpSeparator(p.Ui);
+    public static CellStyle HelpBody(CSharpFarPalette p) => new(p.HelpBodyFg, p.HelpBodyBg);
+    public static CellStyle HelpHeading(CSharpFarPalette p) => new(p.HelpHeadingFg, p.HelpHeadingBg);
+    public static CellStyle HelpKey(CSharpFarPalette p) => new(p.HelpKeyFg, p.HelpKeyBg);
+    public static CellStyle HelpSeparator(CSharpFarPalette p) => new(p.HelpSeparatorFg, p.HelpSeparatorBg);
     public static CellStyle PathHeaderActive(CSharpFarPalette p) => new(p.PanelPathActiveFg, p.PanelPathActiveBg);
     public static CellStyle CommandLine(CSharpFarPalette p) => new(p.CommandLineFg, p.CommandLineBg);
     public static CellStyle DirectoryShortcutBarNumber(CSharpFarPalette p) => new(p.DirectoryShortcutBarNumberFg, p.DirectoryShortcutBarNumberBg);

@@ -408,8 +408,8 @@ public sealed class HelpViewerLayerTests
         SnapshotCell keyCell = driver.GetCell(2, 1);
         SnapshotCell descriptionCell = driver.GetCell(HelpKeyColumnWidth(), 1);
 
-        Assert.Equal(PaletteStyles.HelpKey(palette.Ui).Foreground, keyCell.Foreground);
-        Assert.Equal(PaletteStyles.HelpBody(palette.Ui).Foreground, descriptionCell.Foreground);
+        Assert.Equal(CSharpFarPaletteStyles.HelpKey(palette).Foreground, keyCell.Foreground);
+        Assert.Equal(CSharpFarPaletteStyles.HelpBody(palette).Foreground, descriptionCell.Foreground);
 
         var composition = Open(lines, width: 8, height: 4, out driver, out layer, palette);
         composition.Render();
@@ -422,10 +422,10 @@ public sealed class HelpViewerLayerTests
 
         Assert.Contains(driver.WriteRecords, record =>
             record.Y == 1 &&
-            record.Foreground == PaletteStyles.HelpKey(palette.Ui).Foreground);
+            record.Foreground == CSharpFarPaletteStyles.HelpKey(palette).Foreground);
         Assert.Contains(driver.WriteRecords, record =>
             record.Y == 1 &&
-            record.Foreground == PaletteStyles.HelpBody(palette.Ui).Foreground);
+            record.Foreground == CSharpFarPaletteStyles.HelpBody(palette).Foreground);
     }
 
     private static (UiCompositionHost Composition, FakeConsoleDriver Driver, HelpViewerLayer Layer) Render(

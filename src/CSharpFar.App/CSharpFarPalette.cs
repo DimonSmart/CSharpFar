@@ -37,4 +37,12 @@ public sealed class CSharpFarPalette
     public ConsoleColor DirectoryShortcutBarNumberFg { get; init; } = ConsoleColor.White;
     public ConsoleColor DirectoryShortcutBarNumberBg { get; init; } = ConsoleColor.Black;
     public ConsoleColor DirectoryShortcutBarTextFg { get; init; } = ConsoleColor.White;
+    public ConsoleColor HelpBodyFg { get; init; } = ConsoleColor.White;
+    public ConsoleColor HelpBodyBg { get; init; } = ConsoleColor.Black;
+    public ConsoleColor HelpHeadingFg { get; init; } = ConsoleColor.Yellow;
+    public ConsoleColor HelpHeadingBg { get; init; } = ConsoleColor.Black;
+    public ConsoleColor HelpKeyFg { get; init; } = ConsoleColor.Cyan;
+    public ConsoleColor HelpKeyBg { get; init; } = ConsoleColor.Black;
+    public ConsoleColor HelpSeparatorFg { get; init; } = ConsoleColor.DarkCyan;
+    public ConsoleColor HelpSeparatorBg { get; init; } = ConsoleColor.Black;
 }

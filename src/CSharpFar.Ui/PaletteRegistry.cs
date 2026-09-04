@@ -1,8 +1,6 @@
 namespace CSharpFar.Ui;
 
-/// <summary>
-/// Provides the built-in colour palettes and resolves a palette by name.
-/// </summary>
+/// <summary>Provides the built-in reusable console UI palettes.</summary>
 public static class PaletteRegistry
 {
     /// <summary>Default generic console UI palette.</summary>
@@ -11,16 +9,9 @@ public static class PaletteRegistry
         Name = "Default",
     };
 
+    /// <summary>Built-in palettes available to generic consumers.</summary>
     public static IReadOnlyList<ConsolePalette> All { get; } =
     [
         Default,
     ];
-
-    public static IReadOnlyList<string> Names { get; } =
-        All.Select(p => p.Name).ToArray();
-
-    /// <summary>Resolves a palette by name; falls back to Default for unknown names.</summary>
-    public static ConsolePalette Resolve(string? name) =>
-        All.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))
-        ?? Default;
 }

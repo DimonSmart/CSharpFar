@@ -66,7 +66,10 @@ public sealed class UiDemoDependencyBoundaryTests
         .Descendants("ProjectReference")
         .Select(reference => (string?)reference.Attribute("Include"))
         .Where(include => include is not null)
-        .Select(include => Path.Combine(Path.GetDirectoryName(projectPath)!, include!));
+        .Select(include => include!
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar))
+        .Select(include => Path.Combine(Path.GetDirectoryName(projectPath)!, include));
 
     private static string FindRepositoryFile(params string[] parts)
     {

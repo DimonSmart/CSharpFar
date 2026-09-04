@@ -15,7 +15,10 @@ public sealed class ConsoleAnsiDependencyBoundaryTests
         string[] projectReferences = project.Descendants("ProjectReference")
             .Select(reference => (string?)reference.Attribute("Include"))
             .Where(include => include is not null)
-            .Select(include => Path.GetFileNameWithoutExtension(include!))
+            .Select(include => include!
+                .Replace('\\', Path.DirectorySeparatorChar)
+                .Replace('/', Path.DirectorySeparatorChar))
+            .Select(Path.GetFileNameWithoutExtension)
             .ToArray();
 
         Assert.Equal(["CSharpFar.Console"], projectReferences);
