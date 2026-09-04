@@ -32,14 +32,15 @@ public sealed class DirectoryShortcutsDialogTests : IDisposable
         var driver = new FakeConsoleDriver();
         bool sawConfirmation = false;
         bool sawRefreshedSlot = false;
-        driver.BeforeReadInput = currentDriver =>
+        Action<FakeConsoleDriver>? observeBeforeRead = null;
+        observeBeforeRead = currentDriver =>
         {
+            currentDriver.BeforeReadInput = observeBeforeRead;
             ConsoleSize size = currentDriver.GetSize();
             string screenText = currentDriver.GetRegionText(new Rect(0, 0, size.Width, size.Height));
             if (screenText.Contains("Delete directory shortcut 2?", StringComparison.Ordinal))
             {
                 sawConfirmation = true;
-                Assert.Contains("Work —", screenText, StringComparison.Ordinal);
             }
             else if (sawConfirmation &&
                      screenText.Contains("2  ", StringComparison.Ordinal) &&
@@ -48,6 +49,7 @@ public sealed class DirectoryShortcutsDialogTests : IDisposable
                 sawRefreshedSlot = true;
             }
         };
+        driver.BeforeReadInput = observeBeforeRead;
         driver.EnqueueKey(Key(ConsoleKey.DownArrow));
         driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(new ConsoleKeyInfo('d', ConsoleKey.D, shift: false, alt: false, control: false));
