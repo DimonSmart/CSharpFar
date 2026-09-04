@@ -56,9 +56,20 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
             if (_disposed)
                 return;
 
-            if (!quickViewEnabled || item is not { IsDirectory: true, IsParentDirectory: false })
+            if (!quickViewEnabled)
             {
                 CancelIfActive();
+                return;
+            }
+
+            // Monitoring pins the current directory. Panel navigation, including
+            // navigation initiated by Recent changes, must not replace that view.
+            if (_monitor.IsEnabled)
+                return;
+
+            if (item is not { IsDirectory: true, IsParentDirectory: false })
+            {
+                LeaveDirectoryView();
                 return;
             }
 
@@ -66,11 +77,6 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
                 return;
 
             CancelActiveScan();
-            DisableMonitor();
-            _selectedChangeId = null;
-            _visibleChangeIds = [];
-            _retainedChangeIds = [];
-            FirstVisibleMonitorChangeIndex = 0;
             _currentPath = item.FullPath;
             CurrentState = null;
             IsBackgroundUpdating = false;
@@ -78,23 +84,42 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
         }
     }
 
+    private void LeaveDirectoryView()
+    {
+        if (_currentPath is null && CurrentState is null && !IsBackgroundUpdating)
+            return;
+
+        CancelActiveScan();
+        _currentPath = null;
+        CurrentState = null;
+        IsBackgroundUpdating = false;
+    }
+
     private void CancelIfActive()
     {
-        if (_currentPath is not null || _monitor.IsEnabled || CurrentState is not null || _selectedChangeId is not null)
+        if (_currentPath is not null || _monitor.IsEnabled || _monitor.HistoryRoot is not null ||
+            CurrentState is not null || _selectedChangeId is not null)
             Cancel();
     }
 
     private void Cancel()
     {
         CancelActiveScan();
-        DisableMonitor();
-        _selectedChangeId = null;
-        _visibleChangeIds = [];
-        _retainedChangeIds = [];
-        FirstVisibleMonitorChangeIndex = 0;
+        DisableMonitor(clearHistory: true);
+        ClearMonitorNavigationState();
         _currentPath = null;
         CurrentState = null;
         IsBackgroundUpdating = false;
+    }
+
+    private void ClearMonitorNavigationState()
+    {
+        _selectedChangeId = null;
+        _visibleChangeIds = [];
+        _retainedChangeIds = [];
+        _firstVisibleChangeId = null;
+        FirstVisibleMonitorChangeIndex = 0;
+        _recentChanges.State.ResetItems([]);
     }
 
     private void CancelActiveScan()
@@ -103,10 +128,10 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
         _calculator.Cancel();
     }
 
-    private void DisableMonitor()
+    private void DisableMonitor(bool clearHistory)
     {
         _monitorSessionId++;
-        _monitor.Disable();
+        _monitor.Disable(clearHistory);
     }
 
     private void OnSizeCalculated(DirectoryScanUpdate update)
@@ -141,15 +166,14 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
             {
                 if (IsBackgroundUpdating)
                     CancelActiveScan();
-                DisableMonitor();
+                DisableMonitor(clearHistory: false);
                 IsBackgroundUpdating = false;
-                _selectedChangeId = null;
-                _visibleChangeIds = [];
-                _retainedChangeIds = [];
-                FirstVisibleMonitorChangeIndex = 0;
             }
             else
             {
+                bool continuingHistory = _monitor.IsHistoryFor(_currentPath);
+                if (!continuingHistory)
+                    ClearMonitorNavigationState();
                 _monitorSessionId++;
                 _monitor.Enable(_currentPath);
             }
@@ -266,7 +290,7 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
 
             _disposed = true;
             CancelActiveScan();
-            DisableMonitor();
+            DisableMonitor(clearHistory: true);
             _calculator.Dispose();
         }
     }
