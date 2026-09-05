@@ -9,7 +9,8 @@ internal static class UiTestRender
         Func<IUiCanvas, TResult> draw)
     {
         TResult result = default!;
-        Render(screen, canvas => result = draw(canvas));
+        void Draw(IUiCanvas canvas) => result = draw(canvas);
+        Render(screen, Draw);
         return result;
     }
 
