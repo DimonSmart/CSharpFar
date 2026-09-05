@@ -75,7 +75,7 @@ jobs:
         run: dotnet build CSharpFar.slnx --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test CSharpFar.slnx --configuration Release --no-build --verbosity normal
+        run: dotnet test CSharpFar.slnx --configuration Release --no-build --verbosity minimal
 
       - name: Publish
         shell: pwsh
