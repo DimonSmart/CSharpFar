@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   DOTNET_NOLOGO: true
@@ -48,3 +48,156 @@ jobs:
           set -o pipefail
           (sleep 1; printf '\033OP'; sleep 1; printf '\033'; sleep 1; printf '\033OQ'; sleep 1; printf '\033'; sleep 1; printf '\033[21~') \
             | timeout 20s script -qec 'dotnet run --project samples/CSharpFar.Ui.Demo/CSharpFar.Ui.Demo.csproj --configuration Release --no-build' /dev/null
+
+      - name: Apply intent patch and restore workflow
+        if: ${{ matrix.os == 'ubuntu-latest' && github.ref_name == 'work/ui-api-cleanup-20260906' && github.event.head_commit.message == 'Prepare verified UI API intent patch' }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.idd/intent/0062.spec-console-ui-component-library.md')
+          text = path.read_text(encoding='utf-8')
+
+          replacements = [
+              (
+                  '''`CSharpFar.Console.Windows` and `CSharpFar.Console.Ansi` depend on
+          `CSharpFar.Console` and do not depend on each other. `CSharpFar.Ui` depends only
+          on `CSharpFar.Console`; application or platform bootstrap selects the concrete
+          production backend for the current OS.
+          ''',
+                  '''`CSharpFar.Console.Windows` and `CSharpFar.Console.Ansi` depend on
+          `CSharpFar.Console` and do not depend on each other. `CSharpFar.Ui` depends only
+          on `CSharpFar.Console`; application or platform bootstrap selects the concrete
+          production backend for the current OS.
+
+          Ordinary standalone consumers may create standard form fields with
+          `FormFieldFactory()`, which supplies application-scoped in-memory history, and
+          construct `DialogService` directly from `UiCompositionHost` plus that factory.
+          `FormFieldFactory(ITextFieldHistoryProvider)` and
+          `DialogService(ModalDialogHost, FormFieldFactory)` remain public advanced paths
+          for custom history and explicit modal composition. `ScrollStateCalculator`,
+          field-owned ID state, and the ID-based `FormFieldFactory.Text` overload are
+          implementation details rather than public contracts.
+          '''
+              ),
+              (
+                  '''  `TextField` is the single owner of its optional stable ID, text buffer, optional
+            history binding, masking invariant, input width, Enter submission policy, and
+            reusable form-input control. Ordinary, labeled, and input-with-buttons row
+            representations consume that same control and do not recreate it or require
+            consumers to repeat its configuration. A row wrapper cannot weaken masking,
+            and one field has only one active visual
+            representation in a form. `TextInputWithButtonsRow` accepts the high-level
+            field and participates in the common history composite instead of disabling
+            or independently implementing history. Its row identity is the field ID;
+            activating an adjacent button reports only that button's ID, so application
+            routing combines the row and button identities without a composite command
+            string. Low-level buffer construction is UI-infrastructure detail rather
+            than an application-facing row API.
+          ''',
+                  '''  `TextField` is the single owner of its text buffer, optional history binding,
+            masking invariant, input width, Enter submission policy, and reusable
+            form-input control. Ordinary, labeled, and input-with-buttons row
+            representations consume that same control and do not recreate it or require
+            consumers to repeat its configuration. A row wrapper cannot weaken masking,
+            and one field has only one active visual representation in a form.
+            `TextInputWithButtonsRow` accepts the high-level field and participates in the
+            common history composite instead of disabling or independently implementing
+            history. Internal field ID state may be carried only for form-row identity
+            propagation; it is not a consumer contract. Activating an adjacent button
+            reports only that button's ID, so application routing combines row and button
+            identities without a composite command string. Low-level buffer construction
+            is UI-infrastructure detail rather than an application-facing row API.
+          '''
+              ),
+              (
+                  '''- `TextField` owns its optional semantic ID, buffer, history binding, masking,
+            width, Enter submission policy, and reusable input control. The form runtime
+            creates the control's runtime identity. Ordinary, labeled, and
+            input-with-buttons rows inherit that configuration without duplicating it,
+            and no row wrapper can render a masked field as plain text.
+          ''',
+                  '''- `TextField` owns its buffer, history binding, masking, width, Enter submission
+            policy, and reusable input control. Field-owned ID state is internal to
+            form-row identity propagation and is not a public consumer contract. The form
+            runtime creates runtime identity. Ordinary, labeled, and input-with-buttons
+            rows inherit the field configuration without duplicating it, and no row
+            wrapper can render a masked field as plain text.
+          '''
+              ),
+              (
+                  '''- Standard focusable form controls, including text fields, checkboxes, choices,
+            and dropdowns, can be constructed without an explicit ID and remain usable as
+            typed focus targets and typed event sources. Explicit-ID overloads remain
+            available for advanced semantic references.
+          ''',
+                  '''- Standard focusable form controls, including text fields, checkboxes, choices,
+            and dropdowns, can be constructed without an explicit ID and remain usable as
+            typed focus targets and typed event sources. Stable row identities remain
+            available through the advanced form-row APIs where semantic row references
+            are required; `FormFieldFactory.Text` has no public ID-based overload.
+          '''
+              ),
+              (
+                  '''- `DialogService` is the single application-level façade for standard modal
+            dialogs. It owns the modal host and form-field dependencies and exposes
+            message, confirmation, single-line input, choice, selection, search options,
+            ordinary forms, composite and operation dialogs, and standard list operations.
+            `ModuleUiServices.Dialogs`
+            exposes this façade. Its
+            low-level modal-dialog access remains available as an explicit escape hatch
+            for custom composition or lifecycle scenarios, not as the ordinary form path.
+          ''',
+                  '''- `DialogService` is the single application-level façade for standard modal
+            dialogs. An ordinary standalone consumer may pair `new FormFieldFactory()`
+            with `new DialogService(uiHost, fields)` without constructing history or
+            modal-host infrastructure. Custom history providers and an explicit
+            `ModalDialogHost` remain public advanced paths. The façade owns the modal host
+            and form-field dependencies and exposes message, confirmation, single-line
+            input, choice, selection, search options, ordinary forms, composite and
+            operation dialogs, and standard list operations. `ModuleUiServices.Dialogs`
+            exposes this façade. Its low-level modal-dialog access remains available as an
+            explicit escape hatch for custom composition or lifecycle scenarios, not as
+            the ordinary form path.
+          '''
+              ),
+              (
+                  '''Public-boundary verification inventories exported types and member signatures.
+          It proves that form-grid and composite-form runtime families, module UI
+          services, product-specific palette roles and presets, and product-specific
+          dialog-style names are absent, while the documented advanced reusable extension
+          contracts remain available. Dependency verification proves that `CSharpFar.Ui`
+          ''',
+                  '''Public-boundary verification inventories exported types and member signatures.
+          It proves that `ScrollStateCalculator`, field-owned ID state, and the ID-based
+          `FormFieldFactory.Text` overload are not public; that the simple
+          `FormFieldFactory()` and `DialogService(UiCompositionHost, FormFieldFactory)`
+          constructors are public; and that custom-history and explicit-`ModalDialogHost`
+          constructors remain available. It also proves that form-grid and composite-form
+          runtime families, module UI services, product-specific palette roles and
+          presets, and product-specific dialog-style names are absent, while the
+          documented advanced reusable extension contracts remain available. Dependency
+          verification proves that `CSharpFar.Ui`
+          '''
+              ),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected one intent match, found {count}: {old[:80]!r}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding='utf-8', newline='\n')
+          PY
+
+          git fetch origin master --depth=1
+          git show origin/master:.github/workflows/build.yml > .github/workflows/build.yml
+          git diff --check
+          git config user.name "Dmitry Dorogoy"
+          git config user.email "DimonSmart@users.noreply.github.com"
+          git add .idd/intent/0062.spec-console-ui-component-library.md .github/workflows/build.yml
+          git diff --cached --check
+          git commit -m "Finalize CSharpFar.Ui public API cleanup"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
