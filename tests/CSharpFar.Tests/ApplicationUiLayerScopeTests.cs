@@ -49,16 +49,19 @@ public sealed class ApplicationUiLayerScopeTests
         Assert.NotEqual('R', fixture.Driver.GetCell(1, 21).Character);
 
         ConsoleInputEvent? modalInput = null;
-        using var modal = fixture.Host.PushOverlay(new RecordingModalLayer(
-            context => context.Canvas.Write(1, 21, "M", new CSharpFar.Console.Models.CellStyle(ConsoleColor.White, ConsoleColor.Black)),
-            input => modalInput = input));
-        fixture.Host.Render();
         var input = Key(ConsoleKey.A, 'a');
+        fixture.Driver.EnqueueInput(input);
+        fixture.Driver.BeforeReadInput = driver =>
+            Assert.Equal('M', driver.GetCell(1, 21).Character);
 
-        UiInputResult result = fixture.Host.DispatchInput(input);
+        fixture.Modals.Run(
+            context => context.Canvas.Write(1, 21, "M", new CSharpFar.Console.Models.CellStyle(ConsoleColor.White, ConsoleColor.Black)),
+            routed =>
+            {
+                modalInput = routed;
+                return ModalDialogLoopAction.Close;
+            });
 
-        Assert.True(result.Handled);
-        Assert.Equal('M', fixture.Driver.GetCell(1, 21).Character);
         Assert.False(fixture.Root.TryTakeInput(out _));
         Assert.Same(input, modalInput);
     }
@@ -251,8 +254,9 @@ public sealed class ApplicationUiLayerScopeTests
         {
             var driver = new FakeConsoleDriver(80, 25);
             var services = CreateServices(driver);
-            var host = new UiCompositionHost(new ScreenRenderer(driver));
-            var root = new RecordingRootSurface(host.Screen);
+            var screen = new ScreenRenderer(driver);
+            var host = new UiCompositionHost(screen);
+            var root = new RecordingRootSurface(screen);
             host.SetRootSurface(root);
             var modals = new ModalDialogHost(host);
             var commandCompletionLayer = new CommandCompletionLayer(
@@ -313,34 +317,38 @@ public sealed class ApplicationUiLayerScopeTests
         }
     }
 
-    private sealed class RecordingRootSurface(ScreenRenderer screen) : IUiSurface, IUiLayer
+    private sealed class RecordingRootSurface(ScreenRenderer screen) : UiLayer<UiInteractionFrame>, IUiSurface
     {
-        private readonly Queue<UiRoutedInput<Unit>> _inputs = [];
+        private readonly Queue<UiRoutedInput<UiInteractionFrame>> _inputs = [];
 
-        public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
-        public IUiFocusState FocusState { get; } = new UiFocusController();
-        public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
+        public override UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
         public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
 
-        public void Render(UiRenderContext context)
+        protected override UiInteractionFrame RenderFrame(UiRenderContext context)
         {
             var style = new CSharpFar.Console.Models.CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
             string row = new('R', context.Size.Width);
             for (int y = 0; y < context.Size.Height; y++)
                 context.Canvas.Write(0, y, row, style);
+            return UiInteractionFrame.Empty;
         }
 
         public void CompleteFrame(UiFrameCompletion completion)
         {
         }
 
-        public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context)
+        protected override UiInteractionFrame BuildInteractionFrame(UiInteractionFrame frame) => frame;
+
+        protected override UiInputResult RouteInput(
+            ConsoleInputEvent input,
+            UiInteractionFrame frame,
+            UiInputRouteContext context)
         {
-            _inputs.Enqueue(new UiRoutedInput<Unit>(input, default, context.Target, context.RouteKind));
+            _inputs.Enqueue(new UiRoutedInput<UiInteractionFrame>(input, frame, context.Target, context.RouteKind));
             return UiInputResult.HandledResult;
         }
 
-        public bool TryTakeInput(out UiRoutedInput<Unit> packet) =>
+        public bool TryTakeInput(out UiRoutedInput<UiInteractionFrame> packet) =>
             _inputs.TryDequeue(out packet!);
 
         public void Clear() => _inputs.Clear();
@@ -356,18 +364,4 @@ public sealed class ApplicationUiLayerScopeTests
         }
     }
 
-    private sealed class RecordingModalLayer(
-        Action<UiRenderContext> render,
-        Action<ConsoleInputEvent> route) : IUiLayer
-    {
-        public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Modal;
-        public IUiFocusState FocusState { get; } = new UiFocusController();
-        public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
-        public void Render(UiRenderContext context) => render(context);
-        public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context)
-        {
-            route(input);
-            return UiInputResult.HandledResult;
-        }
-    }
 }

@@ -384,15 +384,24 @@ public sealed class HelpViewerLayerTests
         Assert.True(driver.CursorVisible);
 
         var layer = new HelpViewerLayer([new HelpLine(HelpLineKind.Plain, Description: "body")], CSharpFarPaletteRegistry.Default);
-        using (composition.OpenSurface(new InteractiveSurface(screen), layer))
+        var cursorStates = new List<bool>();
+        int reads = 0;
+        driver.BeforeReadInput = current =>
         {
-            composition.Render();
-            Assert.False(driver.CursorVisible);
-            driver.SetSize(20, 4);
-            composition.Render(isResizeRecovery: true);
-            Assert.False(driver.CursorVisible);
-        }
+            cursorStates.Add(current.CursorVisible);
+            if (++reads == 1)
+                current.SetSize(20, 4);
+        };
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueInput(UiTestInput.Key(ConsoleKey.Escape));
 
+        new InteractiveSurfaceHost(composition).Run(
+            layer,
+            static (_, action) => action == HelpAction.Close
+                ? ModalDialogLoopResult<bool>.Complete(true)
+                : ModalDialogLoopResult<bool>.ContinueNoChange);
+
+        Assert.Equal([false, false], cursorStates);
         Assert.True(driver.CursorVisible);
         Assert.Equal(2, driver.CursorX);
         Assert.Equal(2, driver.CursorY);
@@ -451,10 +460,9 @@ public sealed class HelpViewerLayerTests
     {
         driver = new FakeConsoleDriver(width, height);
         var host = UiTestHost.Create(driver);
-        var screen = host.Screen;
         var composition = host.Composition;
         layer = new HelpViewerLayer(lines, palette ?? CSharpFarPaletteRegistry.Default, firstVisibleIndex);
-        composition.OpenSurface(new InteractiveSurface(screen), layer);
+        _ = composition.RegisterPersistentOverlay(layer);
         return composition;
     }
 
@@ -502,7 +510,11 @@ public sealed class HelpViewerLayerTests
                 CursorTarget);
 
         protected override UiInteractionFrame BuildInteractionFrame(UiFocusFrame frame) =>
-            new([], frame, CursorTarget);
+            new UiInteractionFrameBuilder()
+                .AddFocusEntries(frame.Entries)
+                .SetDefaultFocusTarget(frame.DefaultTarget)
+                .SetKeyboardTarget(CursorTarget)
+                .Build();
 
         protected override UiInputResult RouteInput(
             ConsoleInputEvent input,

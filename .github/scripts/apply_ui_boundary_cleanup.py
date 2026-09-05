@@ -198,7 +198,7 @@ replace('tests/CSharpFar.Tests/ApplicationRuntimeTests.cs', '''        fixture.C
             return ApplicationRuntimeRenderRequest.None;
         };
 ''')
-replace_all('tests/CSharpFar.Tests/ApplicationRuntimeTests.cs', 'fixture.Services.Composition.PushOverlay(', 'fixture.Services.Composition.RegisterPersistentOverlay(')
+replace_all('tests/CSharpFar.Tests/ApplicationRuntimeTests.cs', '.Services.Composition.PushOverlay(', '.Services.Composition.RegisterPersistentOverlay(')
 replace('tests/CSharpFar.Tests/ApplicationRuntimeTests.cs', '''    private sealed class TestLayer(
         UiLayerInputPolicy policy,
         UiInputResult result,

@@ -8,15 +8,17 @@ internal static class UiTestRender
         ScreenRenderer screen,
         Func<IUiCanvas, TResult> draw)
     {
-        using IDisposable frame = screen.BeginFrame();
-        return draw(new ScreenRendererCanvas(screen));
+        TResult result = default!;
+        Render(screen, canvas => result = draw(canvas));
+        return result;
     }
 
     public static void Render(
         ScreenRenderer screen,
         Action<IUiCanvas> draw)
     {
-        using IDisposable frame = screen.BeginFrame();
-        draw(new ScreenRendererCanvas(screen));
+        var composition = new UiCompositionHost(screen);
+        composition.SetRootSurface(new ScreenRendererSurface(screen, context => draw(context.Canvas)));
+        composition.Render();
     }
 }

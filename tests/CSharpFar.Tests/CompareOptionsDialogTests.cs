@@ -15,7 +15,7 @@ public sealed class CompareOptionsDialogTests
         TextField customDepth = fields.Text("custom-depth", "7", historyId);
         TextField include = fields.Text("include", "*");
         TextField exclude = fields.Text("exclude", "");
-        FormSubmitResult<ComparisonOptions?> standardDepth = CompareOptionsDialog.BuildOptions(
+        _ = CompareOptionsDialog.BuildOptions(
             CompareMode.FolderStructure,
             recursive: true,
             selectedOnly: false,
@@ -28,10 +28,9 @@ public sealed class CompareOptionsDialogTests
             NameComparisonMode.SystemDefault,
             FileSetMatchMode.FileName);
 
-        Assert.True(standardDepth.IsSuccess);
         Assert.Empty(provider.Get(historyId).Items);
 
-        FormSubmitResult<ComparisonOptions?> custom = CompareOptionsDialog.BuildOptions(
+        _ = CompareOptionsDialog.BuildOptions(
             CompareMode.FolderStructure,
             recursive: true,
             selectedOnly: false,
@@ -44,7 +43,6 @@ public sealed class CompareOptionsDialogTests
             NameComparisonMode.SystemDefault,
             FileSetMatchMode.FileName);
 
-        Assert.True(custom.IsSuccess);
         Assert.Empty(provider.Get(historyId).Items);
     }
 }

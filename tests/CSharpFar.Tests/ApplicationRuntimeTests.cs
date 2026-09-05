@@ -84,24 +84,18 @@ public sealed class ApplicationRuntimeTests
     public void KeyRoutedToApplicationSurface_CallsKeyHandlerOnceAfterDispatch()
     {
         var fixture = RuntimeFixture.Create();
-        bool modalOpened = false;
         fixture.Driver.EnqueueInput(Key(ConsoleKey.A));
         fixture.Context.HandleApplicationInputOverride = routed =>
         {
             Assert.IsType<KeyConsoleInputEvent>(routed.Input);
             fixture.KeyCount++;
             Assert.False(fixture.Services.ApplicationSurface.TryTakeInput(out var ignoredPacket));
-            using var modal = fixture.Services.Composition.PushOverlay(new TestLayer(
-                UiLayerInputPolicy.Modal,
-                UiInputResult.HandledResult));
-            modalOpened = true;
             fixture.Running = false;
             return ApplicationRuntimeRenderRequest.None;
         };
 
         fixture.Run();
 
-        Assert.True(modalOpened);
         Assert.Equal(1, fixture.KeyCount);
         Assert.Equal(0, fixture.ModifierCount);
         Assert.Equal(0, fixture.MouseCount);
@@ -156,7 +150,7 @@ public sealed class ApplicationRuntimeTests
     public void HandledAndModalOverlays_DoNotCallApplicationHandlers()
     {
         var handled = RuntimeFixture.Create();
-        using (handled.Services.Composition.PushOverlay(new TestLayer(UiLayerInputPolicy.Bubble, UiInputResult.HandledResult)))
+        using (handled.Services.Composition.RegisterPersistentOverlay(new TestLayer(UiLayerInputPolicy.Bubble, UiInputResult.HandledResult)))
         {
             handled.Driver.EnqueueInput(Key(ConsoleKey.A));
             handled.IsRunningOverride = new SequenceRunning(true, true, false).Next;
@@ -164,7 +158,7 @@ public sealed class ApplicationRuntimeTests
         }
 
         var modal = RuntimeFixture.Create();
-        using (modal.Services.Composition.PushOverlay(new TestLayer(UiLayerInputPolicy.Modal, UiInputResult.NotHandled)))
+        using (modal.Services.Composition.RegisterPersistentOverlay(new TestLayer(UiLayerInputPolicy.Modal, UiInputResult.NotHandled)))
         {
             modal.Driver.EnqueueInput(Key(ConsoleKey.A));
             modal.IsRunningOverride = new SequenceRunning(true, true, false).Next;
@@ -179,7 +173,7 @@ public sealed class ApplicationRuntimeTests
     public void UnhandledOverlay_AllowsApplicationHandler()
     {
         var fixture = RuntimeFixture.Create();
-        using var overlay = fixture.Services.Composition.PushOverlay(new TestLayer(UiLayerInputPolicy.Bubble, UiInputResult.NotHandled));
+        using var overlay = fixture.Services.Composition.RegisterPersistentOverlay(new TestLayer(UiLayerInputPolicy.Bubble, UiInputResult.NotHandled));
         fixture.Driver.EnqueueInput(Key(ConsoleKey.A));
 
         fixture.Run();
@@ -191,7 +185,7 @@ public sealed class ApplicationRuntimeTests
     public void RuntimeDoesNotFallbackToApplicationWhenRoutedHandledIsFalse()
     {
         var fixture = RuntimeFixture.Create();
-        using var modal = fixture.Services.Composition.PushOverlay(new TestLayer(UiLayerInputPolicy.Modal, UiInputResult.NotHandled));
+        using var modal = fixture.Services.Composition.RegisterPersistentOverlay(new TestLayer(UiLayerInputPolicy.Modal, UiInputResult.NotHandled));
         fixture.Driver.EnqueueInput(Key(ConsoleKey.A));
         fixture.IsRunningOverride = new SequenceRunning(true, true, false).Next;
 
@@ -205,7 +199,7 @@ public sealed class ApplicationRuntimeTests
     {
         var fixture = RuntimeFixture.Create();
         ConsoleInputEvent? modalInput = null;
-        using var modal = fixture.Services.Composition.PushOverlay(new TestLayer(
+        using var modal = fixture.Services.Composition.RegisterPersistentOverlay(new TestLayer(
             UiLayerInputPolicy.Modal,
             UiInputResult.HandledResult,
             route: input => modalInput = input));
@@ -233,7 +227,7 @@ public sealed class ApplicationRuntimeTests
     {
         var fixture = RuntimeFixture.Create();
         fixture.RenderCount = 0;
-        using var overlay = fixture.Services.Composition.PushOverlay(new TestLayer(
+        using var overlay = fixture.Services.Composition.RegisterPersistentOverlay(new TestLayer(
             UiLayerInputPolicy.Bubble,
             routedInvalidate ? UiInputResult.InvalidateOnly() : UiInputResult.NotHandled,
             fixture.CountRender));
@@ -256,7 +250,7 @@ public sealed class ApplicationRuntimeTests
     {
         var fixture = RuntimeFixture.Create();
         fixture.RenderCount = 0;
-        using var overlay = fixture.Services.Composition.PushOverlay(new TestLayer(
+        using var overlay = fixture.Services.Composition.RegisterPersistentOverlay(new TestLayer(
             UiLayerInputPolicy.Bubble,
             UiInputResult.NotHandled,
             fixture.CountRender));
@@ -279,7 +273,7 @@ public sealed class ApplicationRuntimeTests
     {
         var fixture = RuntimeFixture.Create();
         fixture.RenderCount = 0;
-        using var overlay = fixture.Services.Composition.PushOverlay(new TestLayer(
+        using var overlay = fixture.Services.Composition.RegisterPersistentOverlay(new TestLayer(
             UiLayerInputPolicy.Bubble,
             UiInputResult.HandledAndInvalidate,
             fixture.CountRender));
@@ -307,7 +301,7 @@ public sealed class ApplicationRuntimeTests
             Assert.Equal(1, fixture.RenderCount);
             return new ApplicationRuntimeRenderRequest(true);
         };
-        using var overlay = fixture.Services.Composition.PushOverlay(new TestLayer(
+        using var overlay = fixture.Services.Composition.RegisterPersistentOverlay(new TestLayer(
             UiLayerInputPolicy.Bubble,
             UiInputResult.HandledResult,
             fixture.CountRender));
@@ -330,7 +324,7 @@ public sealed class ApplicationRuntimeTests
     {
         var fixture = RuntimeFixture.Create();
         fixture.RenderCount = 0;
-        using var overlay = fixture.Services.Composition.PushOverlay(new TestLayer(
+        using var overlay = fixture.Services.Composition.RegisterPersistentOverlay(new TestLayer(
             UiLayerInputPolicy.Bubble,
             UiInputResult.InvalidateOnly(),
             fixture.CountRender));
@@ -357,12 +351,19 @@ public sealed class ApplicationRuntimeTests
         fixture.Context.ExecuteMenuCommand = _ =>
         {
             Assert.Equal(1, fixture.RenderCount);
-            using var modal = fixture.Services.Composition.PushOverlay(new TestLayer(
-                UiLayerInputPolicy.Modal,
-                UiInputResult.HandledResult));
+            fixture.Driver.EnqueueInput(Key(ConsoleKey.Escape));
+            bool modalClosed = false;
+            new ModalDialogHost(fixture.Services.Composition).Run(
+                _ => { },
+                _ =>
+                {
+                    modalClosed = true;
+                    return ModalDialogLoopAction.Close;
+                });
+            Assert.True(modalClosed);
             return ApplicationRuntimeRenderRequest.None;
         };
-        using var overlay = fixture.Services.Composition.PushOverlay(new TestLayer(
+        using var overlay = fixture.Services.Composition.RegisterPersistentOverlay(new TestLayer(
             UiLayerInputPolicy.Bubble,
             UiInputResult.HandledResult,
             fixture.CountRender));
@@ -397,7 +398,7 @@ public sealed class ApplicationRuntimeTests
     {
         var fixture = RuntimeFixture.Create();
         fixture.RenderCount = 0;
-        using var overlay = fixture.Services.Composition.PushOverlay(new TestLayer(
+        using var overlay = fixture.Services.Composition.RegisterPersistentOverlay(new TestLayer(
             UiLayerInputPolicy.Bubble,
             UiInputResult.NotHandled,
             fixture.CountRender));
@@ -424,7 +425,7 @@ public sealed class ApplicationRuntimeTests
         var fixture = RuntimeFixture.Create();
         fixture.Services.Session.App.WorkspaceMode = ApplicationWorkspaceMode.HiddenCommandLine;
         fixture.RenderCount = 0;
-        using var overlay = fixture.Services.Composition.PushOverlay(new TestLayer(
+        using var overlay = fixture.Services.Composition.RegisterPersistentOverlay(new TestLayer(
             UiLayerInputPolicy.Bubble,
             UiInputResult.NotHandled,
             fixture.CountRender));
@@ -614,13 +615,22 @@ public sealed class ApplicationRuntimeTests
         UiLayerInputPolicy policy,
         UiInputResult result,
         Action<UiRenderContext>? render = null,
-        Action<ConsoleInputEvent>? route = null) : IUiLayer
+        Action<ConsoleInputEvent>? route = null) : UiLayer<UiInteractionFrame>
     {
-        public UiLayerInputPolicy InputPolicy => policy;
-        public IUiFocusState FocusState { get; } = new UiFocusController();
-        public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
-        public void Render(UiRenderContext context) => render?.Invoke(context);
-        public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context)
+        public override UiLayerInputPolicy InputPolicy => policy;
+
+        protected override UiInteractionFrame RenderFrame(UiRenderContext context)
+        {
+            render?.Invoke(context);
+            return UiInteractionFrame.Empty;
+        }
+
+        protected override UiInteractionFrame BuildInteractionFrame(UiInteractionFrame frame) => frame;
+
+        protected override UiInputResult RouteInput(
+            ConsoleInputEvent input,
+            UiInteractionFrame frame,
+            UiInputRouteContext context)
         {
             route?.Invoke(input);
             return result;

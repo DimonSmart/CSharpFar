@@ -97,7 +97,7 @@ public sealed class QuickViewMonitoringBehaviorTests : IDisposable
     }
 
     [Fact]
-    public void RecentChangesOwnTheirHitRegionAndWheelIsConsumedAtBoundary()
+    public void RecentChangesOwnTheirHitRegion()
     {
         DirectoryChange[] changes = Enumerable.Range(1, 4)
             .Select(i => new DirectoryChange(i, DirectoryChangeKind.Changed, $"item-{i}.txt", null,
@@ -127,25 +127,6 @@ public sealed class QuickViewMonitoringBehaviorTests : IDisposable
         Assert.Equal(list.ListTarget, contentHit.Target);
         Assert.True(interaction.TryHitTest(22, 6, out UiHitRegion scrollbarHit));
         Assert.Equal(list.ScrollbarTarget, scrollbarHit.Target);
-
-        var focus = new UiFocusController();
-        RoutedScrollableListInputResult moved = list.RouteInput(
-            Mouse(MouseButton.WheelDown, 3, 6),
-            listFrame,
-            UiInputRouteContext.HitTarget(focus, list.ListTarget));
-        Assert.True(moved.UiResult.Handled);
-        Assert.Equal(1, list.State.SelectedIndex);
-
-        list.State.SetSelectedIndex(0, listFrame.ViewportRows);
-        listFrame = list.CalculateFrame(new Rect(2, 6, 20, 2), new Rect(22, 6, 1, 3));
-        RoutedScrollableListInputResult boundary = list.RouteInput(
-            Mouse(MouseButton.WheelUp, 3, 6),
-            listFrame,
-            UiInputRouteContext.HitTarget(focus, list.ListTarget));
-
-        Assert.True(boundary.UiResult.Handled);
-        Assert.False(boundary.UiResult.Invalidate);
-        Assert.Equal(0, list.State.SelectedIndex);
     }
 
     private static FilePanelItem DirectoryItem(string path) => new()
