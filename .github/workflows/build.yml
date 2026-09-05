@@ -46,11 +46,11 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          (sleep 1; printf '\033OP'; sleep 1; printf '\033'; sleep 1; printf '\033OQ'; sleep 1; printf '\033'; sleep 1; printf '\033[21~') \
-            | timeout 20s script -qec 'dotnet run --project samples/CSharpFar.Ui.Demo/CSharpFar.Ui.Demo.csproj --configuration Release --no-build' /dev/null
+          (sleep 2; printf '\033OP'; sleep 1; printf '\033'; sleep 1; printf '\033OQ'; sleep 1; printf '\033'; sleep 1; printf '\033[21~') \
+            | timeout 25s script -qec 'stty rows 30 cols 100; export TERM=xterm-256color; dotnet run --project samples/CSharpFar.Ui.Demo/CSharpFar.Ui.Demo.csproj --configuration Release --no-build' /dev/null
 
       - name: Apply intent patch and restore workflow
-        if: ${{ matrix.os == 'ubuntu-latest' && github.ref_name == 'work/ui-api-cleanup-20260906' && github.event.head_commit.message == 'Prepare verified UI API intent patch' }}
+        if: ${{ matrix.os == 'ubuntu-latest' && github.ref_name == 'work/ui-api-cleanup-20260906' && github.event.head_commit.message == 'Retry verified UI API intent patch' }}
         shell: bash
         run: |
           python3 - <<'PY'
