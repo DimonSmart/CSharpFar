@@ -15,6 +15,18 @@ jobs:
       - uses: actions/checkout@v4
       - name: Apply scoped cleanup
         run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/scripts/apply_ui_boundary_cleanup.py')
+          text = path.read_text()
+          text = text.replace(
+              "'fixture.Services.Composition.PushOverlay('",
+              "'.Services.Composition.PushOverlay('")
+          text = text.replace(
+              "'fixture.Services.Composition.RegisterPersistentOverlay('",
+              "'.Services.Composition.RegisterPersistentOverlay('")
+          path.write_text(text)
+          PY
           python3 .github/scripts/apply_ui_boundary_cleanup.py
           cat > tests/CSharpFar.Ui.Tests/UiThemeTests.cs <<'EOF'
           namespace CSharpFar.Ui.Tests;
