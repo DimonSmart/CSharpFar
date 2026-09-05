@@ -21,6 +21,40 @@ public sealed class UiPublicBoundaryTests
     }
 
     [Fact]
+    public void AuditedAccidentalApis_AreNotPublic()
+    {
+        string[] exported = UiAssembly.GetExportedTypes().Select(type => type.Name).ToArray();
+        Assert.DoesNotContain("ScrollStateCalculator", exported);
+
+        PropertyInfo? id = typeof(TextField).GetProperty(
+            "Id",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+        Assert.NotNull(id);
+        Assert.False(id!.GetMethod!.IsPublic);
+
+        MethodInfo[] publicTextMethods = typeof(FormFieldFactory)
+            .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly)
+            .Where(method => method.Name == nameof(FormFieldFactory.Text))
+            .ToArray();
+        Assert.DoesNotContain(publicTextMethods, method =>
+            method.GetParameters() is { Length: > 0 } parameters &&
+            parameters[0].ParameterType == typeof(string));
+    }
+
+    [Fact]
+    public void ConsumerBootstrap_ExposesSimpleAndAdvancedConstructors()
+    {
+        ConstructorInfo[] fieldConstructors = typeof(FormFieldFactory).GetConstructors();
+        Assert.Contains(fieldConstructors, constructor => HasParameters(constructor));
+        Assert.Contains(fieldConstructors, constructor => HasParameters(constructor, typeof(ITextFieldHistoryProvider)));
+
+        ConstructorInfo[] dialogConstructors = typeof(DialogService).GetConstructors();
+        Assert.Contains(dialogConstructors, constructor => HasParameters(constructor, typeof(UiCompositionHost), typeof(FormFieldFactory)));
+        Assert.Contains(dialogConstructors, constructor => HasParameters(constructor, typeof(ModalDialogHost), typeof(FormFieldFactory)));
+        Assert.DoesNotContain(dialogConstructors, constructor => HasParameters(constructor, typeof(UiCompositionHost)));
+    }
+
+    [Fact]
     public void ConsolePalette_ContainsNoCSharpFarProductRoles()
     {
         string[] forbiddenPrefixes = ["Panel", "NormalFile", "Directory", "FileUsage", "CursorActive", "FooterActive", "CommandLine", "Help"];
@@ -94,4 +128,7 @@ public sealed class UiPublicBoundaryTests
         foreach (string typeName in required)
             Assert.Contains(typeName, exported);
     }
+
+    private static bool HasParameters(ConstructorInfo constructor, params Type[] parameterTypes) =>
+        constructor.GetParameters().Select(parameter => parameter.ParameterType).SequenceEqual(parameterTypes);
 }

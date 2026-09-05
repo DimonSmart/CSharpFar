@@ -1,6 +1,6 @@
 namespace CSharpFar.Ui;
 
-public static class ScrollStateCalculator
+internal static class ScrollStateCalculator
 {
     public static int ClampFirstVisibleIndex(int firstVisibleIndex, int totalItems, int viewportItems)
     {

@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
 
@@ -9,6 +8,12 @@ public sealed class FormFieldFactory
 {
     private readonly ITextFieldHistoryProvider _history;
     private readonly TextFieldDefaults _defaults = new();
+
+    /// <summary>Creates a factory with application-scoped in-memory text history.</summary>
+    public FormFieldFactory()
+        : this(new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore()))
+    {
+    }
 
     public FormFieldFactory(ITextFieldHistoryProvider history) =>
         _history = history ?? throw new ArgumentNullException(nameof(history));
@@ -23,8 +28,7 @@ public sealed class FormFieldFactory
     public FormFieldFactory WithDefaults(TextFieldDefaults defaults) =>
         new(_history, defaults ?? throw new ArgumentNullException(nameof(defaults)));
 
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public TextField Text(string id, string initialText = "", TextHistoryId? historyId = null,
+    internal TextField Text(string id, string initialText = "", TextHistoryId? historyId = null,
         bool maskInput = false, int? width = null, bool? submitOnEnter = null)
         => CreateText(id, initialText, historyId, maskInput, width, submitOnEnter);
 
@@ -83,7 +87,7 @@ public sealed class TextField : IFormFocusTarget
             maskInput);
     }
 
-    public string? Id { get; }
+    internal string? Id { get; }
     public bool IsMasked { get; }
     public int? Width { get; }
     internal int PreferredWidth { get; }

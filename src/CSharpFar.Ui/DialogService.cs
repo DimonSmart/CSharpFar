@@ -6,6 +6,11 @@ public sealed class DialogService
     private readonly ModalDialogHost _modalDialogs;
     private readonly FormFieldFactory _fields;
 
+    public DialogService(UiCompositionHost host, FormFieldFactory fields)
+        : this(new ModalDialogHost(host ?? throw new ArgumentNullException(nameof(host))), fields)
+    {
+    }
+
     public DialogService(ModalDialogHost modalDialogs, FormFieldFactory fields)
     {
         _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));

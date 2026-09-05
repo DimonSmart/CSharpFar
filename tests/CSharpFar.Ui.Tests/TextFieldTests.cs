@@ -14,12 +14,11 @@ public sealed class TextFieldTests
         FormFieldFactory fields = new FormFieldFactory(provider).WithDefaults(
             new TextFieldDefaults(Width: 44, SubmitOnEnter: true));
 
-        TextField inherited = fields.Text("inherited");
-        TextField overridden = fields.Text("overridden", width: 12, submitOnEnter: false);
-        TextField masked = fields.Text(
-            "password",
-            historyId: new TextHistoryId("TextFieldTests.ScopedPassword"),
-            maskInput: true);
+        TextField inherited = fields.Text();
+        TextField overridden = fields.Text(new TextFieldOptions(Width: 12, SubmitOnEnter: false));
+        TextField masked = fields.Text(new TextFieldOptions(
+            HistoryId: new TextHistoryId("TextFieldTests.ScopedPassword"),
+            MaskInput: true));
 
         Assert.Equal(44, inherited.Width);
         Assert.True(inherited.SubmitOnEnter);
@@ -30,12 +29,11 @@ public sealed class TextFieldTests
     }
 
     [Fact]
-    public void Text_OptionsCreatesIdlessField()
+    public void Text_OptionsPreservesFieldConfiguration()
     {
         TextField field = new FormFieldFactory(new CountingHistoryProvider()).Text(
             new TextFieldOptions("retained", Width: 12));
 
-        Assert.Null(field.Id);
         Assert.Equal("retained", field.Text);
         Assert.Equal(12, field.Width);
     }
@@ -79,8 +77,8 @@ public sealed class TextFieldTests
         for (int index = 0; index < 15; index++)
             persistent.Add($"item-{index:D2}");
         var factory = new FormFieldFactory(provider);
-        TextField first = factory.Text("first", historyId: id);
-        TextField second = factory.Text("second", historyId: id);
+        TextField first = factory.Text(new TextFieldOptions(HistoryId: id));
+        TextField second = factory.Text(new TextFieldOptions(HistoryId: id));
         SingleLineTextHistoryState firstPopup = Assert.IsType<SingleLineTextHistoryState>(first.Input.History);
         SingleLineTextHistoryState secondPopup = Assert.IsType<SingleLineTextHistoryState>(second.Input.History);
 
@@ -104,7 +102,7 @@ public sealed class TextFieldTests
     public void TextField_WithoutHistory_DoesNotQueryProviderOrRetainText()
     {
         var provider = new CountingHistoryProvider();
-        var field = new FormFieldFactory(provider).Text("value", "  retained  ");
+        var field = new FormFieldFactory(provider).Text(new TextFieldOptions("  retained  "));
 
         field.AcceptHistory();
 
@@ -116,11 +114,10 @@ public sealed class TextFieldTests
     public void TextField_Masked_DoesNotQueryProviderOrRetainText()
     {
         var provider = new CountingHistoryProvider();
-        var field = new FormFieldFactory(provider).Text(
-            "password",
-            "secret",
-            new TextHistoryId("TextFieldTests.Password"),
-            maskInput: true);
+        var field = new FormFieldFactory(provider).Text(new TextFieldOptions(
+            InitialText: "secret",
+            HistoryId: new TextHistoryId("TextFieldTests.Password"),
+            MaskInput: true));
 
         field.AcceptHistory();
 
@@ -131,7 +128,7 @@ public sealed class TextFieldTests
     [Fact]
     public void DisabledField_StateIsSharedByEveryRowProjectionAndPreventsInput()
     {
-        TextField field = new FormFieldFactory(new CountingHistoryProvider()).Text("value", "retained");
+        TextField field = new FormFieldFactory(new CountingHistoryProvider()).Text(new TextFieldOptions("retained"));
         TextInputRow ordinary = FormControls.Text(field);
         LabeledTextInputRow labeled = FormControls.Text("Value:", field);
         field.Enabled = false;
@@ -157,10 +154,9 @@ public sealed class TextFieldTests
     public void TextField_AcceptHistory_RetainsTrimmedTextWithoutDuplicates()
     {
         var provider = new CountingHistoryProvider();
-        var field = new FormFieldFactory(provider).Text(
-            "value",
-            "  retained  ",
-            new TextHistoryId("TextFieldTests.Value"));
+        var field = new FormFieldFactory(provider).Text(new TextFieldOptions(
+            InitialText: "  retained  ",
+            HistoryId: new TextHistoryId("TextFieldTests.Value")));
 
         field.AcceptHistory();
         field.AcceptHistory();

@@ -12,9 +12,9 @@ public sealed class CompareOptionsDialogTests
         ITextFieldHistoryProvider provider = TextFieldHistoryTestProvider.Create();
         var historyId = new TextHistoryId("CompareOptionsDialogTests.Depth");
         var fields = new FormFieldFactory(provider);
-        TextField customDepth = fields.Text("custom-depth", "7", historyId);
-        TextField include = fields.Text("include", "*");
-        TextField exclude = fields.Text("exclude", "");
+        TextField customDepth = fields.Text(new TextFieldOptions("7", historyId));
+        TextField include = fields.Text(new TextFieldOptions("*"));
+        TextField exclude = fields.Text();
         _ = CompareOptionsDialog.BuildOptions(
             CompareMode.FolderStructure,
             recursive: true,

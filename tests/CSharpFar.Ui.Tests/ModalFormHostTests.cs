@@ -22,7 +22,7 @@ public sealed class ModalFormHostTests
         var id = new TextHistoryId("ModalFormHostTests.Reopen");
         provider.Get(id).Add("saved");
         var factory = new FormFieldFactory(provider);
-        TextField first = factory.Text("value", "confirmed", id);
+        TextField first = factory.Text(new TextFieldOptions("confirmed", id));
         SingleLineTextHistoryState firstPopup = Assert.IsType<SingleLineTextHistoryState>(first.Input.History);
         Assert.True(firstPopup.OpenAll(availableContentRows: 5));
 
@@ -37,7 +37,7 @@ public sealed class ModalFormHostTests
                 return ModalDialogLoopResult<object?>.Complete(null);
             });
 
-        TextField reopened = factory.Text("value", historyId: id);
+        TextField reopened = factory.Text(new TextFieldOptions(HistoryId: id));
         SingleLineTextHistoryState reopenedPopup = Assert.IsType<SingleLineTextHistoryState>(reopened.Input.History);
         Assert.False(reopenedPopup.IsDropdownOpen);
         Assert.Empty(reopenedPopup.Matches);
