@@ -65,6 +65,25 @@ public sealed class UiPublicBoundaryTests
     }
 
     [Fact]
+    public void SingleLineTextEditing_UsesReusablePublicStateName()
+    {
+        string[] exported = UiAssembly.GetExportedTypes().Select(type => type.Name).ToArray();
+
+        Assert.Contains(nameof(SingleLineTextEditState), exported);
+        Assert.DoesNotContain("CommandLineState", exported);
+    }
+
+    [Fact]
+    public void StandardDialogConcreteTypes_HaveIntentionalVisibility()
+    {
+        string[] exported = UiAssembly.GetExportedTypes().Select(type => type.Name).ToArray();
+
+        Assert.DoesNotContain("ConfirmDialog", exported);
+        Assert.Contains(nameof(MessageDialog), exported);
+        Assert.Contains(nameof(ChoiceDialog), exported);
+    }
+
+    [Fact]
     public void AdvancedReusableContracts_RemainExported()
     {
         string[] required = ["UiCompositionHost", "UiLayer`1", "UiLayerInputPolicy", "IUiSurface", "IUiCanvas", "ScreenRenderer",

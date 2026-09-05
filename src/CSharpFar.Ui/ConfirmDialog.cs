@@ -5,7 +5,7 @@ using CSharpFar.Console.Models;
 namespace CSharpFar.Ui;
 
 /// <summary>Asks the user to confirm a destructive action. Returns true if confirmed.</summary>
-public sealed class ConfirmDialog
+internal sealed class ConfirmDialog
 {
     private const int DialogWidth = 52;
     private const int DialogHeight = 7;

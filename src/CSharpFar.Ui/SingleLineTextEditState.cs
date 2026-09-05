@@ -1,6 +1,7 @@
 namespace CSharpFar.Ui;
 
-public sealed class CommandLineState
+/// <summary>Mutable editing state for a reusable single-line text input.</summary>
+public sealed class SingleLineTextEditState
 {
     private readonly List<char> _buffer = new();
 
