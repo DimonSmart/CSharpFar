@@ -31,7 +31,7 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
 
     public void Show(string? initialFilter)
     {
-        TextField filter = _ui.Fields.Text(initialFilter ?? string.Empty);
+        TextField filter = _ui.Fields.Text(new TextFieldOptions(initialFilter ?? string.Empty));
         var tcp = FormControls.CheckBox("TCP listeners", true);
         var udp = FormControls.CheckBox("UDP endpoints", true);
         var other = FormControls.CheckBox("Other TCP connections");
