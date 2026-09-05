@@ -44,7 +44,7 @@ public sealed class TextInputWithButtonsRowTests
         ITextFieldHistoryProvider provider = TextFieldHistoryTestProvider.Create();
         var id = new TextHistoryId("TextInputWithButtonsRowTests.History");
         provider.Get(id).Add("saved");
-        TextField field = new FormFieldFactory(provider).Text("value", historyId: id, width: 12);
+        TextField field = new FormFieldFactory(provider).Text(new TextFieldOptions(HistoryId: id, Width: 12));
         var row = new TextInputWithButtonsRow(
             "Value:",
             field,
@@ -68,9 +68,7 @@ public sealed class TextInputWithButtonsRowTests
         var driver = new FakeConsoleDriver(width: 100, height: 5);
         var screen = new ScreenRenderer(driver);
         TextField field = new FormFieldFactory(TextFieldHistoryTestProvider.Create()).Text(
-            "write",
-            "14.06.2026 15:03:39",
-            width: 19);
+            new TextFieldOptions("14.06.2026 15:03:39", Width: 19));
         var row = new TextInputWithButtonsRow(
             "write:    ",
             field,
