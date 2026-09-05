@@ -16,7 +16,9 @@ internal sealed class UiLayerTestHost
     {
         Driver = driver;
         Screen = new ScreenRenderer(Driver);
-        Composition = UiTestHost.Create(Screen, new UiLayerTestSurface(Screen, layer)).Composition;
+        UiTestHost host = UiTestHost.Create(Screen);
+        Composition = host.Composition;
+        _ = Composition.RegisterPersistentOverlay(layer);
     }
 
     public FakeConsoleDriver Driver { get; }

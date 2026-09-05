@@ -315,7 +315,7 @@ public sealed class ApplicationUiLayerScopeTests
 
     private sealed class RecordingRootSurface(ScreenRenderer screen) : IUiSurface, IUiLayer
     {
-        private readonly Queue<UiRoutedInput<Unit>> _inputs = [];
+        private readonly Queue<UiRoutedInput<object?>> _inputs = [];
 
         public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
         public IUiFocusState FocusState { get; } = new UiFocusController();
@@ -336,11 +336,11 @@ public sealed class ApplicationUiLayerScopeTests
 
         public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context)
         {
-            _inputs.Enqueue(new UiRoutedInput<Unit>(input, default, context.Target, context.RouteKind));
+            _inputs.Enqueue(new UiRoutedInput<object?>(input, default, context.Target, context.RouteKind));
             return UiInputResult.HandledResult;
         }
 
-        public bool TryTakeInput(out UiRoutedInput<Unit> packet) =>
+        public bool TryTakeInput(out UiRoutedInput<object?> packet) =>
             _inputs.TryDequeue(out packet!);
 
         public void Clear() => _inputs.Clear();
