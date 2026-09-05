@@ -1,6 +1,5 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
-using CSharpFar.Tests.Fakes;
 using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;

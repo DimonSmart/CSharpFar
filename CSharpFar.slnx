@@ -25,6 +25,11 @@
     <Project Path="src/CSharpFar.Ui/CSharpFar.Ui.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/CSharpFar.Architecture.Tests/CSharpFar.Architecture.Tests.csproj" />
+    <Project Path="tests/CSharpFar.Console.Ansi.Tests/CSharpFar.Console.Ansi.Tests.csproj" />
+    <Project Path="tests/CSharpFar.Console.Tests/CSharpFar.Console.Tests.csproj" />
+    <Project Path="tests/CSharpFar.Testing/CSharpFar.Testing.csproj" />
     <Project Path="tests/CSharpFar.Tests/CSharpFar.Tests.csproj" />
+    <Project Path="tests/CSharpFar.Ui.Tests/CSharpFar.Ui.Tests.csproj" />
   </Folder>
 </Solution>

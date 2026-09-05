@@ -1,6 +1,6 @@
 using CSharpFar.Console;
 
-namespace CSharpFar.Tests;
+namespace CSharpFar.Ui.Tests;
 
 internal static class UiTestRender
 {

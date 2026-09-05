@@ -1,0 +1,382 @@
+using CSharpFar.Console;
+using CSharpFar.Console.Input;
+using CSharpFar.Console.Models;
+
+using CSharpFar.Ui;
+
+namespace CSharpFar.Ui.Tests;
+
+/// <summary>Contract coverage for target resolution performed by UiLayer&lt;TFrame&gt;.</summary>
+public sealed class UiLayerTargetRoutingTests
+{
+    [Fact]
+    public void KeyboardAndModifier_UseCommittedFocusedTarget_AndInvokeHandlerOnce()
+    {
+        var focused = new UiTargetId("focused");
+        var layer = Layer(focus: Focus(focused));
+        var host = new UiLayerTestHost(layer);
+        host.Render();
+
+        host.Dispatch(UiTestInput.Key(ConsoleKey.A));
+        AssertRoute(layer, focused, UiInputRouteKind.FocusedTarget);
+        host.Dispatch(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Control));
+        AssertRoute(layer, focused, UiInputRouteKind.FocusedTarget);
+        Assert.Equal(2, layer.CallCount);
+    }
+
+    [Fact]
+    public void KeyboardAndModifier_UseExplicitKeyboardTargetBeforeFocusedTarget()
+    {
+        var focused = new UiTargetId("focused");
+        var keyboard = new UiTargetId("keyboard");
+        var layer = Layer(focus: Focus(focused), keyboardTarget: keyboard);
+        var host = new UiLayerTestHost(layer);
+        host.Render();
+
+        host.Dispatch(UiTestInput.Key(ConsoleKey.A));
+        AssertRoute(layer, keyboard, UiInputRouteKind.KeyboardTarget);
+        host.Dispatch(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Control));
+        AssertRoute(layer, keyboard, UiInputRouteKind.KeyboardTarget);
+        Assert.Equal(focused, layer.FocusState.FocusedTarget);
+    }
+
+    [Fact]
+    public void MouseRouting_IgnoresExplicitKeyboardTarget()
+    {
+        var keyboard = new UiTargetId("keyboard");
+        var hit = new UiTargetId("hit");
+        var layer = Layer(
+            regions: [new UiHitRegion(hit, new Rect(0, 0, 4, 4))],
+            keyboardTarget: keyboard);
+        var host = new UiLayerTestHost(layer);
+        host.Render();
+
+        host.Dispatch(UiTestInput.Mouse(1, 1, MouseEventKind.Down));
+
+        AssertRoute(layer, hit, UiInputRouteKind.HitTarget);
+    }
+
+    [Fact]
+    public void KeyboardWithoutEnabledFocus_UsesLayerRoute()
+    {
+        var disabled = new UiTargetId("disabled");
+        var layer = Layer(focus: FocusFrame([new UiFocusEntry(disabled, 0, IsEnabled: false)]));
+        var host = new UiLayerTestHost(layer);
+        host.Render();
+
+        host.Dispatch(UiTestInput.Key(ConsoleKey.A));
+
+        AssertRoute(layer, null, UiInputRouteKind.Layer);
+        Assert.Null(layer.FocusState.FocusedTarget);
+    }
+
+    [Fact]
+    public void MouseHitMissAndOverlaps_UseCommittedLocalRegions()
+    {
+        var bottom = new UiTargetId("bottom");
+        var top = new UiTargetId("top");
+        var layer = Layer(regions: [new(bottom, new Rect(0, 0, 4, 4)), new(top, new Rect(0, 0, 4, 4))]);
+        var host = new UiLayerTestHost(layer);
+        host.Render();
+
+        host.Dispatch(UiTestInput.Mouse(1, 1, MouseEventKind.Down));
+        AssertRoute(layer, top, UiInputRouteKind.HitTarget);
+        host.Dispatch(UiTestInput.Mouse(9, 9, MouseEventKind.Down));
+        AssertRoute(layer, null, UiInputRouteKind.Layer);
+    }
+
+    [Theory]
+    [InlineData(MouseEventKind.Move)]
+    [InlineData(MouseEventKind.Up)]
+    [InlineData(MouseEventKind.DoubleClick)]
+    [InlineData(MouseEventKind.Wheel)]
+    public void EveryOrdinaryMouseKind_UsesHitResolution(MouseEventKind kind)
+    {
+        var target = new UiTargetId("target");
+        var layer = Layer(regions: [new(target, new Rect(0, 0, 3, 3))]);
+        var host = new UiLayerTestHost(layer);
+        host.Render();
+
+        host.Dispatch(UiTestInput.Mouse(1, 1, kind, kind == MouseEventKind.Wheel ? MouseButton.WheelUp : MouseButton.Left));
+
+        AssertRoute(layer, target, UiInputRouteKind.HitTarget);
+    }
+
+    [Fact]
+    public void MouseHit_DoesNotChangeFocus_WithoutExplicitRequest()
+    {
+        var focused = new UiTargetId("focused");
+        var hit = new UiTargetId("hit");
+        var layer = Layer(Focus(focused), [new(hit, new Rect(0, 0, 2, 2))]);
+        var host = new UiLayerTestHost(layer);
+        host.Render();
+
+        host.Dispatch(UiTestInput.Mouse(1, 1, MouseEventKind.Down));
+
+        AssertRoute(layer, hit, UiInputRouteKind.HitTarget);
+        Assert.Equal(focused, layer.FocusState.FocusedTarget);
+    }
+
+    [Fact]
+    public void FocusRequest_AppliesOnNextCommitAndOnlyToSourceLayer()
+    {
+        var first = new UiTargetId("first");
+        var second = new UiTargetId("second");
+        var root = Layer(Focus(first, second));
+        var overlay = Layer(Focus(first, second));
+        overlay.Result = (_, context) => context.Target == first ? UiInputResult.RequestFocus(second) : UiInputResult.NotHandled;
+        var fixture = new UiLayerTestHost(root);
+        fixture.Render();
+        var host = fixture.Composition;
+        using var scope = host.PushOverlay(overlay);
+        host.Render();
+
+        fixture.Dispatch(UiTestInput.Key(ConsoleKey.A));
+        AssertRoute(overlay, first, UiInputRouteKind.FocusedTarget);
+        Assert.Equal(first, overlay.FocusState.FocusedTarget);
+        Assert.Equal(first, root.FocusState.FocusedTarget);
+
+        fixture.Render();
+        Assert.Equal(second, overlay.FocusState.FocusedTarget);
+        Assert.Equal(first, root.FocusState.FocusedTarget);
+        fixture.Dispatch(UiTestInput.Key(ConsoleKey.B));
+        AssertRoute(overlay, second, UiInputRouteKind.FocusedTarget);
+
+        overlay.Result = (_, _) => UiInputResult.RequestFocus(new UiTargetId("missing"));
+        fixture.Dispatch(UiTestInput.Key(ConsoleKey.C));
+        fixture.Render();
+        Assert.Equal(second, overlay.FocusState.FocusedTarget);
+    }
+
+    [Fact]
+    public void FocusRequest_ForDisabledTargetIsIgnoredOnNextCommit()
+    {
+        var enabled = new UiTargetId("enabled");
+        var disabled = new UiTargetId("disabled");
+        var layer = Layer(FocusFrame([new(enabled, 0), new(disabled, 1, IsEnabled: false)], enabled));
+        layer.Result = (_, _) => UiInputResult.RequestFocus(disabled);
+        var host = new UiLayerTestHost(layer);
+        host.Render();
+
+        host.Dispatch(UiTestInput.Key(ConsoleKey.A));
+        Assert.Equal(enabled, layer.FocusState.FocusedTarget);
+
+        host.Render();
+        Assert.Equal(enabled, layer.FocusState.FocusedTarget);
+    }
+
+    [Fact]
+    public void BubbleLayers_ResolveIndependentLocalTargets_AndModalBlocksOnMiss()
+    {
+        var lowerTarget = new UiTargetId("lower");
+        var upperTarget = new UiTargetId("upper");
+        var lower = Layer(regions: [new(lowerTarget, new Rect(0, 0, 3, 3))]);
+        var upper = Layer(regions: [new(upperTarget, new Rect(0, 0, 3, 3))]);
+        var fixture = new UiLayerTestHost(lower);
+        var host = fixture.Composition;
+        fixture.Render();
+        using var upperScope = host.PushOverlay(upper);
+        host.Render();
+
+        fixture.Dispatch(UiTestInput.Mouse(1, 1, MouseEventKind.Down));
+        AssertRoute(upper, upperTarget, UiInputRouteKind.HitTarget);
+        AssertRoute(lower, lowerTarget, UiInputRouteKind.HitTarget);
+        Assert.Equal(1, upper.CallCount);
+        Assert.Equal(1, lower.CallCount);
+
+        var modal = Layer(policy: UiLayerInputPolicy.Modal);
+        using var modalScope = host.PushOverlay(modal);
+        fixture.Render();
+        fixture.Dispatch(UiTestInput.Mouse(9, 9, MouseEventKind.Down));
+        AssertRoute(modal, null, UiInputRouteKind.Layer);
+        Assert.Equal(1, lower.CallCount);
+    }
+
+    [Fact]
+    public void HandledHitTargetOverlay_BlocksLowerLayer()
+    {
+        var lower = Layer(regions: [new(new UiTargetId("lower"), new Rect(0, 0, 3, 3))]);
+        var upperTarget = new UiTargetId("upper");
+        var upper = Layer(regions: [new(upperTarget, new Rect(0, 0, 3, 3))]);
+        upper.Result = (_, _) => UiInputResult.HandledResult;
+        var fixture = new UiLayerTestHost(lower);
+        var host = fixture.Composition;
+        fixture.Render();
+        using var scope = host.PushOverlay(upper);
+        host.Render();
+
+        fixture.Dispatch(UiTestInput.Mouse(1, 1, MouseEventKind.Down));
+
+        Assert.Equal(1, upper.CallCount);
+        AssertRoute(upper, upperTarget, UiInputRouteKind.HitTarget);
+        Assert.Equal(0, lower.CallCount);
+    }
+
+    [Fact]
+    public void Capture_HasPriority_ReleasesOnlyMatchingButton_AndUsesNormalRoutingAfterRelease()
+    {
+        var captured = new UiTargetId("captured");
+        var other = new UiTargetId("other");
+        var layer = Layer(regions: [new(captured, new Rect(0, 0, 2, 2)), new(other, new Rect(5, 5, 2, 2))]);
+        layer.Result = (input, _) => input is MouseConsoleInputEvent { Kind: MouseEventKind.Down }
+            ? UiInputResult.CaptureMouse(captured, MouseButton.Left) : UiInputResult.NotHandled;
+        var host = new UiLayerTestHost(layer);
+        host.Render();
+
+        host.Dispatch(UiTestInput.Mouse(1, 1, MouseEventKind.Down));
+        host.Dispatch(UiTestInput.Mouse(6, 6, MouseEventKind.Move));
+        AssertRoute(layer, captured, UiInputRouteKind.CapturedTarget);
+        host.Dispatch(UiTestInput.Mouse(6, 6, MouseEventKind.Up, MouseButton.Right));
+        AssertRoute(layer, captured, UiInputRouteKind.CapturedTarget);
+        host.Dispatch(UiTestInput.Mouse(6, 6, MouseEventKind.Up));
+        AssertRoute(layer, captured, UiInputRouteKind.CapturedTarget);
+        host.Dispatch(UiTestInput.Mouse(6, 6, MouseEventKind.Move));
+        AssertRoute(layer, other, UiInputRouteKind.HitTarget);
+    }
+
+    [Fact]
+    public void Capture_IsPreservedWhenCapturedTargetBoundsChange()
+    {
+        var target = new UiTargetId("target");
+        var layer = Layer(regions: [new(target, new Rect(0, 0, 2, 2))]);
+        layer.Result = (input, _) => input is MouseConsoleInputEvent { Kind: MouseEventKind.Down }
+            ? UiInputResult.CaptureMouse(target, MouseButton.Left) : UiInputResult.NotHandled;
+        var host = new UiLayerTestHost(layer);
+        host.Render();
+        host.Dispatch(UiTestInput.Mouse(1, 1, MouseEventKind.Down));
+        layer.Regions = [new(target, new Rect(5, 5, 2, 2))];
+        host.Render();
+
+        host.Dispatch(UiTestInput.Mouse(9, 9, MouseEventKind.Move));
+
+        AssertRoute(layer, target, UiInputRouteKind.CapturedTarget);
+    }
+
+    [Fact]
+    public void Capture_IsRejectedForFocusOnlyTarget()
+    {
+        var target = new UiTargetId("focus-only");
+        var layer = Layer(Focus(target));
+        layer.Result = (input, _) => input is MouseConsoleInputEvent { Kind: MouseEventKind.Down }
+            ? UiInputResult.CaptureMouse(target, MouseButton.Left) : UiInputResult.NotHandled;
+        var host = new UiLayerTestHost(layer);
+        host.Render();
+
+        var error = Assert.Throws<InvalidOperationException>(() => host.Dispatch(UiTestInput.Mouse(9, 9, MouseEventKind.Down)));
+        Assert.Contains("committed hit regions", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SuccessfulRemoval_ClearsCaptureWithoutResurrection_AndRejectedRenderDoesNot()
+    {
+        var target = new UiTargetId("target");
+        var layer = Layer(regions: [new(target, new Rect(0, 0, 2, 2))]);
+        layer.Result = (input, _) => input is MouseConsoleInputEvent { Kind: MouseEventKind.Down }
+            ? UiInputResult.CaptureMouse(target, MouseButton.Left) : UiInputResult.NotHandled;
+        var host = new UiLayerTestHost(layer);
+        host.Render();
+        host.Dispatch(UiTestInput.Mouse(1, 1, MouseEventKind.Down));
+
+        layer.Regions = [];
+        host.Render();
+        layer.Regions = [new(target, new Rect(0, 0, 2, 2))];
+        host.Render();
+        host.Dispatch(UiTestInput.Mouse(1, 1, MouseEventKind.Move));
+        AssertRoute(layer, target, UiInputRouteKind.HitTarget);
+    }
+
+    [Fact]
+    public void RejectedRender_DoesNotClearCaptureFromCommittedInteractionFrame()
+    {
+        var target = new UiTargetId("target");
+        var layer = Layer(regions: [new(target, new Rect(0, 0, 2, 2))]);
+        layer.Result = (input, _) => input is MouseConsoleInputEvent { Kind: MouseEventKind.Down }
+            ? UiInputResult.CaptureMouse(target, MouseButton.Left) : UiInputResult.NotHandled;
+        var host = new UiLayerTestHost(layer);
+        host.Render();
+        host.Dispatch(UiTestInput.Mouse(1, 1, MouseEventKind.Down));
+        layer.Regions = [];
+        layer.ThrowOnRender = true;
+
+        Assert.Throws<InvalidOperationException>(() => host.Render());
+        layer.ThrowOnRender = false;
+        host.Dispatch(UiTestInput.Mouse(9, 9, MouseEventKind.Move));
+
+        AssertRoute(layer, target, UiInputRouteKind.CapturedTarget);
+    }
+
+    [Fact]
+    public void FailedRender_LeavesCommittedTargetAndFocusForRouting()
+    {
+        var oldTarget = new UiTargetId("old");
+        var newTarget = new UiTargetId("new");
+        var layer = Layer(Focus(oldTarget), [new(oldTarget, new Rect(0, 0, 2, 2))]);
+        var host = new UiLayerTestHost(layer);
+        host.Render();
+        layer.Focus = Focus(newTarget);
+        layer.Regions = [new(newTarget, new Rect(5, 5, 2, 2))];
+        layer.ThrowOnRender = true;
+
+        Assert.Throws<InvalidOperationException>(() => host.Render());
+        host.Dispatch(UiTestInput.Key(ConsoleKey.A));
+        AssertRoute(layer, oldTarget, UiInputRouteKind.FocusedTarget);
+        host.Dispatch(UiTestInput.Mouse(1, 1, MouseEventKind.Down));
+        AssertRoute(layer, oldTarget, UiInputRouteKind.HitTarget);
+    }
+
+    [Fact]
+    public void RouteContext_EnforcesHostAndInputContracts()
+    {
+        var layer = Layer();
+        var host = new UiLayerTestHost(layer);
+        host.Render();
+        Assert.Throws<InvalidOperationException>(() => layer.RouteInput(UiTestInput.Key(ConsoleKey.A), UiInputRouteContext.CapturedTarget(layer.FocusState, new UiTargetId("x"))));
+        Assert.Throws<InvalidOperationException>(() => layer.RouteInput(UiTestInput.Key(ConsoleKey.A), UiInputRouteContext.Layer(new UiFocusController())));
+        Assert.Throws<InvalidOperationException>(() => layer.RouteInput(UiTestInput.Key(ConsoleKey.A), UiInputRouteContext.HitTarget(layer.FocusState, new UiTargetId("x"))));
+    }
+
+    private static TestLayer Layer(
+        UiFocusFrame? focus = null,
+        IReadOnlyList<UiHitRegion>? regions = null,
+        UiLayerInputPolicy policy = UiLayerInputPolicy.Bubble,
+        UiTargetId? keyboardTarget = null) =>
+        new(policy)
+        {
+            Focus = focus ?? UiFocusFrame.Empty,
+            Regions = regions ?? [],
+            KeyboardTarget = keyboardTarget,
+        };
+
+    private static UiFocusFrame Focus(params UiTargetId[] targets) =>
+        new(targets.Select((target, index) => new UiFocusEntry(target, index)).ToArray(), targets.FirstOrDefault());
+
+    private static void AssertRoute(TestLayer layer, UiTargetId? target, UiInputRouteKind kind)
+    {
+        Assert.NotNull(layer.LastRoute);
+        Assert.Equal(target, layer.LastRoute!.Target);
+        Assert.Equal(kind, layer.LastRoute.RouteKind);
+    }
+
+    private sealed record Frame(UiFocusFrame Focus);
+
+    private sealed class TestLayer(UiLayerInputPolicy policy) : UiLayer<Frame>
+    {
+        public UiFocusFrame Focus { get; set; } = UiFocusFrame.Empty;
+        public IReadOnlyList<UiHitRegion> Regions { get; set; } = [];
+        public UiTargetId? KeyboardTarget { get; set; }
+        public bool ThrowOnRender { get; set; }
+        public int CallCount { get; private set; }
+        public UiInputRouteContext? LastRoute { get; private set; }
+        public Func<ConsoleInputEvent, UiInputRouteContext, UiInputResult> Result { get; set; } = (_, _) => UiInputResult.NotHandled;
+        public override UiLayerInputPolicy InputPolicy => policy;
+        protected override Frame RenderFrame(UiRenderContext context) => ThrowOnRender ? throw new InvalidOperationException("render") : new(Focus);
+        protected override UiInteractionFrame BuildInteractionFrame(Frame frame) => new(Regions, frame.Focus, KeyboardTarget);
+        protected override UiInputResult RouteInput(ConsoleInputEvent input, Frame frame, UiInputRouteContext context)
+        {
+            CallCount++;
+            LastRoute = context;
+            return Result(input, context);
+        }
+    }
+
+}

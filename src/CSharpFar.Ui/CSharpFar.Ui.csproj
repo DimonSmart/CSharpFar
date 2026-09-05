@@ -2,9 +2,17 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CSharpFar.Console\CSharpFar.Console.csproj" />
+    <!-- Application integration tests exercise modal lifecycle and routed input together with App. -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpFar.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpFar.Ui.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <!-- Application integration tests exercise modal lifecycle and routed input together with App. -->
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>CSharpFar.Tests</_Parameter1>
     </AssemblyAttribute>
@@ -12,6 +20,10 @@
 
   <ItemGroup>
     <PackageReference Include="TextCopy" Version="6.2.1" />
+    <!-- Application integration tests exercise modal lifecycle and routed input together with App. -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpFar.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <PropertyGroup>

@@ -2,7 +2,7 @@ using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Ui;
 
-namespace CSharpFar.Tests;
+namespace CSharpFar.Ui.Tests;
 
 internal sealed class UiLayerTestSurface(ScreenRenderer screen, IUiLayer layer) : IUiSurface, IUiLayer, IUiFocusRuntime
 {

@@ -1,0 +1,140 @@
+using CSharpFar.Console;
+using CSharpFar.Console.Input;
+using CSharpFar.Console.Models;
+
+using CSharpFar.Ui;
+
+namespace CSharpFar.Ui.Tests;
+
+public sealed class CompactChoiceFormRowTests
+{
+    [Fact]
+    public void KeyboardChoiceChangeReturnsValueChanged()
+    {
+        var row = Row(["one", "two"]);
+        var input = new FormRowInputContext(true);
+
+        Assert.Equal(FormInputResultKind.ValueChanged, row.HandleKey(Key(ConsoleKey.RightArrow), input).Kind);
+        Assert.Equal("two", row.Value);
+    }
+
+    [Fact]
+    public void DesiredWidth_UsesLongestDisplayValueRatherThanCurrentSelection()
+    {
+        var row = Row(["short", "much longer界"]);
+        int desiredWidth = row.DesiredWidth;
+
+        row.Value = "much longer界";
+
+        Assert.Equal(ConsoleTextMetrics.GetCellWidth("Mode") + 2 + ConsoleTextMetrics.GetCellWidth("much longer界"), desiredWidth);
+        Assert.Equal(desiredWidth, row.DesiredWidth);
+    }
+
+    [Fact]
+    public void SingleChoiceKeysAreHandledWithoutValueChange()
+    {
+        var row = Row(["only"]);
+        var input = new FormRowInputContext(true);
+
+        Assert.Equal(FormInputResultKind.Handled, row.HandleKey(Key(ConsoleKey.RightArrow), input).Kind);
+        Assert.Equal(FormInputResultKind.Handled, row.HandleKey(Key(ConsoleKey.Enter), input).Kind);
+        Assert.Equal("only", row.Value);
+    }
+
+    [Fact]
+    public void MouseChoiceChangeReturnsValueChangedAndUsesFormBounds()
+    {
+        var row = Row(["one", "two"]);
+        var context = new FormRowMouseContext(true, new FormRowLayout(new Rect(10, 2, 30, 1), null, new Rect(10, 2, 30, 1)));
+
+        Assert.Equal(FormInputResultKind.ValueChanged, row.HandleMouse(Mouse(10, 2), context).Kind);
+
+        Assert.Equal("two", row.Value);
+    }
+
+    [Fact]
+    public void UnrecognizedKeyAndOutsideMouseAreNotHandled()
+    {
+        var row = Row(["one", "two"]);
+
+        Assert.Equal(FormInputResultKind.NotHandled, row.HandleKey(Key(ConsoleKey.Tab), new FormRowInputContext(true)).Kind);
+        Assert.Equal(FormInputResultKind.NotHandled, row.HandleMouse(Mouse(0, 0), new FormRowMouseContext(true, new FormRowLayout(new Rect(10, 2, 30, 1), null, new Rect(10, 2, 30, 1)))).Kind);
+        Assert.Equal("one", row.Value);
+    }
+
+    [Fact]
+    public void CursorIsPlacedOnValueWhenFocusedAndClippedToBounds()
+    {
+        var row = Row(["Explicit FTPS"]);
+        var driver = new FakeConsoleDriver(width: 50, height: 10);
+        var screen = new ScreenRenderer(driver);
+        var bounds = new Rect(10, 2, 12, 1);
+        UiTestRender.Render(screen, canvas =>
+        {
+            var context = new FormRowRenderContext(canvas, bounds, focused: true);
+            row.Render(context);
+
+            Assert.True(row.TryGetCursor(context, out FormCursorPlacement cursor));
+            Assert.InRange(cursor.X, bounds.X, bounds.Right - 1);
+            Assert.Equal(bounds.Y, cursor.Y);
+        });
+
+        Assert.Contains(driver.WriteRecords, record => record.Text.Contains("Mode:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void CursorIsAbsentWhenNotFocused()
+    {
+        var row = Row(["one"]);
+        var screen = new ScreenRenderer(new FakeConsoleDriver(width: 20, height: 4));
+
+        UiTestRender.Render(screen, canvas =>
+        {
+            var context = new FormRowRenderContext(canvas, new Rect(2, 1, 10, 1), focused: false);
+            Assert.False(row.TryGetCursor(context, out FormCursorPlacement cursor));
+            Assert.Equal(default, cursor);
+        });
+    }
+
+    [Fact]
+    public void CursorIsAbsentWhenWidthIsZero()
+    {
+        var row = Row(["one"]);
+        var screen = new ScreenRenderer(new FakeConsoleDriver(width: 20, height: 4));
+
+        UiTestRender.Render(screen, canvas =>
+        {
+            var context = new FormRowRenderContext(canvas, new Rect(2, 1, 0, 1), focused: true);
+            Assert.False(row.TryGetCursor(context, out FormCursorPlacement cursor));
+            Assert.Equal(default, cursor);
+        });
+    }
+
+    [Fact]
+    public void DisabledChoice_IsNotFocusableOrInteractiveAndCanBeReenabled()
+    {
+        var row = Row(["one", "two"]);
+        row.Enabled = false;
+        row.DisabledReason = "Unavailable";
+        var context = new FormRowInputContext(true);
+
+        Assert.False(row.IsEnabled);
+        Assert.False(row.IsFocusable);
+        Assert.Equal(FormInputResultKind.NotHandled, row.HandleKey(Key(ConsoleKey.RightArrow), context).Kind);
+        Assert.Equal("one", row.Value);
+
+        row.Enabled = true;
+
+        Assert.Equal(FormInputResultKind.ValueChanged, row.HandleKey(Key(ConsoleKey.RightArrow), context).Kind);
+        Assert.Equal("two", row.Value);
+    }
+
+    private static CompactChoiceFormRow<string> Row(IReadOnlyList<string> values, int selectedIndex = 0) =>
+        new(new ChoiceModel<string>(values, static value => value, selectedIndex), "Mode");
+
+    private static ConsoleKeyInfo Key(ConsoleKey key) =>
+        new('\0', key, shift: false, alt: false, control: false);
+
+    private static MouseConsoleInputEvent Mouse(int x, int y) =>
+        new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
+}

@@ -26,7 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\CSharpFar.Core\CSharpFar.Core.csproj" />
-    <ProjectReference Include="..\..\src\CSharpFar.Console.Ansi\CSharpFar.Console.Ansi.csproj" />
+    <ProjectReference Include="../CSharpFar.Testing/CSharpFar.Testing.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Console\CSharpFar.Console.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.DemoRecorder\CSharpFar.DemoRecorder.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Plugin.Abstractions\CSharpFar.Plugin.Abstractions.csproj" />

@@ -6,7 +6,7 @@
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-      <_Parameter1>CSharpFar.Tests</_Parameter1>
+      <_Parameter1>CSharpFar.Console.Ansi.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
 
