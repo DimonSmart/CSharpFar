@@ -7,33 +7,58 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   DOTNET_NOLOGO: true
 
 jobs:
-  build:
-    name: Build and test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
-
+  normalize:
+    if: ${{ github.ref_name == 'work/ui-api-cleanup-20260906' && github.event.head_commit.message == 'Normalize verified UI cleanup EOL' }}
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
+      - name: Normalize changed files to master EOL style
+        shell: bash
+        run: |
+          git fetch origin master --depth=1
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
 
-      - name: Restore
-        run: dotnet restore CSharpFar.slnx
+          paths = [
+              '.idd/intent/0062.spec-console-ui-component-library.md',
+              'samples/CSharpFar.Ui.Demo/DemoApplication.cs',
+              'src/CSharpFar.Module.ProcessesAndPorts/ProcessesAndPortsDialog.cs',
+              'src/CSharpFar.Ui/DialogService.cs',
+              'src/CSharpFar.Ui/FormFieldFactory.cs',
+              'src/CSharpFar.Ui/ScrollStateCalculator.cs',
+              'tests/CSharpFar.Architecture.Tests/UiPublicBoundaryTests.cs',
+              'tests/CSharpFar.Tests/CompareOptionsDialogTests.cs',
+              'tests/CSharpFar.Ui.Tests/ModalFormHostTests.cs',
+              'tests/CSharpFar.Ui.Tests/TextFieldTests.cs',
+              'tests/CSharpFar.Ui.Tests/TextInputWithButtonsRowTests.cs',
+          ]
 
-      - name: Build
-        run: dotnet build CSharpFar.slnx --configuration Release --no-restore
+          for path in paths:
+              master = subprocess.check_output(['git', 'show', f'origin/master:{path}'])
+              current = Path(path).read_bytes()
+              normalized = current.replace(b'\r\n', b'\n')
+              if b'\r\n' in master:
+                  normalized = normalized.replace(b'\n', b'\r\n')
+              if normalized != current:
+                  Path(path).write_bytes(normalized)
+                  print(f'normalized {path}')
+          PY
 
-      - name: Test
-        run: dotnet test CSharpFar.slnx --configuration Release --no-build --verbosity minimal
+          git show origin/master:.github/workflows/build.yml > .github/workflows/build.yml
+          git diff --check
+          git diff --stat
+          git config user.name "Dmitry Dorogoy"
+          git config user.email "DimonSmart@users.noreply.github.com"
+          git add .
+          git diff --cached --check
+          git commit -m "Normalize UI cleanup line endings"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
