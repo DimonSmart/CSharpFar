@@ -32,8 +32,8 @@ internal sealed class DemoApplication : UiLayer<DemoFrame>, IUiSurface
     {
         _screen = screen;
         _repository = repository;
-        var fields = new FormFieldFactory(new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore()));
-        var dialogs = new DialogService(new ModalDialogHost(host), fields);
+        var fields = new FormFieldFactory();
+        var dialogs = new DialogService(host, fields);
         _dialogs = dialogs;
         _commits = new CommitWorkflows(dialogs, fields, clipboard ?? TextCopyTextClipboard.Instance);
         _workflows = new RepositoryWorkflows(dialogs, fields, repository);
