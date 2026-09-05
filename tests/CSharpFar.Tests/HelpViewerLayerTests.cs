@@ -392,6 +392,7 @@ public sealed class HelpViewerLayerTests
             if (++reads == 1)
                 current.SetSize(20, 4);
         };
+        driver.BeforeTryReadInput = current => cursorStates.Add(current.CursorVisible);
         driver.EnqueueInput(new ConsoleResizeInputEvent());
         driver.EnqueueInput(UiTestInput.Key(ConsoleKey.Escape));
 
@@ -401,7 +402,8 @@ public sealed class HelpViewerLayerTests
                 ? ModalDialogLoopResult<bool>.Complete(true)
                 : ModalDialogLoopResult<bool>.ContinueNoChange);
 
-        Assert.Equal([false, false], cursorStates);
+        Assert.NotEmpty(cursorStates);
+        Assert.All(cursorStates, state => Assert.False(state));
         Assert.True(driver.CursorVisible);
         Assert.Equal(2, driver.CursorX);
         Assert.Equal(2, driver.CursorY);
