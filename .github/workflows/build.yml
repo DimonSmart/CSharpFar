@@ -35,5 +35,16 @@ jobs:
       - name: Build
         run: dotnet build CSharpFar.slnx --configuration Release --no-restore
 
+      - name: Build Demo directly
+        run: dotnet build samples/CSharpFar.Ui.Demo/CSharpFar.Ui.Demo.csproj --configuration Release --no-restore
+
       - name: Test
         run: dotnet test CSharpFar.slnx --configuration Release --no-build --verbosity minimal
+
+      - name: Demo ANSI runtime smoke
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -o pipefail
+          (sleep 1; printf '\033OP'; sleep 1; printf '\033'; sleep 1; printf '\033OQ'; sleep 1; printf '\033'; sleep 1; printf '\033[21~') \
+            | timeout 20s script -qec 'dotnet run --project samples/CSharpFar.Ui.Demo/CSharpFar.Ui.Demo.csproj --configuration Release --no-build' /dev/null
