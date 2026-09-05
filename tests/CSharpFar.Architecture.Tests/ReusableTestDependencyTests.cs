@@ -11,9 +11,10 @@ public sealed class ReusableTestDependencyTests
     [Theory]
     [InlineData("CSharpFar.Console.Tests", "src/CSharpFar.Console")]
     [InlineData("CSharpFar.Console.Ansi.Tests", "src/CSharpFar.Console", "src/CSharpFar.Console.Ansi")]
+    [InlineData("CSharpFar.Console.Windows.Tests", "src/CSharpFar.Console", "src/CSharpFar.Console.Windows")]
     [InlineData("CSharpFar.Ui.Tests", "src/CSharpFar.Console", "src/CSharpFar.Ui", "tests/CSharpFar.Testing")]
     [InlineData("CSharpFar.Testing", "src/CSharpFar.Console")]
-    [InlineData("CSharpFar.Architecture.Tests", "samples/CSharpFar.Ui.Demo", "src/CSharpFar.Console", "src/CSharpFar.Console.Ansi", "src/CSharpFar.Ui")]
+    [InlineData("CSharpFar.Architecture.Tests", "samples/CSharpFar.Ui.Demo", "src/CSharpFar.Console", "src/CSharpFar.Console.Ansi", "src/CSharpFar.Console.Windows", "src/CSharpFar.Ui")]
     public void ProjectReferences_MatchTheIsolatedBoundary(string projectName, params string[] allowed)
     {
         string root = RepositoryRoot();
@@ -52,8 +53,9 @@ public sealed class ReusableTestDependencyTests
     public void ReusableFriends_AreExplicitAndLimited()
     {
         AssertFriends(typeof(IConsoleDriver).Assembly,
-            "CSharpFar.Console.Ansi", "CSharpFar.Console.Ansi.Tests", "CSharpFar.Console.Tests");
+            "CSharpFar.Console.Ansi", "CSharpFar.Console.Ansi.Tests", "CSharpFar.Console.Tests", "CSharpFar.Console.Windows");
         AssertFriends(typeof(AnsiTerminalConsoleDriver).Assembly, "CSharpFar.Console.Ansi.Tests");
+        AssertFriends(typeof(SystemConsoleDriver).Assembly, "CSharpFar.Console.Windows.Tests");
         AssertFriends(typeof(FormControls).Assembly, "CSharpFar.Ui.Tests");
     }
 

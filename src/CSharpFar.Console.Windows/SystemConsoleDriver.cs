@@ -8,10 +8,8 @@ using CSharpFar.Console.Win32;
 namespace CSharpFar.Console;
 
 /// <summary>
-/// Real console driver backed by System.Console.
-/// On Windows, Capture/Restore use Win32 ReadConsoleOutput/WriteConsoleOutput
-/// so that shell output underneath the panels is preserved for Ctrl+O.
-/// This class targets Windows. On other platforms, Capture/Restore use a blank fallback.
+/// Windows console driver backed by System.Console and Win32 console APIs.
+/// Construction fails fast on non-Windows platforms.
 /// </summary>
 public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleFrameWriter, IConsoleOutputModeDriver, ITerminalScreenMode, IConsoleInputDiagnostics, IDisposable
 {
@@ -47,6 +45,9 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleFrameWriter, I
 
     public SystemConsoleDriver()
     {
+        if (!OperatingSystem.IsWindows())
+            throw new PlatformNotSupportedException("CSharpFar.Console.Windows requires Windows.");
+
         if (OperatingSystem.IsWindows())
         {
             _consoleHandle = Win32ConsoleApi.GetConsoleOutputHandle();

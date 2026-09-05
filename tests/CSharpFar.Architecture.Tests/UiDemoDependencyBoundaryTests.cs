@@ -13,7 +13,7 @@ public sealed class UiDemoDependencyBoundaryTests
         string projectPath = FindRepositoryFile("samples", "CSharpFar.Ui.Demo", "CSharpFar.Ui.Demo.csproj");
         XDocument project = XDocument.Load(projectPath);
         string[] directProjects = ProjectReferences(projectPath, project).Select(path => Path.GetFileNameWithoutExtension(path)!).ToArray();
-        Assert.Equal(["CSharpFar.Console", "CSharpFar.Console.Ansi", "CSharpFar.Ui"], directProjects);
+        Assert.Equal(["CSharpFar.Console", "CSharpFar.Console.Windows", "CSharpFar.Console.Ansi", "CSharpFar.Ui"], directProjects);
         Assert.Empty(project.Descendants("PackageReference"));
 
         string[] forbidden = ["CSharpFar.Core", "CSharpFar.App", "CSharpFar.FileSystem", "CSharpFar.Shell"];

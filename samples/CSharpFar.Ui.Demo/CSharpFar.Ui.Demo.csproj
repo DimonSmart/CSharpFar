@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\CSharpFar.Console\CSharpFar.Console.csproj" />
+    <ProjectReference Include="..\..\src\CSharpFar.Console.Windows\CSharpFar.Console.Windows.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Console.Ansi\CSharpFar.Console.Ansi.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Ui\CSharpFar.Ui.csproj" />
   </ItemGroup>

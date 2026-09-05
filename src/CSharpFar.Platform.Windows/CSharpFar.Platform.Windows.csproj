@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CSharpFar.Console\CSharpFar.Console.csproj" />
+    <ProjectReference Include="..\CSharpFar.Console.Windows\CSharpFar.Console.Windows.csproj" />
     <ProjectReference Include="..\CSharpFar.Core\CSharpFar.Core.csproj" />
     <ProjectReference Include="..\CSharpFar.FileSystem\CSharpFar.FileSystem.csproj" />
     <ProjectReference Include="..\CSharpFar.Platform.Abstractions\CSharpFar.Platform.Abstractions.csproj" />

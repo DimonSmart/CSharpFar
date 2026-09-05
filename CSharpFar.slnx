@@ -5,6 +5,7 @@
   <Folder Name="/src/">
     <Project Path="src/CSharpFar.App/CSharpFar.App.csproj" />
     <Project Path="src/CSharpFar.Console.Ansi/CSharpFar.Console.Ansi.csproj" />
+    <Project Path="src/CSharpFar.Console.Windows/CSharpFar.Console.Windows.csproj" />
     <Project Path="src/CSharpFar.Console/CSharpFar.Console.csproj" />
     <Project Path="src/CSharpFar.DemoRecorder/CSharpFar.DemoRecorder.csproj" />
     <Project Path="src/CSharpFar.Core/CSharpFar.Core.csproj" />
@@ -27,6 +28,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/CSharpFar.Architecture.Tests/CSharpFar.Architecture.Tests.csproj" />
     <Project Path="tests/CSharpFar.Console.Ansi.Tests/CSharpFar.Console.Ansi.Tests.csproj" />
+    <Project Path="tests/CSharpFar.Console.Windows.Tests/CSharpFar.Console.Windows.Tests.csproj" />
     <Project Path="tests/CSharpFar.Console.Tests/CSharpFar.Console.Tests.csproj" />
     <Project Path="tests/CSharpFar.Testing/CSharpFar.Testing.csproj" />
     <Project Path="tests/CSharpFar.Tests/CSharpFar.Tests.csproj" />
