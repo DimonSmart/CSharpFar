@@ -54,8 +54,7 @@ public sealed class ReusableTestDependencyTests
         AssertFriends(typeof(IConsoleDriver).Assembly,
             "CSharpFar.Console.Ansi", "CSharpFar.Console.Ansi.Tests", "CSharpFar.Console.Tests");
         AssertFriends(typeof(AnsiTerminalConsoleDriver).Assembly, "CSharpFar.Console.Ansi.Tests");
-        // App integration tests require modal scopes and routed input; they remain a deliberate UI friend.
-        AssertFriends(typeof(FormControls).Assembly, "CSharpFar.Tests", "CSharpFar.Ui.Tests");
+        AssertFriends(typeof(FormControls).Assembly, "CSharpFar.Ui.Tests");
     }
 
     private static void AssertFriends(Assembly assembly, params string[] expected) =>

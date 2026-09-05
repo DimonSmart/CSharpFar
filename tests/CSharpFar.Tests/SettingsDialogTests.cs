@@ -38,30 +38,22 @@ public sealed class SettingsDialogTests
     [Fact]
     public void Show_EscapeReturnsNullAndRestoresTheme()
     {
-        UiTheme.ResetForTests();
-        UiTheme.Initialize(PaletteRegistry.Default);
-        try
-        {
-            var driver = Driver(
-                Key(ConsoleKey.DownArrow),
-                Key(ConsoleKey.DownArrow),
-                Key(ConsoleKey.Enter),
-                Key(ConsoleKey.Escape));
+        using var theme = UiTheme.UseTemporary(PaletteRegistry.Default);
+        var driver = Driver(
+            Key(ConsoleKey.DownArrow),
+            Key(ConsoleKey.DownArrow),
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.Escape));
 
-            SettingsDialogResult? result = new SettingsDialog(new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
-                PanelViewMode.Full,
-                PanelViewMode.Full,
-                "Default",
-                fileHighlightingEnabled: true,
-                editorSyntaxHighlightingEnabled: true);
+        SettingsDialogResult? result = new SettingsDialog(new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
+            PanelViewMode.Full,
+            PanelViewMode.Full,
+            "Default",
+            fileHighlightingEnabled: true,
+            editorSyntaxHighlightingEnabled: true);
 
-            Assert.Null(result);
-            Assert.Same(PaletteRegistry.Default, UiTheme.Current);
-        }
-        finally
-        {
-            UiTheme.ResetForTests();
-        }
+        Assert.Null(result);
+        Assert.Same(PaletteRegistry.Default, UiTheme.Current);
     }
 
     [Fact]
@@ -106,55 +98,6 @@ public sealed class SettingsDialogTests
         Assert.Equal("Default", result.PaletteName);
         Assert.True(result.FileHighlightingEnabled);
         Assert.True(result.EditorSyntaxHighlightingEnabled);
-    }
-
-    [Fact]
-    public void TemporaryThemeScope_RestoresThemeAfterException()
-    {
-        UiTheme.ResetForTests();
-        UiTheme.Initialize(PaletteRegistry.Default);
-        try
-        {
-            void ThrowDuringTemporaryScope()
-            {
-                using (UiTheme.UseTemporary(CSharpFarPaletteRegistry.FarClassic.Ui))
-                {
-                    Assert.Same(CSharpFarPaletteRegistry.FarClassic.Ui, UiTheme.Current);
-                    throw new InvalidOperationException("render failed");
-                }
-            }
-
-            Assert.Throws<InvalidOperationException>((Action)ThrowDuringTemporaryScope);
-
-            Assert.Same(PaletteRegistry.Default, UiTheme.Current);
-        }
-        finally
-        {
-            UiTheme.ResetForTests();
-        }
-    }
-
-    [Fact]
-    public void TemporaryThemeScope_RestoresNestedThemesInOrder()
-    {
-        UiTheme.ResetForTests();
-        UiTheme.Initialize(PaletteRegistry.Default);
-        try
-        {
-            using (UiTheme.UseTemporary(CSharpFarPaletteRegistry.FarClassic.Ui))
-            {
-                Assert.Same(CSharpFarPaletteRegistry.FarClassic.Ui, UiTheme.Current);
-                using (UiTheme.UseTemporary(PaletteRegistry.Default))
-                    Assert.Same(PaletteRegistry.Default, UiTheme.Current);
-                Assert.Same(CSharpFarPaletteRegistry.FarClassic.Ui, UiTheme.Current);
-            }
-
-            Assert.Same(PaletteRegistry.Default, UiTheme.Current);
-        }
-        finally
-        {
-            UiTheme.ResetForTests();
-        }
     }
 
     private static FakeConsoleDriver Driver(params ConsoleInputEvent[] inputs)

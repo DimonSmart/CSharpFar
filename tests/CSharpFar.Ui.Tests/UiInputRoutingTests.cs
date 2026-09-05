@@ -126,6 +126,20 @@ public sealed class UiInputRoutingTests
     }
 
     [Fact]
+    public void DispatchInput_RenderOnlyOverlayDoesNotBlockLowerInteractiveLayer()
+    {
+        var calls = new List<string>();
+        var (host, surface) = Fixture(calls);
+        surface.Result = UiInputResult.HandledResult;
+        using var scope = host.PushOverlay(_ => { });
+
+        UiInputResult result = host.DispatchInput(UiTestInput.Key(ConsoleKey.A));
+
+        Assert.True(result.Handled);
+        Assert.Equal(["surface"], calls);
+    }
+
+    [Fact]
     public void DispatchInput_AppliesFocusRequestToSourceLayerOnlyAndNormalizesResult()
     {
         var (host, surface) = Fixture([]);

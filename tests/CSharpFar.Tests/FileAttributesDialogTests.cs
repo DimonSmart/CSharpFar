@@ -26,7 +26,7 @@ public sealed class FileAttributesDialogTests
         Assert.Equal("31.07.2026 12:00:00", write.Text);
         Assert.Empty(access.Text);
         Assert.False(FileAttributesDialog.ApplyTimeAction(
-            new CheckBoxRow(new CheckBoxLine("other")), "current", snapshot, creation, write, access, new DateTime(2026, 7, 31, 12, 0, 0)));
+            FormControls.CheckBox("other"), "current", snapshot, creation, write, access, new DateTime(2026, 7, 31, 12, 0, 0)));
     }
 
     [Fact]

@@ -22,6 +22,38 @@ public sealed class RoutedScrollableListTests
     }
 
     [Fact]
+    public void RouteInput_WheelMovesSelectionAndIsConsumedAtBoundary()
+    {
+        var list = new RoutedScrollableList<int>(
+            new ScrollableListState<int>([1, 2, 3, 4]),
+            new UiTargetId("list"),
+            new UiTargetId("scrollbar"),
+            RoutedScrollableListOptions.DropdownPopup);
+        ScrollableListFrame frame = list.CalculateFrame(new Rect(0, 0, 8, 2), new Rect(8, 0, 1, 3));
+        var focus = new UiFocusController();
+        var route = UiInputRouteContext.HitTarget(focus, list.ListTarget);
+
+        RoutedScrollableListInputResult moved = list.RouteInput(
+            new MouseConsoleInputEvent(1, 0, MouseButton.WheelDown, MouseEventKind.Wheel, MouseKeyModifiers.None),
+            frame,
+            route);
+
+        Assert.True(moved.UiResult.Handled);
+        Assert.Equal(1, list.State.SelectedIndex);
+
+        list.State.SetSelectedIndex(0, frame.ViewportRows);
+        frame = list.CalculateFrame(new Rect(0, 0, 8, 2), new Rect(8, 0, 1, 3));
+        RoutedScrollableListInputResult boundary = list.RouteInput(
+            new MouseConsoleInputEvent(1, 0, MouseButton.WheelUp, MouseEventKind.Wheel, MouseKeyModifiers.None),
+            frame,
+            route);
+
+        Assert.True(boundary.UiResult.Handled);
+        Assert.False(boundary.UiResult.Invalidate);
+        Assert.Equal(0, list.State.SelectedIndex);
+    }
+
+    [Fact]
     public void RouteInput_RejectsForeignTarget()
     {
         var list = new RoutedScrollableList<int>(new ScrollableListState<int>([1]), new UiTargetId("list"), new UiTargetId("scrollbar"));

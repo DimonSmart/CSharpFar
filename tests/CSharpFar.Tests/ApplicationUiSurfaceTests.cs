@@ -23,7 +23,8 @@ public sealed class ApplicationUiSurfaceTests
         Assert.IsAssignableFrom<IUiSurface>(surface);
         Assert.IsAssignableFrom<IUiLayer>(surface);
         Assert.Equal(UiLayerInputPolicy.Bubble, surface.InputPolicy);
-        Assert.NotSame(new UiFocusController(), surface.FocusState);
+        Assert.NotNull(surface.FocusState);
+        Assert.False(surface.FocusState.HasFocus);
 
         services.Composition.Render();
         services.Composition.DispatchInput(Key(ConsoleKey.A));
@@ -928,60 +929,6 @@ public sealed class ApplicationUiSurfaceTests
         Assert.Throws<InvalidOperationException>(() => services.Composition.DispatchInput(Key(ConsoleKey.B)));
     }
 
-    [Fact]
-    public void BubbleOverlayIsolation_ControlsApplicationPacketOwnership()
-    {
-        var services = Services();
-        services.Composition.Render();
-        var handled = new TestLayer(UiLayerInputPolicy.Bubble) { Result = UiInputResult.HandledResult };
-        using (services.Composition.PushOverlay(handled))
-            services.Composition.DispatchInput(Key(ConsoleKey.A));
-
-        Assert.False(services.ApplicationSurface.TryTakeInput(out _));
-
-        var unhandled = new TestLayer(UiLayerInputPolicy.Bubble);
-        using (services.Composition.PushOverlay(unhandled))
-            services.Composition.DispatchInput(Key(ConsoleKey.B));
-
-        Assert.True(services.ApplicationSurface.TryTakeInput(out _));
-    }
-
-    [Fact]
-    public void ModalAndTemporarySurface_IsolateApplicationInput()
-    {
-        var services = Services();
-        services.Composition.Render();
-        var modal = new TestLayer(UiLayerInputPolicy.Modal);
-        using (services.Composition.PushOverlay(modal))
-            services.Composition.DispatchInput(Key(ConsoleKey.A));
-
-        Assert.False(services.ApplicationSurface.TryTakeInput(out _));
-
-        var temporary = new TestSurface(services.Composition.Screen, UiInputResult.HandledResult);
-        using (services.Composition.OpenSurface(temporary))
-            services.Composition.DispatchInput(Key(ConsoleKey.B));
-
-        Assert.False(services.ApplicationSurface.TryTakeInput(out _));
-
-        services.Composition.DispatchInput(Key(ConsoleKey.C));
-        Assert.True(services.ApplicationSurface.TryTakeInput(out var routed));
-        Assert.Equal(ConsoleKey.C, Assert.IsType<KeyConsoleInputEvent>(routed.Input).Key.Key);
-        Assert.Equal(ApplicationTargetIds.WorkspaceKeyboard, routed.Target);
-        Assert.Equal(UiInputRouteKind.KeyboardTarget, routed.RouteKind);
-    }
-
-    [Fact]
-    public void RenderOnlyOverlay_DoesNotBlockApplicationInput()
-    {
-        var services = Services();
-        services.Composition.Render();
-
-        using var overlay = services.Composition.PushOverlay(_ => { });
-        services.Composition.DispatchInput(Key(ConsoleKey.A));
-
-        Assert.True(services.ApplicationSurface.TryTakeInput(out _));
-    }
-
     public static TheoryData<ConsoleInputEvent, Type> KeyboardRoutedInputs() => new()
     {
         { Key(ConsoleKey.A), typeof(KeyConsoleInputEvent) },
@@ -1077,26 +1024,5 @@ public sealed class ApplicationUiSurfaceTests
         public ApplicationUiSurface ApplicationSurface => Inner.ApplicationSurface;
         public UiCompositionHost Composition => Inner.Composition;
         public CSharpFar.App.State.ApplicationSession Session => Inner.Session;
-    }
-
-    private sealed class TestLayer(UiLayerInputPolicy policy) : IUiLayer
-    {
-        public UiLayerInputPolicy InputPolicy => policy;
-        public IUiFocusState FocusState { get; } = new UiFocusController();
-        public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
-        public UiInputResult Result { get; set; } = UiInputResult.NotHandled;
-        public void Render(UiRenderContext context) { }
-        public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) => Result;
-    }
-
-    private sealed class TestSurface(ScreenRenderer screen, UiInputResult result) : IUiSurface, IUiLayer
-    {
-        public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
-        public IUiFocusState FocusState { get; } = new UiFocusController();
-        public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
-        public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
-        public void Render(UiRenderContext context) { }
-        public void CompleteFrame(UiFrameCompletion completion) { }
-        public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) => result;
     }
 }
