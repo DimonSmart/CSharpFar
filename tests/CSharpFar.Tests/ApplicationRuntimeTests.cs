@@ -372,7 +372,7 @@ public sealed class ApplicationRuntimeTests
 
         fixture.Run();
 
-        Assert.Equal(1, fixture.RenderCount);
+        Assert.Equal(3, fixture.RenderCount);
     }
 
     [Fact]
