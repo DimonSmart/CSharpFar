@@ -285,8 +285,16 @@ internal sealed class DirectorySummaryMonitor : IDisposable
                 if (path is not null && IsCurrentSession(generation, root)) _rescan(path);
             }
             catch (OperationCanceledException) { }
+            catch (Exception ex) when (IsRecoverableRefreshException(ex))
+            {
+                ScanFinished();
+                _wake();
+            }
         });
     }
+
+    private static bool IsRecoverableRefreshException(Exception exception) =>
+        exception is IOException or UnauthorizedAccessException or System.Security.SecurityException;
 
     private bool IsCurrentSession(long generation, string root)
     {

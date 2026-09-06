@@ -88,6 +88,7 @@ internal sealed class ApplicationPanelWorkspaceRenderer
                 leftViewMode,
                 rightViewMode,
                 quickViewDirState, monitor, selectedChangeId, quickViewIsBackgroundUpdating, firstVisibleQuickViewChangeIndex, recentChanges);
+            QuickViewRecentChangesMarqueeRenderer.Render(canvas, quickViewFrame, palette, renderHoverMarquee);
         }
         else
         {
