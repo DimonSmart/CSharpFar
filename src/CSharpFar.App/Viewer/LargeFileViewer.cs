@@ -110,6 +110,8 @@ internal sealed class LargeFileViewer
             var cache = new BlockCache(reader);
             var scanner = LineScanner.CreateAsync(cache, reader).GetAwaiter().GetResult();
             var state = new LargeFileViewerState(cache, scanner);
+            if (state.IsHexMode)
+                state.TopByteOffset = 0;
             var layer = new LargeFileViewerLayer(this, filePath, reader, state);
             long knownFollowLength = reader.Length;
             _surfaces.Run(
@@ -140,7 +142,10 @@ internal sealed class LargeFileViewer
         {
             var cache = new BlockCache(reader);
             var scanner = LineScanner.CreateAsync(cache, reader).GetAwaiter().GetResult();
-            return (reader, new LargeFileViewerState(cache, scanner));
+            var state = new LargeFileViewerState(cache, scanner);
+            if (state.IsHexMode)
+                state.TopByteOffset = 0;
+            return (reader, state);
         }
         catch
         {
@@ -233,7 +238,7 @@ internal sealed class LargeFileViewer
                 break;
 
             case ConsoleKey.Home:
-                state.TopByteOffset = state.LineScanner.ContentStartOffset;
+                state.TopByteOffset = state.IsHexMode ? 0 : state.LineScanner.ContentStartOffset;
                 state.HorizontalOffset = 0;
                 state.FollowMode = false;
                 break;
@@ -853,6 +858,7 @@ internal sealed class LargeFileViewer
         else
         {
             state.ViewMode = LargeFileViewMode.Hex;
+            state.TopByteOffset = 0;
         }
 
         state.HorizontalOffset = 0;
