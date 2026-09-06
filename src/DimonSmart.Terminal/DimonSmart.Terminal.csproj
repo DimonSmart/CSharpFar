@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageId>DimonSmart.Terminal</PackageId>
+    <Version>0.1.0-beta.1</Version>
+    <Title>DimonSmart.Terminal</Title>
+    <Description>Low-level reusable .NET terminal runtime abstractions and platform backends for building cross-platform console applications.</Description>
+    <Authors>DimonSmart</Authors>
+    <RepositoryUrl>https://github.com/DimonSmart/CSharpFar</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>console;terminal;runtime;ansi;windows;cross-platform</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CSharpFar.Console\CSharpFar.Console.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\CSharpFar.Console.Ansi\CSharpFar.Console.Ansi.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\CSharpFar.Console.Windows\CSharpFar.Console.Windows.csproj" PrivateAssets="all" />
+    <None Include="..\..\docs\terminal-packages-readme.md" Pack="true" PackagePath="README.md" />
+    <None Include="..\CSharpFar.Console\bin\$(Configuration)\$(TargetFramework)\CSharpFar.Console.dll" Pack="true" PackagePath="lib\$(TargetFramework)\" />
+    <None Include="..\CSharpFar.Console.Ansi\bin\$(Configuration)\$(TargetFramework)\CSharpFar.Console.Ansi.dll" Pack="true" PackagePath="lib\$(TargetFramework)\" />
+    <None Include="..\CSharpFar.Console.Windows\bin\$(Configuration)\$(TargetFramework)\CSharpFar.Console.Windows.dll" Pack="true" PackagePath="lib\$(TargetFramework)\" />
+  </ItemGroup>
+</Project>
