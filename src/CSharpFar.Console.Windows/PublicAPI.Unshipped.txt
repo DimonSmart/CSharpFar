@@ -1,0 +1,36 @@
+#nullable enable
+CSharpFar.Console.SystemConsoleDriver
+CSharpFar.Console.SystemConsoleDriver.Capabilities.get -> CSharpFar.Console.ConsoleFrameWriteCapabilities
+CSharpFar.Console.SystemConsoleDriver.Capture(CSharpFar.Console.Models.Rect region) -> CSharpFar.Console.Models.ScreenSnapshot!
+CSharpFar.Console.SystemConsoleDriver.ClearRegion(CSharpFar.Console.Models.Rect region) -> void
+CSharpFar.Console.SystemConsoleDriver.Dispose() -> void
+CSharpFar.Console.SystemConsoleDriver.EnsureApplicationScreen() -> void
+CSharpFar.Console.SystemConsoleDriver.EnsureMainScreen() -> void
+CSharpFar.Console.SystemConsoleDriver.EnterApplicationScreen() -> void
+CSharpFar.Console.SystemConsoleDriver.EnterChildProcessConsoleMode() -> System.IDisposable!
+CSharpFar.Console.SystemConsoleDriver.GetSize() -> CSharpFar.Console.Models.ConsoleSize
+CSharpFar.Console.SystemConsoleDriver.GetViewport() -> CSharpFar.Console.Models.ConsoleViewport
+CSharpFar.Console.SystemConsoleDriver.InputBackendName.get -> string!
+CSharpFar.Console.SystemConsoleDriver.IsApplicationScreenActive.get -> bool
+CSharpFar.Console.SystemConsoleDriver.IsSupported.get -> bool
+CSharpFar.Console.SystemConsoleDriver.LeaveApplicationScreen() -> void
+CSharpFar.Console.SystemConsoleDriver.ModifierKeyTracking.get -> CSharpFar.Console.Input.ModifierKeyTrackingSnapshot!
+CSharpFar.Console.SystemConsoleDriver.MouseTrackingEnabled.get -> bool
+CSharpFar.Console.SystemConsoleDriver.ReadInput(bool intercept, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CSharpFar.Console.Input.ConsoleInputEvent!
+CSharpFar.Console.SystemConsoleDriver.ReadKey(bool intercept) -> System.ConsoleKeyInfo
+CSharpFar.Console.SystemConsoleDriver.Restore(CSharpFar.Console.Models.ScreenSnapshot! snapshot) -> void
+CSharpFar.Console.SystemConsoleDriver.RestoreApplicationInputMode() -> void
+CSharpFar.Console.SystemConsoleDriver.RestoreTerminal() -> void
+CSharpFar.Console.SystemConsoleDriver.SetConsoleScrollbackEnabled(bool enabled) -> void
+CSharpFar.Console.SystemConsoleDriver.SetCursorPosition(int x, int y) -> void
+CSharpFar.Console.SystemConsoleDriver.SetCursorVisible(bool visible) -> void
+CSharpFar.Console.SystemConsoleDriver.SetRenderingOutputMode(bool enabled) -> void
+CSharpFar.Console.SystemConsoleDriver.SystemConsoleDriver() -> void
+CSharpFar.Console.SystemConsoleDriver.TryIsViewportAtBottom(out bool isAtBottom) -> bool
+CSharpFar.Console.SystemConsoleDriver.TryReadInput(bool intercept, out CSharpFar.Console.Input.ConsoleInputEvent? inputEvent) -> bool
+CSharpFar.Console.SystemConsoleDriver.TryScrollViewportToBottom() -> bool
+CSharpFar.Console.SystemConsoleDriver.TrySetCursorPositionInViewport(CSharpFar.Console.Models.ConsoleViewport viewport, int x, int y) -> bool
+CSharpFar.Console.SystemConsoleDriver.TryWriteAtViewport(CSharpFar.Console.Models.ConsoleViewport viewport, int x, int y, System.ReadOnlySpan<char> text, System.ConsoleColor? foreground = null, System.ConsoleColor? background = null, CSharpFar.Console.Models.TextAttributes attributes = CSharpFar.Console.Models.TextAttributes.None) -> bool
+CSharpFar.Console.SystemConsoleDriver.TryWriteCellsAtViewport(CSharpFar.Console.Models.ConsoleViewport viewport, int x, int y, int width, int height, System.ReadOnlySpan<CSharpFar.Console.Models.ConsoleOutputCell> cells) -> bool
+CSharpFar.Console.SystemConsoleDriver.TryWriteDirtyCellsAtViewport(CSharpFar.Console.Models.ConsoleViewport viewport, System.ReadOnlySpan<CSharpFar.Console.ConsoleOutputRun> runs, System.ReadOnlySpan<CSharpFar.Console.Models.ConsoleOutputCell> cells) -> bool
+CSharpFar.Console.SystemConsoleDriver.WriteAt(int x, int y, System.ReadOnlySpan<char> text, System.ConsoleColor? foreground = null, System.ConsoleColor? background = null, CSharpFar.Console.Models.TextAttributes attributes = CSharpFar.Console.Models.TextAttributes.None) -> void

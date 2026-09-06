@@ -4,11 +4,19 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <CSharpFarPackageVersion>0.1.0</CSharpFarPackageVersion>
+    <UseCSharpFarPackages Condition="'$(UseCSharpFarPackages)' == ''">false</UseCSharpFarPackages>
   </PropertyGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(UseCSharpFarPackages)' != 'true'">
     <ProjectReference Include="..\..\src\CSharpFar.Console\CSharpFar.Console.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Console.Windows\CSharpFar.Console.Windows.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Console.Ansi\CSharpFar.Console.Ansi.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Ui\CSharpFar.Ui.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseCSharpFarPackages)' == 'true'">
+    <PackageReference Include="CSharpFar.Console" Version="$(CSharpFarPackageVersion)" />
+    <PackageReference Include="CSharpFar.Console.Windows" Version="$(CSharpFarPackageVersion)" />
+    <PackageReference Include="CSharpFar.Console.Ansi" Version="$(CSharpFarPackageVersion)" />
+    <PackageReference Include="CSharpFar.Ui" Version="$(CSharpFarPackageVersion)" />
   </ItemGroup>
 </Project>

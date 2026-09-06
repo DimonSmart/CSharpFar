@@ -1,0 +1,316 @@
+#nullable enable
+abstract CSharpFar.Console.Input.ConsoleInputEvent.<Clone>$() -> CSharpFar.Console.Input.ConsoleInputEvent!
+const CSharpFar.Console.Input.ModifierKeyTrackingStatus.DisabledByConfiguration = "DisabledByConfiguration" -> string!
+const CSharpFar.Console.Input.ModifierKeyTrackingStatus.Enabled = "Enabled" -> string!
+const CSharpFar.Console.Input.ModifierKeyTrackingStatus.Failed = "Failed" -> string!
+const CSharpFar.Console.Input.ModifierKeyTrackingStatus.NoInputDeviceDirectory = "NoInputDeviceDirectory" -> string!
+const CSharpFar.Console.Input.ModifierKeyTrackingStatus.NoReadableDevices = "NoReadableDevices" -> string!
+const CSharpFar.Console.Input.ModifierKeyTrackingStatus.NoShiftCapableDevices = "NoShiftCapableDevices" -> string!
+const CSharpFar.Console.Input.ModifierKeyTrackingStatus.PermissionDenied = "PermissionDenied" -> string!
+const CSharpFar.Console.Input.ModifierKeyTrackingStatus.PlatformNotSupported = "PlatformNotSupported" -> string!
+CSharpFar.Console.ConsoleFrameWriteCapabilities
+CSharpFar.Console.ConsoleFrameWriteCapabilities.None = 0 -> CSharpFar.Console.ConsoleFrameWriteCapabilities
+CSharpFar.Console.ConsoleFrameWriteCapabilities.VirtualTerminalCells = 2 -> CSharpFar.Console.ConsoleFrameWriteCapabilities
+CSharpFar.Console.ConsoleFrameWriteCapabilities.WindowsCells = 1 -> CSharpFar.Console.ConsoleFrameWriteCapabilities
+CSharpFar.Console.ConsoleOutputRun
+CSharpFar.Console.ConsoleOutputRun.ConsoleOutputRun() -> void
+CSharpFar.Console.ConsoleOutputRun.ConsoleOutputRun(int X, int Y, int Offset, int Length) -> void
+CSharpFar.Console.ConsoleOutputRun.Deconstruct(out int X, out int Y, out int Offset, out int Length) -> void
+CSharpFar.Console.ConsoleOutputRun.Equals(CSharpFar.Console.ConsoleOutputRun other) -> bool
+CSharpFar.Console.ConsoleOutputRun.Length.get -> int
+CSharpFar.Console.ConsoleOutputRun.Length.init -> void
+CSharpFar.Console.ConsoleOutputRun.Offset.get -> int
+CSharpFar.Console.ConsoleOutputRun.Offset.init -> void
+CSharpFar.Console.ConsoleOutputRun.X.get -> int
+CSharpFar.Console.ConsoleOutputRun.X.init -> void
+CSharpFar.Console.ConsoleOutputRun.Y.get -> int
+CSharpFar.Console.ConsoleOutputRun.Y.init -> void
+CSharpFar.Console.IConsoleDriver
+CSharpFar.Console.IConsoleDriver.Capture(CSharpFar.Console.Models.Rect region) -> CSharpFar.Console.Models.ScreenSnapshot!
+CSharpFar.Console.IConsoleDriver.ClearRegion(CSharpFar.Console.Models.Rect region) -> void
+CSharpFar.Console.IConsoleDriver.GetSize() -> CSharpFar.Console.Models.ConsoleSize
+CSharpFar.Console.IConsoleDriver.GetViewport() -> CSharpFar.Console.Models.ConsoleViewport
+CSharpFar.Console.IConsoleDriver.ReadInput(bool intercept, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CSharpFar.Console.Input.ConsoleInputEvent!
+CSharpFar.Console.IConsoleDriver.ReadKey(bool intercept) -> System.ConsoleKeyInfo
+CSharpFar.Console.IConsoleDriver.Restore(CSharpFar.Console.Models.ScreenSnapshot! snapshot) -> void
+CSharpFar.Console.IConsoleDriver.SetCursorPosition(int x, int y) -> void
+CSharpFar.Console.IConsoleDriver.SetCursorVisible(bool visible) -> void
+CSharpFar.Console.IConsoleDriver.TryIsViewportAtBottom(out bool isAtBottom) -> bool
+CSharpFar.Console.IConsoleDriver.TryReadInput(bool intercept, out CSharpFar.Console.Input.ConsoleInputEvent? inputEvent) -> bool
+CSharpFar.Console.IConsoleDriver.TryScrollViewportToBottom() -> bool
+CSharpFar.Console.IConsoleDriver.TrySetCursorPositionInViewport(CSharpFar.Console.Models.ConsoleViewport viewport, int x, int y) -> bool
+CSharpFar.Console.IConsoleDriver.TryWriteAtViewport(CSharpFar.Console.Models.ConsoleViewport viewport, int x, int y, System.ReadOnlySpan<char> text, System.ConsoleColor? foreground = null, System.ConsoleColor? background = null, CSharpFar.Console.Models.TextAttributes attributes = CSharpFar.Console.Models.TextAttributes.None) -> bool
+CSharpFar.Console.IConsoleDriver.WriteAt(int x, int y, System.ReadOnlySpan<char> text, System.ConsoleColor? foreground = null, System.ConsoleColor? background = null, CSharpFar.Console.Models.TextAttributes attributes = CSharpFar.Console.Models.TextAttributes.None) -> void
+CSharpFar.Console.IConsoleFrameWriter
+CSharpFar.Console.IConsoleFrameWriter.Capabilities.get -> CSharpFar.Console.ConsoleFrameWriteCapabilities
+CSharpFar.Console.IConsoleFrameWriter.TryWriteCellsAtViewport(CSharpFar.Console.Models.ConsoleViewport viewport, int x, int y, int width, int height, System.ReadOnlySpan<CSharpFar.Console.Models.ConsoleOutputCell> cells) -> bool
+CSharpFar.Console.IConsoleFrameWriter.TryWriteDirtyCellsAtViewport(CSharpFar.Console.Models.ConsoleViewport viewport, System.ReadOnlySpan<CSharpFar.Console.ConsoleOutputRun> runs, System.ReadOnlySpan<CSharpFar.Console.Models.ConsoleOutputCell> cells) -> bool
+CSharpFar.Console.IConsoleOutputModeDriver
+CSharpFar.Console.IConsoleOutputModeDriver.EnterChildProcessConsoleMode() -> System.IDisposable!
+CSharpFar.Console.IConsoleOutputModeDriver.RestoreApplicationInputMode() -> void
+CSharpFar.Console.IConsoleOutputModeDriver.SetConsoleScrollbackEnabled(bool enabled) -> void
+CSharpFar.Console.IConsoleOutputModeDriver.SetRenderingOutputMode(bool enabled) -> void
+CSharpFar.Console.Input.ConsoleInputEvent
+CSharpFar.Console.Input.ConsoleInputEvent.ConsoleInputEvent() -> void
+CSharpFar.Console.Input.ConsoleInputEvent.ConsoleInputEvent(CSharpFar.Console.Input.ConsoleInputEvent! original) -> void
+CSharpFar.Console.Input.ConsoleResizeInputEvent
+CSharpFar.Console.Input.ConsoleResizeInputEvent.ConsoleResizeInputEvent() -> void
+CSharpFar.Console.Input.ConsoleResizeInputEvent.Equals(CSharpFar.Console.Input.ConsoleResizeInputEvent? other) -> bool
+CSharpFar.Console.Input.IConsoleInputDiagnostics
+CSharpFar.Console.Input.IConsoleInputDiagnostics.InputBackendName.get -> string!
+CSharpFar.Console.Input.IConsoleInputDiagnostics.ModifierKeyTracking.get -> CSharpFar.Console.Input.ModifierKeyTrackingSnapshot!
+CSharpFar.Console.Input.IConsoleInputDiagnostics.MouseTrackingEnabled.get -> bool
+CSharpFar.Console.Input.IConsoleInputReader
+CSharpFar.Console.Input.IConsoleInputReader.ReadInput(bool intercept, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CSharpFar.Console.Input.ConsoleInputEvent!
+CSharpFar.Console.Input.IConsoleInputReader.ReadKey(bool intercept) -> System.ConsoleKeyInfo
+CSharpFar.Console.Input.IConsoleInputReader.RestoreInputMode() -> void
+CSharpFar.Console.Input.IConsoleInputReader.SuspendInputMode() -> void
+CSharpFar.Console.Input.IConsoleInputReader.TryReadInput(bool intercept, out CSharpFar.Console.Input.ConsoleInputEvent? inputEvent) -> bool
+CSharpFar.Console.Input.IModifierKeyTracker
+CSharpFar.Console.Input.IModifierKeyTracker.BackendName.get -> string!
+CSharpFar.Console.Input.IModifierKeyTracker.GetSnapshot() -> CSharpFar.Console.Input.ModifierKeyTrackingSnapshot!
+CSharpFar.Console.Input.IModifierKeyTracker.ObserveConsoleInput(CSharpFar.Console.Input.ConsoleInputEvent! inputEvent) -> void
+CSharpFar.Console.Input.IModifierKeyTracker.Resume() -> void
+CSharpFar.Console.Input.IModifierKeyTracker.Suspend() -> void
+CSharpFar.Console.Input.IModifierKeyTracker.TryCreateInputEvent(out CSharpFar.Console.Input.ModifierKeyConsoleInputEvent? inputEvent) -> bool
+CSharpFar.Console.Input.KeyConsoleInputEvent
+CSharpFar.Console.Input.KeyConsoleInputEvent.Deconstruct(out System.ConsoleKeyInfo Key) -> void
+CSharpFar.Console.Input.KeyConsoleInputEvent.Equals(CSharpFar.Console.Input.KeyConsoleInputEvent? other) -> bool
+CSharpFar.Console.Input.KeyConsoleInputEvent.Key.get -> System.ConsoleKeyInfo
+CSharpFar.Console.Input.KeyConsoleInputEvent.Key.init -> void
+CSharpFar.Console.Input.KeyConsoleInputEvent.KeyConsoleInputEvent(System.ConsoleKeyInfo Key) -> void
+CSharpFar.Console.Input.ModifierKeyConsoleInputEvent
+CSharpFar.Console.Input.ModifierKeyConsoleInputEvent.Deconstruct(out System.ConsoleModifiers Modifiers) -> void
+CSharpFar.Console.Input.ModifierKeyConsoleInputEvent.Equals(CSharpFar.Console.Input.ModifierKeyConsoleInputEvent? other) -> bool
+CSharpFar.Console.Input.ModifierKeyConsoleInputEvent.ModifierKeyConsoleInputEvent(System.ConsoleModifiers Modifiers) -> void
+CSharpFar.Console.Input.ModifierKeyConsoleInputEvent.Modifiers.get -> System.ConsoleModifiers
+CSharpFar.Console.Input.ModifierKeyConsoleInputEvent.Modifiers.init -> void
+CSharpFar.Console.Input.ModifierKeyDeviceSnapshot
+CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.<Clone>$() -> CSharpFar.Console.Input.ModifierKeyDeviceSnapshot!
+CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.Deconstruct(out string! Path, out string? Name, out bool IsReadable, out bool HasShiftCapability, out string? Error) -> void
+CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.Equals(CSharpFar.Console.Input.ModifierKeyDeviceSnapshot? other) -> bool
+CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.Error.get -> string?
+CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.Error.init -> void
+CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.HasShiftCapability.get -> bool
+CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.HasShiftCapability.init -> void
+CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.IsReadable.get -> bool
+CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.IsReadable.init -> void
+CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.ModifierKeyDeviceSnapshot(string! Path, string? Name, bool IsReadable, bool HasShiftCapability, string? Error) -> void
+CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.Name.get -> string?
+CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.Name.init -> void
+CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.Path.get -> string!
+CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.Path.init -> void
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.<Clone>$() -> CSharpFar.Console.Input.ModifierKeyTrackingSnapshot!
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.BackendName.get -> string!
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.BackendName.init -> void
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.CanTrackShiftOnly.get -> bool
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.CanTrackShiftOnly.init -> void
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.Deconstruct(out string! BackendName, out bool IsPlatformSupported, out bool IsEnabled, out bool CanTrackShiftOnly, out string! Status, out string? FailureReason, out System.Collections.Generic.IReadOnlyList<CSharpFar.Console.Input.ModifierKeyDeviceSnapshot!>! Devices) -> void
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.Devices.get -> System.Collections.Generic.IReadOnlyList<CSharpFar.Console.Input.ModifierKeyDeviceSnapshot!>!
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.Devices.init -> void
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.Equals(CSharpFar.Console.Input.ModifierKeyTrackingSnapshot? other) -> bool
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.FailureReason.get -> string?
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.FailureReason.init -> void
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.IsEnabled.get -> bool
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.IsEnabled.init -> void
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.IsPlatformSupported.get -> bool
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.IsPlatformSupported.init -> void
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.ModifierKeyTrackingSnapshot(string! BackendName, bool IsPlatformSupported, bool IsEnabled, bool CanTrackShiftOnly, string! Status, string? FailureReason, System.Collections.Generic.IReadOnlyList<CSharpFar.Console.Input.ModifierKeyDeviceSnapshot!>! Devices) -> void
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.Status.get -> string!
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.Status.init -> void
+CSharpFar.Console.Input.ModifierKeyTrackingStatus
+CSharpFar.Console.Input.MouseButton
+CSharpFar.Console.Input.MouseButton.Left = 1 -> CSharpFar.Console.Input.MouseButton
+CSharpFar.Console.Input.MouseButton.Middle = 3 -> CSharpFar.Console.Input.MouseButton
+CSharpFar.Console.Input.MouseButton.None = 0 -> CSharpFar.Console.Input.MouseButton
+CSharpFar.Console.Input.MouseButton.Right = 2 -> CSharpFar.Console.Input.MouseButton
+CSharpFar.Console.Input.MouseButton.WheelDown = 5 -> CSharpFar.Console.Input.MouseButton
+CSharpFar.Console.Input.MouseButton.WheelUp = 4 -> CSharpFar.Console.Input.MouseButton
+CSharpFar.Console.Input.MouseConsoleInputEvent
+CSharpFar.Console.Input.MouseConsoleInputEvent.Button.get -> CSharpFar.Console.Input.MouseButton
+CSharpFar.Console.Input.MouseConsoleInputEvent.Button.init -> void
+CSharpFar.Console.Input.MouseConsoleInputEvent.Deconstruct(out int X, out int Y, out CSharpFar.Console.Input.MouseButton Button, out CSharpFar.Console.Input.MouseEventKind Kind, out CSharpFar.Console.Input.MouseKeyModifiers Modifiers) -> void
+CSharpFar.Console.Input.MouseConsoleInputEvent.Equals(CSharpFar.Console.Input.MouseConsoleInputEvent? other) -> bool
+CSharpFar.Console.Input.MouseConsoleInputEvent.Kind.get -> CSharpFar.Console.Input.MouseEventKind
+CSharpFar.Console.Input.MouseConsoleInputEvent.Kind.init -> void
+CSharpFar.Console.Input.MouseConsoleInputEvent.Modifiers.get -> CSharpFar.Console.Input.MouseKeyModifiers
+CSharpFar.Console.Input.MouseConsoleInputEvent.Modifiers.init -> void
+CSharpFar.Console.Input.MouseConsoleInputEvent.MouseConsoleInputEvent(int X, int Y, CSharpFar.Console.Input.MouseButton Button, CSharpFar.Console.Input.MouseEventKind Kind, CSharpFar.Console.Input.MouseKeyModifiers Modifiers) -> void
+CSharpFar.Console.Input.MouseConsoleInputEvent.X.get -> int
+CSharpFar.Console.Input.MouseConsoleInputEvent.X.init -> void
+CSharpFar.Console.Input.MouseConsoleInputEvent.Y.get -> int
+CSharpFar.Console.Input.MouseConsoleInputEvent.Y.init -> void
+CSharpFar.Console.Input.MouseEventKind
+CSharpFar.Console.Input.MouseEventKind.DoubleClick = 2 -> CSharpFar.Console.Input.MouseEventKind
+CSharpFar.Console.Input.MouseEventKind.Down = 0 -> CSharpFar.Console.Input.MouseEventKind
+CSharpFar.Console.Input.MouseEventKind.Move = 3 -> CSharpFar.Console.Input.MouseEventKind
+CSharpFar.Console.Input.MouseEventKind.Up = 1 -> CSharpFar.Console.Input.MouseEventKind
+CSharpFar.Console.Input.MouseEventKind.Wheel = 4 -> CSharpFar.Console.Input.MouseEventKind
+CSharpFar.Console.Input.MouseKeyModifiers
+CSharpFar.Console.Input.MouseKeyModifiers.Alt = 2 -> CSharpFar.Console.Input.MouseKeyModifiers
+CSharpFar.Console.Input.MouseKeyModifiers.Control = 4 -> CSharpFar.Console.Input.MouseKeyModifiers
+CSharpFar.Console.Input.MouseKeyModifiers.None = 0 -> CSharpFar.Console.Input.MouseKeyModifiers
+CSharpFar.Console.Input.MouseKeyModifiers.Shift = 1 -> CSharpFar.Console.Input.MouseKeyModifiers
+CSharpFar.Console.ITerminalScreenMode
+CSharpFar.Console.ITerminalScreenMode.EnsureApplicationScreen() -> void
+CSharpFar.Console.ITerminalScreenMode.EnsureMainScreen() -> void
+CSharpFar.Console.ITerminalScreenMode.EnterApplicationScreen() -> void
+CSharpFar.Console.ITerminalScreenMode.IsApplicationScreenActive.get -> bool
+CSharpFar.Console.ITerminalScreenMode.IsSupported.get -> bool
+CSharpFar.Console.ITerminalScreenMode.LeaveApplicationScreen() -> void
+CSharpFar.Console.ITerminalScreenMode.RestoreTerminal() -> void
+CSharpFar.Console.Models.CellStyle
+CSharpFar.Console.Models.CellStyle.Attributes.get -> CSharpFar.Console.Models.TextAttributes
+CSharpFar.Console.Models.CellStyle.Attributes.init -> void
+CSharpFar.Console.Models.CellStyle.Background.get -> System.ConsoleColor
+CSharpFar.Console.Models.CellStyle.Background.init -> void
+CSharpFar.Console.Models.CellStyle.CellStyle() -> void
+CSharpFar.Console.Models.CellStyle.CellStyle(System.ConsoleColor foreground, System.ConsoleColor background) -> void
+CSharpFar.Console.Models.CellStyle.CellStyle(System.ConsoleColor foreground, System.ConsoleColor background, CSharpFar.Console.Models.TextAttributes attributes) -> void
+CSharpFar.Console.Models.CellStyle.Foreground.get -> System.ConsoleColor
+CSharpFar.Console.Models.CellStyle.Foreground.init -> void
+CSharpFar.Console.Models.ConsoleOutputCell
+CSharpFar.Console.Models.ConsoleOutputCell.Attributes.get -> CSharpFar.Console.Models.TextAttributes
+CSharpFar.Console.Models.ConsoleOutputCell.Attributes.init -> void
+CSharpFar.Console.Models.ConsoleOutputCell.Background.get -> System.ConsoleColor
+CSharpFar.Console.Models.ConsoleOutputCell.Background.init -> void
+CSharpFar.Console.Models.ConsoleOutputCell.Character.get -> char
+CSharpFar.Console.Models.ConsoleOutputCell.Character.init -> void
+CSharpFar.Console.Models.ConsoleOutputCell.ConsoleOutputCell() -> void
+CSharpFar.Console.Models.ConsoleOutputCell.ConsoleOutputCell(char Character, System.ConsoleColor Foreground, System.ConsoleColor Background, CSharpFar.Console.Models.TextAttributes Attributes) -> void
+CSharpFar.Console.Models.ConsoleOutputCell.Deconstruct(out char Character, out System.ConsoleColor Foreground, out System.ConsoleColor Background, out CSharpFar.Console.Models.TextAttributes Attributes) -> void
+CSharpFar.Console.Models.ConsoleOutputCell.Equals(CSharpFar.Console.Models.ConsoleOutputCell other) -> bool
+CSharpFar.Console.Models.ConsoleOutputCell.Foreground.get -> System.ConsoleColor
+CSharpFar.Console.Models.ConsoleOutputCell.Foreground.init -> void
+CSharpFar.Console.Models.ConsoleSize
+CSharpFar.Console.Models.ConsoleSize.ConsoleSize() -> void
+CSharpFar.Console.Models.ConsoleSize.ConsoleSize(int width, int height) -> void
+CSharpFar.Console.Models.ConsoleSize.Height.get -> int
+CSharpFar.Console.Models.ConsoleSize.Height.init -> void
+CSharpFar.Console.Models.ConsoleSize.Width.get -> int
+CSharpFar.Console.Models.ConsoleSize.Width.init -> void
+CSharpFar.Console.Models.ConsoleViewport
+CSharpFar.Console.Models.ConsoleViewport.Bottom.get -> int
+CSharpFar.Console.Models.ConsoleViewport.ClassifyChange(CSharpFar.Console.Models.ConsoleViewport other) -> CSharpFar.Console.Models.ConsoleViewportChange
+CSharpFar.Console.Models.ConsoleViewport.ConsoleViewport() -> void
+CSharpFar.Console.Models.ConsoleViewport.ConsoleViewport(int Left, int Top, int Width, int Height) -> void
+CSharpFar.Console.Models.ConsoleViewport.ContainsAbsolute(int x, int y) -> bool
+CSharpFar.Console.Models.ConsoleViewport.ContainsRelative(int x, int y) -> bool
+CSharpFar.Console.Models.ConsoleViewport.Deconstruct(out int Left, out int Top, out int Width, out int Height) -> void
+CSharpFar.Console.Models.ConsoleViewport.Equals(CSharpFar.Console.Models.ConsoleViewport other) -> bool
+CSharpFar.Console.Models.ConsoleViewport.Height.get -> int
+CSharpFar.Console.Models.ConsoleViewport.Height.init -> void
+CSharpFar.Console.Models.ConsoleViewport.Left.get -> int
+CSharpFar.Console.Models.ConsoleViewport.Left.init -> void
+CSharpFar.Console.Models.ConsoleViewport.Right.get -> int
+CSharpFar.Console.Models.ConsoleViewport.Size.get -> CSharpFar.Console.Models.ConsoleSize
+CSharpFar.Console.Models.ConsoleViewport.Top.get -> int
+CSharpFar.Console.Models.ConsoleViewport.Top.init -> void
+CSharpFar.Console.Models.ConsoleViewport.Width.get -> int
+CSharpFar.Console.Models.ConsoleViewport.Width.init -> void
+CSharpFar.Console.Models.ConsoleViewportChange
+CSharpFar.Console.Models.ConsoleViewportChange.None = 0 -> CSharpFar.Console.Models.ConsoleViewportChange
+CSharpFar.Console.Models.ConsoleViewportChange.OriginOnly = 1 -> CSharpFar.Console.Models.ConsoleViewportChange
+CSharpFar.Console.Models.ConsoleViewportChange.Size = 2 -> CSharpFar.Console.Models.ConsoleViewportChange
+CSharpFar.Console.Models.Rect
+CSharpFar.Console.Models.Rect.Bottom.get -> int
+CSharpFar.Console.Models.Rect.Contains(int x, int y) -> bool
+CSharpFar.Console.Models.Rect.Height.get -> int
+CSharpFar.Console.Models.Rect.Height.init -> void
+CSharpFar.Console.Models.Rect.Rect() -> void
+CSharpFar.Console.Models.Rect.Rect(int x, int y, int width, int height) -> void
+CSharpFar.Console.Models.Rect.Right.get -> int
+CSharpFar.Console.Models.Rect.Width.get -> int
+CSharpFar.Console.Models.Rect.Width.init -> void
+CSharpFar.Console.Models.Rect.X.get -> int
+CSharpFar.Console.Models.Rect.X.init -> void
+CSharpFar.Console.Models.Rect.Y.get -> int
+CSharpFar.Console.Models.Rect.Y.init -> void
+CSharpFar.Console.Models.ScreenSnapshot
+CSharpFar.Console.Models.ScreenSnapshot.Cells.get -> CSharpFar.Console.Models.SnapshotCell[,]!
+CSharpFar.Console.Models.ScreenSnapshot.Region.get -> CSharpFar.Console.Models.Rect
+CSharpFar.Console.Models.ScreenSnapshot.ScreenSnapshot(CSharpFar.Console.Models.ConsoleViewport viewport, CSharpFar.Console.Models.Rect region, CSharpFar.Console.Models.SnapshotCell[,]! cells) -> void
+CSharpFar.Console.Models.ScreenSnapshot.Viewport.get -> CSharpFar.Console.Models.ConsoleViewport
+CSharpFar.Console.Models.SnapshotCell
+CSharpFar.Console.Models.SnapshotCell.Attributes.get -> CSharpFar.Console.Models.TextAttributes
+CSharpFar.Console.Models.SnapshotCell.Attributes.init -> void
+CSharpFar.Console.Models.SnapshotCell.Background.get -> System.ConsoleColor
+CSharpFar.Console.Models.SnapshotCell.Background.init -> void
+CSharpFar.Console.Models.SnapshotCell.Character.get -> char
+CSharpFar.Console.Models.SnapshotCell.Character.init -> void
+CSharpFar.Console.Models.SnapshotCell.Foreground.get -> System.ConsoleColor
+CSharpFar.Console.Models.SnapshotCell.Foreground.init -> void
+CSharpFar.Console.Models.SnapshotCell.SnapshotCell() -> void
+CSharpFar.Console.Models.TextAttributes
+CSharpFar.Console.Models.TextAttributes.Bold = 1 -> CSharpFar.Console.Models.TextAttributes
+CSharpFar.Console.Models.TextAttributes.None = 0 -> CSharpFar.Console.Models.TextAttributes
+CSharpFar.Console.Models.TextAttributes.Reverse = 4 -> CSharpFar.Console.Models.TextAttributes
+CSharpFar.Console.Models.TextAttributes.Underline = 2 -> CSharpFar.Console.Models.TextAttributes
+CSharpFar.Console.TerminalTrace
+override CSharpFar.Console.ConsoleOutputRun.GetHashCode() -> int
+override CSharpFar.Console.Input.ConsoleInputEvent.Equals(object? obj) -> bool
+override CSharpFar.Console.Input.ConsoleInputEvent.GetHashCode() -> int
+override CSharpFar.Console.Input.ConsoleInputEvent.ToString() -> string!
+override CSharpFar.Console.Input.ConsoleResizeInputEvent.<Clone>$() -> CSharpFar.Console.Input.ConsoleResizeInputEvent!
+override CSharpFar.Console.Input.ConsoleResizeInputEvent.Equals(object? obj) -> bool
+override CSharpFar.Console.Input.ConsoleResizeInputEvent.GetHashCode() -> int
+override CSharpFar.Console.Input.ConsoleResizeInputEvent.ToString() -> string!
+override CSharpFar.Console.Input.KeyConsoleInputEvent.<Clone>$() -> CSharpFar.Console.Input.KeyConsoleInputEvent!
+override CSharpFar.Console.Input.KeyConsoleInputEvent.Equals(object? obj) -> bool
+override CSharpFar.Console.Input.KeyConsoleInputEvent.GetHashCode() -> int
+override CSharpFar.Console.Input.KeyConsoleInputEvent.ToString() -> string!
+override CSharpFar.Console.Input.ModifierKeyConsoleInputEvent.<Clone>$() -> CSharpFar.Console.Input.ModifierKeyConsoleInputEvent!
+override CSharpFar.Console.Input.ModifierKeyConsoleInputEvent.Equals(object? obj) -> bool
+override CSharpFar.Console.Input.ModifierKeyConsoleInputEvent.GetHashCode() -> int
+override CSharpFar.Console.Input.ModifierKeyConsoleInputEvent.ToString() -> string!
+override CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.Equals(object? obj) -> bool
+override CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.GetHashCode() -> int
+override CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.ToString() -> string!
+override CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.Equals(object? obj) -> bool
+override CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.GetHashCode() -> int
+override CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.ToString() -> string!
+override CSharpFar.Console.Input.MouseConsoleInputEvent.<Clone>$() -> CSharpFar.Console.Input.MouseConsoleInputEvent!
+override CSharpFar.Console.Input.MouseConsoleInputEvent.Equals(object? obj) -> bool
+override CSharpFar.Console.Input.MouseConsoleInputEvent.GetHashCode() -> int
+override CSharpFar.Console.Input.MouseConsoleInputEvent.ToString() -> string!
+override CSharpFar.Console.Models.ConsoleOutputCell.GetHashCode() -> int
+override CSharpFar.Console.Models.ConsoleSize.ToString() -> string!
+override CSharpFar.Console.Models.ConsoleViewport.GetHashCode() -> int
+override CSharpFar.Console.Models.Rect.ToString() -> string!
+override sealed CSharpFar.Console.Input.ConsoleResizeInputEvent.Equals(CSharpFar.Console.Input.ConsoleInputEvent? other) -> bool
+override sealed CSharpFar.Console.Input.KeyConsoleInputEvent.Equals(CSharpFar.Console.Input.ConsoleInputEvent? other) -> bool
+override sealed CSharpFar.Console.Input.ModifierKeyConsoleInputEvent.Equals(CSharpFar.Console.Input.ConsoleInputEvent? other) -> bool
+override sealed CSharpFar.Console.Input.MouseConsoleInputEvent.Equals(CSharpFar.Console.Input.ConsoleInputEvent? other) -> bool
+static CSharpFar.Console.ConsoleOutputRun.operator !=(CSharpFar.Console.ConsoleOutputRun left, CSharpFar.Console.ConsoleOutputRun right) -> bool
+static CSharpFar.Console.ConsoleOutputRun.operator ==(CSharpFar.Console.ConsoleOutputRun left, CSharpFar.Console.ConsoleOutputRun right) -> bool
+static CSharpFar.Console.Input.ConsoleInputEvent.operator !=(CSharpFar.Console.Input.ConsoleInputEvent? left, CSharpFar.Console.Input.ConsoleInputEvent? right) -> bool
+static CSharpFar.Console.Input.ConsoleInputEvent.operator ==(CSharpFar.Console.Input.ConsoleInputEvent? left, CSharpFar.Console.Input.ConsoleInputEvent? right) -> bool
+static CSharpFar.Console.Input.ConsoleResizeInputEvent.operator !=(CSharpFar.Console.Input.ConsoleResizeInputEvent? left, CSharpFar.Console.Input.ConsoleResizeInputEvent? right) -> bool
+static CSharpFar.Console.Input.ConsoleResizeInputEvent.operator ==(CSharpFar.Console.Input.ConsoleResizeInputEvent? left, CSharpFar.Console.Input.ConsoleResizeInputEvent? right) -> bool
+static CSharpFar.Console.Input.KeyConsoleInputEvent.operator !=(CSharpFar.Console.Input.KeyConsoleInputEvent? left, CSharpFar.Console.Input.KeyConsoleInputEvent? right) -> bool
+static CSharpFar.Console.Input.KeyConsoleInputEvent.operator ==(CSharpFar.Console.Input.KeyConsoleInputEvent? left, CSharpFar.Console.Input.KeyConsoleInputEvent? right) -> bool
+static CSharpFar.Console.Input.ModifierKeyConsoleInputEvent.operator !=(CSharpFar.Console.Input.ModifierKeyConsoleInputEvent? left, CSharpFar.Console.Input.ModifierKeyConsoleInputEvent? right) -> bool
+static CSharpFar.Console.Input.ModifierKeyConsoleInputEvent.operator ==(CSharpFar.Console.Input.ModifierKeyConsoleInputEvent? left, CSharpFar.Console.Input.ModifierKeyConsoleInputEvent? right) -> bool
+static CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.operator !=(CSharpFar.Console.Input.ModifierKeyDeviceSnapshot? left, CSharpFar.Console.Input.ModifierKeyDeviceSnapshot? right) -> bool
+static CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.operator ==(CSharpFar.Console.Input.ModifierKeyDeviceSnapshot? left, CSharpFar.Console.Input.ModifierKeyDeviceSnapshot? right) -> bool
+static CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.operator !=(CSharpFar.Console.Input.ModifierKeyTrackingSnapshot? left, CSharpFar.Console.Input.ModifierKeyTrackingSnapshot? right) -> bool
+static CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.operator ==(CSharpFar.Console.Input.ModifierKeyTrackingSnapshot? left, CSharpFar.Console.Input.ModifierKeyTrackingSnapshot? right) -> bool
+static CSharpFar.Console.Input.MouseConsoleInputEvent.operator !=(CSharpFar.Console.Input.MouseConsoleInputEvent? left, CSharpFar.Console.Input.MouseConsoleInputEvent? right) -> bool
+static CSharpFar.Console.Input.MouseConsoleInputEvent.operator ==(CSharpFar.Console.Input.MouseConsoleInputEvent? left, CSharpFar.Console.Input.MouseConsoleInputEvent? right) -> bool
+static CSharpFar.Console.Models.CellStyle.Default.get -> CSharpFar.Console.Models.CellStyle
+static CSharpFar.Console.Models.ConsoleOutputCell.operator !=(CSharpFar.Console.Models.ConsoleOutputCell left, CSharpFar.Console.Models.ConsoleOutputCell right) -> bool
+static CSharpFar.Console.Models.ConsoleOutputCell.operator ==(CSharpFar.Console.Models.ConsoleOutputCell left, CSharpFar.Console.Models.ConsoleOutputCell right) -> bool
+static CSharpFar.Console.Models.ConsoleViewport.operator !=(CSharpFar.Console.Models.ConsoleViewport left, CSharpFar.Console.Models.ConsoleViewport right) -> bool
+static CSharpFar.Console.Models.ConsoleViewport.operator ==(CSharpFar.Console.Models.ConsoleViewport left, CSharpFar.Console.Models.ConsoleViewport right) -> bool
+static CSharpFar.Console.TerminalTrace.Enabled.get -> bool
+static CSharpFar.Console.TerminalTrace.Write(string! source, string! message) -> void
+virtual CSharpFar.Console.Input.ConsoleInputEvent.EqualityContract.get -> System.Type!
+virtual CSharpFar.Console.Input.ConsoleInputEvent.Equals(CSharpFar.Console.Input.ConsoleInputEvent? other) -> bool
+virtual CSharpFar.Console.Input.ConsoleInputEvent.PrintMembers(System.Text.StringBuilder! builder) -> bool
+~override CSharpFar.Console.ConsoleOutputRun.Equals(object obj) -> bool
+~override CSharpFar.Console.ConsoleOutputRun.ToString() -> string
+~override CSharpFar.Console.Models.ConsoleOutputCell.Equals(object obj) -> bool
+~override CSharpFar.Console.Models.ConsoleOutputCell.ToString() -> string
+~override CSharpFar.Console.Models.ConsoleViewport.Equals(object obj) -> bool
+~override CSharpFar.Console.Models.ConsoleViewport.ToString() -> string

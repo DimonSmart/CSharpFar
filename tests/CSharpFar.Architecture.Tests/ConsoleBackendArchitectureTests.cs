@@ -25,7 +25,7 @@ public sealed class ConsoleBackendArchitectureTests
 
         XDocument project = LoadProject("src", "CSharpFar.Console", "CSharpFar.Console.csproj");
         Assert.Empty(project.Descendants("ProjectReference"));
-        Assert.Empty(project.Descendants("PackageReference"));
+        AssertOnlyDevelopmentApiAnalyzer(project);
         Assert.DoesNotContain(project.Descendants("TargetFramework"), framework =>
             framework.Value.Contains("-windows", StringComparison.OrdinalIgnoreCase));
     }
@@ -35,7 +35,7 @@ public sealed class ConsoleBackendArchitectureTests
     {
         XDocument project = LoadProject("src", "CSharpFar.Console.Windows", "CSharpFar.Console.Windows.csproj");
         Assert.Equal(["CSharpFar.Console"], ProjectReferenceNames(project));
-        Assert.Empty(project.Descendants("PackageReference"));
+        AssertOnlyDevelopmentApiAnalyzer(project);
         Assert.Equal(["CSharpFar.Console"], ProductAssemblyReferences(typeof(SystemConsoleDriver).Assembly));
     }
 
@@ -75,6 +75,13 @@ public sealed class ConsoleBackendArchitectureTests
         .Select(reference => reference.Name!)
         .Where(name => name.StartsWith("CSharpFar.", StringComparison.Ordinal))
         .ToArray();
+
+    private static void AssertOnlyDevelopmentApiAnalyzer(XDocument project)
+    {
+        XElement reference = Assert.Single(project.Descendants("PackageReference"));
+        Assert.Equal("Microsoft.CodeAnalysis.PublicApiAnalyzers", reference.Attribute("Include")?.Value);
+        Assert.Equal("all", reference.Attribute("PrivateAssets")?.Value);
+    }
 
     private static XDocument LoadProject(params string[] parts) => XDocument.Load(FindRepositoryFile(parts));
 

@@ -66,6 +66,7 @@ BenchmarkDotNet.Artifacts/
 project.lock.json
 project.fragment.lock.json
 artifacts/
+/sftp-data/
 
 # Tye
 .tye/

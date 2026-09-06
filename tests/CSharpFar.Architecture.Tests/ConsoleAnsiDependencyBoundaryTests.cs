@@ -22,7 +22,9 @@ public sealed class ConsoleAnsiDependencyBoundaryTests
             .ToArray();
 
         Assert.Equal(["CSharpFar.Console"], projectReferences);
-        Assert.Empty(project.Descendants("PackageReference"));
+        XElement analyzer = Assert.Single(project.Descendants("PackageReference"));
+        Assert.Equal("Microsoft.CodeAnalysis.PublicApiAnalyzers", analyzer.Attribute("Include")?.Value);
+        Assert.Equal("all", analyzer.Attribute("PrivateAssets")?.Value);
 
         string[] productAssemblyReferences = typeof(AnsiTerminalConsoleDriver).Assembly
             .GetReferencedAssemblies()

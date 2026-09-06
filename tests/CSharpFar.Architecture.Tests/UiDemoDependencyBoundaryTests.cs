@@ -14,7 +14,8 @@ public sealed class UiDemoDependencyBoundaryTests
         XDocument project = XDocument.Load(projectPath);
         string[] directProjects = ProjectReferences(projectPath, project).Select(path => Path.GetFileNameWithoutExtension(path)!).ToArray();
         Assert.Equal(["CSharpFar.Console", "CSharpFar.Console.Windows", "CSharpFar.Console.Ansi", "CSharpFar.Ui"], directProjects);
-        Assert.Empty(project.Descendants("PackageReference"));
+        Assert.All(project.Descendants("PackageReference"), reference =>
+            Assert.Equal("'$(UseCSharpFarPackages)' == 'true'", reference.Parent?.Attribute("Condition")?.Value));
 
         string[] forbidden = ["CSharpFar.Core", "CSharpFar.App", "CSharpFar.FileSystem", "CSharpFar.Shell"];
         var closure = ProjectClosure(projectPath).Select(path => Path.GetFileNameWithoutExtension(path)!).ToArray();
@@ -27,6 +28,16 @@ public sealed class UiDemoDependencyBoundaryTests
     [Fact]
     public void Demo_GrantsNoFriendAssemblyAccess() =>
         Assert.Empty(Assembly.LoadFrom(Path.Combine(AppContext.BaseDirectory, "CSharpFar.Ui.Demo.dll")).GetCustomAttributes<InternalsVisibleToAttribute>());
+
+    [Fact]
+    public void Demo_PackageMode_IsMutuallyExclusiveWithProjectReferences()
+    {
+        XDocument project = XDocument.Load(FindRepositoryFile("samples", "CSharpFar.Ui.Demo", "CSharpFar.Ui.Demo.csproj"));
+        Assert.All(project.Descendants("ProjectReference"), reference =>
+            Assert.Equal("'$(UseCSharpFarPackages)' != 'true'", reference.Parent?.Attribute("Condition")?.Value));
+        Assert.Equal(["CSharpFar.Console", "CSharpFar.Console.Ansi", "CSharpFar.Console.Windows", "CSharpFar.Ui"],
+            project.Descendants("PackageReference").Select(reference => reference.Attribute("Include")!.Value).Order().ToArray());
+    }
 
     private static IEnumerable<string> ProjectClosure(string root)
     {

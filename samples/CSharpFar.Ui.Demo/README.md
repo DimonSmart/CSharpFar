@@ -11,6 +11,12 @@ dotnet build samples/CSharpFar.Ui.Demo/CSharpFar.Ui.Demo.csproj
 dotnet run --project samples/CSharpFar.Ui.Demo/CSharpFar.Ui.Demo.csproj
 ```
 
+The normal source-development build uses project references. To verify binary
+package consumption, run `eng/verify-reusable-packages.ps1`; it packs the
+reusable stack into `artifacts/packages` and builds this sample with
+`UseCSharpFarPackages=true`. Choose `CSharpFar.Console.Windows` on Windows and
+`CSharpFar.Console.Ansi` on Linux or macOS.
+
 Run it in an interactive terminal. Redirected input or output is deliberately rejected because the production terminal drivers require a real terminal and must be able to restore its state.
 
 ## Routes and showcased workflows
@@ -48,4 +54,3 @@ Use this checklist on each production terminal backend you want to validate:
 11. Click a table row, double-click it for details, drag/click available scrollbars, click dialog and key-bar buttons, and verify hover/reveal behavior supported by the terminal.
 12. Choose Reset data, first cancelling and then confirming. Confirm the initial branch, data, settings, filtering, and selection return. Exit with `F10`, then start once more and exit through Repository > Quit.
 13. After normal exit, cancelled operations, and (where safely testable) an exceptional shutdown, verify the terminal cursor, input mode, mouse tracking, screen buffer, and colors are restored and ordinary shell input/echo work normally.
-

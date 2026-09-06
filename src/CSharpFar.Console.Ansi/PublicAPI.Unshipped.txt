@@ -1,0 +1,111 @@
+#nullable enable
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.<Clone>$() -> CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent!
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.AnsiInputDiagnosticEvent(string! Kind, byte[]! RawBytes, bool IsKnown, System.ConsoleKeyInfo? Key = null, string? MouseEvent = null, CSharpFar.Console.Input.MouseButton? MouseButton = null, int? ButtonCode = null, int? TerminalX = null, int? TerminalY = null, int? UiX = null, int? UiY = null, CSharpFar.Console.Input.MouseKeyModifiers MouseModifiers = CSharpFar.Console.Input.MouseKeyModifiers.None, string? KeyEventType = null, string? ModifierKeyName = null, string? Error = null) -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.ButtonCode.get -> int?
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.ButtonCode.init -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.Deconstruct(out string! Kind, out byte[]! RawBytes, out bool IsKnown, out System.ConsoleKeyInfo? Key, out string? MouseEvent, out CSharpFar.Console.Input.MouseButton? MouseButton, out int? ButtonCode, out int? TerminalX, out int? TerminalY, out int? UiX, out int? UiY, out CSharpFar.Console.Input.MouseKeyModifiers MouseModifiers, out string? KeyEventType, out string? ModifierKeyName, out string? Error) -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.Equals(CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent? other) -> bool
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.Error.get -> string?
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.Error.init -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.IsKnown.get -> bool
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.IsKnown.init -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.Key.get -> System.ConsoleKeyInfo?
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.Key.init -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.KeyEventType.get -> string?
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.KeyEventType.init -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.Kind.get -> string!
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.Kind.init -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.ModifierKeyName.get -> string?
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.ModifierKeyName.init -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.MouseButton.get -> CSharpFar.Console.Input.MouseButton?
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.MouseButton.init -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.MouseEvent.get -> string?
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.MouseEvent.init -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.MouseModifiers.get -> CSharpFar.Console.Input.MouseKeyModifiers
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.MouseModifiers.init -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.RawBytes.get -> byte[]!
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.RawBytes.init -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.TerminalX.get -> int?
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.TerminalX.init -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.TerminalY.get -> int?
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.TerminalY.init -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.UiX.get -> int?
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.UiX.init -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.UiY.get -> int?
+CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.UiY.init -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticReader
+CSharpFar.Console.Ansi.AnsiInputDiagnosticReader.AnsiInputDiagnosticReader(CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver! driver) -> void
+CSharpFar.Console.Ansi.AnsiInputDiagnosticReader.TryRead(int timeoutMilliseconds, int escapeTimeoutMilliseconds, out CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent? inputEvent) -> bool
+CSharpFar.Console.Ansi.AnsiInputReadResult
+CSharpFar.Console.Ansi.AnsiInputReadResult.<Clone>$() -> CSharpFar.Console.Ansi.AnsiInputReadResult!
+CSharpFar.Console.Ansi.AnsiInputReadResult.AnsiInputReadResult(System.ConsoleKeyInfo Key, byte[]! Bytes) -> void
+CSharpFar.Console.Ansi.AnsiInputReadResult.Bytes.get -> byte[]!
+CSharpFar.Console.Ansi.AnsiInputReadResult.Bytes.init -> void
+CSharpFar.Console.Ansi.AnsiInputReadResult.Deconstruct(out System.ConsoleKeyInfo Key, out byte[]! Bytes) -> void
+CSharpFar.Console.Ansi.AnsiInputReadResult.Equals(CSharpFar.Console.Ansi.AnsiInputReadResult? other) -> bool
+CSharpFar.Console.Ansi.AnsiInputReadResult.Key.get -> System.ConsoleKeyInfo
+CSharpFar.Console.Ansi.AnsiInputReadResult.Key.init -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.Capabilities.get -> CSharpFar.Console.ConsoleFrameWriteCapabilities
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.Capture(CSharpFar.Console.Models.Rect region) -> CSharpFar.Console.Models.ScreenSnapshot!
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.Clear() -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.ClearRegion(CSharpFar.Console.Models.Rect region) -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.Dispose() -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.EnableRawInputMode() -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.EnsureApplicationScreen() -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.EnsureMainScreen() -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.EnterAlternateScreen() -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.EnterApplicationScreen() -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.EnterChildProcessConsoleMode() -> System.IDisposable!
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.GetBufferHeight() -> int
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.GetBufferWidth() -> int
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.GetSize() -> CSharpFar.Console.Models.ConsoleSize
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.GetViewport() -> CSharpFar.Console.Models.ConsoleViewport
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.InputBackendName.get -> string!
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.IsApplicationScreenActive.get -> bool
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.IsMouseTrackingEnabled.get -> bool
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.IsSupported.get -> bool
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.LeaveAlternateScreen() -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.LeaveApplicationScreen() -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.ModifierKeyTracking.get -> CSharpFar.Console.Input.ModifierKeyTrackingSnapshot!
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.MouseTrackingEnabled.get -> bool
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.ReadInput(bool intercept, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CSharpFar.Console.Input.ConsoleInputEvent!
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.ReadKey(bool intercept) -> System.ConsoleKeyInfo
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.ReadRawInput() -> CSharpFar.Console.Ansi.AnsiInputReadResult!
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.ReadRawInput(int escapeTimeoutMilliseconds) -> CSharpFar.Console.Ansi.AnsiInputReadResult!
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.Restore(CSharpFar.Console.Models.ScreenSnapshot! snapshot) -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.RestoreApplicationInputMode() -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.RestoreTerminal() -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.SetConsoleScrollbackEnabled(bool enabled) -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.SetCursorPosition(int x, int y) -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.SetCursorVisible(bool visible) -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.SetRenderingOutputMode(bool enabled) -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.TryIsViewportAtBottom(out bool isAtBottom) -> bool
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.TryReadInput(bool intercept, out CSharpFar.Console.Input.ConsoleInputEvent? inputEvent) -> bool
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.TryReadRawInput(int timeoutMilliseconds, int escapeTimeoutMilliseconds, out CSharpFar.Console.Ansi.AnsiInputReadResult? result) -> bool
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.TryReadRawInput(int timeoutMilliseconds, out CSharpFar.Console.Ansi.AnsiInputReadResult? result) -> bool
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.TryScrollViewportToBottom() -> bool
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.TrySetCursorPositionInViewport(CSharpFar.Console.Models.ConsoleViewport viewport, int x, int y) -> bool
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.TryWriteAtViewport(CSharpFar.Console.Models.ConsoleViewport viewport, int x, int y, System.ReadOnlySpan<char> text, System.ConsoleColor? foreground = null, System.ConsoleColor? background = null, CSharpFar.Console.Models.TextAttributes attributes = CSharpFar.Console.Models.TextAttributes.None) -> bool
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.TryWriteCellsAtViewport(CSharpFar.Console.Models.ConsoleViewport viewport, int x, int y, int width, int height, System.ReadOnlySpan<CSharpFar.Console.Models.ConsoleOutputCell> cells) -> bool
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.TryWriteDirtyCellsAtViewport(CSharpFar.Console.Models.ConsoleViewport viewport, System.ReadOnlySpan<CSharpFar.Console.ConsoleOutputRun> runs, System.ReadOnlySpan<CSharpFar.Console.Models.ConsoleOutputCell> cells) -> bool
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.Write(string! text) -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.WriteAt(int x, int y, System.ReadOnlySpan<char> text, System.ConsoleColor? foreground = null, System.ConsoleColor? background = null, CSharpFar.Console.Models.TextAttributes attributes = CSharpFar.Console.Models.TextAttributes.None) -> void
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.WriteRawControl(string! sequence) -> void
+CSharpFar.Console.Ansi.IAnsiInputByteReader
+CSharpFar.Console.Ansi.IAnsiInputByteReader.ReadByte() -> byte
+CSharpFar.Console.Ansi.IAnsiInputByteReader.TryReadByte(out byte value) -> bool
+CSharpFar.Console.Ansi.IAnsiInputByteReader.WaitForInput(int timeoutMilliseconds) -> bool
+override CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.Equals(object? obj) -> bool
+override CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.GetHashCode() -> int
+override CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.ToString() -> string!
+override CSharpFar.Console.Ansi.AnsiInputReadResult.Equals(object? obj) -> bool
+override CSharpFar.Console.Ansi.AnsiInputReadResult.GetHashCode() -> int
+override CSharpFar.Console.Ansi.AnsiInputReadResult.ToString() -> string!
+static CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.operator !=(CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent? left, CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent? right) -> bool
+static CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.operator ==(CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent? left, CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent? right) -> bool
+static CSharpFar.Console.Ansi.AnsiInputReadResult.operator !=(CSharpFar.Console.Ansi.AnsiInputReadResult? left, CSharpFar.Console.Ansi.AnsiInputReadResult? right) -> bool
+static CSharpFar.Console.Ansi.AnsiInputReadResult.operator ==(CSharpFar.Console.Ansi.AnsiInputReadResult? left, CSharpFar.Console.Ansi.AnsiInputReadResult? right) -> bool
+static CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.CreateLinux() -> CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver!
+static CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.CreateMacOs() -> CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver!

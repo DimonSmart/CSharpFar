@@ -40,11 +40,13 @@ public sealed class ReusableTestDependencyTests
     }
 
     [Fact]
-    public void Console_HasNoProjectOrPackageDependencies()
+    public void Console_HasNoRuntimeCSharpFarDependencies()
     {
         XDocument project = XDocument.Load(Path.Combine(RepositoryRoot(), "src", "CSharpFar.Console", "CSharpFar.Console.csproj"));
         Assert.Empty(project.Descendants("ProjectReference"));
-        Assert.Empty(project.Descendants("PackageReference"));
+        XElement analyzer = Assert.Single(project.Descendants("PackageReference"));
+        Assert.Equal("Microsoft.CodeAnalysis.PublicApiAnalyzers", analyzer.Attribute("Include")?.Value);
+        Assert.Equal("all", analyzer.Attribute("PrivateAssets")?.Value);
         Assert.DoesNotContain(typeof(IConsoleDriver).Assembly.GetReferencedAssemblies(),
             assembly => assembly.Name!.StartsWith("CSharpFar.", StringComparison.Ordinal));
     }
