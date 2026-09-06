@@ -18,6 +18,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleFrameWriter, I
     private const string HideCursor = "\x1b[?25l";
     private const string ShowCursor = "\x1b[?25h";
     private const string ResetAttributes = "\x1b[0m";
+    private const int SB_VERT = 1;
 
     private readonly IntPtr _consoleHandle;
     private readonly IntPtr _inputHandle;
@@ -42,6 +43,16 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleFrameWriter, I
     private bool _disposed;
     private static readonly Win32ConsoleApi.ConsoleCtrlHandler s_childProcessCtrlHandler = HandleChildProcessConsoleControl;
     private static int s_childProcessConsoleModeDepth;
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetConsoleWindow();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ShowScrollBar(
+        IntPtr hWnd,
+        int wBar,
+        [MarshalAs(UnmanagedType.Bool)] bool bShow);
 
     public SystemConsoleDriver()
     {
@@ -157,6 +168,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleFrameWriter, I
 
         WriteTerminalControl(EnterAltScreen);
         _applicationScreenActive = true;
+        SetNativeVerticalScrollbarVisible(false);
     }
 
     public void LeaveApplicationScreen()
@@ -166,6 +178,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleFrameWriter, I
 
         WriteTerminalControl(LeaveAltScreen);
         _applicationScreenActive = false;
+        RestoreNativeVerticalScrollbarForMainScreen();
     }
 
     public void EnsureApplicationScreen() => EnterApplicationScreen();
@@ -179,6 +192,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleFrameWriter, I
 
         WriteTerminalControl(LeaveAltScreen + ShowCursor + ResetAttributes);
         _applicationScreenActive = false;
+        RestoreNativeVerticalScrollbarForMainScreen();
 
         if (OperatingSystem.IsWindows() && _restoreOutputMode)
             Win32ConsoleApi.TrySetConsoleMode(_consoleHandle, _originalOutputMode);
@@ -204,6 +218,22 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleFrameWriter, I
     {
         global::System.Console.Out.Write(sequence);
         global::System.Console.Out.Flush();
+    }
+
+    private static void SetNativeVerticalScrollbarVisible(bool visible)
+    {
+        IntPtr window = GetConsoleWindow();
+        if (window != IntPtr.Zero)
+            _ = ShowScrollBar(window, SB_VERT, visible);
+    }
+
+    private void RestoreNativeVerticalScrollbarForMainScreen()
+    {
+        if (!Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var sbi))
+            return;
+
+        int viewportHeight = sbi.srWindow.Bottom - sbi.srWindow.Top + 1;
+        SetNativeVerticalScrollbarVisible(sbi.dwSize.Y > viewportHeight);
     }
 
     private void ResetMouseInputState()
@@ -302,7 +332,11 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleFrameWriter, I
                 HasVisibleViewportChanged);
 
             if (inputEvent is ConsoleResizeInputEvent)
+            {
                 _lastInputViewport = GetViewport();
+                if (_applicationScreenActive)
+                    SetNativeVerticalScrollbarVisible(false);
+            }
 
             return inputEvent;
         }
@@ -326,7 +360,11 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleFrameWriter, I
                 _mouseInputNormalizer);
 
             if (hasInput && inputEvent is ConsoleResizeInputEvent)
+            {
                 _lastInputViewport = GetViewport();
+                if (_applicationScreenActive)
+                    SetNativeVerticalScrollbarVisible(false);
+            }
             return hasInput;
         }
 
