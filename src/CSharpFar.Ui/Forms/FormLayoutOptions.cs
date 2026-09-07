@@ -44,4 +44,4 @@ internal interface IFormLabeledRow
     bool UseSharedLabelColumn { get; }
 }
 
-public readonly record struct FormRowLayout(Rect RowBounds, Rect? LabelBounds, Rect ControlBounds);
+internal readonly record struct FormRowLayout(Rect RowBounds, Rect? LabelBounds, Rect ControlBounds);
