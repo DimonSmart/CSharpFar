@@ -43,6 +43,20 @@ public sealed class FileSystemServiceTests : IDisposable
         Assert.Equal("Root is inaccessible.", error.Message);
     }
 
+    [Fact]
+    public async Task OpenReadAsync_DoesNotBlockConcurrentAppend()
+    {
+        Directory.CreateDirectory(_directory);
+        string path = Path.Combine(_directory, "events.jsonl");
+        await File.WriteAllTextAsync(path, "first\n");
+        var source = new LocalFilePanelSource(new FileSystemService());
+
+        await using Stream reader = await source.OpenReadAsync(path);
+        await File.AppendAllTextAsync(path, "second\n");
+
+        Assert.Equal("first\nsecond\n", await File.ReadAllTextAsync(path));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_directory))

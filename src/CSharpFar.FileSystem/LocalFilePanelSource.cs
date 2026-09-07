@@ -86,7 +86,11 @@ public sealed class LocalFilePanelSource : IFilePanelSource
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        Stream stream = File.Open(NormalizePath(sourcePath), FileMode.Open, FileAccess.Read, FileShare.Read);
+        Stream stream = File.Open(
+            NormalizePath(sourcePath),
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
         return Task.FromResult(stream);
     }
 
