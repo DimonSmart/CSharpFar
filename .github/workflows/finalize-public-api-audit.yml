@@ -1,0 +1,127 @@
+name: Finalize public API audit
+
+on:
+  push:
+    branches:
+      - prep-dimonsmart-terminal-beta
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+
+jobs:
+  finalize:
+    name: Patch baseline and verify
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Synchronize PublicAPI.Unshipped.txt
+        shell: pwsh
+        run: |
+          $path = 'src/CSharpFar.Ui/PublicAPI.Unshipped.txt'
+          $typeNames = @(
+            'CSharpFar.Ui.FormTargetFrame',
+            'CSharpFar.Ui.ScrollableFormFrame',
+            'CSharpFar.Ui.FormBodyScrollbarTargetFrame',
+            'CSharpFar.Ui.FormTargetKind',
+            'CSharpFar.Ui.FormRouteResult',
+            'CSharpFar.Ui.FormInputResult',
+            'CSharpFar.Ui.FormInputResultKind',
+            'CSharpFar.Ui.FormRowLayout',
+            'CSharpFar.Ui.FormRenderContext'
+          )
+          $hookNames = @(
+            'CSharpFar.Ui.ScrollableFormDialog.Render(',
+            'CSharpFar.Ui.ScrollableFormDialog.BuildInteractionFrame(',
+            'CSharpFar.Ui.ScrollableFormDialog.BuildInteractionFragment(',
+            'CSharpFar.Ui.ScrollableFormDialog.RouteInput('
+          )
+
+          $lines = [System.IO.File]::ReadAllLines($path)
+          $removed = [System.Collections.Generic.List[string]]::new()
+          $kept = [System.Collections.Generic.List[string]]::new()
+
+          foreach ($line in $lines) {
+            $remove = $false
+            foreach ($name in $typeNames) {
+              if ($line.Contains($name, [System.StringComparison]::Ordinal)) {
+                $remove = $true
+                break
+              }
+            }
+            if (-not $remove) {
+              foreach ($name in $hookNames) {
+                if ($line.Contains($name, [System.StringComparison]::Ordinal)) {
+                  $remove = $true
+                  break
+                }
+              }
+            }
+
+            if ($remove) {
+              $removed.Add($line)
+            } else {
+              $kept.Add($line)
+            }
+          }
+
+          if ($removed.Count -eq 0) {
+            throw 'Expected stale public API entries were not found.'
+          }
+
+          $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+          [System.IO.File]::WriteAllLines($path, $kept, $utf8NoBom)
+
+          Write-Host "Removed baseline entries: $($removed.Count)"
+          foreach ($line in $removed) {
+            Write-Host "REMOVED: $line"
+          }
+
+          $remaining = [System.IO.File]::ReadAllText($path)
+          foreach ($name in $typeNames) {
+            if ($remaining.Contains($name, [System.StringComparison]::Ordinal)) {
+              throw "Stale baseline entry remains for $name"
+            }
+          }
+          foreach ($name in $hookNames) {
+            if ($remaining.Contains($name, [System.StringComparison]::Ordinal)) {
+              throw "Stale ScrollableFormDialog hook remains for $name"
+            }
+          }
+
+          git diff --exit-code -- src/CSharpFar.Ui/PublicAPI.Shipped.txt
+          $changed = @(git diff --name-only)
+          if ($changed.Count -ne 1 -or $changed[0] -ne $path) {
+            throw "Unexpected files changed by baseline synchronization: $($changed -join ', ')"
+          }
+
+      - name: Restore
+        run: dotnet restore CSharpFar.slnx
+
+      - name: Build
+        run: dotnet build CSharpFar.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test CSharpFar.slnx --configuration Release --no-build --verbosity minimal
+
+      - name: Verify reusable packages
+        shell: pwsh
+        run: ./eng/verify-reusable-packages.ps1
+
+      - name: Upload synchronized baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: synchronized-public-api-baseline
+          path: src/CSharpFar.Ui/PublicAPI.Unshipped.txt
+          if-no-files-found: error
