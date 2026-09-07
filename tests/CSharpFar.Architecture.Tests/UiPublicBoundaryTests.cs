@@ -16,6 +16,11 @@ public sealed class UiPublicBoundaryTests
         Assert.DoesNotContain("FarDialogStyles", exported);
         Assert.DoesNotContain("WarningDialogStyles", exported);
         Assert.DoesNotContain(exported, name => name.StartsWith("FormGrid", StringComparison.Ordinal));
+        Assert.DoesNotContain(exported, name =>
+            name.EndsWith("FormFrame", StringComparison.Ordinal) ||
+            name.StartsWith("Form", StringComparison.Ordinal) && name.EndsWith("TargetFrame", StringComparison.Ordinal));
+        Assert.DoesNotContain(exported, name => name is
+            "FormInputResult" or "FormInputResultKind" or "FormRenderContext" or "FormRouteResult" or "FormRowLayout" or "FormTargetKind");
         Assert.DoesNotContain(exported, name => name is "IFormCompositeSnapshot" or "FormCompositeFrameContext" or
             "FormCompositeFrame" or "FormCompositeOverlayFrame" or "FormCompositeTarget");
     }
@@ -121,8 +126,9 @@ public sealed class UiPublicBoundaryTests
     public void AdvancedReusableContracts_RemainExported()
     {
         string[] required = ["UiCompositionHost", "UiLayer`1", "UiLayerInputPolicy", "IUiSurface", "IUiCanvas", "ScreenRenderer",
-            "UiRenderContext", "UiInteractionFrame", "UiInputRouteContext", "UiInputResult", "ModalDialogHost", "ScrollableViewport",
-            "ScrollableListState`1", "ScrollState", "MenuLayoutService"];
+            "UiRenderContext", "UiInteractionFrame", "UiInteractionFragment", "UiInteractionFrameBuilder", "UiInputRouteContext", "UiInputResult",
+            "InteractiveSurfaceHost", "InteractiveSurfaceLayer`2", "ModalDialogHost", "ModalFormHost", "ICompositeDialogContent",
+            "ICompositeDialogContentFrame", "ScrollableViewport", "ScrollableListState`1", "VerticalScrollbarFrame", "ScrollState", "MenuLayoutService"];
         string[] exported = UiAssembly.GetExportedTypes().Select(type => type.Name).ToArray();
 
         foreach (string typeName in required)
