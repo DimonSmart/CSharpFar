@@ -135,7 +135,7 @@ public sealed class SftpFilePanelSource : IModulePanel
                     IsDirectory = attributes.IsDirectory,
                     Size = attributes.IsDirectory ? null : attributes.Size,
                     LastWriteTime = attributes.LastWriteTime,
-                    Attributes = attributes.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
+                    Attributes = ToPanelAttributes(attributes.IsDirectory, attributes.IsSymbolicLink),
                     IsParentDirectory = false,
                 };
             });
@@ -240,9 +240,17 @@ public sealed class SftpFilePanelSource : IModulePanel
             IsDirectory = item.IsDirectory,
             Size = item.IsDirectory ? null : item.Length,
             LastWriteTime = item.LastWriteTime,
-            Attributes = item.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
+            Attributes = ToPanelAttributes(item.IsDirectory, item.IsSymbolicLink),
             IsParentDirectory = false,
         };
+
+    internal static FileAttributes ToPanelAttributes(bool isDirectory, bool isSymbolicLink)
+    {
+        FileAttributes attributes = isDirectory ? FileAttributes.Directory : FileAttributes.Normal;
+        if (isSymbolicLink)
+            attributes |= FileAttributes.ReparsePoint;
+        return attributes;
+    }
 
     private SftpClient CreateConnectedClient()
     {

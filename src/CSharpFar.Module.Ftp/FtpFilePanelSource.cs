@@ -325,9 +325,17 @@ public sealed class FtpFilePanelSource : IModulePanel
             IsDirectory = isDirectory,
             Size = isDirectory ? null : item.Size,
             LastWriteTime = item.Modified == DateTime.MinValue ? DateTime.MinValue : item.Modified,
-            Attributes = isDirectory ? FileAttributes.Directory : FileAttributes.Normal,
+            Attributes = ToPanelAttributes(isDirectory, item.Type == FtpObjectType.Link),
             IsParentDirectory = false,
         };
+    }
+
+    internal static FileAttributes ToPanelAttributes(bool isDirectory, bool isSymbolicLink)
+    {
+        FileAttributes attributes = isDirectory ? FileAttributes.Directory : FileAttributes.Normal;
+        if (isSymbolicLink)
+            attributes |= FileAttributes.ReparsePoint;
+        return attributes;
     }
 
     private FilePanelItem ToDirectoryItem(string path, DateTime lastWriteTime) =>
