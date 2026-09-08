@@ -1,3 +1,4 @@
+using CSharpFar.App.Panels;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Highlighting;
@@ -13,22 +14,24 @@ internal sealed class PanelRenderer
     private readonly IFileHighlightService? _highlight;
     private readonly AppSettings.PanelOptionsSettings? _options;
     private readonly Func<HoverMarqueeRegistration, string>? _renderHoverMarquee;
+    private readonly Func<PanelSide, FilePanelState, FilePanelItem, PanelDirectorySizePresentation?>? _directorySize;
 
     public PanelRenderer(
         IUiCanvas screen,
         CSharpFarPalette? palette = null,
         IFileHighlightService? highlight = null,
         AppSettings.PanelOptionsSettings? options = null,
-        Func<HoverMarqueeRegistration, string>? renderHoverMarquee = null)
+        Func<HoverMarqueeRegistration, string>? renderHoverMarquee = null,
+        Func<PanelSide, FilePanelState, FilePanelItem, PanelDirectorySizePresentation?>? directorySize = null)
     {
         _screen = screen;
         _palette = palette ?? CSharpFarPaletteRegistry.Default;
         _highlight = highlight;
         _options = options;
         _renderHoverMarquee = renderHoverMarquee;
+        _directorySize = directorySize;
     }
 
-    /// <summary>Number of file list rows visible inside the given bounds (Full mode).</summary>
     public static int VisibleRows(Rect bounds, AppSettings.PanelOptionsSettings? options = null) =>
         Math.Max(0, bounds.Height - 2 - PanelStatusRenderer.GetStatusRowCount(options));
 
@@ -41,7 +44,13 @@ internal sealed class PanelRenderer
     {
         if (mode == PanelViewMode.BriefTwoColumns)
         {
-            return new BriefTwoColumnsPanelRenderer(_screen, _palette, _highlight, _options, _renderHoverMarquee)
+            return new BriefTwoColumnsPanelRenderer(
+                    _screen,
+                    _palette,
+                    _highlight,
+                    _options,
+                    item => _directorySize?.Invoke(side, state, item),
+                    _renderHoverMarquee)
                 .Render(bounds, state, isActive, side);
         }
 
@@ -55,8 +64,6 @@ internal sealed class PanelRenderer
         PanelViewMode mode = PanelViewMode.Full) =>
         _ = Render(bounds, state, isActive, PanelSide.Left, mode);
 
-    // ── Full mode ─────────────────────────────────────────────────────────────
-
     private ApplicationPanelFrame RenderFull(Rect bounds, FilePanelState state, bool isActive, PanelSide side)
     {
         var p = _palette;
@@ -69,25 +76,25 @@ internal sealed class PanelRenderer
         var footer = new CellStyle(p.FooterActiveFg, p.PanelBackground);
         var selStyle = new CellStyle(p.Ui.SelectedFg, p.Ui.SelectedBg);
 
-        // Fill background + draw border
         _screen.FillRegion(bounds, fill);
         _screen.DrawDoubleBox(bounds, border);
 
-        // Sort mode letter in top border (before title)
         bool showSortLetter = _options == null || _options.ShowSortModeLetter;
         if (showSortLetter && bounds.Width > 2)
             _screen.WriteChar(bounds.X + 1, bounds.Y, SortModeIndicator.For(state), border);
 
         PanelTitleRenderer.Render(_screen, bounds, state, isActive, p);
 
+        Func<FilePanelItem, PanelDirectorySizePresentation?> directoryResolver =
+            item => _directorySize?.Invoke(side, state, item);
+
         if (state.LoadError is not null)
         {
             PanelErrorRenderer.Render(_screen, bounds, state, PanelViewMode.Full, p, _options);
-            new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options);
+            new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options, directoryResolver);
             return BuildErrorFrame(bounds, state, side, PanelViewMode.Full);
         }
 
-        // File list
         int innerWidth = bounds.Width - 2;
         int listTop = bounds.Y + 1;
         int visRows = VisibleRows(bounds, _options);
@@ -140,7 +147,13 @@ internal sealed class PanelRenderer
                     nameCol);
                 namePart = PadToCells(_renderHoverMarquee(hover), nameCol);
             }
-            string sizePart = sizeCol > 0 ? " " + FormatSizePart(item, sizeCol) : string.Empty;
+
+            PanelDirectorySizePresentation? directoryPresentation = item.IsDirectory
+                ? directoryResolver(item)
+                : null;
+            string sizePart = sizeCol > 0
+                ? " " + FormatSizePart(item, sizeCol, directoryPresentation)
+                : string.Empty;
 
             CellStyle nameStyle = ApplyHighlight(style, item, rowState);
 
@@ -175,7 +188,7 @@ internal sealed class PanelRenderer
                 state.ScrollOffset);
         }
 
-        new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options);
+        new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options, directoryResolver);
         return new ApplicationPanelFrame(side, bounds, visRows, hits, null, scrollBar, visRows, 1);
     }
 
@@ -193,8 +206,6 @@ internal sealed class PanelRenderer
             : VisibleRows(bounds, _options);
         return new ApplicationPanelFrame(side, bounds, visibleRows, [], retry, null, visibleRows, 1);
     }
-
-    // ── static helpers ────────────────────────────────────────────────────────
 
     private CellStyle ApplyHighlight(CellStyle baseStyle, FilePanelItem item, FileRowState rowState)
     {
@@ -215,14 +226,36 @@ internal sealed class PanelRenderer
             : item.Name[..Math.Max(0, nameWidth - 1)] + "~";
     }
 
-    private static string FormatSizePart(FilePanelItem item, int sizeWidth)
+    internal static string FormatSizePart(
+        FilePanelItem item,
+        int sizeWidth,
+        PanelDirectorySizePresentation? directoryPresentation = null)
     {
-        if (item.IsParentDirectory) return new string(' ', sizeWidth);
-        if (item.IsDirectory) return "<DIR>".PadLeft(sizeWidth);
-        return FormatSize(item.Size ?? 0).PadLeft(sizeWidth);
+        if (item.IsParentDirectory)
+            return new string(' ', sizeWidth);
+
+        string text;
+        if (item.IsDirectory)
+        {
+            text = directoryPresentation switch
+            {
+                { DisplaySize: null, IsInProgress: true } => "…",
+                { DisplaySize: { } size, IsInProgress: true } => FormatSize(size) + "…",
+                { DisplaySize: { } size } => FormatSize(size),
+                _ => "<DIR>",
+            };
+        }
+        else
+        {
+            text = FormatSize(item.Size ?? 0);
+        }
+
+        if (text.Length > sizeWidth)
+            text = text[^sizeWidth..];
+        return text.PadLeft(sizeWidth);
     }
 
-    private static string FormatSize(long bytes) => bytes switch
+    internal static string FormatSize(long bytes) => bytes switch
     {
         < 1_000L => bytes.ToString(),
         < 1_000_000L => $"{bytes / 1_000}K",
