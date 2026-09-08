@@ -229,7 +229,7 @@ internal static class ApplicationServicesBuilder
         var topMenu = new TopMenu(
             () => session.App.WorkspaceMode == ApplicationWorkspaceMode.Panels,
             () => rendering.RenderContext.BuildMenuDefinition(),
-            () => MenuRenderOptionsFactory.Create(session.App.Palette.Ui),
+            () => MenuRenderOptionsFactory.Create(session.App.Palette),
             () => session.Panels.ActiveSide == PanelSide.Left ? "Left" : "Right",
             current => current switch
             {
