@@ -31,7 +31,9 @@ internal static class CoreServicesFactory
         ApplicationRunOptions? runOptions)
     {
         var effectiveSettings = settings ?? new AppSettingsAlias();
-        var effectiveSourceRegistry = sourceRegistry ?? new FilePanelSourceRegistry([new LocalFilePanelSource(fs)]);
+        var effectiveSourceRegistry = sourceRegistry ?? new FilePanelSourceRegistry([
+            new LocalFilePanelSource(fs, mountPointService),
+        ]);
         var sortService = new PanelSortService();
         var viewBuilder = new PanelViewBuilder(
             fs,
