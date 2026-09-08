@@ -95,8 +95,6 @@ internal static class ApplicationServicesBuilder
         var menuProvider = core.MenuProvider;
         var callbacks = new ApplicationServiceCallbacks
         {
-            // Services can render a modal before the Application facade binds its
-            // command callbacks (for example, focused command tests).
             PanelOptions = () => effectiveSettings.Panels.Options,
             CanExecuteFunctionKeyCommand = _ => false,
         };
@@ -146,6 +144,11 @@ internal static class ApplicationServicesBuilder
             side => callbacks.GetPanelState(side),
             side => callbacks.VisibleRowsForSide(side),
             (state, rows) => callbacks.SafeRefresh(state, rows));
+        var directorySizes = new PanelDirectorySizeCoordinator(
+            effectiveSourceRegistry,
+            session.Panels.Left,
+            session.Panels.Right,
+            autoRefresh.WakeInputLoop);
         var panelSort = new PanelSortServiceFacade(
             controller,
             () => callbacks.PanelOptions(),
@@ -200,6 +203,7 @@ internal static class ApplicationServicesBuilder
             panelQuickSearch,
             panelWorkspace,
             autoRefresh,
+            directorySizes,
             functionKeyBindingProvider,
             menuLayoutService,
             callbacks,
@@ -412,6 +416,7 @@ internal static class ApplicationServicesBuilder
             callbacks,
             controller,
             autoRefresh,
+            directorySizes,
             panelRefresh,
             panelSort,
             panelNavigation,
@@ -447,7 +452,8 @@ internal static class ApplicationServicesBuilder
             callbacks,
             autoRefresh,
             quickViewDirectorySize,
-            fileUsagePanel);
+            fileUsagePanel,
+            directorySizes);
 
         return new ApplicationServices
         {

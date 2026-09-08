@@ -29,6 +29,8 @@ public sealed class FunctionKeyBindingProviderTests
             FunctionKeyLayer.Control, ConsoleKey.F3, "SortNm");
         AssertBinding(bindings, FunctionKeyCommandIds.SortBySize,
             FunctionKeyLayer.Control, ConsoleKey.F6, "SortSz");
+        AssertBinding(bindings, FunctionKeyCommandIds.CalculateDirectorySizes,
+            FunctionKeyLayer.Shift, ConsoleKey.F3, "DirSz");
         AssertBinding(bindings, FunctionKeyCommandIds.Rename,
             FunctionKeyLayer.Shift, ConsoleKey.F6, "Rename", runsWhenUnavailable: true);
         Assert.DoesNotContain(bindings, binding => binding.Layer == FunctionKeyLayer.Control && binding.Key == ConsoleKey.F1);
@@ -96,6 +98,7 @@ public sealed class FunctionKeyBindingProviderTests
             [FunctionKeyCommandIds.SortByExtension] = FunctionKeyCommandCategory.PanelScoped,
             [FunctionKeyCommandIds.SortByLastWriteTime] = FunctionKeyCommandCategory.PanelScoped,
             [FunctionKeyCommandIds.SortBySize] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.CalculateDirectorySizes] = FunctionKeyCommandCategory.PanelScoped,
             [FunctionKeyCommandIds.Attributes] = FunctionKeyCommandCategory.PanelScoped,
         };
 
@@ -123,6 +126,7 @@ public sealed class FunctionKeyBindingProviderTests
             FunctionKeyCommandIds.SortByExtension,
             FunctionKeyCommandIds.SortByLastWriteTime,
             FunctionKeyCommandIds.SortBySize,
+            FunctionKeyCommandIds.CalculateDirectorySizes,
             FunctionKeyCommandIds.Attributes,
         ];
         Assert.All(panelScoped, commandId =>

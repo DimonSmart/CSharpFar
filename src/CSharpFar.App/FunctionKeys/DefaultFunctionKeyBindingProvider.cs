@@ -20,6 +20,11 @@ internal sealed class DefaultFunctionKeyBindingProvider
             ConsoleKey.F3,
             "View"),
         new(
+            FunctionKeyCommandIds.CalculateDirectorySizes,
+            FunctionKeyLayer.Shift,
+            ConsoleKey.F3,
+            "DirSz"),
+        new(
             FunctionKeyCommandIds.Edit,
             FunctionKeyLayer.Plain,
             ConsoleKey.F4,

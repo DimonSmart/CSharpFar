@@ -62,12 +62,10 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
                 return;
             }
 
-            // Monitoring pins the current directory. Panel navigation, including
-            // navigation initiated by Recent changes, must not replace that view.
             if (_monitor.IsEnabled)
                 return;
 
-            if (item is not { IsDirectory: true, IsParentDirectory: false })
+            if (item is null || !DirectoryTraversalPolicy.IsEligibleDirectory(item))
             {
                 LeaveDirectoryView();
                 return;
@@ -281,6 +279,7 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
         Interlocked.Exchange(ref _activeScanOperationId, 0);
         _calculator.Start(path, progressMode, operationId => Volatile.Write(ref _activeScanOperationId, operationId));
     }
+
     public void Dispose()
     {
         lock (_lifecycleGate)

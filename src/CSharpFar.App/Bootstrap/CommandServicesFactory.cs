@@ -49,6 +49,7 @@ internal static class CommandServicesFactory
         ApplicationServiceCallbacks callbacks,
         PanelController panelController,
         PanelAutoRefreshService autoRefresh,
+        PanelDirectorySizeCoordinator directorySizes,
         PanelRefreshService panelRefresh,
         PanelSortServiceFacade panelSort,
         PanelNavigationService panelNavigation,
@@ -99,7 +100,7 @@ internal static class CommandServicesFactory
             () => callbacks.GetActiveSide(),
             panelQuickSearch.Close,
             temporarily => commandCompletionController.Hide(temporarily));
-        var commandRegistry = ApplicationCommandRegistry.CreateDefault();
+        var commandRegistry = ApplicationCommandRegistry.CreateDefault(directorySizes: directorySizes);
         var commandContext = new ApplicationCommandContext(
             interactiveSurfaces,
             modalDialogs,

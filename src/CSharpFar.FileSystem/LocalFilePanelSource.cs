@@ -7,10 +7,14 @@ public sealed class LocalFilePanelSource : IFilePanelSource
 {
     private static readonly char[] LocalPathSeparators = [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar];
     private readonly IFileSystemService _fileSystem;
+    private readonly IVolumeMountPointService? _mountPoints;
 
-    public LocalFilePanelSource(IFileSystemService fileSystem)
+    public LocalFilePanelSource(
+        IFileSystemService fileSystem,
+        IVolumeMountPointService? mountPoints = null)
     {
         _fileSystem = fileSystem;
+        _mountPoints = mountPoints;
     }
 
     public PanelSourceId SourceId => PanelSourceId.Local;
@@ -36,7 +40,11 @@ public sealed class LocalFilePanelSource : IFilePanelSource
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return _fileSystem.ReadDirectory(NormalizePath(sourcePath));
+        IReadOnlyList<FilePanelItem> items = _fileSystem.ReadDirectory(NormalizePath(sourcePath));
+        if (_mountPoints is null)
+            return items;
+
+        return items.Select(DecorateMountPoint).ToArray();
     }
 
     public FilePanelItem? GetItem(
@@ -65,7 +73,7 @@ public sealed class LocalFilePanelSource : IFilePanelSource
         if (Directory.Exists(path))
         {
             var directory = new DirectoryInfo(path);
-            return new FilePanelItem
+            return DecorateMountPoint(new FilePanelItem
             {
                 Name = directory.Name,
                 FullPath = directory.FullName,
@@ -75,7 +83,7 @@ public sealed class LocalFilePanelSource : IFilePanelSource
                 LastWriteTime = directory.LastWriteTime,
                 Attributes = directory.Attributes,
                 IsParentDirectory = false,
-            };
+            });
         }
 
         return null;
@@ -149,5 +157,37 @@ public sealed class LocalFilePanelSource : IFilePanelSource
             Directory.Move(source, target);
 
         return Task.CompletedTask;
+    }
+
+    private FilePanelItem DecorateMountPoint(FilePanelItem item)
+    {
+        if (_mountPoints is null || !item.IsDirectory || item.IsVolumeMountPoint)
+            return item;
+
+        try
+        {
+            VolumeMountPointInfo info = _mountPoints.GetMountPointInfo(item.FullPath);
+            if (!info.IsVolumeMountPoint)
+                return item;
+
+            return new FilePanelItem
+            {
+                Name = item.Name,
+                FullPath = item.FullPath,
+                SourceId = item.SourceId,
+                IsDirectory = item.IsDirectory,
+                Size = item.Size,
+                LastWriteTime = item.LastWriteTime,
+                Attributes = item.Attributes,
+                IsParentDirectory = item.IsParentDirectory,
+                IsVolumeMountPoint = true,
+                MountedVolumeName = info.VolumeName,
+                MountedVolumePath = info.VolumePath,
+            };
+        }
+        catch
+        {
+            return item;
+        }
     }
 }
