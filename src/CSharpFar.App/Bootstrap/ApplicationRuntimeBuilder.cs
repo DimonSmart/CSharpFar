@@ -21,7 +21,8 @@ internal static class ApplicationRuntimeBuilder
         ApplicationServiceCallbacks callbacks,
         PanelAutoRefreshService autoRefresh,
         QuickViewDirectorySizeController quickViewDirectorySize,
-        FileUsagePanelController fileUsagePanel)
+        FileUsagePanelController fileUsagePanel,
+        PanelDirectorySizeCoordinator directorySizes)
     {
         return new ApplicationRuntime(
             composition,
@@ -37,7 +38,12 @@ internal static class ApplicationRuntimeBuilder
                 RestoreTerminal = () => callbacks.RestoreTerminal(),
                 ResetWaitToken = autoRefresh.ResetWaitToken,
                 ProcessPendingRefreshes = autoRefresh.ProcessPendingRefreshes,
-                DisposeRuntimeState = () => { quickViewDirectorySize.Dispose(); fileUsagePanel.Dispose(); },
+                DisposeRuntimeState = () =>
+                {
+                    directorySizes.Dispose();
+                    quickViewDirectorySize.Dispose();
+                    fileUsagePanel.Dispose();
+                },
                 HandleApplicationInput = packet => callbacks.HandleApplicationInput(packet),
                 IsPanelsMode = () => session.App.WorkspaceMode == ApplicationWorkspaceMode.Panels,
                 TryTakeMenuCommand = pendingMenuCommands.TryTake,
