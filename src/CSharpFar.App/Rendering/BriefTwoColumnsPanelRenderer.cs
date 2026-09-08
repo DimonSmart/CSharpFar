@@ -1,3 +1,4 @@
+using CSharpFar.App.Panels;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Highlighting;
@@ -10,7 +11,6 @@ namespace CSharpFar.App.Rendering;
 /// Far Manager-style two-column brief view.
 /// Items fill the first column top-to-bottom, then the second column.
 /// No size column; directories are not marked with &lt;DIR&gt;.
-/// File name cell colors are overridden by the highlight service; the separator is not.
 /// </summary>
 public sealed class BriefTwoColumnsPanelRenderer
 {
@@ -19,6 +19,7 @@ public sealed class BriefTwoColumnsPanelRenderer
     private readonly IFileHighlightService? _highlight;
     private readonly AppSettings.PanelOptionsSettings? _options;
     private readonly Func<HoverMarqueeRegistration, string>? _renderHoverMarquee;
+    private readonly Func<FilePanelItem, PanelDirectorySizePresentation?>? _directorySize;
 
     public BriefTwoColumnsPanelRenderer(
         IUiCanvas screen,
@@ -26,21 +27,29 @@ public sealed class BriefTwoColumnsPanelRenderer
         IFileHighlightService? highlight = null,
         AppSettings.PanelOptionsSettings? options = null,
         Func<HoverMarqueeRegistration, string>? renderHoverMarquee = null)
+        : this(screen, palette, highlight, options, null, renderHoverMarquee)
+    {
+    }
+
+    internal BriefTwoColumnsPanelRenderer(
+        IUiCanvas screen,
+        CSharpFarPalette palette,
+        IFileHighlightService? highlight,
+        AppSettings.PanelOptionsSettings? options,
+        Func<FilePanelItem, PanelDirectorySizePresentation?>? directorySize,
+        Func<HoverMarqueeRegistration, string>? renderHoverMarquee)
     {
         _screen = screen;
         _palette = palette;
         _highlight = highlight;
         _options = options;
+        _directorySize = directorySize;
         _renderHoverMarquee = renderHoverMarquee;
     }
 
-    /// <summary>
-    /// Total number of visible items (both columns combined).
-    /// </summary>
     public static int VisibleRows(Rect bounds, AppSettings.PanelOptionsSettings? options = null) =>
         2 * RowsPerColumn(bounds, options);
 
-    /// <summary>Number of visible item rows in one visual column.</summary>
     public static int RowsPerColumn(Rect bounds, AppSettings.PanelOptionsSettings? options = null) =>
         Math.Max(0, bounds.Height - 3 - PanelStatusRenderer.GetStatusRowCount(options));
 
@@ -57,16 +66,14 @@ public sealed class BriefTwoColumnsPanelRenderer
         var dirStyle = new CellStyle(p.DirectoryFg, p.PanelBackground);
         var selStyle = new CellStyle(p.Ui.SelectedFg, p.Ui.SelectedBg);
 
-        // Fill + border
         _screen.FillRegion(bounds, fill);
         _screen.DrawDoubleBox(bounds, border);
-
         PanelTitleRenderer.Render(_screen, bounds, state, isActive, p);
 
         if (state.LoadError is not null)
         {
             PanelErrorRenderer.Render(_screen, bounds, state, PanelViewMode.BriefTwoColumns, p, _options);
-            new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options);
+            new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options, _directorySize);
             RenderStatusSeparatorJoin(bounds, Math.Max(0, (bounds.Width - 2) / 2), border);
             Rect? retry = PanelErrorRenderer.TryGetRetryBounds(
                     bounds,
@@ -90,9 +97,8 @@ public sealed class BriefTwoColumnsPanelRenderer
         int innerWidth = Math.Max(0, bounds.Width - 2);
         int sepOffset = innerWidth / 2;
         int col1Width = sepOffset;
-        int col2Width = innerWidth - sepOffset - 1; // -1 for │
+        int col2Width = innerWidth - sepOffset - 1;
 
-        // ── Column header row (Y+1) ───────────────────────────────────────────
         bool showSortLetter = _options == null || _options.ShowSortModeLetter;
         char? indicator = showSortLetter ? SortModeIndicator.For(state) : null;
 
@@ -103,7 +109,6 @@ public sealed class BriefTwoColumnsPanelRenderer
         _screen.WriteChar(bounds.X + 1 + sepOffset, headerY, '│', colHdr);
         _screen.Write(bounds.X + 1 + sepOffset + 1, headerY, h2, colHdr);
 
-        // ── Content rows ──────────────────────────────────────────────────────
         int contentTop = bounds.Y + 2;
         int rowsPerCol = RowsPerColumn(bounds, _options);
         int col1X = bounds.X + 1;
@@ -151,7 +156,7 @@ public sealed class BriefTwoColumnsPanelRenderer
                 state.ScrollOffset);
         }
 
-        new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options);
+        new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options, _directorySize);
         RenderStatusSeparatorJoin(bounds, sepOffset, border);
         return new ApplicationPanelFrame(
             side,
@@ -166,8 +171,6 @@ public sealed class BriefTwoColumnsPanelRenderer
 
     public void Render(Rect bounds, FilePanelState state, bool isActive) =>
         _ = Render(bounds, state, isActive, PanelSide.Left);
-
-    // ── helpers ───────────────────────────────────────────────────────────────
 
     private void RenderCell(
         int itemIdx, int x, int y, int width, PanelSide side, ApplicationPanelMarqueeField field,
@@ -263,7 +266,7 @@ public sealed class BriefTwoColumnsPanelRenderer
     {
         int separatorX = bounds.X + 1 + separatorOffset;
         int separatorY = PanelStatusRenderer.SeparatorRow(bounds, _options);
-        if (separatorY < 0) return;  // status hidden
+        if (separatorY < 0) return;
         if (separatorX <= bounds.X || separatorX >= bounds.Right - 1) return;
         if (separatorY <= bounds.Y || separatorY >= bounds.Bottom - 1) return;
 
