@@ -27,6 +27,7 @@ internal static class RenderingServicesFactory
         PanelQuickSearchController panelQuickSearch,
         PanelWorkspaceController panelWorkspace,
         PanelAutoRefreshService autoRefresh,
+        PanelDirectorySizeCoordinator directorySizes,
         DefaultFunctionKeyBindingProvider functionKeyBindingProvider,
         MenuLayoutService menuLayoutService,
         ApplicationServiceCallbacks callbacks,
@@ -38,7 +39,8 @@ internal static class RenderingServicesFactory
             () => session.App.Palette,
             controller,
             () => highlightService,
-            () => callbacks.PanelOptions());
+            () => callbacks.PanelOptions(),
+            directorySizes);
         var clockRenderer = new ClockRenderer(() => session.App.Palette);
         var functionKeyBarRenderer = new ApplicationFunctionKeyBarRenderer(
             functionKeyBindingProvider.GetBindings(),
