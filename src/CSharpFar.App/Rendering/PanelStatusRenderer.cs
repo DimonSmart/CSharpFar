@@ -1,3 +1,4 @@
+using CSharpFar.App.Panels;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
@@ -11,20 +12,14 @@ internal sealed class PanelStatusRenderer
 
     public PanelStatusRenderer(IUiCanvas screen) => _screen = screen;
 
-    /// <summary>
-    /// Number of status rows (separator + content) reserved at the bottom of the panel.
-    /// With null/default options returns 3, matching current behaviour.
-    /// </summary>
     public static int GetStatusRowCount(AppSettings.PanelOptionsSettings? options = null)
     {
         if (options != null && !options.ShowStatusLine) return 0;
 
-        int rows = 2; // separator + current item row
-
+        int rows = 2;
         bool showTotal = options == null || options.ShowFilesTotalInformation;
         bool showFree = options?.ShowFreeSize == true;
         if (showTotal || showFree) rows++;
-
         return rows;
     }
 
@@ -33,7 +28,8 @@ internal sealed class PanelStatusRenderer
         FilePanelState state,
         CellStyle style,
         CellStyle separatorStyle,
-        AppSettings.PanelOptionsSettings? options = null)
+        AppSettings.PanelOptionsSettings? options = null,
+        Func<FilePanelItem, PanelDirectorySizePresentation?>? directorySize = null)
     {
         int statusRowCount = GetStatusRowCount(options);
         if (statusRowCount == 0) return;
@@ -47,13 +43,12 @@ internal sealed class PanelStatusRenderer
         _screen.WriteChar(bounds.X, separatorY, '╟', separatorStyle);
         _screen.Write(x, separatorY, new string('─', innerWidth), separatorStyle);
         _screen.WriteChar(bounds.Right - 1, separatorY, '╢', separatorStyle);
-        WriteRow(x, itemY, innerWidth, FormatCurrentItem(state, innerWidth), style);
+        WriteRow(x, itemY, innerWidth, FormatCurrentItem(state, innerWidth, directorySize), style);
 
         if (statusRowCount >= 3)
             WriteRow(x, itemY + 1, innerWidth, FormatStatsRow(state, options), style);
     }
 
-    /// <summary>Y coordinate of the separator row, or -1 if status is hidden.</summary>
     internal static int SeparatorRow(Rect bounds, AppSettings.PanelOptionsSettings? options = null)
     {
         int count = GetStatusRowCount(options);
@@ -66,14 +61,17 @@ internal sealed class PanelStatusRenderer
         _screen.Write(x, y, row, style);
     }
 
-    internal static string FormatCurrentItem(FilePanelState state, int width)
+    internal static string FormatCurrentItem(
+        FilePanelState state,
+        int width,
+        Func<FilePanelItem, PanelDirectorySizePresentation?>? directorySize = null)
     {
         if (state.CursorIndex < 0 || state.CursorIndex >= state.Items.Count)
             return string.Empty;
 
         var item = state.Items[state.CursorIndex];
         string kind = item.IsParentDirectory ? "Up"
-                    : item.IsDirectory ? "<DIR>"
+                    : item.IsDirectory ? FormatDirectorySize(item, directorySize)
                     : FormatSize(item.Size ?? 0);
         string stamp = FormatTimestamp(item.LastWriteTime);
 
@@ -84,6 +82,21 @@ internal sealed class PanelStatusRenderer
         string name = Truncate(itemName, nameWidth).PadRight(nameWidth);
 
         return $"{name} {kind.PadLeft(kindWidth)} {stamp}";
+    }
+
+    private static string FormatDirectorySize(
+        FilePanelItem item,
+        Func<FilePanelItem, PanelDirectorySizePresentation?>? resolver)
+    {
+        PanelDirectorySizePresentation? presentation = resolver?.Invoke(item);
+        if (presentation is not { } value)
+            return "<DIR>";
+
+        if (value.DisplaySize is not { } size)
+            return value.IsInProgress ? "…" : "<DIR>";
+
+        string formatted = FormatSize(size);
+        return value.IsInProgress ? formatted + "…" : formatted;
     }
 
     private static string FormatStatsRow(FilePanelState state, AppSettings.PanelOptionsSettings? options)
