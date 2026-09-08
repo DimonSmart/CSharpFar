@@ -16,17 +16,20 @@ internal sealed class ApplicationPanelWorkspaceRenderer
     private readonly PanelController _controller;
     private readonly Func<IFileHighlightService?> _highlightService;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
+    private readonly PanelDirectorySizeCoordinator? _directorySizes;
 
     public ApplicationPanelWorkspaceRenderer(
         Func<CSharpFarPalette> palette,
         PanelController controller,
         Func<IFileHighlightService?> highlightService,
-        Func<AppSettingsAlias.PanelOptionsSettings> panelOptions)
+        Func<AppSettingsAlias.PanelOptionsSettings> panelOptions,
+        PanelDirectorySizeCoordinator? directorySizes = null)
     {
         _palette = palette;
         _controller = controller;
         _highlightService = highlightService;
         _panelOptions = panelOptions;
+        _directorySizes = directorySizes;
     }
 
     public ApplicationPanelWorkspaceFrame Render(
@@ -48,13 +51,23 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         RoutedScrollableList<DirectoryChange>? recentChanges,
         Func<HoverMarqueeRegistration, string>? renderHoverMarquee = null)
     {
+        // Reconciliation only invalidates ephemeral state; it never starts provider work.
+        _directorySizes?.Reconcile(PanelSide.Left, left);
+        _directorySizes?.Reconcile(PanelSide.Right, right);
+
         var bounds = ApplicationLayoutService.CalculatePanelWorkspaceBounds(size);
         int panelHeight = bounds.PanelHeight;
         var leftBounds = bounds.Left;
         var rightBounds = bounds.Right;
 
         var palette = _palette();
-        var panelRenderer = new PanelRenderer(canvas, palette, _highlightService(), _panelOptions(), renderHoverMarquee);
+        var panelRenderer = new PanelRenderer(
+            canvas,
+            palette,
+            _highlightService(),
+            _panelOptions(),
+            renderHoverMarquee,
+            (side, state, item) => _directorySizes?.GetPresentation(side, state, item));
         var quickViewRenderer = new QuickViewRenderer(canvas, palette);
         ApplicationPanelFrame? leftFrame = null;
         ApplicationPanelFrame? rightFrame = null;
