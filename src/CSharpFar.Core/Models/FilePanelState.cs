@@ -4,28 +4,30 @@ public sealed class FilePanelState
 {
     private PanelLocation _currentLocation = PanelLocation.Local(string.Empty);
 
+    internal event Action<PanelLocation, PanelLocation>? CurrentLocationChanged;
+
     public string CurrentDirectory
     {
         get => _currentLocation.SourcePath;
-        internal set => _currentLocation = PanelLocation.Local(value);
+        internal set => SetCurrentLocation(PanelLocation.Local(value));
     }
 
     public PanelLocation CurrentLocation
     {
         get => _currentLocation;
-        internal set => _currentLocation = value;
+        internal set => SetCurrentLocation(value);
     }
 
     public PanelSourceId SourceId
     {
         get => _currentLocation.SourceId;
-        internal set => _currentLocation = new PanelLocation(value, _currentLocation.SourcePath);
+        internal set => SetCurrentLocation(new PanelLocation(value, _currentLocation.SourcePath));
     }
 
     public string SourcePath
     {
         get => _currentLocation.SourcePath;
-        internal set => _currentLocation = new PanelLocation(_currentLocation.SourceId, value);
+        internal set => SetCurrentLocation(new PanelLocation(_currentLocation.SourceId, value));
     }
 
     public List<FilePanelItem> Items { get; } = new();
@@ -45,4 +47,14 @@ public sealed class FilePanelState
     public PanelContentKind ContentKind { get; internal set; } = PanelContentKind.Source;
     public SearchRequest? SearchRequest { get; set; }
     public bool SearchWasCancelled { get; set; }
+
+    private void SetCurrentLocation(PanelLocation value)
+    {
+        if (_currentLocation == value)
+            return;
+
+        PanelLocation previous = _currentLocation;
+        _currentLocation = value;
+        CurrentLocationChanged?.Invoke(previous, value);
+    }
 }
