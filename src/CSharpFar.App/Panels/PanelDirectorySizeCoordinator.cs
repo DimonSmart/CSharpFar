@@ -55,9 +55,6 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
         _right = right ?? throw new ArgumentNullException(nameof(right));
         _wakeInputLoop = wakeInputLoop ?? throw new ArgumentNullException(nameof(wakeInputLoop));
         _scanner = scanner ?? new DirectoryTreeSizeScanner();
-
-        _left.CurrentLocationChanged += OnLeftLocationChanged;
-        _right.CurrentLocationChanged += OnRightLocationChanged;
     }
 
     public bool CanCalculate(FilePanelState state, FilePanelItem? item)
@@ -91,7 +88,6 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
         HasCapability(source.Capabilities, PanelProviderCapabilities.Enumerate) &&
         state.Items.Any(item => CanCalculate(state, item));
 
-    /// <summary>Starts an initial calculation or explicit refresh. Pending/active work is never duplicated.</summary>
     public bool Calculate(PanelSide side, FilePanelState state, FilePanelItem item)
     {
         if (!CanCalculate(state, item))
@@ -112,7 +108,6 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
         return started;
     }
 
-    /// <summary>Calculates/refreshes all eligible immediate directories in the currently loaded source level.</summary>
     public int CalculateAll(PanelSide side, FilePanelState state)
     {
         if (!CanCalculateAll(state))
@@ -127,10 +122,7 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
             ReconcileNoLock(session, state);
             foreach (FilePanelItem item in state.Items)
             {
-                if (!CanCalculate(state, item))
-                    continue;
-
-                if (QueueOperationNoLock(session, item.SourcePath))
+                if (CanCalculate(state, item) && QueueOperationNoLock(session, item.SourcePath))
                     started++;
             }
         }
@@ -140,9 +132,6 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
         return started;
     }
 
-    /// <summary>
-    /// Reconciles same-location refreshes. Existing identities survive reorder/reload; removed/renamed identities do not.
-    /// </summary>
     public void Reconcile(PanelSide side, FilePanelState state)
     {
         bool changed = false;
@@ -157,10 +146,9 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
             }
             else if (_sessions.TryGetValue(side, out PanelDirectorySizeSession? session))
             {
-                if (!SessionMatchesStateNoLock(session, state))
-                    changed = InvalidateSideNoLock(side);
-                else
-                    changed = ReconcileNoLock(session, state);
+                changed = !SessionMatchesStateNoLock(session, state)
+                    ? InvalidateSideNoLock(side)
+                    : ReconcileNoLock(session, state);
             }
         }
 
@@ -282,8 +270,15 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
 
             lock (_gate)
             {
-                if (_disposed || !IsCurrentSessionNoLock(session) || session.Cancellation.IsCancellationRequested)
+                if (_disposed || session.Cancellation.IsCancellationRequested)
                 {
+                    session.WorkerRunning = false;
+                    return;
+                }
+
+                if (!IsCurrentSessionNoLock(session))
+                {
+                    InvalidateRegisteredSessionNoLock(session);
                     session.WorkerRunning = false;
                     return;
                 }
@@ -305,7 +300,10 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
                 lock (_gate)
                 {
                     if (!TryGetCurrentOperationNoLock(session, operation, out Entry? entry))
+                    {
+                        InvalidateRegisteredSessionNoLock(session);
                         continue;
+                    }
                     entry.State = PanelDirectorySizeState.Calculating;
                 }
                 _wakeInputLoop();
@@ -319,7 +317,6 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
             }
             catch (OperationCanceledException)
             {
-                // Location changes and same-location reconciliation intentionally cancel work silently.
             }
             catch (Exception ex)
             {
@@ -379,6 +376,10 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
                 entry.Errors = progress.Errors;
                 accepted = true;
             }
+            else
+            {
+                InvalidateRegisteredSessionNoLock(session);
+            }
         }
 
         if (accepted)
@@ -394,7 +395,10 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
         lock (_gate)
         {
             if (!TryGetCurrentOperationNoLock(session, operation, out Entry? entry))
+            {
+                InvalidateRegisteredSessionNoLock(session);
                 return;
+            }
 
             entry.Errors = result.Errors;
             entry.CurrentPartialSize = null;
@@ -514,31 +518,18 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
         return true;
     }
 
-    private void OnLeftLocationChanged(PanelLocation _, PanelLocation current) =>
-        OnLocationChanged(PanelSide.Left, current);
-
-    private void OnRightLocationChanged(PanelLocation _, PanelLocation current) =>
-        OnLocationChanged(PanelSide.Right, current);
-
-    private void OnLocationChanged(PanelSide side, PanelLocation current)
-    {
-        bool changed = false;
-        lock (_gate)
-        {
-            if (_disposed || !_sessions.TryGetValue(side, out PanelDirectorySizeSession? session))
-                return;
-
-            if (!LocationsEqual(session.Source, session.Location, current))
-                changed = InvalidateSideNoLock(side);
-        }
-
-        if (changed)
-            _wakeInputLoop();
-    }
-
     private bool SessionMatchesStateNoLock(PanelDirectorySizeSession session, FilePanelState state) =>
         state.ContentKind == PanelContentKind.Source &&
         LocationsEqual(session.Source, session.Location, state.CurrentLocation);
+
+    private bool IsCurrentSessionNoLock(PanelDirectorySizeSession session) =>
+        _sessions.TryGetValue(session.Side, out PanelDirectorySizeSession? current) &&
+        ReferenceEquals(current, session) &&
+        current.SessionId == session.SessionId &&
+        SessionMatchesStateNoLock(session, StateFor(session.Side));
+
+    private FilePanelState StateFor(PanelSide side) =>
+        side == PanelSide.Left ? _left : _right;
 
     private static bool LocationsEqual(
         IFilePanelSource source,
@@ -559,6 +550,16 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
         }
     }
 
+    private void InvalidateRegisteredSessionNoLock(PanelDirectorySizeSession session)
+    {
+        if (_sessions.TryGetValue(session.Side, out PanelDirectorySizeSession? registered) &&
+            ReferenceEquals(registered, session) &&
+            !SessionMatchesStateNoLock(session, StateFor(session.Side)))
+        {
+            InvalidateSideNoLock(session.Side);
+        }
+    }
+
     private bool InvalidateSideNoLock(PanelSide side)
     {
         if (!_sessions.Remove(side, out PanelDirectorySizeSession? session))
@@ -572,14 +573,8 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
             entry.OperationCancellation?.Dispose();
         }
         session.Entries.Clear();
-        session.Cancellation.Dispose();
         return true;
     }
-
-    private bool IsCurrentSessionNoLock(PanelDirectorySizeSession session) =>
-        _sessions.TryGetValue(session.Side, out PanelDirectorySizeSession? current) &&
-        ReferenceEquals(current, session) &&
-        current.SessionId == session.SessionId;
 
     private SemaphoreSlim GetProviderGate(PanelSourceId sourceId)
     {
@@ -612,12 +607,8 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
                 return;
 
             _disposed = true;
-            _left.CurrentLocationChanged -= OnLeftLocationChanged;
-            _right.CurrentLocationChanged -= OnRightLocationChanged;
             InvalidateSideNoLock(PanelSide.Left);
             InvalidateSideNoLock(PanelSide.Right);
-            foreach (SemaphoreSlim providerGate in _providerGates.Values)
-                providerGate.Dispose();
             _providerGates.Clear();
         }
     }
