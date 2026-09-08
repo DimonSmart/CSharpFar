@@ -1,0 +1,57 @@
+name: Panel directory size EOL normalization
+
+on:
+  push:
+    branches:
+      - feature/panel-directory-sizes
+
+permissions:
+  contents: write
+
+jobs:
+  normalize:
+    if: github.actor != 'github-actions[bot]' && contains(github.event.head_commit.message, 'Normalize feature EOL')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Restore original CRLF files
+        shell: python
+        run: |
+          from pathlib import Path
+
+          paths = [
+              'src/CSharpFar.App/Bootstrap/ApplicationRuntimeBuilder.cs',
+              'src/CSharpFar.App/Bootstrap/ApplicationServicesBuilder.cs',
+              'src/CSharpFar.App/Bootstrap/CommandServicesFactory.cs',
+              'src/CSharpFar.App/Bootstrap/RenderingServicesFactory.cs',
+              'src/CSharpFar.App/Rendering/ApplicationPanelWorkspaceRenderer.cs',
+              'src/CSharpFar.App/Rendering/BriefTwoColumnsPanelRenderer.cs',
+              'src/CSharpFar.App/Rendering/PanelRenderer.cs',
+              'src/CSharpFar.App/Viewer/DirectorySizeCalculator.cs',
+              'src/CSharpFar.FileSystem/LocalFilePanelSource.cs',
+          ]
+          for value in paths:
+              path = Path(value)
+              data = path.read_bytes().replace(b'\r\n', b'\n').replace(b'\n', b'\r\n')
+              path.write_bytes(data)
+
+      - name: Commit EOL normalization
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/CSharpFar.App/Bootstrap/ApplicationRuntimeBuilder.cs \
+                  src/CSharpFar.App/Bootstrap/ApplicationServicesBuilder.cs \
+                  src/CSharpFar.App/Bootstrap/CommandServicesFactory.cs \
+                  src/CSharpFar.App/Bootstrap/RenderingServicesFactory.cs \
+                  src/CSharpFar.App/Rendering/ApplicationPanelWorkspaceRenderer.cs \
+                  src/CSharpFar.App/Rendering/BriefTwoColumnsPanelRenderer.cs \
+                  src/CSharpFar.App/Rendering/PanelRenderer.cs \
+                  src/CSharpFar.App/Viewer/DirectorySizeCalculator.cs \
+                  src/CSharpFar.FileSystem/LocalFilePanelSource.cs
+          git diff --cached --quiet && exit 0
+          git commit -m "Restore original line endings in touched files"
+          git push origin HEAD:feature/panel-directory-sizes
