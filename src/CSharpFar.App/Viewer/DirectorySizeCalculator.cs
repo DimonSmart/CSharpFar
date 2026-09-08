@@ -1,3 +1,6 @@
+using CSharpFar.Core.Abstractions;
+using CSharpFar.FileSystem;
+
 namespace CSharpFar.App.Viewer;
 
 internal enum DirectoryScanProgressMode
@@ -18,30 +21,39 @@ internal interface IDirectorySizeCalculator : IDisposable
 }
 
 /// <summary>
-/// Calculates total size of a directory tree asynchronously.
-/// A new calculation cancels the previous one.
-/// <para>
-/// <see cref="Progress"/> fires at most once per <see cref="ThrottleMs"/> milliseconds with
-/// intermediate results so the UI can show live progress.
-/// <see cref="Completed"/> fires once with the final result (including all errors).
+/// Quick View-specific adapter over <see cref="DirectoryTreeSizeScanner"/>.
+/// A new calculation cancels the previous one; the reusable scanner itself has no such policy.
 /// Both events are raised on a thread-pool thread; callers must marshal to the UI themselves.
-/// </para>
 /// </summary>
 internal sealed class DirectorySizeCalculator : IDirectorySizeCalculator
 {
-    public const int ThrottleMs = 300;
-    private readonly int _throttleMs;
+    public const int ThrottleMs = DirectoryTreeSizeScanner.DefaultThrottleMs;
 
-    /// <summary>Intermediate progress update (throttled).</summary>
+    private readonly IFilePanelSource _source;
+    private readonly IDirectoryTreeSizeScanner _scanner;
+    private CancellationTokenSource _cts = new();
+    private long _nextOperationId;
+
+    public DirectorySizeCalculator(int throttleMs = ThrottleMs)
+        : this(
+            new LocalFilePanelSource(new FileSystemService()),
+            new DirectoryTreeSizeScanner(throttleMs))
+    {
+    }
+
+    internal DirectorySizeCalculator(
+        IFilePanelSource source,
+        IDirectoryTreeSizeScanner scanner)
+    {
+        _source = source;
+        _scanner = scanner;
+    }
+
+    /// <summary>Intermediate progress update (throttled by the scanner).</summary>
     public event Action<DirectoryScanUpdate>? Progress;
 
     /// <summary>Final result when the scan is complete.</summary>
     public event Action<DirectoryScanUpdate>? Completed;
-
-    private CancellationTokenSource _cts = new();
-    private long _nextOperationId;
-
-    internal DirectorySizeCalculator(int throttleMs = ThrottleMs) => _throttleMs = throttleMs;
 
     public long Start(string path, DirectoryScanProgressMode progressMode, Action<long>? operationStarted = null)
     {
@@ -52,7 +64,7 @@ internal sealed class DirectorySizeCalculator : IDirectorySizeCalculator
         var token = _cts.Token;
         long operationId = Interlocked.Increment(ref _nextOperationId);
         operationStarted?.Invoke(operationId);
-        Task.Run(() => Calculate(operationId, path, progressMode, token), token);
+        _ = Task.Run(() => Calculate(operationId, path, progressMode, token), token);
         return operationId;
     }
 
@@ -63,54 +75,35 @@ internal sealed class DirectorySizeCalculator : IDirectorySizeCalculator
         old.Dispose();
     }
 
-    private void Calculate(long operationId, string path, DirectoryScanProgressMode progressMode, CancellationToken token)
+    private void Calculate(
+        long operationId,
+        string path,
+        DirectoryScanProgressMode progressMode,
+        CancellationToken token)
     {
         try
         {
-            long total = 0;
-            var errors = new List<string>();
-            var stack = new Stack<string>();
-            stack.Push(path);
+            Action<DirectoryTreeSizeProgress>? progress = progressMode == DirectoryScanProgressMode.ReportProgress
+                ? value => Progress?.Invoke(new DirectoryScanUpdate(
+                    operationId,
+                    path,
+                    new DirectorySizeState(value.Size, false, value.Errors)))
+                : null;
 
-            long lastProgressTick = Environment.TickCount64;
+            DirectoryTreeSizeScanResult result = _scanner.Scan(_source, path, progress, token);
+            if (token.IsCancellationRequested)
+                return;
 
-            while (stack.Count > 0)
-            {
-                token.ThrowIfCancellationRequested();
-
-                string dir = stack.Pop();
-                try
-                {
-                    foreach (string file in Directory.GetFiles(dir))
-                    {
-                        token.ThrowIfCancellationRequested();
-                        try { total += new FileInfo(file).Length; }
-                        catch (Exception ex) { errors.Add($"{file}: {ex.Message}"); }
-                    }
-
-                    foreach (string sub in Directory.GetDirectories(dir))
-                        stack.Push(sub);
-                }
-                catch (UnauthorizedAccessException ex) { errors.Add($"{dir}: {ex.Message}"); }
-                catch (IOException ex) { errors.Add($"{dir}: {ex.Message}"); }
-
-                // Throttled progress
-                long now = Environment.TickCount64;
-                if (progressMode == DirectoryScanProgressMode.ReportProgress && now - lastProgressTick >= _throttleMs)
-                {
-                    lastProgressTick = now;
-                    var state = new DirectorySizeState(total, false, [.. errors]);
-                    Progress?.Invoke(new DirectoryScanUpdate(operationId, path, state));
-                }
-            }
-
-            if (!token.IsCancellationRequested)
-            {
-                var final = new DirectorySizeState(total, true, [.. errors]);
-                Completed?.Invoke(new DirectoryScanUpdate(operationId, path, final));
-            }
+            // Preserve the existing Quick View contract: completion is a final snapshot,
+            // and traversal errors are carried in DirectorySizeState.Errors.
+            Completed?.Invoke(new DirectoryScanUpdate(
+                operationId,
+                path,
+                new DirectorySizeState(result.Size, true, result.Errors)));
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     public void Dispose()
