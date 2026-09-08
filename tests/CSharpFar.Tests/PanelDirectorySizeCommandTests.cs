@@ -28,7 +28,7 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
     public void F3_DirectoryRequiresEnumerationNotOpenReadAndStartsBackgroundTraversal()
     {
         var source = new ControlledSource(PanelProviderCapabilities.Enumerate);
-        using var services = Services(source);
+        var services = Services(source);
         FilePanelState panel = PreparePanel(services, source, Dir(source, "/root/a"));
         source.Set("/root/a", File(source, "/root/a/file.bin", 12));
 
@@ -45,12 +45,12 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
     public void F3_FileStillRequiresOpenRead()
     {
         var enumerateOnly = new ControlledSource(PanelProviderCapabilities.Enumerate);
-        using var services = Services(enumerateOnly);
+        var services = Services(enumerateOnly);
         PreparePanel(services, enumerateOnly, File(enumerateOnly, "/root/file.bin", 10));
         Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.View, services.CommandContext));
 
         var readable = new ControlledSource(PanelProviderCapabilities.Enumerate | PanelProviderCapabilities.OpenRead);
-        using var readableServices = Services(readable);
+        var readableServices = Services(readable);
         PreparePanel(readableServices, readable, File(readable, "/root/file.bin", 10));
         Assert.True(readableServices.CommandRegistry.CanExecute(FunctionKeyCommandIds.View, readableServices.CommandContext));
     }
@@ -59,7 +59,7 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
     public void F3_ParentLinkAndMountDirectoryAreUnavailable()
     {
         var source = new ControlledSource(PanelProviderCapabilities.Enumerate);
-        using var services = Services(source);
+        var services = Services(source);
 
         var parent = new FilePanelItem
         {
@@ -84,7 +84,7 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
     public void RepeatedF3_DoesNotStartDuplicateScan()
     {
         var source = new ControlledSource(PanelProviderCapabilities.Enumerate) { BlockEnumeration = true };
-        using var services = Services(source);
+        var services = Services(source);
         PreparePanel(services, source, Dir(source, "/root/a"));
 
         services.CommandRegistry.Execute(FunctionKeyCommandIds.View, services.CommandContext);
@@ -100,7 +100,7 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
     public void ShiftF3_QueuesAllEligibleDirectoriesAndRepeatedBatchDoesNotDuplicate()
     {
         var source = new ControlledSource(PanelProviderCapabilities.Enumerate) { BlockFirstEnumeration = true };
-        using var services = Services(source);
+        var services = Services(source);
         PreparePanel(
             services,
             source,
@@ -129,7 +129,7 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
     public void ShiftF3_IsUnavailableForVirtualPanel()
     {
         var source = new ControlledSource(PanelProviderCapabilities.Enumerate);
-        using var services = Services(source);
+        var services = Services(source);
         FilePanelState panel = PreparePanel(services, source, Dir(source, "/root/a"));
         panel.ContentKind = PanelContentKind.Virtual;
 
