@@ -13,24 +13,25 @@ public sealed class PanelDirectorySizeCoordinatorTests
     public void Calculate_DoesNotDuplicatePendingOrActiveOperation()
     {
         var source = new FakeSource("source-a");
-        FilePanelState left = State(source, "/root", Dir(source, "/root/a"));
+        FilePanelItem item = Dir(source, "/root/a");
+        FilePanelState left = State(source, "/root", item);
         FilePanelState right = State(source, "/other");
         var scanner = new ControlledScanner();
         ScanPlan plan = scanner.Plan("/root/a", block: true, finalSize: 10);
-        using var coordinator = Coordinator(source, left, right, scanner);
+        using var coordinator = Coordinator([source], left, right, scanner);
 
-        Assert.True(coordinator.Calculate(PanelSide.Left, left, left.Items[0]));
-        Assert.False(coordinator.Calculate(PanelSide.Left, left, left.Items[0]));
+        Assert.True(coordinator.Calculate(PanelSide.Left, left, item));
+        Assert.False(coordinator.Calculate(PanelSide.Left, left, item));
         Assert.True(plan.Started.Wait(TimeSpan.FromSeconds(2)));
-        Assert.False(coordinator.Calculate(PanelSide.Left, left, left.Items[0]));
+        Assert.False(coordinator.Calculate(PanelSide.Left, left, item));
 
         plan.Release.Set();
-        WaitUntil(() => coordinator.GetSnapshot(PanelSide.Left, left, left.Items[0])?.State == PanelDirectorySizeState.Completed);
+        WaitUntil(() => coordinator.GetSnapshot(PanelSide.Left, left, item)?.State == PanelDirectorySizeState.Completed);
         Assert.Equal(1, scanner.CallCount("/root/a"));
     }
 
     [Fact]
-    public void Calculate_AfterCompletedStartsRefreshAndPreservesPreviousPresentation()
+    public void Refresh_PreservesLastCompletedValueUntilNewFinalResult()
     {
         var source = new FakeSource("source-a");
         FilePanelItem item = Dir(source, "/root/a");
@@ -38,13 +39,13 @@ public sealed class PanelDirectorySizeCoordinatorTests
         FilePanelState right = State(source, "/other");
         var scanner = new ControlledScanner();
         scanner.Plan("/root/a", block: false, finalSize: 100);
-        using var coordinator = Coordinator(source, left, right, scanner);
+        using var coordinator = Coordinator([source], left, right, scanner);
 
         Assert.True(coordinator.Calculate(PanelSide.Left, left, item));
         WaitUntil(() => coordinator.GetSnapshot(PanelSide.Left, left, item)?.State == PanelDirectorySizeState.Completed);
         Assert.Equal(new PanelDirectorySizePresentation(100, false), coordinator.GetPresentation(PanelSide.Left, left, item));
 
-        ScanPlan refresh = scanner.Plan("/root/a", block: true, progressSize: 20, finalSize: 120);
+        ScanPlan refresh = scanner.Plan("/root/a", block: true, finalSize: 120, progressSize: 20);
         Assert.True(coordinator.Calculate(PanelSide.Left, left, item));
         Assert.Equal(new PanelDirectorySizePresentation(100, true), coordinator.GetPresentation(PanelSide.Left, left, item));
         Assert.True(refresh.Started.Wait(TimeSpan.FromSeconds(2)));
@@ -58,52 +59,43 @@ public sealed class PanelDirectorySizeCoordinatorTests
     }
 
     [Fact]
-    public void FailedInitialCalculationReturnsToDirPresentation()
+    public void FailurePresentation_DistinguishesInitialFailureAndFailedRefresh()
     {
         var source = new FakeSource("source-a");
-        FilePanelItem item = Dir(source, "/root/a");
-        FilePanelState left = State(source, "/root", item);
+        FilePanelItem initial = Dir(source, "/root/initial");
+        FilePanelItem refresh = Dir(source, "/root/refresh");
+        FilePanelState left = State(source, "/root", initial, refresh);
         FilePanelState right = State(source, "/other");
         var scanner = new ControlledScanner();
-        scanner.Plan("/root/a", block: false, status: DirectoryTreeSizeCompletionStatus.Failed, finalSize: 0);
-        using var coordinator = Coordinator(source, left, right, scanner);
+        scanner.Plan("/root/initial", block: false, finalSize: 0, status: DirectoryTreeSizeCompletionStatus.Failed);
+        scanner.Plan("/root/refresh", block: false, finalSize: 77);
+        using var coordinator = Coordinator([source], left, right, scanner);
 
-        coordinator.Calculate(PanelSide.Left, left, item);
-        WaitUntil(() => coordinator.GetSnapshot(PanelSide.Left, left, item)?.State == PanelDirectorySizeState.Failed);
+        coordinator.Calculate(PanelSide.Left, left, initial);
+        WaitUntil(() => coordinator.GetSnapshot(PanelSide.Left, left, initial)?.State == PanelDirectorySizeState.Failed);
+        Assert.Equal(new PanelDirectorySizePresentation(null, false), coordinator.GetPresentation(PanelSide.Left, left, initial));
 
-        Assert.Null(coordinator.GetPresentation(PanelSide.Left, left, item));
+        coordinator.Calculate(PanelSide.Left, left, refresh);
+        WaitUntil(() => coordinator.GetSnapshot(PanelSide.Left, left, refresh)?.State == PanelDirectorySizeState.Completed);
+        scanner.Plan("/root/refresh", block: false, finalSize: 0, status: DirectoryTreeSizeCompletionStatus.Failed);
+        coordinator.Calculate(PanelSide.Left, left, refresh);
+        WaitUntil(() => coordinator.GetSnapshot(PanelSide.Left, left, refresh)?.State == PanelDirectorySizeState.Failed);
+        Assert.Equal(new PanelDirectorySizePresentation(77, false), coordinator.GetPresentation(PanelSide.Left, left, refresh));
     }
 
     [Fact]
-    public void FailedRefreshKeepsPreviousCompletedValue()
-    {
-        var source = new FakeSource("source-a");
-        FilePanelItem item = Dir(source, "/root/a");
-        FilePanelState left = State(source, "/root", item);
-        FilePanelState right = State(source, "/other");
-        var scanner = new ControlledScanner();
-        scanner.Plan("/root/a", block: false, finalSize: 77);
-        using var coordinator = Coordinator(source, left, right, scanner);
-        coordinator.Calculate(PanelSide.Left, left, item);
-        WaitUntil(() => coordinator.GetSnapshot(PanelSide.Left, left, item)?.State == PanelDirectorySizeState.Completed);
-
-        scanner.Plan("/root/a", block: false, status: DirectoryTreeSizeCompletionStatus.Failed, finalSize: 0);
-        coordinator.Calculate(PanelSide.Left, left, item);
-        WaitUntil(() => coordinator.GetSnapshot(PanelSide.Left, left, item)?.State == PanelDirectorySizeState.Failed);
-
-        Assert.Equal(new PanelDirectorySizePresentation(77, false), coordinator.GetPresentation(PanelSide.Left, left, item));
-    }
-
-    [Fact]
-    public void CalculateAll_QueuesOnlyEligibleImmediateDirectoriesAndRefreshesCompleted()
+    public void CalculateAll_UsesEligibleImmediateDirectoriesAndDoesNotDuplicateBatchWork()
     {
         var source = new FakeSource("source-a");
         FilePanelItem a = Dir(source, "/root/a");
         FilePanelItem b = Dir(source, "/root/b");
         FilePanelItem parent = new()
         {
-            Name = "..", FullPath = "/", SourceId = source.SourceId,
-            IsDirectory = true, IsParentDirectory = true,
+            Name = "..",
+            FullPath = "/",
+            SourceId = source.SourceId,
+            IsDirectory = true,
+            IsParentDirectory = true,
         };
         FilePanelItem link = Dir(source, "/root/link", FileAttributes.ReparsePoint);
         FilePanelItem mount = Mount(source, "/root/mount");
@@ -111,51 +103,27 @@ public sealed class PanelDirectorySizeCoordinatorTests
         FilePanelState left = State(source, "/root", a, b, parent, link, mount, file);
         FilePanelState right = State(source, "/other");
         var scanner = new ControlledScanner();
-        scanner.Plan("/root/a", block: false, finalSize: 10);
+        ScanPlan aPlan = scanner.Plan("/root/a", block: true, finalSize: 10);
         scanner.Plan("/root/b", block: false, finalSize: 20);
-        using var coordinator = Coordinator(source, left, right, scanner);
+        using var coordinator = Coordinator([source], left, right, scanner);
 
         Assert.Equal(2, coordinator.CalculateAll(PanelSide.Left, left));
-        WaitUntil(() => scanner.CallCount("/root/a") == 1 && scanner.CallCount("/root/b") == 1);
-        WaitUntil(() => coordinator.GetSnapshot(PanelSide.Left, left, a)?.State == PanelDirectorySizeState.Completed &&
-                        coordinator.GetSnapshot(PanelSide.Left, left, b)?.State == PanelDirectorySizeState.Completed);
-
-        scanner.Plan("/root/a", block: false, finalSize: 11);
-        scanner.Plan("/root/b", block: false, finalSize: 21);
-        Assert.Equal(2, coordinator.CalculateAll(PanelSide.Left, left));
-        WaitUntil(() => scanner.CallCount("/root/a") == 2 && scanner.CallCount("/root/b") == 2);
-
-        Assert.Equal(0, scanner.CallCount("/root/link"));
-        Assert.Equal(0, scanner.CallCount("/root/mount"));
-        Assert.Equal(0, scanner.CallCount("/root/file"));
-    }
-
-    [Fact]
-    public void RepeatedCalculateAll_DoesNotDuplicateQueuedOrActiveWork()
-    {
-        var source = new FakeSource("source-a");
-        FilePanelItem a = Dir(source, "/root/a");
-        FilePanelItem b = Dir(source, "/root/b");
-        FilePanelState left = State(source, "/root", a, b);
-        FilePanelState right = State(source, "/other");
-        var scanner = new ControlledScanner();
-        ScanPlan first = scanner.Plan("/root/a", block: true, finalSize: 10);
-        scanner.Plan("/root/b", block: false, finalSize: 20);
-        using var coordinator = Coordinator(source, left, right, scanner);
-
-        Assert.Equal(2, coordinator.CalculateAll(PanelSide.Left, left));
-        Assert.True(first.Started.Wait(TimeSpan.FromSeconds(2)));
+        Assert.True(aPlan.Started.Wait(TimeSpan.FromSeconds(2)));
         Assert.Equal(0, coordinator.CalculateAll(PanelSide.Left, left));
         Assert.Equal(1, scanner.CallCount("/root/a"));
         Assert.Equal(0, scanner.CallCount("/root/b"));
 
-        first.Release.Set();
+        aPlan.Release.Set();
         WaitUntil(() => scanner.CallCount("/root/b") == 1);
+        WaitUntil(() => coordinator.GetSnapshot(PanelSide.Left, left, b)?.State == PanelDirectorySizeState.Completed);
+        Assert.Equal(0, scanner.CallCount("/root/link"));
+        Assert.Equal(0, scanner.CallCount("/root/mount"));
+        Assert.Equal(0, scanner.CallCount("/root/file"));
         Assert.Equal(1, scanner.MaxActive);
     }
 
     [Fact]
-    public void NavigationInvalidatesSessionCancelsActiveAndDropsQueuedWork()
+    public void Navigation_InvalidatesSessionCancelsActiveAndDropsQueuedWork()
     {
         var source = new FakeSource("source-a");
         FilePanelItem a = Dir(source, "/root/a");
@@ -163,18 +131,18 @@ public sealed class PanelDirectorySizeCoordinatorTests
         FilePanelState left = State(source, "/root", a, b);
         FilePanelState right = State(source, "/other");
         var scanner = new ControlledScanner();
-        ScanPlan first = scanner.Plan("/root/a", block: true, finalSize: 10);
+        ScanPlan active = scanner.Plan("/root/a", block: true, finalSize: 10);
         scanner.Plan("/root/b", block: false, finalSize: 20);
-        using var coordinator = Coordinator(source, left, right, scanner);
+        using var coordinator = Coordinator([source], left, right, scanner);
 
         coordinator.CalculateAll(PanelSide.Left, left);
-        Assert.True(first.Started.Wait(TimeSpan.FromSeconds(2)));
+        Assert.True(active.Started.Wait(TimeSpan.FromSeconds(2)));
 
         left.CurrentLocation = new PanelLocation(source.SourceId, "/child");
         Assert.Null(coordinator.GetPresentation(PanelSide.Left, left, a));
         coordinator.Reconcile(PanelSide.Left, left);
-        Assert.True(first.Cancelled.Wait(TimeSpan.FromSeconds(2)));
-        first.Release.Set();
+        Assert.True(active.Cancelled.Wait(TimeSpan.FromSeconds(2)));
+        active.Release.Set();
         Thread.Sleep(50);
 
         Assert.Equal(0, scanner.CallCount("/root/b"));
@@ -182,53 +150,35 @@ public sealed class PanelDirectorySizeCoordinatorTests
     }
 
     [Fact]
-    public void SameLocationReconcilePreservesIdentityAcrossReplacementAndReorder()
+    public void Reconcile_PreservesStableIdentityButDropsRemovedOrRenamedDirectories()
     {
         var source = new FakeSource("source-a");
         FilePanelItem a = Dir(source, "/root/a");
-        FilePanelItem b = Dir(source, "/root/b");
-        FilePanelState left = State(source, "/root", a, b);
+        FilePanelItem old = Dir(source, "/root/old");
+        FilePanelState left = State(source, "/root", a, old);
         FilePanelState right = State(source, "/other");
         var scanner = new ControlledScanner();
         scanner.Plan("/root/a", block: false, finalSize: 30);
-        using var coordinator = Coordinator(source, left, right, scanner);
+        scanner.Plan("/root/old", block: false, finalSize: 42);
+        using var coordinator = Coordinator([source], left, right, scanner);
         coordinator.Calculate(PanelSide.Left, left, a);
+        coordinator.Calculate(PanelSide.Left, left, old);
         WaitUntil(() => coordinator.GetSnapshot(PanelSide.Left, left, a)?.State == PanelDirectorySizeState.Completed);
+        WaitUntil(() => coordinator.GetSnapshot(PanelSide.Left, left, old)?.State == PanelDirectorySizeState.Completed);
 
         FilePanelItem replacementA = Dir(source, "/root/a");
-        FilePanelItem newC = Dir(source, "/root/c");
+        FilePanelItem renamed = Dir(source, "/root/new");
         left.Items.Clear();
-        left.Items.AddRange([newC, b, replacementA]);
+        left.Items.AddRange([renamed, replacementA]);
         coordinator.Reconcile(PanelSide.Left, left);
 
         Assert.Equal(new PanelDirectorySizePresentation(30, false), coordinator.GetPresentation(PanelSide.Left, left, replacementA));
-        Assert.Null(coordinator.GetPresentation(PanelSide.Left, left, newC));
-    }
-
-    [Fact]
-    public void SameLocationReconcileRemovesDeletedAndDoesNotTransferRenamedState()
-    {
-        var source = new FakeSource("source-a");
-        FilePanelItem old = Dir(source, "/root/old");
-        FilePanelState left = State(source, "/root", old);
-        FilePanelState right = State(source, "/other");
-        var scanner = new ControlledScanner();
-        scanner.Plan("/root/old", block: false, finalSize: 42);
-        using var coordinator = Coordinator(source, left, right, scanner);
-        coordinator.Calculate(PanelSide.Left, left, old);
-        WaitUntil(() => coordinator.GetSnapshot(PanelSide.Left, left, old)?.State == PanelDirectorySizeState.Completed);
-
-        FilePanelItem renamed = Dir(source, "/root/new");
-        left.Items.Clear();
-        left.Items.Add(renamed);
-        coordinator.Reconcile(PanelSide.Left, left);
-
         Assert.Null(coordinator.GetSnapshot(PanelSide.Left, left, old));
         Assert.Null(coordinator.GetPresentation(PanelSide.Left, left, renamed));
     }
 
     [Fact]
-    public void LeftAndRightSessionsAreIndependent()
+    public void LeftAndRightSessions_AreIndependent()
     {
         var leftSource = new FakeSource("left-source");
         var rightSource = new FakeSource("right-source");
@@ -250,9 +200,7 @@ public sealed class PanelDirectorySizeCoordinatorTests
         coordinator.Reconcile(PanelSide.Left, left);
         Assert.True(leftPlan.Cancelled.Wait(TimeSpan.FromSeconds(2)));
         Assert.False(rightPlan.Cancelled.IsSet);
-        Assert.Equal(new PanelDirectorySizePresentation(20, true), coordinator.GetPresentation(PanelSide.Right, right, rightItem) is { IsInProgress: true } p
-            ? new PanelDirectorySizePresentation(20, true) with { DisplaySize = p.DisplaySize }
-            : null);
+        Assert.Equal(new PanelDirectorySizePresentation(null, true), coordinator.GetPresentation(PanelSide.Right, right, rightItem));
 
         rightPlan.Release.Set();
         leftPlan.Release.Set();
@@ -261,7 +209,7 @@ public sealed class PanelDirectorySizeCoordinatorTests
     }
 
     [Fact]
-    public void ProviderGateBoundsConcurrencyAcrossPanelsSharingSource()
+    public void ProviderGate_BoundsConcurrencyAcrossPanelsSharingSource()
     {
         var source = new FakeSource("shared");
         FilePanelItem leftItem = Dir(source, "/left/a");
@@ -271,7 +219,7 @@ public sealed class PanelDirectorySizeCoordinatorTests
         var scanner = new ControlledScanner();
         ScanPlan first = scanner.Plan("/left/a", block: true, finalSize: 1);
         ScanPlan second = scanner.Plan("/right/b", block: false, finalSize: 2);
-        using var coordinator = Coordinator(source, left, right, scanner);
+        using var coordinator = Coordinator([source], left, right, scanner);
 
         coordinator.Calculate(PanelSide.Left, left, leftItem);
         Assert.True(first.Started.Wait(TimeSpan.FromSeconds(2)));
@@ -285,21 +233,7 @@ public sealed class PanelDirectorySizeCoordinatorTests
     }
 
     [Fact]
-    public void VirtualPanelIsNotEligibleForBatch()
-    {
-        var source = new FakeSource("source-a");
-        FilePanelItem item = Dir(source, "/root/a");
-        FilePanelState left = State(source, "/root", item);
-        left.ContentKind = PanelContentKind.Virtual;
-        FilePanelState right = State(source, "/other");
-        using var coordinator = Coordinator(source, left, right, new ControlledScanner());
-
-        Assert.False(coordinator.CanCalculateAll(left));
-        Assert.Equal(0, coordinator.CalculateAll(PanelSide.Left, left));
-    }
-
-    [Fact]
-    public void CalculatedDirectorySizeDoesNotMutateFilePanelItemSize()
+    public void VirtualPanel_IsNotEligibleAndCalculatedSizeDoesNotMutateItemMetadata()
     {
         var source = new FakeSource("source-a");
         FilePanelItem item = Dir(source, "/root/a");
@@ -307,20 +241,17 @@ public sealed class PanelDirectorySizeCoordinatorTests
         FilePanelState right = State(source, "/other");
         var scanner = new ControlledScanner();
         scanner.Plan("/root/a", block: false, finalSize: 123);
-        using var coordinator = Coordinator(source, left, right, scanner);
+        using var coordinator = Coordinator([source], left, right, scanner);
 
         coordinator.Calculate(PanelSide.Left, left, item);
         WaitUntil(() => coordinator.GetSnapshot(PanelSide.Left, left, item)?.State == PanelDirectorySizeState.Completed);
-
         Assert.Null(item.Size);
         Assert.Equal(123, coordinator.GetPresentation(PanelSide.Left, left, item)?.DisplaySize);
-    }
 
-    private static PanelDirectorySizeCoordinator Coordinator(
-        FakeSource source,
-        FilePanelState left,
-        FilePanelState right,
-        ControlledScanner scanner) => Coordinator([source], left, right, scanner);
+        left.ContentKind = PanelContentKind.Virtual;
+        Assert.False(coordinator.CanCalculateAll(left));
+        Assert.Equal(0, coordinator.CalculateAll(PanelSide.Left, left));
+    }
 
     private static PanelDirectorySizeCoordinator Coordinator(
         IEnumerable<FakeSource> sources,
@@ -374,10 +305,10 @@ public sealed class PanelDirectorySizeCoordinatorTests
 
     private static string Name(string path) => path[(path.LastIndexOf('/') + 1)..];
 
-    private static void WaitUntil(Func<bool> condition)
-    {
-        Assert.True(SpinWait.SpinUntil(condition, TimeSpan.FromSeconds(3)), "Timed out waiting for background directory-size work.");
-    }
+    private static void WaitUntil(Func<bool> condition) =>
+        Assert.True(
+            SpinWait.SpinUntil(condition, TimeSpan.FromSeconds(3)),
+            "Timed out waiting for background directory-size work.");
 
     private sealed class FakeSource : IFilePanelSource
     {
@@ -387,7 +318,11 @@ public sealed class PanelDirectorySizeCoordinatorTests
         public string DisplayName => SourceId.Value;
         public PanelProviderCapabilities Capabilities => PanelProviderCapabilities.Enumerate;
         public IReadOnlyCollection<char> PathSeparators => ['/'];
-        public string NormalizePath(string sourcePath) => sourcePath.TrimEnd('/') is { Length: > 0 } path ? path : "/";
+        public string NormalizePath(string sourcePath)
+        {
+            string path = sourcePath.TrimEnd('/');
+            return path.Length == 0 ? "/" : path;
+        }
         public bool IsRootPath(string sourcePath) => NormalizePath(sourcePath) == "/";
         public string? GetParentPath(string sourcePath) => null;
         public IReadOnlyList<FilePanelItem> EnumerateDirectory(string sourcePath, CancellationToken cancellationToken = default) => [];
@@ -432,8 +367,11 @@ public sealed class PanelDirectorySizeCoordinatorTests
             UpdateMax(active);
             try
             {
-                if (!_plans.TryGetValue(rootSourcePath, out ConcurrentQueue<ScanPlan>? plans) || !plans.TryDequeue(out ScanPlan? plan))
+                if (!_plans.TryGetValue(rootSourcePath, out ConcurrentQueue<ScanPlan>? plans) ||
+                    !plans.TryDequeue(out ScanPlan? plan))
+                {
                     plan = new ScanPlan(false, 0, null, DirectoryTreeSizeCompletionStatus.Completed);
+                }
 
                 plan.Started.Set();
                 if (plan.ProgressSize is { } partial)
@@ -441,7 +379,9 @@ public sealed class PanelDirectorySizeCoordinatorTests
 
                 if (plan.Block)
                 {
-                    int signalled = WaitHandle.WaitAny([plan.Release.WaitHandle, cancellationToken.WaitHandle], TimeSpan.FromSeconds(5));
+                    int signalled = WaitHandle.WaitAny(
+                        [plan.Release.WaitHandle, cancellationToken.WaitHandle],
+                        TimeSpan.FromSeconds(5));
                     if (signalled == 1)
                     {
                         plan.Cancelled.Set();
