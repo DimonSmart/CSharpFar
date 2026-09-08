@@ -26,8 +26,7 @@ internal sealed record PanelDirectorySizeEntrySnapshot(
     IReadOnlyList<string> Errors);
 
 /// <summary>
-/// Owns the ephemeral directory-size state of the left and right panels.
-/// Traversal is delegated to <see cref="IDirectoryTreeSizeScanner"/> and always runs on a bounded background worker.
+/// Owns temporary directory-size state and bounded scheduling for both file panels.
 /// </summary>
 internal sealed class PanelDirectorySizeCoordinator : IDisposable
 {
@@ -93,19 +92,19 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
         if (!CanCalculate(state, item))
             return false;
 
-        bool started;
+        bool queued;
         lock (_gate)
         {
-            if (_disposed || !TryEnsureSessionNoLock(side, state, out PanelDirectorySizeSession? session))
+            if (_disposed || !TryEnsureSessionNoLock(side, state, out PanelDirectorySizeSession session))
                 return false;
 
             ReconcileNoLock(session, state);
-            started = QueueOperationNoLock(session, item.SourcePath);
+            queued = QueueOperationNoLock(session, item.SourcePath);
         }
 
-        if (started)
+        if (queued)
             _wakeInputLoop();
-        return started;
+        return queued;
     }
 
     public int CalculateAll(PanelSide side, FilePanelState state)
@@ -113,23 +112,23 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
         if (!CanCalculateAll(state))
             return 0;
 
-        int started = 0;
+        int queued = 0;
         lock (_gate)
         {
-            if (_disposed || !TryEnsureSessionNoLock(side, state, out PanelDirectorySizeSession? session))
+            if (_disposed || !TryEnsureSessionNoLock(side, state, out PanelDirectorySizeSession session))
                 return 0;
 
             ReconcileNoLock(session, state);
             foreach (FilePanelItem item in state.Items)
             {
                 if (CanCalculate(state, item) && QueueOperationNoLock(session, item.SourcePath))
-                    started++;
+                    queued++;
             }
         }
 
-        if (started > 0)
+        if (queued > 0)
             _wakeInputLoop();
-        return started;
+        return queued;
     }
 
     public void Reconcile(PanelSide side, FilePanelState state)
@@ -146,9 +145,9 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
             }
             else if (_sessions.TryGetValue(side, out PanelDirectorySizeSession? session))
             {
-                changed = !SessionMatchesStateNoLock(session, state)
-                    ? InvalidateSideNoLock(side)
-                    : ReconcileNoLock(session, state);
+                changed = SessionMatchesStateNoLock(session, state)
+                    ? ReconcileNoLock(session, state)
+                    : InvalidateSideNoLock(side);
             }
         }
 
@@ -166,32 +165,33 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
 
         lock (_gate)
         {
-            if (_disposed ||
-                !_sessions.TryGetValue(side, out PanelDirectorySizeSession? session) ||
-                !SessionMatchesStateNoLock(session, state))
+            if (_disposed || !_sessions.TryGetValue(side, out PanelDirectorySizeSession? session))
+                return null;
+
+            if (!SessionMatchesStateNoLock(session, state))
+            {
+                InvalidateSideNoLock(side);
+                return null;
+            }
+
+            if (!TryNormalize(session.Source, item.SourcePath, out string path) ||
+                !session.Entries.TryGetValue(path, out Entry? entry))
             {
                 return null;
             }
 
-            string path;
-            try { path = session.Source.NormalizePath(item.SourcePath); }
-            catch { return null; }
-
-            if (!session.Entries.TryGetValue(path, out Entry? entry))
-                return null;
-
             return entry.State switch
             {
-                PanelDirectorySizeState.Pending or PanelDirectorySizeState.Calculating
-                    when entry.LastCompletedSize is { } last => new(last, true),
-                PanelDirectorySizeState.Calculating
-                    when entry.CurrentPartialSize is { } partial => new(partial, true),
-                PanelDirectorySizeState.Pending => new(null, true),
-                PanelDirectorySizeState.Completed or PanelDirectorySizeState.CompletedWithErrors
-                    when entry.LastCompletedSize is { } completed => new(completed, false),
-                PanelDirectorySizeState.Failed
-                    when entry.LastCompletedSize is { } previous => new(previous, false),
-                PanelDirectorySizeState.Failed => new(null, false),
+                PanelDirectorySizeState.Pending =>
+                    new PanelDirectorySizePresentation(entry.LastCompletedSize, true),
+                PanelDirectorySizeState.Calculating =>
+                    new PanelDirectorySizePresentation(
+                        entry.LastCompletedSize ?? entry.CurrentPartialSize,
+                        true),
+                PanelDirectorySizeState.Completed or PanelDirectorySizeState.CompletedWithErrors =>
+                    new PanelDirectorySizePresentation(entry.LastCompletedSize, false),
+                PanelDirectorySizeState.Failed =>
+                    new PanelDirectorySizePresentation(entry.LastCompletedSize, false),
                 _ => null,
             };
         }
@@ -206,31 +206,26 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
         {
             if (_disposed ||
                 !_sessions.TryGetValue(side, out PanelDirectorySizeSession? session) ||
-                !SessionMatchesStateNoLock(session, state))
+                !SessionMatchesStateNoLock(session, state) ||
+                !TryNormalize(session.Source, item.SourcePath, out string path) ||
+                !session.Entries.TryGetValue(path, out Entry? entry))
             {
                 return null;
             }
 
-            string path;
-            try { path = session.Source.NormalizePath(item.SourcePath); }
-            catch { return null; }
-
-            return session.Entries.TryGetValue(path, out Entry? entry)
-                ? new PanelDirectorySizeEntrySnapshot(
-                    entry.State,
-                    entry.LastCompletedSize,
-                    entry.CurrentPartialSize,
-                    entry.OperationId,
-                    entry.Errors)
-                : null;
+            return new PanelDirectorySizeEntrySnapshot(
+                entry.State,
+                entry.LastCompletedSize,
+                entry.CurrentPartialSize,
+                entry.OperationId,
+                entry.Errors);
         }
     }
 
     private bool QueueOperationNoLock(PanelDirectorySizeSession session, string sourcePath)
     {
-        string path;
-        try { path = session.Source.NormalizePath(sourcePath); }
-        catch { return false; }
+        if (!TryNormalize(session.Source, sourcePath, out string path))
+            return false;
 
         if (session.Entries.TryGetValue(path, out Entry? existing) &&
             existing.State is PanelDirectorySizeState.Pending or PanelDirectorySizeState.Calculating)
@@ -299,11 +294,12 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
 
                 lock (_gate)
                 {
-                    if (!TryGetCurrentOperationNoLock(session, operation, out Entry? entry))
+                    if (!TryGetCurrentOperationNoLock(session, operation, out Entry entry))
                     {
                         InvalidateRegisteredSessionNoLock(session);
                         continue;
                     }
+
                     entry.State = PanelDirectorySizeState.Calculating;
                 }
                 _wakeInputLoop();
@@ -369,7 +365,7 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
         bool accepted = false;
         lock (_gate)
         {
-            if (TryGetCurrentOperationNoLock(session, operation, out Entry? entry) &&
+            if (TryGetCurrentOperationNoLock(session, operation, out Entry entry) &&
                 entry.State == PanelDirectorySizeState.Calculating)
             {
                 entry.CurrentPartialSize = progress.Size;
@@ -394,7 +390,7 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
         bool accepted = false;
         lock (_gate)
         {
-            if (!TryGetCurrentOperationNoLock(session, operation, out Entry? entry))
+            if (!TryGetCurrentOperationNoLock(session, operation, out Entry entry))
             {
                 InvalidateRegisteredSessionNoLock(session);
                 return;
@@ -466,9 +462,8 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
             InvalidateSideNoLock(side);
         }
 
-        string normalizedLocation;
-        try { normalizedLocation = source.NormalizePath(state.SourcePath); }
-        catch { return false; }
+        if (!TryNormalize(source, state.SourcePath, out string normalizedLocation))
+            return false;
 
         session = new PanelDirectorySizeSession(
             Interlocked.Increment(ref _nextSessionId),
@@ -488,11 +483,13 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
             if (!CanCalculate(state, item))
                 continue;
 
-            try { present.Add(session.Source.NormalizePath(item.SourcePath)); }
-            catch { }
+            if (TryNormalize(session.Source, item.SourcePath, out string path))
+                present.Add(path);
         }
 
-        string[] removed = session.Entries.Keys.Where(path => !present.Contains(path)).ToArray();
+        string[] removed = session.Entries.Keys
+            .Where(path => !present.Contains(path))
+            .ToArray();
         if (removed.Length == 0)
             return false;
 
@@ -501,6 +498,7 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
         {
             if (!session.Entries.Remove(path, out Entry? entry))
                 continue;
+
             entry.OperationCancellation?.Cancel();
             entry.OperationCancellation?.Dispose();
         }
@@ -536,18 +534,10 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
         PanelLocation expected,
         PanelLocation actual)
     {
-        if (expected.SourceId != actual.SourceId)
+        if (expected.SourceId != actual.SourceId || !TryNormalize(source, actual.SourcePath, out string normalized))
             return false;
 
-        try
-        {
-            string normalized = source.NormalizePath(actual.SourcePath);
-            return PathComparer(actual.SourceId).Equals(expected.SourcePath, normalized);
-        }
-        catch
-        {
-            return false;
-        }
+        return PathComparer(actual.SourceId).Equals(expected.SourcePath, normalized);
     }
 
     private void InvalidateRegisteredSessionNoLock(PanelDirectorySizeSession session)
@@ -586,6 +576,20 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
                 _providerGates[sourceId] = providerGate;
             }
             return providerGate;
+        }
+    }
+
+    private static bool TryNormalize(IFilePanelSource source, string sourcePath, out string normalized)
+    {
+        try
+        {
+            normalized = source.NormalizePath(sourcePath);
+            return true;
+        }
+        catch
+        {
+            normalized = string.Empty;
+            return false;
         }
     }
 
