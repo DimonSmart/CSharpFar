@@ -1,12 +1,16 @@
+using CSharpFar.App.Panels;
+
 namespace CSharpFar.App.Commands;
 
 internal static class DefaultApplicationCommands
 {
-    public static IReadOnlyList<IApplicationCommand> Create() =>
+    public static IReadOnlyList<IApplicationCommand> Create(
+        PanelDirectorySizeCoordinator? directorySizes = null) =>
     [
         new HelpCommand(),
         new UserMenuCommand(),
-        new ViewFileCommand(),
+        new ViewFileCommand(directorySizes),
+        new CalculateDirectorySizesCommand(directorySizes),
         new EditFileCommand(),
         new OpenCreateFileCommand(),
         new CopyCommand(),
