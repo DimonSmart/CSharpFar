@@ -21,6 +21,9 @@ internal readonly record struct ListWithButtonsDialogLoopResult<TResult>(
 
 internal sealed class ListWithButtonsDialog<T>
 {
+    private const int ModalChromeHeight = 4;
+    private const int FooterHeight = 1;
+    private const int ListFooterGap = 1;
     private readonly ListView<T> _list;
     private readonly ScrollableFormDialog _form = new();
     private readonly ModalDialogRenderer _modalRenderer = new();
@@ -227,11 +230,14 @@ internal sealed class ListWithButtonsDialog<T>
     {
         int width = Math.Min(DialogWidth, Math.Max(MinDialogWidth, size.Width - 2));
         int targetListRows = Math.Min(MaxVisibleRows, Math.Max(1, _list.Count));
-        int height = Math.Min(targetListRows + 7, Math.Max(8, size.Height - 2));
+        int contentChromeHeight = ListDialogLayoutMetrics.VerticalContentChrome + ListFooterGap + FooterHeight;
+        int height = Math.Min(
+            targetListRows + ModalChromeHeight + contentChromeHeight,
+            Math.Max(ModalChromeHeight + contentChromeHeight + 1, size.Height - 2));
         ModalDialogRenderer.Layout modal = _modalRenderer.CalculateLayout(size, width, height);
-        VerticalLayoutSplit sections = UiLayout.SplitBottom(modal.ContentBounds, footerHeight: 1, gap: 1);
-        Rect listBounds = UiLayout.Inset(sections.Body, left: 2, top: 0, right: 2, bottom: 0);
-        return new ListWithButtonsLayout(modal, listBounds, sections.Footer);
+        Rect contentBounds = ListDialogLayoutMetrics.InsetContent(modal.ContentBounds);
+        VerticalLayoutSplit sections = UiLayout.SplitBottom(contentBounds, footerHeight: FooterHeight, gap: ListFooterGap);
+        return new ListWithButtonsLayout(modal, sections.Body, sections.Footer);
     }
 
     private readonly record struct ListWithButtonsLayout(ModalDialogRenderer.Layout Modal, Rect ListBounds, Rect FooterBounds);

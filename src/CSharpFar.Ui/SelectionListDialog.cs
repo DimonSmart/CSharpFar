@@ -13,6 +13,7 @@ internal sealed class SelectionListDialog<T>
 {
     private const int DefaultMaxVisibleRows = 15;
     private const int DefaultMinWidth = 20;
+    private const int BorderChrome = 2;
     private readonly ListView<T> _list;
     private readonly Func<T, string> _itemText;
     private readonly string _title;
@@ -136,7 +137,6 @@ internal sealed class SelectionListDialog<T>
     {
         using IDisposable appearanceScope = DialogStyles.UseAppearance(_appearance);
         var layout = frame.Layout;
-        var scrollState = frame.List.ItemCount > frame.List.ViewportRows ? new ScrollState { TotalItems = frame.List.ItemCount, ViewportItems = frame.List.ViewportRows, FirstVisibleIndex = frame.List.ScrollTop } : null;
         PopupRenderOptions renderOptions = _appearance == DialogAppearance.Popup
             ? MenuPopupOptions()
             : DialogStyles.PopupOptions;
@@ -147,37 +147,58 @@ internal sealed class SelectionListDialog<T>
             _title,
             DoubleBorder,
             renderOptions,
-            scrollState,
             (_, _) => _list.Render(screen, frame.List));
     }
 
     private SelectionListLayout CalculateLayout(ConsoleSize size)
     {
-        int itemWidth = _list.Count == 0 ? ConsoleTextMetrics.GetCellWidth(EmptyText ?? string.Empty) : _list.Items.Max(item => ConsoleTextMetrics.GetCellWidth(_itemText(item)));
-        int contentWidth = Math.Max(DefaultMinWidth, Math.Max(itemWidth, ConsoleTextMetrics.GetCellWidth(_title)) + 2);
-        int maxWidth = MaxWidth.HasValue ? Math.Min(MaxWidth.Value, size.Width) : size.Width - 2;
-        contentWidth = Math.Min(contentWidth, Math.Max(DefaultMinWidth, maxWidth - 2));
+        int desiredRows = Math.Min(
+            Math.Max(1, MaxVisibleRows),
+            Math.Max(1, _list.Count == 0 ? 1 : _list.Count));
+        int verticalChrome = BorderChrome + ListDialogLayoutMetrics.VerticalContentChrome;
+        int maxOuterHeight = MaxHeight.HasValue
+            ? Math.Min(Math.Max(0, MaxHeight.Value), size.Height)
+            : size.Height;
+        int availableRows = Math.Max(0, maxOuterHeight - verticalChrome);
+        int visibleRows = Math.Min(desiredRows, availableRows);
+        int height = Math.Min(maxOuterHeight, desiredRows + verticalChrome);
 
-        int maxRows = Math.Max(1, Math.Min(MaxVisibleRows, MaxHeight.GetValueOrDefault(size.Height) - 2));
-        int visibleRows = Math.Min(Math.Max(1, _list.Count == 0 ? 1 : _list.Count), Math.Max(1, Math.Min(maxRows, size.Height - 2)));
-        int width = Math.Min(size.Width, contentWidth + 2);
-        int height = Math.Min(size.Height, visibleRows + 2);
+        int itemWidth = _list.Count == 0
+            ? ConsoleTextMetrics.GetCellWidth(EmptyText ?? string.Empty)
+            : _list.Items.Max(item => ConsoleTextMetrics.GetCellWidth(_itemText(item)));
+        int textViewportWidth = Math.Max(
+            DefaultMinWidth,
+            Math.Max(itemWidth, ConsoleTextMetrics.GetCellWidth(_title)) + 2);
+        bool needsScrollbar = visibleRows > 0 && _list.Count > visibleRows;
+        int horizontalChrome = BorderChrome + ListDialogLayoutMetrics.HorizontalContentChrome;
+        int naturalWidth = textViewportWidth + horizontalChrome + (needsScrollbar ? 1 : 0);
+        int width;
+        if (MaxWidth.HasValue)
+        {
+            int maxOuterWidth = Math.Min(Math.Max(0, MaxWidth.Value), size.Width);
+            width = Math.Min(naturalWidth, maxOuterWidth);
+        }
+        else
+        {
+            int maxOuterWidth = Math.Max(0, size.Width - BorderChrome);
+            int availableTextViewportWidth = maxOuterWidth - horizontalChrome - (needsScrollbar ? 1 : 0);
+            int constrainedTextViewportWidth = Math.Min(
+                textViewportWidth,
+                Math.Max(DefaultMinWidth, availableTextViewportWidth));
+            width = Math.Min(
+                size.Width,
+                constrainedTextViewportWidth + horizontalChrome + (needsScrollbar ? 1 : 0));
+        }
+
         Rect bounds = UiLayout.Center(size, width, height);
-        Rect contentBounds = UiLayout.Inset(bounds, 1, 1);
-        return new SelectionListLayout(
-            bounds,
-            contentBounds,
-            contentBounds.Width > 0 && contentBounds.Height > 0 && _list.Count > contentBounds.Height
-                ? new Rect(bounds.Right - 1, contentBounds.Y, 1, contentBounds.Height)
-                : null,
-            contentBounds.Height);
+        Rect frameContentBounds = UiLayout.Inset(bounds, 1, 1);
+        Rect contentBounds = ListDialogLayoutMetrics.InsetContent(frameContentBounds);
+        return new SelectionListLayout(bounds, contentBounds);
     }
 
     private readonly record struct SelectionListLayout(
         Rect Bounds,
-        Rect ContentBounds,
-        Rect? ScrollbarBounds,
-        int VisibleRows);
+        Rect ContentBounds);
 
     private static PopupRenderOptions MenuPopupOptions()
     {
