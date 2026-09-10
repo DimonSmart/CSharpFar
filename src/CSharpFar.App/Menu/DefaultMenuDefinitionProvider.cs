@@ -163,6 +163,8 @@ public sealed class DefaultMenuDefinitionProvider
                 MenuCommandIds.SettingsOpenPanelSettings),
             Command("Options.directoryShortcuts", "Directory shortcuts...", 'T',
                 MenuCommandIds.SettingsOpenDirectoryShortcuts),
+            Command("Options.userMenu", "User menu...", 'N',
+                MenuCommandIds.SettingsOpenUserMenu),
             Separator("Options.sep.panelSettings"),
             CheckBox("Options.showHiddenAndSystemFiles", "Show hidden and system files", 'H',
                 MenuCommandIds.SettingsToggleShowHiddenAndSystemFiles, null,
