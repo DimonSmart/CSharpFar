@@ -16,15 +16,22 @@ internal sealed class SelectionListDialog<T>
     private readonly ListView<T> _list;
     private readonly Func<T, string> _itemText;
     private readonly string _title;
+    private readonly DialogAppearance _appearance;
     private readonly DialogFrameRenderer _frameRenderer = new();
     private Action<T, int>? _selectionChanged;
 
     public SelectionListDialog(
         IReadOnlyList<T> items,
         Func<T, string> itemText,
-        string title)
+        string title,
+        DialogAppearance appearance = DialogAppearance.Popup)
     {
-        _list = new ListView<T>(items, itemText, behavior: ListViewBehavior.Selection, appearance: ListAppearance.Menu);
+        _appearance = appearance;
+        _list = new ListView<T>(
+            items,
+            itemText,
+            behavior: ListViewBehavior.Selection,
+            appearance: appearance == DialogAppearance.Popup ? ListAppearance.Menu : ListAppearance.Dialog);
         _itemText = itemText ?? throw new ArgumentNullException(nameof(itemText));
         _title = title ?? throw new ArgumentNullException(nameof(title));
     }
@@ -127,18 +134,21 @@ internal sealed class SelectionListDialog<T>
 
     private void RenderLayer(IUiCanvas screen, SelectionListFrame frame)
     {
+        using IDisposable appearanceScope = DialogStyles.UseAppearance(_appearance);
         var layout = frame.Layout;
         var scrollState = frame.List.ItemCount > frame.List.ViewportRows ? new ScrollState { TotalItems = frame.List.ItemCount, ViewportItems = frame.List.ViewportRows, FirstVisibleIndex = frame.List.ScrollTop } : null;
+        PopupRenderOptions renderOptions = _appearance == DialogAppearance.Popup
+            ? MenuPopupOptions()
+            : DialogStyles.PopupOptions;
 
         _frameRenderer.RenderFrame(
             screen,
             layout.Bounds,
             _title,
             DoubleBorder,
-            MenuPopupOptions(),
+            renderOptions,
             scrollState,
             (_, _) => _list.Render(screen, frame.List));
-
     }
 
     private SelectionListLayout CalculateLayout(ConsoleSize size)
