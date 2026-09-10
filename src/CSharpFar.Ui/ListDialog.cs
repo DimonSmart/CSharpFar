@@ -23,11 +23,25 @@ public abstract record DialogOutcome<TResult>
 {
     private DialogOutcome() { }
     public sealed record Continue : DialogOutcome<TResult>;
-    public sealed record Refresh : DialogOutcome<TResult>;
+    public sealed record Refresh : DialogOutcome<TResult>
+    {
+        public Refresh() { }
+
+        internal Refresh(int selectedIndex) => SelectedIndex = selectedIndex;
+
+        internal int? SelectedIndex { get; }
+    }
     public sealed record Close(TResult Result) : DialogOutcome<TResult>;
 
     public static DialogOutcome<TResult> ContinueOpen() => new Continue();
     public static DialogOutcome<TResult> RefreshOpen() => new Refresh();
+
+    public static DialogOutcome<TResult> RefreshOpen(int selectedIndex)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(selectedIndex);
+        return new Refresh(selectedIndex);
+    }
+
     public static DialogOutcome<TResult> Complete(TResult result) => new Close(result);
 }
 
@@ -69,7 +83,7 @@ internal sealed class ListDialog<T, TResult>
             {
                 DialogOutcome<TResult>.Close close => ListWithButtonsDialogLoopResult<TResult?>.Complete(close.Result),
                 DialogOutcome<TResult>.Continue => ListWithButtonsDialogLoopResult<TResult?>.ContinueNoChange,
-                DialogOutcome<TResult>.Refresh => Refresh(dialog, options.Items),
+                DialogOutcome<TResult>.Refresh refresh => Refresh(dialog, options.Items, refresh.SelectedIndex),
                 _ => throw new InvalidOperationException("Unknown list-dialog outcome."),
             };
         });
@@ -77,9 +91,13 @@ internal sealed class ListDialog<T, TResult>
 
     private static ListWithButtonsDialogLoopResult<TResult?> Refresh(
         ListWithButtonsDialog<T> dialog,
-        Func<IReadOnlyList<T>> items)
+        Func<IReadOnlyList<T>> items,
+        int? selectedIndex)
     {
-        dialog.RefreshItems(items());
+        IReadOnlyList<T> refreshedItems = items();
+        dialog.RefreshItems(refreshedItems);
+        if (selectedIndex.HasValue && refreshedItems.Count > 0)
+            dialog.SelectedIndex = Math.Min(selectedIndex.Value, refreshedItems.Count - 1);
         return ListWithButtonsDialogLoopResult<TResult?>.ContinueChanged;
     }
 }
