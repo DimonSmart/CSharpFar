@@ -24,6 +24,9 @@ public sealed class SelectionDialogOptions<T>
     /// <summary>Named presentation preset; takes precedence over individual limits.</summary>
     public SelectionDialogPresentation? Presentation { get; init; }
 
+    /// <summary>Semantic visual appearance of the selection dialog.</summary>
+    public DialogAppearance Appearance { get; init; } = DialogAppearance.Popup;
+
     public bool DoubleBorder { get; init; }
 
     public Action<T, int>? SelectionChanged { get; init; }
