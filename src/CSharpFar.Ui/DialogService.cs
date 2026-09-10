@@ -39,7 +39,7 @@ public sealed class DialogService
         ArgumentNullException.ThrowIfNull(options.ItemText);
         ArgumentNullException.ThrowIfNull(options.Title);
 
-        var dialog = new SelectionListDialog<T>(options.Items, options.ItemText, options.Title)
+        var dialog = new SelectionListDialog<T>(options.Items, options.ItemText, options.Title, options.Appearance)
         {
             MaxVisibleRows = options.Presentation?.MaxVisibleRows ?? options.MaxVisibleRows,
             MaxWidth = options.Presentation?.MaxWidth ?? options.MaxWidth,
