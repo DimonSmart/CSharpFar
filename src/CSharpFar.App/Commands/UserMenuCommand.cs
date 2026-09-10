@@ -20,7 +20,7 @@ internal sealed class UserMenuCommand : IApplicationCommand
         if (context.UserMenu.Items.Count == 0)
         {
             context.Dialogs.Message(
-                "User Menu", "User menu is empty.\nEdit user-menu.json to add commands.");
+                "User Menu", "User menu is empty.\nConfigure it in Options → User menu...");
             return ApplicationCommandResult.Rendered();
         }
 
@@ -30,6 +30,8 @@ internal sealed class UserMenuCommand : IApplicationCommand
             Items = context.UserMenu.Items,
             ItemText = static item => item.Title,
             Presentation = SelectionDialogPresentation.Standard,
+            Appearance = DialogAppearance.Standard,
+            DoubleBorder = true,
         });
         string? command = result.IsConfirmed ? result.SelectedItem?.Command : null;
         if (command is null)
