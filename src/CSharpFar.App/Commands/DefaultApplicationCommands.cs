@@ -45,6 +45,7 @@ internal static class DefaultApplicationCommands
         new PrintTerminalDiagnosticsCommand(),
         new OpenSettingsCommand(),
         new OpenDirectoryShortcutEditorCommand(),
+        new OpenUserMenuEditorCommand(),
         new NavigateToDirectoryShortcutCommand(),
         new ToggleShowHiddenAndSystemFilesCommand(),
         new ToggleHighlightFilesCommand(),
