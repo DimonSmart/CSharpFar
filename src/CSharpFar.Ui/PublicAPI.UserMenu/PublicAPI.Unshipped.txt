@@ -1,0 +1,4 @@
+#nullable enable
+CSharpFar.Ui.SelectionDialogOptions<T>.Appearance.get -> CSharpFar.Ui.DialogAppearance
+CSharpFar.Ui.SelectionDialogOptions<T>.Appearance.init -> void
+static CSharpFar.Ui.DialogOutcome<TResult>.RefreshOpen(int selectedIndex) -> CSharpFar.Ui.DialogOutcome<TResult>!
