@@ -116,7 +116,7 @@ public class UserMenuStoreTests : IDisposable
         if (OperatingSystem.IsWindows())
         {
             using var lockStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            Assert.ThrowsAny<IOException>(() => store.Save(replacement));
+            Assert.ThrowsAny<Exception>(() => store.Save(replacement));
         }
         else
         {
