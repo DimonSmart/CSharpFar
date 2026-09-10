@@ -124,9 +124,10 @@ internal sealed class UserMenuEditorDialog
         IReadOnlyList<UserMenuItem> items)
     {
         UserMenuItem[] snapshot = CloneItems(items);
-        bool changed = initialItems.Count != snapshot.Length ||
-            initialItems.Where((item, index) => index < snapshot.Length)
-                .Any((item, index) => !SameItem(item, snapshot[index]));
+        bool changed = initialItems.Count != snapshot.Length;
+        for (int index = 0; !changed && index < snapshot.Length; index++)
+            changed = !SameItem(initialItems[index], snapshot[index]);
+
         return new UserMenuEditorDialogResult(changed, snapshot);
     }
 
