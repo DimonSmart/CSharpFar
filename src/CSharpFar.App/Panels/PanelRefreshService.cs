@@ -11,20 +11,17 @@ internal sealed class PanelRefreshService
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
     private readonly Func<PanelSide, int> _visibleRows;
     private readonly Action<FilePanelState> _closeQuickSearchForState;
-    private readonly Action<FilePanelState, int> _refreshSearchResultsPanel;
 
     public PanelRefreshService(
         PanelController controller,
         Func<AppSettingsAlias.PanelOptionsSettings> panelOptions,
         Func<PanelSide, int> visibleRows,
-        Action<FilePanelState> closeQuickSearchForState,
-        Action<FilePanelState, int> refreshSearchResultsPanel)
+        Action<FilePanelState> closeQuickSearchForState)
     {
         _controller = controller;
         _panelOptions = panelOptions;
         _visibleRows = visibleRows;
         _closeQuickSearchForState = closeQuickSearchForState;
-        _refreshSearchResultsPanel = refreshSearchResultsPanel;
     }
 
     public void RefreshPanels(FilePanelState left, FilePanelState right)
@@ -41,16 +38,11 @@ internal sealed class PanelRefreshService
 
     public void SafeRefresh(FilePanelState state, int visibleRows)
     {
-        RefreshRequested?.Invoke(state);
         if (!HasCapability(state, PanelProviderCapabilities.Refresh))
             return;
 
+        RefreshRequested?.Invoke(state);
         _closeQuickSearchForState(state);
-        if (state.SearchRequest is not null)
-        {
-            _refreshSearchResultsPanel(state, visibleRows);
-            return;
-        }
 
         if (state.ContentKind == PanelContentKind.Virtual)
             return;
