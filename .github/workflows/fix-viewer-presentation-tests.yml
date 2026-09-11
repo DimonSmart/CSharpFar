@@ -1,0 +1,72 @@
+name: Fix viewer presentation integration test input order
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - .github/workflows/fix-viewer-presentation-tests.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fix test input order
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('tests/CSharpFar.Tests/ViewerPresentationIntegrationTests.cs')
+          text = path.read_text(encoding='utf-8')
+
+          def replace_once(old, new, label):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one match, found {count}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              '        var driver = ViewerDriver();\n\n        UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);\n\n        string content = Content(driver);\n',
+              '        var driver = ViewerDriver();\n        driver.EnqueueKey(Key(ConsoleKey.F10));\n\n        UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);\n\n        string content = Content(driver);\n',
+              'txt close')
+
+          replace_once(
+              '        var driver = ViewerDriver(width: 100);\n\n        UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);\n\n        string content = Content(driver, width: 100);\n',
+              '        var driver = ViewerDriver(width: 100);\n        driver.EnqueueKey(Key(ConsoleKey.F10));\n\n        UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);\n\n        string content = Content(driver, width: 100);\n',
+              'markdown close')
+
+          replace_once(
+              '        var driver = ViewerDriver();\n\n        UiTestCanvas.FileViewerFor(new ScreenRenderer(driver))\n            .Show("virtual://archive/readme.md?rev=42", reader);\n',
+              '        var driver = ViewerDriver();\n        driver.EnqueueKey(Key(ConsoleKey.F10));\n\n        UiTestCanvas.FileViewerFor(new ScreenRenderer(driver))\n            .Show("virtual://archive/readme.md?rev=42", reader);\n',
+              'virtual close')
+
+          replace_once(
+              '''    private FakeConsoleDriver ViewerDriver(int width = 80, int height = 10)
+          {
+              var driver = new FakeConsoleDriver(width, height);
+              driver.EnqueueKey(Key(ConsoleKey.F10));
+              return driver;
+          }
+          ''',
+              '''    private static FakeConsoleDriver ViewerDriver(int width = 80, int height = 10) =>
+              new(width, height);
+          ''',
+              'helper')
+
+          path.write_text(text, encoding='utf-8')
+
+      - name: Commit test fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm .github/workflows/fix-viewer-presentation-tests.yml
+          git add -A
+          git commit -m "Fix viewer presentation integration test input order"
+          git push origin HEAD:master
