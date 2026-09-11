@@ -1,21 +1,15 @@
 using CSharpFar.App.Dialogs;
-using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
-using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App.Panels;
 
 internal sealed class PanelSearchResultsService
 {
-    private readonly ScreenRenderer _screen;
-    private readonly ModalDialogHost _modalDialogs;
     private readonly DialogService _dialogs;
-    private readonly ISearchService _searchService;
-    private readonly Func<CSharpFarPalette> _palette;
     private readonly PanelController _controller;
     private readonly IHistoryStore _history;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
@@ -26,11 +20,7 @@ internal sealed class PanelSearchResultsService
     private readonly Action<FilePanelState, PanelSide> _startWatching;
 
     public PanelSearchResultsService(
-        ScreenRenderer screen,
-        ModalDialogHost modalDialogs,
         DialogService dialogs,
-        ISearchService searchService,
-        Func<CSharpFarPalette> palette,
         PanelController controller,
         IHistoryStore history,
         Func<AppSettingsAlias.PanelOptionsSettings> panelOptions,
@@ -40,11 +30,7 @@ internal sealed class PanelSearchResultsService
         Action<PanelSide> closeQuickSearchForPanel,
         Action<FilePanelState, PanelSide> startWatching)
     {
-        _screen = screen;
-        _modalDialogs = modalDialogs;
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
-        _searchService = searchService;
-        _palette = palette;
         _controller = controller;
         _history = history;
         _panelOptions = panelOptions;
@@ -106,48 +92,6 @@ internal sealed class PanelSearchResultsService
             result.FullPath,
             result.Name,
             result.IsDirectory);
-    }
-
-    public void RefreshPanel(FilePanelState state, int visibleRows)
-    {
-        if (state.SearchRequest is null)
-            return;
-
-        SearchRunResult result;
-        try
-        {
-            result = new SearchProgressDialog(_modalDialogs, _searchService, _dialogs, _palette()).Show(state.SearchRequest);
-        }
-        catch
-        {
-            return;
-        }
-
-        if (result.GoToResult is not null)
-        {
-            GoToResult(state, _panelSideForState(state), result.GoToResult);
-            return;
-        }
-
-        if (result.DiscardResults || result.Cancelled)
-            return;
-
-        var content = new PanelContent(
-            state.CurrentLocation,
-            result.Results.Select(ToFilePanelItem),
-            PanelProviderCapabilities.SearchResults)
-        {
-            Title = PanelSearchResultsSummaryBuilder.BuildTitle(state.SearchRequest, cancelled: false),
-            ShowCurrentItemFullPath = true,
-        };
-
-        _controller.ReplaceContent(
-            state,
-            content,
-            visibleRows,
-            preserveCurrentItem: true,
-            options: _panelOptions());
-        state.SearchWasCancelled = false;
     }
 
     private void GoToResult(
