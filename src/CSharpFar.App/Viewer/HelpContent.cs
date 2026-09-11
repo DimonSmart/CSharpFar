@@ -116,6 +116,7 @@ public static class HelpContent
         K("F2 / Shift+F2",   "Toggle wrap / word wrap"),
         K("F3 / F10 / Esc",  "Close viewer"),
         K("F4 / H",          "Switch text / hex mode"),
+        K("F5",              "Switch automatic / raw presentation"),
         K("F6",              "Edit current file"),
         K("F7",              "Find text or hex sequence"),
         K("Shift+F7 / Space","Repeat find forward"),

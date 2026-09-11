@@ -10,6 +10,8 @@ The viewer uses a streaming path for small and large files. It reads fixed-size 
 
 Text-looking files open as text. Binary-looking files open as a 16-byte-per-row hexadecimal dump. Use `F4` or `H` to switch between text and hex display for the current file.
 
+Text presentation starts in `Auto`. Markdown (`.md` and `.markdown`) tables are automatically shown as aligned terminal tables while source navigation, wrapping, and search still operate on the original text. Press `F5` to switch to `Raw` and see the original representation; press `F5` again to return to `Auto`. The selected presentation mode remains active when moving between sibling files with `+` / `-`. Hex output is unchanged.
+
 ### Navigation
 
 - `Home` / `End` — start or end of the file.
@@ -27,6 +29,7 @@ Text-looking files open as text. Binary-looking files open as a 16-byte-per-row 
 - `F2` — toggle line wrapping.
 - `Shift+F2` — switch word/character wrap behavior.
 - `F4` or `H` — switch text/hex mode.
+- `F5` — switch automatic presentation / raw source representation.
 
 ### Search
 

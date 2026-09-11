@@ -236,10 +236,13 @@ internal sealed class MarkdownViewerPresentationProvider : IViewerPresentationPr
     {
         for (int separatorIndex = 1; separatorIndex < lines.Count; separatorIndex++)
         {
-            if (!TryParseRow(lines[separatorIndex - 1].Text, out var header) ||
-                !TryParseSeparator(lines[separatorIndex].Text, out var alignments) ||
+            string headerText = lines[separatorIndex - 1].Text;
+            string separatorText = lines[separatorIndex].Text;
+            if (!TryParseRow(headerText, out var header) ||
+                !TryParseSeparator(separatorText, out var alignments) ||
                 header.Count != alignments.Count ||
-                header.Count == 0)
+                header.Count == 0 ||
+                (header.Count == 1 && !HasTablePipe(headerText) && !HasTablePipe(separatorText)))
             {
                 continue;
             }
@@ -357,8 +360,12 @@ internal sealed class MarkdownViewerPresentationProvider : IViewerPresentationPr
         MarkdownTableLayout layout,
         bool updateWidths)
     {
-        if (!TryParseRow(line.Text, out var cells) || cells.Count > layout.ColumnCount)
+        if (!HasTablePipe(line.Text) ||
+            !TryParseRow(line.Text, out var cells) ||
+            cells.Count > layout.ColumnCount)
+        {
             return false;
+        }
 
         while (cells.Count < layout.ColumnCount)
             cells.Add(MarkdownCell.EmptyAt(line.Text.Length));
@@ -521,6 +528,17 @@ internal sealed class MarkdownViewerPresentationProvider : IViewerPresentationPr
         int finalEnd = trailingPipe ? contentEnd - 1 : contentEnd;
         cells.Add(CreateCell(source, cellStart, finalEnd));
         return true;
+    }
+
+    private static bool HasTablePipe(string source)
+    {
+        int start = 0;
+        while (start < source.Length && char.IsWhiteSpace(source[start]))
+            start++;
+        int end = source.Length;
+        while (end > start && char.IsWhiteSpace(source[end - 1]))
+            end--;
+        return FindPipeSeparators(source, start, end).Count > 0;
     }
 
     private static List<int> FindPipeSeparators(string source, int start, int end)
