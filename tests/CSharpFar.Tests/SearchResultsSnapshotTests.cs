@@ -156,6 +156,18 @@ public sealed class SearchResultsSnapshotTests : IDisposable
             Attributes = FileAttributes.Archive,
         };
 
+    private sealed class NoOpFileOperationService : IFileOperationService
+    {
+        public bool SupportsRecycleBin => false;
+
+        public Task<FileOperationResult> ExecuteAsync(
+            FileOperationRequest request,
+            IProgress<FileOperationProgress>? progress,
+            IFileOperationConflictResolver conflictResolver,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new FileOperationResult { Kind = request.Kind, Errors = [] });
+    }
+
     private sealed class CountingSearchService : ISearchService
     {
         public int Calls { get; private set; }
