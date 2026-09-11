@@ -17,10 +17,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fix test input order
+      - name: Fix integration tests
         shell: python
         run: |
           from pathlib import Path
+          import re
 
           path = Path('tests/CSharpFar.Tests/ViewerPresentationIntegrationTests.cs')
           text = path.read_text(encoding='utf-8')
@@ -47,18 +48,29 @@ jobs:
               '        var driver = ViewerDriver();\n        driver.EnqueueKey(Key(ConsoleKey.F10));\n\n        UiTestCanvas.FileViewerFor(new ScreenRenderer(driver))\n            .Show("virtual://archive/readme.md?rev=42", reader);\n',
               'virtual close')
 
+          pattern = re.compile(
+              r'    private FakeConsoleDriver ViewerDriver\(int width = 80, int height = 10\)\n'
+              r'    \{\n'
+              r'        var driver = new FakeConsoleDriver\(width, height\);\n'
+              r'        driver\.EnqueueKey\(Key\(ConsoleKey\.F10\)\);\n'
+              r'        return driver;\n'
+              r'    \}\n')
+          text, count = pattern.subn(
+              '    private static FakeConsoleDriver ViewerDriver(int width = 80, int height = 10) =>\n'
+              '        new(width, height);\n',
+              text,
+              count=1)
+          if count != 1:
+              raise SystemExit(f'helper: expected one match, found {count}')
+
           replace_once(
-              '''    private FakeConsoleDriver ViewerDriver(int width = 80, int height = 10)
-          {
-              var driver = new FakeConsoleDriver(width, height);
-              driver.EnqueueKey(Key(ConsoleKey.F10));
-              return driver;
-          }
-          ''',
-              '''    private static FakeConsoleDriver ViewerDriver(int width = 80, int height = 10) =>
-              new(width, height);
-          ''',
-              'helper')
+              '        var driver = ViewerDriver(width: 16);\n        driver.EnqueueKey(Key(ConsoleKey.F2));',
+              '        var driver = ViewerDriver(width: 30);\n        driver.EnqueueKey(Key(ConsoleKey.F2));',
+              'wrap width')
+          replace_once(
+              '        string screen = driver.GetRegionText(new Rect(0, 0, 16, 9));\n        Assert.Contains("WRAP-W", screen);\n        Assert.Contains("│", Content(driver, width: 16));',
+              '        string screen = driver.GetRegionText(new Rect(0, 0, 30, 9));\n        Assert.Contains("WRAP-W", screen);\n        Assert.Contains("│", Content(driver, width: 30));',
+              'wrap assertions')
 
           path.write_text(text, encoding='utf-8')
 
@@ -68,5 +80,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           rm .github/workflows/fix-viewer-presentation-tests.yml
           git add -A
-          git commit -m "Fix viewer presentation integration test input order"
+          git commit -m "Fix viewer presentation integration tests"
           git push origin HEAD:master
