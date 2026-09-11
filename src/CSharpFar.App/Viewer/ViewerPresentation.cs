@@ -112,6 +112,8 @@ internal sealed class ViewerPresentationSession
     internal const int MaxContextLines = 64;
     internal const int MaxContextBytes = 256 * 1024;
     internal const int MaxContextLineBytes = 16 * 1024;
+    internal const int MaxLookAheadLines = 8;
+    internal const int MaxLookAheadBytes = 64 * 1024;
 
     private string? _sourcePath;
     private IViewerPresentationProvider? _provider;
@@ -134,7 +136,8 @@ internal sealed class ViewerPresentationSession
         try
         {
             IReadOnlyList<ScannedLine> before = ReadBoundedContextBefore(scanner, visibleLines[0].StartOffset);
-            var context = new ViewerPresentationContext(visibleLines, before, [], viewportWidth);
+            IReadOnlyList<ScannedLine> after = ReadBoundedContextAfter(scanner, visibleLines[^1].NextOffset);
+            var context = new ViewerPresentationContext(visibleLines, before, after, viewportWidth);
             var presented = _provider.Present(context);
             return presented.Count == visibleLines.Count ? presented : Raw(visibleLines);
         }
@@ -199,6 +202,35 @@ internal sealed class ViewerPresentationSession
         reversed.Reverse();
         return reversed;
     }
+
+    private static IReadOnlyList<ScannedLine> ReadBoundedContextAfter(LineScanner scanner, long firstOffset)
+{
+    var result = new List<ScannedLine>(MaxLookAheadLines);
+    long current = firstOffset;
+    int inspectedBytes = 0;
+
+    while (result.Count < MaxLookAheadLines && inspectedBytes < MaxLookAheadBytes)
+    {
+        int remaining = MaxLookAheadBytes - inspectedBytes;
+        var scanned = scanner
+            .ReadLinesAsync(current, 1, Math.Min(MaxContextLineBytes, remaining))
+            .GetAwaiter()
+            .GetResult();
+        if (scanned.Lines.Count == 0)
+            break;
+
+        ScannedLine line = scanned.Lines[0];
+        long byteLength = line.NextOffset - line.StartOffset;
+        if (line.StartOffset != current || line.NextOffset <= current || byteLength > remaining)
+            break;
+
+        result.Add(line);
+        inspectedBytes += checked((int)byteLength);
+        current = line.NextOffset;
+    }
+
+    return result;
+}
 
     private static IReadOnlyList<PresentedLine> Raw(IReadOnlyList<ScannedLine> source) =>
         source.Select(PresentedLine.Raw).ToArray();
