@@ -25,75 +25,57 @@ jobs:
           path = Path('src/CSharpFar.App/Viewer/ViewerPresentation.cs')
           text = path.read_text(encoding='utf-8')
 
-          old = '''    internal const int MaxContextLines = 64;
-              internal const int MaxContextBytes = 256 * 1024;
-              internal const int MaxContextLineBytes = 16 * 1024;
-          '''
-          new = '''    internal const int MaxContextLines = 64;
-              internal const int MaxContextBytes = 256 * 1024;
-              internal const int MaxContextLineBytes = 16 * 1024;
-              internal const int MaxLookAheadLines = 8;
-              internal const int MaxLookAheadBytes = 64 * 1024;
-          '''
-          if old not in text:
-              raise SystemExit('context constants block not found')
-          text = text.replace(old, new, 1)
+          def replace_once(old, new, label):
+              global text
+              if text.count(old) != 1:
+                  raise SystemExit(f'{label}: expected one match, found {text.count(old)}')
+              text = text.replace(old, new, 1)
 
-          old = '''            IReadOnlyList<ScannedLine> before = ReadBoundedContextBefore(scanner, visibleLines[0].StartOffset);
-                  var context = new ViewerPresentationContext(visibleLines, before, [], viewportWidth);
-          '''
-          new = '''            IReadOnlyList<ScannedLine> before = ReadBoundedContextBefore(scanner, visibleLines[0].StartOffset);
-                  IReadOnlyList<ScannedLine> after = ReadBoundedContextAfter(scanner, visibleLines[^1].NextOffset);
-                  var context = new ViewerPresentationContext(visibleLines, before, after, viewportWidth);
-          '''
-          if old not in text:
-              raise SystemExit('presentation context block not found')
-          text = text.replace(old, new, 1)
+          replace_once(
+              '    internal const int MaxContextLineBytes = 16 * 1024;\n',
+              '    internal const int MaxContextLineBytes = 16 * 1024;\n'
+              '    internal const int MaxLookAheadLines = 8;\n'
+              '    internal const int MaxLookAheadBytes = 64 * 1024;\n',
+              'constants')
 
-          marker = '''        reversed.Reverse();
-              return reversed;
-          }
+          replace_once(
+              '            var context = new ViewerPresentationContext(visibleLines, before, [], viewportWidth);\n',
+              '            IReadOnlyList<ScannedLine> after = ReadBoundedContextAfter(scanner, visibleLines[^1].NextOffset);\n'
+              '            var context = new ViewerPresentationContext(visibleLines, before, after, viewportWidth);\n',
+              'context')
 
-              private static IReadOnlyList<PresentedLine> Raw(IReadOnlyList<ScannedLine> source) =>
-          '''
-          replacement = '''        reversed.Reverse();
-              return reversed;
-          }
+          marker = '    private static IReadOnlyList<PresentedLine> Raw(IReadOnlyList<ScannedLine> source) =>\n'
+          helper = '''    private static IReadOnlyList<ScannedLine> ReadBoundedContextAfter(LineScanner scanner, long firstOffset)
+          {
+              var result = new List<ScannedLine>(MaxLookAheadLines);
+              long current = firstOffset;
+              int inspectedBytes = 0;
 
-              private static IReadOnlyList<ScannedLine> ReadBoundedContextAfter(LineScanner scanner, long firstOffset)
+              while (result.Count < MaxLookAheadLines && inspectedBytes < MaxLookAheadBytes)
               {
-                  var result = new List<ScannedLine>(MaxLookAheadLines);
-                  long current = firstOffset;
-                  int inspectedBytes = 0;
+                  int remaining = MaxLookAheadBytes - inspectedBytes;
+                  var scanned = scanner
+                      .ReadLinesAsync(current, 1, Math.Min(MaxContextLineBytes, remaining))
+                      .GetAwaiter()
+                      .GetResult();
+                  if (scanned.Lines.Count == 0)
+                      break;
 
-                  while (result.Count < MaxLookAheadLines && inspectedBytes < MaxLookAheadBytes)
-                  {
-                      int remaining = MaxLookAheadBytes - inspectedBytes;
-                      var scanned = scanner
-                          .ReadLinesAsync(current, 1, Math.Min(MaxContextLineBytes, remaining))
-                          .GetAwaiter()
-                          .GetResult();
-                      if (scanned.Lines.Count == 0)
-                          break;
+                  ScannedLine line = scanned.Lines[0];
+                  long byteLength = line.NextOffset - line.StartOffset;
+                  if (line.StartOffset != current || line.NextOffset <= current || byteLength > remaining)
+                      break;
 
-                      ScannedLine line = scanned.Lines[0];
-                      long byteLength = line.NextOffset - line.StartOffset;
-                      if (line.StartOffset != current || line.NextOffset <= current || byteLength > remaining)
-                          break;
-
-                      result.Add(line);
-                      inspectedBytes += checked((int)byteLength);
-                      current = line.NextOffset;
-                  }
-
-                  return result;
+                  result.Add(line);
+                  inspectedBytes += checked((int)byteLength);
+                  current = line.NextOffset;
               }
 
-              private static IReadOnlyList<PresentedLine> Raw(IReadOnlyList<ScannedLine> source) =>
+              return result;
+          }
+
           '''
-          if marker not in text:
-              raise SystemExit('context method marker not found')
-          text = text.replace(marker, replacement, 1)
+          replace_once(marker, helper + marker, 'helper marker')
           path.write_text(text, encoding='utf-8')
 
       - name: Commit fix
