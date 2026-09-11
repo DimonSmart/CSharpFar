@@ -26,6 +26,8 @@ internal sealed class LargeFileViewerState
     public SparseLineIndex LineIndex { get; private set; } = new();
     public ViewerSearchRequest? LastSearch { get; set; }
     public ViewerSearchMatch? SearchMatch { get; set; }
+    public ViewerPresentationMode PresentationMode { get; set; } = ViewerPresentationMode.Auto;
+    public ViewerPresentationSession Presentation { get; } = new();
 
     public bool IsHexMode => ViewMode == LargeFileViewMode.Hex;
 
@@ -36,5 +38,6 @@ internal sealed class LargeFileViewerState
         LineIndex = new SparseLineIndex();
         LineIndex.Add(1, lineScanner.ContentStartOffset);
         SearchMatch = null;
+        Presentation.Reset();
     }
 }

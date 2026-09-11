@@ -81,6 +81,7 @@ internal sealed class LargeFileViewer
                     continue;
                 }
 
+                var presentationMode = state.PresentationMode;
                 reader.Dispose();
                 reader = null;
 
@@ -88,6 +89,7 @@ internal sealed class LargeFileViewer
                 opened = OpenViewerFile(filePath);
                 reader = opened.Reader;
                 state = opened.State;
+                state.PresentationMode = presentationMode;
                 options.CurrentFileChanged?.Invoke(filePath);
             }
         }
@@ -277,8 +279,10 @@ internal sealed class LargeFileViewer
                 ShowUnsupported("Print");
                 break;
 
-            case ConsoleKey.F5:
-                ShowUnsupported("Raw/processed viewer mode");
+            case ConsoleKey.F5 when !shift && !alt && !control:
+                state.PresentationMode = state.PresentationMode == ViewerPresentationMode.Auto
+                    ? ViewerPresentationMode.Raw
+                    : ViewerPresentationMode.Auto;
                 break;
 
             case ConsoleKey.F6 when !shift && !alt && !control:
@@ -290,15 +294,15 @@ internal sealed class LargeFileViewer
                 break;
 
             case ConsoleKey.F7 when alt:
-                RepeatSearch(reader, state, searchBackward: true, size.Width);
+                RepeatSearch(filePath, reader, state, searchBackward: true, size.Width);
                 break;
 
             case ConsoleKey.F7 when shift && !alt:
-                RepeatSearch(reader, state, searchBackward: false, size.Width);
+                RepeatSearch(filePath, reader, state, searchBackward: false, size.Width);
                 break;
 
             case ConsoleKey.F7 when !shift && !alt && !control:
-                ShowFindDialog(reader, state, size.Width);
+                ShowFindDialog(filePath, reader, state, size.Width);
                 break;
 
             case ConsoleKey.F8 when alt:
@@ -352,7 +356,7 @@ internal sealed class LargeFileViewer
                 break;
 
             case ConsoleKey.Spacebar when !shift && !alt && !control:
-                RepeatSearch(reader, state, searchBackward: false, size.Width);
+                RepeatSearch(filePath, reader, state, searchBackward: false, size.Width);
                 break;
 
             case ConsoleKey.U when control:
@@ -455,7 +459,7 @@ internal sealed class LargeFileViewer
 
         var view = state.IsHexMode
             ? DrawBinaryContent(canvas, reader, state, contentHeight, size.Width)
-            : DrawTextContent(canvas, reader, state, contentHeight, size.Width);
+            : DrawTextContent(canvas, filePath, reader, state, contentHeight, size.Width);
 
         DrawFooter(canvas, size, state);
         return view;
@@ -499,18 +503,20 @@ internal sealed class LargeFileViewer
 
     private LargeFileRenderView DrawTextContent(
         IUiCanvas canvas,
+        string sourcePath,
         IFileByteReader reader,
         LargeFileViewerState state,
         int contentHeight,
         int width)
     {
         return state.WrapLines
-            ? DrawWrappedTextContent(canvas, reader, state, contentHeight, width)
-            : DrawUnwrappedTextContent(canvas, state, contentHeight, width);
+            ? DrawWrappedTextContent(canvas, sourcePath, reader, state, contentHeight, width)
+            : DrawUnwrappedTextContent(canvas, sourcePath, state, contentHeight, width);
     }
 
     private LargeFileRenderView DrawUnwrappedTextContent(
         IUiCanvas canvas,
+        string sourcePath,
         LargeFileViewerState state,
         int contentHeight,
         int width)
@@ -520,13 +526,27 @@ internal sealed class LargeFileViewer
             .ReadLinesAsync(state.TopByteOffset, contentHeight, bytesPerLine)
             .GetAwaiter()
             .GetResult();
+        var presented = state.Presentation.Present(
+            state.PresentationMode,
+            sourcePath,
+            state.LineScanner,
+            scanned.Lines,
+            width);
 
         for (int row = 0; row < contentHeight; row++)
         {
             if (row < scanned.Lines.Count)
             {
-                var line = scanned.Lines[row];
-                WriteTextLine(canvas, line.Text, row + 1, state.HorizontalOffset, width, state.SearchMatch, line.StartOffset, segmentStartIndex: 0);
+                var line = ResolvePresentationForSearch(presented[row], state.SearchMatch);
+                WriteTextLine(
+                    canvas,
+                    line,
+                    line.Text,
+                    row + 1,
+                    state.HorizontalOffset,
+                    width,
+                    state.SearchMatch,
+                    segmentStartIndex: 0);
             }
             else
             {
@@ -539,6 +559,7 @@ internal sealed class LargeFileViewer
 
     private LargeFileRenderView DrawWrappedTextContent(
         IUiCanvas canvas,
+        string sourcePath,
         IFileByteReader reader,
         LargeFileViewerState state,
         int contentHeight,
@@ -562,13 +583,28 @@ internal sealed class LargeFileViewer
             var line = scanned.Lines[0];
             lines.Add(line);
             nextOffset = line.NextOffset;
+            var presented = state.Presentation.Present(
+                state.PresentationMode,
+                sourcePath,
+                state.LineScanner,
+                [line],
+                width)[0];
+            presented = ResolvePresentationForSearch(presented, state.SearchMatch);
 
-            foreach (var segment in SplitWrappedLine(line.Text, Math.Max(1, width), state.WordWrap))
+            foreach (var segment in SplitWrappedLine(presented.Text, Math.Max(1, width), state.WordWrap))
             {
                 if (row >= contentHeight)
                     break;
 
-                WriteTextLine(canvas, segment.Text, row + 1, scrollLeft: 0, width, state.SearchMatch, line.StartOffset, segment.StartIndex);
+                WriteTextLine(
+                    canvas,
+                    presented,
+                    segment.Text,
+                    row + 1,
+                    scrollLeft: 0,
+                    width,
+                    state.SearchMatch,
+                    segment.StartIndex);
                 row++;
             }
 
@@ -622,12 +658,12 @@ internal sealed class LargeFileViewer
 
     private void WriteTextLine(
         IUiCanvas canvas,
+        PresentedLine presented,
         string line,
         int y,
         int scrollLeft,
         int width,
         ViewerSearchMatch? match,
-        long lineStartOffset,
         int segmentStartIndex)
     {
         if (width <= 0)
@@ -636,21 +672,48 @@ internal sealed class LargeFileViewer
         var layout = new ViewerTextLayout(line);
         string visible = layout.Slice(scrollLeft, width);
         canvas.WriteForced(0, y, visible, CSharpFarPaletteStyles.CommandLine(_palette));
-        if (match is not { IsHex: false } || match.LineStartOffset != lineStartOffset)
+        if (match is not { IsHex: false } ||
+            match.LineStartOffset != presented.Source.StartOffset ||
+            !presented.TryMapSourceRange(
+                match.CharacterIndex,
+                match.CharacterLength,
+                out int presentedMatchStart,
+                out int presentedMatchLength))
+        {
+            return;
+        }
+
+        int segmentEndIndex = segmentStartIndex + line.Length;
+        int presentedMatchEnd = presentedMatchStart + presentedMatchLength;
+        if (presentedMatchEnd <= segmentStartIndex || presentedMatchStart >= segmentEndIndex)
             return;
 
+        int localMatchStart = Math.Max(presentedMatchStart, segmentStartIndex) - segmentStartIndex;
+        int localMatchEnd = Math.Min(presentedMatchEnd, segmentEndIndex) - segmentStartIndex;
         int visibleStart = scrollLeft;
         int visibleEnd = scrollLeft + width;
-        int matchStart = layout.CellOffsetFromSourceIndex(match.CharacterIndex - segmentStartIndex);
-        int matchEnd = layout.CellOffsetFromSourceIndex(match.CharacterIndex + match.CharacterLength - segmentStartIndex);
+        int matchStart = layout.CellOffsetFromSourceIndex(localMatchStart);
+        int matchEnd = layout.CellOffsetFromSourceIndex(localMatchEnd);
         int highlightStart = Math.Max(visibleStart, matchStart);
         int highlightEnd = Math.Min(visibleEnd, matchEnd);
-        if (highlightEnd <= highlightStart || highlightStart < visibleStart)
+        if (highlightEnd <= highlightStart)
             return;
 
         string highlight = layout.Slice(highlightStart, highlightEnd - highlightStart);
         if (ConsoleTextMetrics.GetCellWidth(highlight) > 0)
             canvas.Write(highlightStart - visibleStart, y, highlight, CSharpFarPaletteStyles.InputHighlight(_palette));
+    }
+
+    private static PresentedLine ResolvePresentationForSearch(
+        PresentedLine presented,
+        ViewerSearchMatch? match)
+    {
+        if (match is not { IsHex: false } || match.LineStartOffset != presented.Source.StartOffset)
+            return presented;
+
+        return presented.TryMapSourceRange(match.CharacterIndex, match.CharacterLength, out _, out _)
+            ? presented
+            : PresentedLine.Raw(presented.Source);
     }
 
     private void DrawFooter(IUiCanvas canvas, ConsoleSize size, LargeFileViewerState state)
@@ -668,6 +731,7 @@ internal sealed class LargeFileViewer
         ViewerFunctionKeyAction(2, state.WrapLines ? "Unwrap" : "Wrap", ConsoleKey.F2),
         ViewerFunctionKeyAction(3, "Close", ConsoleKey.F3),
         ViewerFunctionKeyAction(4, "Hex", ConsoleKey.F4),
+        ViewerFunctionKeyAction(5, state.PresentationMode == ViewerPresentationMode.Auto ? "Raw" : "Auto", ConsoleKey.F5),
         ViewerFunctionKeyAction(6, "Edit", ConsoleKey.F6),
         ViewerFunctionKeyAction(7, "Find", ConsoleKey.F7),
         ViewerFunctionKeyAction(8, "Enc", ConsoleKey.F8),
@@ -865,17 +929,18 @@ internal sealed class LargeFileViewer
         state.SearchMatch = null;
     }
 
-    private void ShowFindDialog(IFileByteReader reader, LargeFileViewerState state, int width)
+    private void ShowFindDialog(string filePath, IFileByteReader reader, LargeFileViewerState state, int width)
     {
         var selected = new ViewerFindDialog(_dialogs).Show(state.LastSearch, state.IsHexMode);
         if (selected is null)
             return;
 
         var request = ViewerSearchRequest.FromDialog(selected);
-        FindAndApply(reader, state, request, searchBackward: false, width);
+        FindAndApply(filePath, reader, state, request, searchBackward: false, width);
     }
 
     private void RepeatSearch(
+        string filePath,
         IFileByteReader reader,
         LargeFileViewerState state,
         bool searchBackward,
@@ -883,14 +948,15 @@ internal sealed class LargeFileViewer
     {
         if (state.LastSearch is null)
         {
-            ShowFindDialog(reader, state, width);
+            ShowFindDialog(filePath, reader, state, width);
             return;
         }
 
-        FindAndApply(reader, state, state.LastSearch, searchBackward, width);
+        FindAndApply(filePath, reader, state, state.LastSearch, searchBackward, width);
     }
 
     private void FindAndApply(
+        string filePath,
         IFileByteReader reader,
         LargeFileViewerState state,
         ViewerSearchRequest request,
@@ -921,9 +987,35 @@ internal sealed class LargeFileViewer
 
         if (!match.IsHex && !state.WrapLines)
         {
+            int captureCharacters = Math.Min(1_000_000, match.CharacterIndex + match.CharacterLength + 32);
+            var scanned = state.LineScanner
+                .ReadLinesAsync(match.LineStartOffset, 1, Math.Max(256, captureCharacters * 4))
+                .GetAwaiter()
+                .GetResult();
+            int matchCell = match.CharacterIndex;
+            if (scanned.Lines.Count > 0)
+            {
+                var presented = state.Presentation.Present(
+                    state.PresentationMode,
+                    filePath,
+                    state.LineScanner,
+                    scanned.Lines,
+                    width)[0];
+                presented = ResolvePresentationForSearch(presented, match);
+                if (presented.TryMapSourceRange(
+                        match.CharacterIndex,
+                        match.CharacterLength,
+                        out int presentedMatchStart,
+                        out _))
+                {
+                    matchCell = new ViewerTextLayout(presented.Text)
+                        .CellOffsetFromSourceIndex(presentedMatchStart);
+                }
+            }
+
             int rightEdge = state.HorizontalOffset + Math.Max(1, width);
-            if (match.CharacterIndex < state.HorizontalOffset || match.CharacterIndex >= rightEdge)
-                state.HorizontalOffset = Math.Max(0, match.CharacterIndex - 4);
+            if (matchCell < state.HorizontalOffset || matchCell >= rightEdge)
+                state.HorizontalOffset = Math.Max(0, matchCell - 4);
         }
         else if (match.IsHex)
         {

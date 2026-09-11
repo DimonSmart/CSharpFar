@@ -112,6 +112,27 @@ internal sealed class LineScanner
             : ContentStartOffset;
     }
 
+    public async Task<long?> TryFindPreviousLineStartAsync(
+        long lineStartOffset,
+        int maxLookBehindBytes,
+        CancellationToken cancellationToken = default)
+    {
+        if (lineStartOffset <= ContentStartOffset || maxLookBehindBytes <= 0)
+            return null;
+
+        long minimumOffset = Math.Max(ContentStartOffset, lineStartOffset - maxLookBehindBytes);
+        long searchBeforeDelimiter = Math.Max(ContentStartOffset, lineStartOffset - NewLineWidth);
+        long? previousNewLine = await FindPreviousNewLineBeforeAsync(
+                searchBeforeDelimiter,
+                minimumOffset,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (previousNewLine.HasValue)
+            return Math.Min(_reader.Length, previousNewLine.Value + NewLineWidth);
+
+        return minimumOffset == ContentStartOffset ? ContentStartOffset : null;
+    }
+
     public async Task<long> FindTailTopOffsetAsync(
         int visibleLines,
         CancellationToken cancellationToken = default)
@@ -238,12 +259,19 @@ internal sealed class LineScanner
         return endDelta % 2 == 0 ? read : read - 1;
     }
 
+    private Task<long?> FindPreviousNewLineBeforeAsync(
+        long offsetExclusive,
+        CancellationToken cancellationToken) =>
+        FindPreviousNewLineBeforeAsync(offsetExclusive, ContentStartOffset, cancellationToken);
+
     private async Task<long?> FindPreviousNewLineBeforeAsync(
         long offsetExclusive,
+        long minimumOffset,
         CancellationToken cancellationToken)
     {
         long searchOffset = Math.Min(offsetExclusive, _reader.Length);
-        while (searchOffset > ContentStartOffset)
+        minimumOffset = Math.Clamp(minimumOffset, ContentStartOffset, searchOffset);
+        while (searchOffset > minimumOffset)
         {
             long blockStart = (searchOffset - 1) / _cache.BlockSize * _cache.BlockSize;
             ReadOnlyMemory<byte> block = await _cache.ReadBlockAsync(blockStart, cancellationToken)
@@ -254,7 +282,13 @@ internal sealed class LineScanner
             int end = (int)Math.Min(searchOffset - blockStart, block.Length);
             int index = FindLastNewLine(block.Span[..end], blockStart);
             if (index >= 0)
-                return blockStart + index;
+            {
+                long absoluteOffset = blockStart + index;
+                return absoluteOffset >= minimumOffset ? absoluteOffset : null;
+            }
+
+            if (blockStart <= minimumOffset)
+                break;
 
             searchOffset = blockStart;
         }
