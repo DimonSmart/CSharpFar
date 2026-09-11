@@ -29,6 +29,7 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     {
         string path = Write("table.txt", "| A | B |\n| --- | --- |\n| C | D |\n");
         var driver = ViewerDriver();
+        driver.EnqueueKey(Key(ConsoleKey.F10));
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
@@ -42,6 +43,7 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     {
         string path = Write("table.md", "| A | B |\n| --- | --- |\n| C | D |\n");
         var driver = ViewerDriver(width: 100);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
@@ -135,15 +137,15 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         string path = Write(
             "wrapped.md",
             "| Column | Value |\n| --- | --- |\n| very-long-value-for-wrapping | data |\n");
-        var driver = ViewerDriver(width: 16);
+        var driver = ViewerDriver(width: 30);
         driver.EnqueueKey(Key(ConsoleKey.F2));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
-        string screen = driver.GetRegionText(new Rect(0, 0, 16, 9));
+        string screen = driver.GetRegionText(new Rect(0, 0, 30, 9));
         Assert.Contains("WRAP-W", screen);
-        Assert.Contains("│", Content(driver, width: 16));
+        Assert.Contains("│", Content(driver, width: 30));
     }
 
     [Fact]
@@ -211,6 +213,7 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         var reader = new MemoryFileByteReader(
             Encoding.UTF8.GetBytes("| A | B |\n| --- | --- |\n| C | D |\n"));
         var driver = ViewerDriver();
+        driver.EnqueueKey(Key(ConsoleKey.F10));
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver))
             .Show("virtual://archive/readme.md?rev=42", reader);
@@ -305,12 +308,8 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         Assert.Equal(1, provider.Calls);
     }
 
-    private FakeConsoleDriver ViewerDriver(int width = 80, int height = 10)
-    {
-        var driver = new FakeConsoleDriver(width, height);
-        driver.EnqueueKey(Key(ConsoleKey.F10));
-        return driver;
-    }
+    private static FakeConsoleDriver ViewerDriver(int width = 80, int height = 10) =>
+        new(width, height);
 
     private string Write(string name, string content)
     {
