@@ -15,7 +15,6 @@ public sealed class SearchResultsCapabilityTests
         Assert.True(capabilities.HasFlag(PanelProviderCapabilities.Delete));
         Assert.True(capabilities.HasFlag(PanelProviderCapabilities.CopyFrom));
         Assert.True(capabilities.HasFlag(PanelProviderCapabilities.Edit));
-        Assert.True(capabilities.HasFlag(PanelProviderCapabilities.Refresh));
 
         Assert.False(capabilities.HasFlag(PanelProviderCapabilities.OpenWrite));
         Assert.False(capabilities.HasFlag(PanelProviderCapabilities.CreateFile));
@@ -24,6 +23,7 @@ public sealed class SearchResultsCapabilityTests
         Assert.False(capabilities.HasFlag(PanelProviderCapabilities.CopyTo));
         Assert.False(capabilities.HasFlag(PanelProviderCapabilities.MoveFrom));
         Assert.False(capabilities.HasFlag(PanelProviderCapabilities.MoveTo));
+        Assert.False(capabilities.HasFlag(PanelProviderCapabilities.Refresh));
         Assert.False(capabilities.HasFlag(PanelProviderCapabilities.Watch));
     }
 
