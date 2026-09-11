@@ -40,6 +40,5 @@ public enum PanelProviderCapabilities
         OpenRead |
         Delete |
         CopyFrom |
-        Edit |
-        Refresh,
+        Edit,
 }
