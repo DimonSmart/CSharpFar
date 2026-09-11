@@ -549,11 +549,6 @@ public sealed class Application
         _panelRefresh.RefreshPanelsAfterFileOperation(_left, _right);
     }
 
-    private void RefreshSearchResultsPanel(FilePanelState state, int visibleRows)
-    {
-        _searchResults.RefreshPanel(state, visibleRows);
-    }
-
     private PanelSide PanelSideForState(FilePanelState state) =>
         ReferenceEquals(state, _left) ? PanelSide.Left : PanelSide.Right;
 
