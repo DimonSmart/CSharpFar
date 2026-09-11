@@ -313,11 +313,7 @@ internal static class ApplicationServicesBuilder
             session.App.QuickView && quickViewDirectorySize.MoveMonitorSelectionByPage(direction);
         var dialogs = new DialogService(modalDialogs, formFields);
         var searchResults = new PanelSearchResultsService(
-            screen,
-            modalDialogs,
             dialogs,
-            effectiveSearchService,
-            () => session.App.Palette,
             controller,
             effectiveHistory,
             () => callbacks.PanelOptions(),
@@ -330,8 +326,7 @@ internal static class ApplicationServicesBuilder
             controller,
             () => callbacks.PanelOptions(),
             side => callbacks.VisibleRowsForSide(side),
-            state => callbacks.ClosePanelQuickSearchForState(state),
-            searchResults.RefreshPanel);
+            state => callbacks.ClosePanelQuickSearchForState(state));
         panelRefresh.RefreshRequested = state =>
         {
             if (session.App.FileUsage && ReferenceEquals(state, panelWorkspace.ActiveState))
