@@ -5,31 +5,31 @@ namespace CSharpFar.Tests;
 public sealed class UiThemeTests
 {
     [Fact]
-    public void UseTemporary_DoesNotLeakAcrossParallelExecutionContexts()
+    public async Task UseTemporary_DoesNotLeakAcrossParallelExecutionContexts()
     {
         var temporary = new ConsolePalette { Name = "Temporary test theme" };
-        using var temporaryEntered = new ManualResetEventSlim(false);
-        using var siblingObserved = new ManualResetEventSlim(false);
+        var temporaryEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var siblingObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         ConsolePalette? siblingTheme = null;
 
-        Task temporaryTask = Task.Run(() =>
+        Task temporaryTask = Task.Run(async () =>
         {
             using (UiTheme.UseTemporary(temporary))
             {
-                temporaryEntered.Set();
-                Assert.True(siblingObserved.Wait(TimeSpan.FromSeconds(2)));
+                temporaryEntered.SetResult();
+                await siblingObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
                 Assert.Same(temporary, UiTheme.Current);
             }
         });
 
-        Task siblingTask = Task.Run(() =>
+        Task siblingTask = Task.Run(async () =>
         {
-            Assert.True(temporaryEntered.Wait(TimeSpan.FromSeconds(2)));
+            await temporaryEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
             siblingTheme = UiTheme.Current;
-            siblingObserved.Set();
+            siblingObserved.SetResult();
         });
 
-        Task.WaitAll(temporaryTask, siblingTask);
+        await Task.WhenAll(temporaryTask, siblingTask);
 
         Assert.NotSame(temporary, siblingTheme);
         Assert.NotSame(temporary, UiTheme.Current);
