@@ -104,21 +104,6 @@ internal sealed class FileOperationDialog
         bool showHelp,
         Action<FileOperationDialogResult>? preview)
     {
-        return RunLoop(title, prompt, actionLabel, initialDestination, initialOptions, conflictModes, copyModes, showOperationOptions, showHelp, preview);
-    }
-
-    private FileOperationDialogResult? RunLoop(
-        string title,
-        string prompt,
-        string actionLabel,
-        string initialDestination,
-        FileOperationOptions initialOptions,
-        IReadOnlyList<ConflictDecisionMode> conflictModes,
-        IReadOnlyList<CopyMode>? copyModes,
-        bool showOperationOptions,
-        bool showHelp,
-        Action<FileOperationDialogResult>? preview)
-    {
         TextField destination = _fields.Text(new TextFieldOptions(
             initialDestination,
             AppTextHistoryIds.FileOperationDestination,
@@ -311,11 +296,4 @@ internal sealed class FileOperationDialog
         FileSecurityMode.CopyAccessControl => "Copy",
         _ => "Default",
     };
-
-    private static string Truncate(string value, int maxLength)
-    {
-        if (maxLength <= 0)
-            return string.Empty;
-        return value.Length <= maxLength ? value : value[..Math.Max(0, maxLength - 1)] + "\u2026";
-    }
 }
