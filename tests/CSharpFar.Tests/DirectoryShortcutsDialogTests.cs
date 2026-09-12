@@ -31,7 +31,6 @@ public sealed class DirectoryShortcutsDialogTests : IDisposable
     {
         var driver = new FakeConsoleDriver();
         bool sawConfirmation = false;
-        bool sawRefreshedSlot = false;
         Action<FakeConsoleDriver>? observeBeforeRead = null;
         observeBeforeRead = currentDriver =>
         {
@@ -39,15 +38,7 @@ public sealed class DirectoryShortcutsDialogTests : IDisposable
             ConsoleSize size = currentDriver.GetSize();
             string screenText = currentDriver.GetRegionText(new Rect(0, 0, size.Width, size.Height));
             if (screenText.Contains("Delete directory shortcut 2?", StringComparison.Ordinal))
-            {
                 sawConfirmation = true;
-            }
-            else if (sawConfirmation &&
-                     screenText.Contains("2  ", StringComparison.Ordinal) &&
-                     !screenText.Contains("Work", StringComparison.Ordinal))
-            {
-                sawRefreshedSlot = true;
-            }
         };
         driver.BeforeReadInput = observeBeforeRead;
         driver.EnqueueKey(Key(ConsoleKey.DownArrow));
@@ -61,6 +52,9 @@ public sealed class DirectoryShortcutsDialogTests : IDisposable
             .ToArray();
 
         DirectoryShortcutsDialogResult result = Show(driver, shortcuts);
+        bool sawRefreshedSlot = driver.WriteRecords.Any(record =>
+            record.Text.Contains("2  ", StringComparison.Ordinal) &&
+            !record.Text.Contains("Work", StringComparison.Ordinal));
 
         Assert.True(result.Changed);
         Assert.Equal(9, result.Items.Count);
