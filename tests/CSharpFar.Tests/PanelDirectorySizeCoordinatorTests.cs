@@ -141,8 +141,9 @@ public sealed class PanelDirectorySizeCoordinatorTests
         left.CurrentLocation = new PanelLocation(source.SourceId, "/child");
         Assert.Null(coordinator.GetPresentation(PanelSide.Left, left, a));
         coordinator.Reconcile(PanelSide.Left, left);
-        Assert.True(active.Cancelled.Wait(TimeSpan.FromSeconds(2)));
+        active.Release.Set();
         Assert.True(active.Completed.Wait(TimeSpan.FromSeconds(2)));
+        Assert.True(active.Cancelled.IsSet);
 
         Assert.Equal(0, scanner.CallCount("/root/b"));
         Assert.Null(coordinator.GetSnapshot(PanelSide.Left, left, a));
@@ -197,13 +198,15 @@ public sealed class PanelDirectorySizeCoordinatorTests
 
         left.CurrentLocation = new PanelLocation(leftSource.SourceId, "/left/child");
         coordinator.Reconcile(PanelSide.Left, left);
-        Assert.True(leftPlan.Cancelled.Wait(TimeSpan.FromSeconds(2)));
         Assert.False(rightPlan.Cancelled.IsSet);
         Assert.Equal(new PanelDirectorySizePresentation(null, true), coordinator.GetPresentation(PanelSide.Right, right, rightItem));
 
+        leftPlan.Release.Set();
         rightPlan.Release.Set();
-        WaitUntil(() => coordinator.GetSnapshot(PanelSide.Right, right, rightItem)?.State == PanelDirectorySizeState.Completed);
         Assert.True(leftPlan.Completed.Wait(TimeSpan.FromSeconds(2)));
+        WaitUntil(() => coordinator.GetSnapshot(PanelSide.Right, right, rightItem)?.State == PanelDirectorySizeState.Completed);
+        Assert.True(leftPlan.Cancelled.IsSet);
+        Assert.False(rightPlan.Cancelled.IsSet);
         Assert.Equal(new PanelDirectorySizePresentation(20, false), coordinator.GetPresentation(PanelSide.Right, right, rightItem));
     }
 
@@ -374,8 +377,6 @@ public sealed class PanelDirectorySizeCoordinatorTests
                 }
 
                 activePlan = plan;
-                using CancellationTokenRegistration cancellationRegistration = cancellationToken.Register(plan.Cancelled.Set);
-
                 plan.Started.Set();
                 if (plan.ProgressSize is { } partial)
                     progress?.Invoke(new DirectoryTreeSizeProgress(partial, []));
@@ -385,8 +386,6 @@ public sealed class PanelDirectorySizeCoordinatorTests
                     int signalled = WaitHandle.WaitAny(
                         [plan.Release.WaitHandle, cancellationToken.WaitHandle],
                         TimeSpan.FromSeconds(5));
-                    if (signalled == 1)
-                        cancellationToken.ThrowIfCancellationRequested();
                     if (signalled == WaitHandle.WaitTimeout)
                         throw new TimeoutException("Controlled scanner was not released.");
                 }
@@ -396,6 +395,11 @@ public sealed class PanelDirectorySizeCoordinatorTests
                     plan.FinalSize,
                     plan.Status,
                     plan.Status == DirectoryTreeSizeCompletionStatus.Completed ? [] : ["planned error"]);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                activePlan?.Cancelled.Set();
+                throw;
             }
             finally
             {
