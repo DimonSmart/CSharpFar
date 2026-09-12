@@ -72,7 +72,7 @@ internal sealed class SemanticOperationDialog<TItem, TBackground, TResult>
         TableList<TItem>? table = options.TableDefinition is null
             ? null
             : new TableList<TItem>([], options.TableDefinition, appearance: options.TableAppearance);
-        ICompositeDialogContent content = table ?? EmptyCompositeDialogContent.Instance;
+        ICompositeDialogContent content = table is null ? EmptyCompositeDialogContent.Instance : table;
         OperationDialogState<TItem>? state = null;
 
         return _host.Run(

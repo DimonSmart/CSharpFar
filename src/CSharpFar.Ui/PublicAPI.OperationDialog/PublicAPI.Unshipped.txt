@@ -1,0 +1,46 @@
+#nullable enable
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.Appearance.get -> CSharpFar.Ui.DialogAppearance
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.Appearance.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.Complete.get -> System.Func<TBackground, TResult>!
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.Complete.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.HandleCancel.get -> System.Func<CSharpFar.Ui.OperationDialogOutcome<TResult>>?
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.HandleCancel.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.HandleCommand.get -> System.Func<CSharpFar.Ui.ListDialogActionContext<TItem>!, CSharpFar.Ui.OperationDialogOutcome<TResult>>?
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.HandleCommand.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.HandleItemActivation.get -> System.Func<TItem, CSharpFar.Ui.OperationDialogOutcome<TResult>>?
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.HandleItemActivation.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.ItemIdentity.get -> System.Func<TItem, object!>?
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.ItemIdentity.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.KeyboardCommands.get -> System.Collections.Generic.IReadOnlyDictionary<System.ConsoleKey, string!>?
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.KeyboardCommands.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.MinHeight.get -> int
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.MinHeight.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.MinWidth.get -> int
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.MinWidth.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.OnCancellationRequested.get -> System.Action?
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.OnCancellationRequested.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.Operation.get -> System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<TBackground>!>!
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.Operation.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.OperationDialogDefinition() -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.PreferredHeight.get -> int
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.PreferredHeight.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.PreferredWidth.get -> int
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.PreferredWidth.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.RefreshInterval.get -> System.TimeSpan
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.RefreshInterval.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.Synchronize.get -> System.Func<CSharpFar.Ui.OperationDialogState<TItem>!>!
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.Synchronize.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.TableAppearance.get -> CSharpFar.Ui.ListAppearance
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.TableAppearance.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.TableDefinition.get -> CSharpFar.Ui.TableListDefinition<TItem>?
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.TableDefinition.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.Title.get -> string!
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.Title.init -> void
+CSharpFar.Ui.OperationDialogState<TItem>
+CSharpFar.Ui.OperationDialogState<TItem>.Buttons.get -> System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.DialogButton!>!
+CSharpFar.Ui.OperationDialogState<TItem>.Items.get -> System.Collections.Generic.IReadOnlyList<TItem>!
+CSharpFar.Ui.OperationDialogState<TItem>.OperationDialogState(System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FormRow!>? rows = null, System.Collections.Generic.IReadOnlyList<TItem>? items = null, System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.DialogButton!>? buttons = null, string? status = null) -> void
+CSharpFar.Ui.OperationDialogState<TItem>.Rows.get -> System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FormRow!>!
+CSharpFar.Ui.OperationDialogState<TItem>.Status.get -> string?
+CSharpFar.Ui.DialogService.Operation<TItem, TBackground, TResult>(CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>! options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> TResult
