@@ -1,4 +1,42 @@
 #nullable enable
 CSharpFar.Ui.SelectionDialogOptions<T>.Appearance.get -> CSharpFar.Ui.DialogAppearance
 CSharpFar.Ui.SelectionDialogOptions<T>.Appearance.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>
+CSharpFar.Ui.TableDialogOptions<T, TResult>.Actions.get -> System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.DialogButton!>!
+CSharpFar.Ui.TableDialogOptions<T, TResult>.Actions.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.Appearance.get -> CSharpFar.Ui.DialogAppearance
+CSharpFar.Ui.TableDialogOptions<T, TResult>.Appearance.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.Cancel.get -> System.Func<TResult>?
+CSharpFar.Ui.TableDialogOptions<T, TResult>.Cancel.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.CancelKeys.get -> System.Collections.Generic.IReadOnlyCollection<System.ConsoleKey>!
+CSharpFar.Ui.TableDialogOptions<T, TResult>.CancelKeys.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.DefaultItemActionId.get -> string?
+CSharpFar.Ui.TableDialogOptions<T, TResult>.DefaultItemActionId.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.Definition.get -> CSharpFar.Ui.TableListDefinition<T>!
+CSharpFar.Ui.TableDialogOptions<T, TResult>.Definition.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.FooterText.get -> string?
+CSharpFar.Ui.TableDialogOptions<T, TResult>.FooterText.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.HandleAction.get -> System.Func<CSharpFar.Ui.ListDialogActionContext<T>!, CSharpFar.Ui.DialogOutcome<TResult>!>!
+CSharpFar.Ui.TableDialogOptions<T, TResult>.HandleAction.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.InitialSelectedIndex.get -> int
+CSharpFar.Ui.TableDialogOptions<T, TResult>.InitialSelectedIndex.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.Items.get -> System.Func<System.Collections.Generic.IReadOnlyList<T>!>!
+CSharpFar.Ui.TableDialogOptions<T, TResult>.Items.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.KeyboardCommands.get -> System.Collections.Generic.IReadOnlyDictionary<System.ConsoleKey, string!>?
+CSharpFar.Ui.TableDialogOptions<T, TResult>.KeyboardCommands.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.MinHeight.get -> int
+CSharpFar.Ui.TableDialogOptions<T, TResult>.MinHeight.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.MinWidth.get -> int
+CSharpFar.Ui.TableDialogOptions<T, TResult>.MinWidth.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.PreferredHeight.get -> int
+CSharpFar.Ui.TableDialogOptions<T, TResult>.PreferredHeight.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.PreferredWidth.get -> int
+CSharpFar.Ui.TableDialogOptions<T, TResult>.PreferredWidth.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.TableAppearance.get -> CSharpFar.Ui.ListAppearance
+CSharpFar.Ui.TableDialogOptions<T, TResult>.TableAppearance.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.TableDialogOptions() -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.Title.get -> string!
+CSharpFar.Ui.TableDialogOptions<T, TResult>.Title.init -> void
+CSharpFar.Ui.DialogService.Table<T, TResult>(CSharpFar.Ui.TableDialogOptions<T, TResult>! options) -> TResult?
+static CSharpFar.Ui.DialogOutcome<TResult>.ChangeSelection(int selectedIndex) -> CSharpFar.Ui.DialogOutcome<TResult>!
 static CSharpFar.Ui.DialogOutcome<TResult>.RefreshOpen(int selectedIndex) -> CSharpFar.Ui.DialogOutcome<TResult>!

@@ -8,66 +8,71 @@ internal sealed class DriveDialog
 {
     private const int DialogWidth = 48;
     private readonly DialogService _dialogs;
-    private string? _cycledShortcut;
 
-    public DriveDialog(ModalDialogHost modalDialogs, DialogService dialogs) => _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
+    public DriveDialog(ModalDialogHost modalDialogs, DialogService dialogs)
+    {
+        ArgumentNullException.ThrowIfNull(modalDialogs);
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
+    }
 
     public VolumeSelectionItem? Show(IReadOnlyList<VolumeSelectionItem> items, int initialCursor = 0)
     {
         ArgumentNullException.ThrowIfNull(items);
         if (items.Count == 0) { _dialogs.Message("Change drive", "No volumes found."); return null; }
-        _cycledShortcut = null;
 
         DriveDialogRow[] rows = ProjectRows(items);
         int initial = rows.Select((row, index) => (row, index)).FirstOrDefault(pair => ReferenceEquals(pair.row.Item, items[Math.Clamp(initialCursor, 0, items.Count - 1)])).index;
-        var table = new TableList<DriveDialogRow>(rows, new TableListDefinition<DriveDialogRow>
-        {
-            Columns =
-            [
-                TableColumn<DriveDialogRow>.Text("Disk", FormatDisk, width: 18, emphasized: true),
-                TableColumn<DriveDialogRow>.Text("Free", row => BuildSizeCols(row.Item.Volume).Free, width: 10, alignment: TableColumnAlignment.Right),
-                TableColumn<DriveDialogRow>.Text("Total", row => BuildSizeCols(row.Item.Volume).Total, width: 10, alignment: TableColumnAlignment.Right),
-            ],
-            SectionBreakBetween = static (previous, current) => previous.Item.Action != current.Item.Action,
-        }, initial, ListAppearance.Menu);
         int presentationRows = rows.Length + (rows.Any(row => row.Item.Action == VolumeSelectionAction.OpenVolume) && rows.Any(row => row.Item.Action == VolumeSelectionAction.OpenModule) ? 1 : 0);
 
-        return _dialogs.Composite(
-            new CompositeDialogOptions("Change drive", DialogWidth, Math.Min(presentationRows + 6, 24), 20, 6, Appearance: DialogAppearance.Popup),
-            new ScrollableFormDialog(), table, status: null, commands: ShortcutCommands(rows),
-            handle: semantic => HandleEvent(semantic, table, rows));
+        return _dialogs.Table(new TableDialogOptions<DriveDialogRow, VolumeSelectionItem?>
+        {
+            Title = "Change drive",
+            Items = () => rows,
+            Definition = new TableListDefinition<DriveDialogRow>
+            {
+                Columns =
+                [
+                    TableColumn<DriveDialogRow>.Text("Disk", FormatDisk, width: 18, emphasized: true),
+                    TableColumn<DriveDialogRow>.Text("Free", row => BuildSizeCols(row.Item.Volume).Free, width: 10, alignment: TableColumnAlignment.Right),
+                    TableColumn<DriveDialogRow>.Text("Total", row => BuildSizeCols(row.Item.Volume).Total, width: 10, alignment: TableColumnAlignment.Right),
+                ],
+                SectionBreakBetween = static (previous, current) => previous.Item.Action != current.Item.Action,
+            },
+            InitialSelectedIndex = initial,
+            PreferredWidth = DialogWidth,
+            PreferredHeight = Math.Min(presentationRows + 6, 24),
+            MinWidth = 20,
+            MinHeight = 6,
+            Appearance = DialogAppearance.Popup,
+            TableAppearance = ListAppearance.Menu,
+            DefaultItemActionId = "select",
+            CancelKeys = [ConsoleKey.Escape, ConsoleKey.F10],
+            Cancel = () => null,
+            KeyboardCommands = ShortcutCommands(rows),
+            HandleAction = action => HandleAction(action, rows),
+        });
     }
 
-    private CompositeDialogOutcome<VolumeSelectionItem?> HandleEvent(CompositeDialogEvent semantic, TableList<DriveDialogRow> table, IReadOnlyList<DriveDialogRow> rows)
+    private DialogOutcome<VolumeSelectionItem?> HandleAction(ListDialogActionContext<DriveDialogRow> action, IReadOnlyList<DriveDialogRow> rows)
     {
-        if (semantic.Kind == CompositeDialogEventKind.Cancelled || semantic is { Kind: CompositeDialogEventKind.Command, Command: "cancel" }) return CompositeDialogOutcome<VolumeSelectionItem?>.Complete(null);
-        if (semantic.Kind == CompositeDialogEventKind.ContentSelectionChanged) { _cycledShortcut = null; return CompositeDialogOutcome<VolumeSelectionItem?>.ContinueChanged; }
-        if (semantic.Kind == CompositeDialogEventKind.ContentConfirmed && table.TryGetSelectedItem(out DriveDialogRow row)) return TryCompleteSelection(row.Item);
-        if (semantic.Kind != CompositeDialogEventKind.Command || semantic.Command is not { } command || !command.StartsWith("shortcut:", StringComparison.Ordinal)) return CompositeDialogOutcome<VolumeSelectionItem?>.ContinueNoChange;
-        string shortcut = command["shortcut:".Length..];
-        int[] matches = Enumerable.Range(0, table.Count)
-            .Where(index => string.Equals(rows[index].EffectiveShortcut, shortcut, StringComparison.OrdinalIgnoreCase))
-            .ToArray();
-        if (matches.Length == 0) return CompositeDialogOutcome<VolumeSelectionItem?>.ContinueNoChange;
-        if (matches.Length == 1)
-        {
-            if (rows[matches[0]].Item.Volume is { } volume && !IsSelectable(volume.Status))
-                return CompositeDialogOutcome<VolumeSelectionItem?>.ContinueChanged;
-            return TryCompleteSelection(rows[matches[0]].Item);
-        }
+        if (action.ActionId == "select")
+            return action.SelectedItem is { } selected ? TryCompleteSelection(selected.Item) : DialogOutcome<VolumeSelectionItem?>.ContinueOpen();
+        if (!action.ActionId.StartsWith("shortcut:", StringComparison.Ordinal))
+            return DialogOutcome<VolumeSelectionItem?>.ContinueOpen();
 
-        int currentMatch = Array.IndexOf(matches, table.SelectedIndex);
+        string shortcut = action.ActionId["shortcut:".Length..];
+        int[] matches = Enumerable.Range(0, rows.Count).Where(index => string.Equals(rows[index].EffectiveShortcut, shortcut, StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (matches.Length == 0) return DialogOutcome<VolumeSelectionItem?>.ContinueOpen();
+        if (matches.Length == 1) return TryCompleteSelection(rows[matches[0]].Item);
+
+        int currentMatch = Array.IndexOf(matches, action.SelectedIndex);
         int next = currentMatch >= 0 ? matches[(currentMatch + 1) % matches.Length] : matches[0];
-        table.SetSelectedIndex(next);
-        _cycledShortcut = shortcut;
-        return CompositeDialogOutcome<VolumeSelectionItem?>.ContinueChanged;
+        return DialogOutcome<VolumeSelectionItem?>.ChangeSelection(next);
     }
 
     private static IReadOnlyDictionary<ConsoleKey, string> ShortcutCommands(IEnumerable<DriveDialogRow> rows)
     {
         var commands = new Dictionary<ConsoleKey, string>();
-        commands[ConsoleKey.Escape] = "cancel";
-        commands[ConsoleKey.F10] = "cancel";
         foreach (string shortcut in rows.Select(row => row.EffectiveShortcut).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase))
         {
             string command = "shortcut:" + shortcut;
@@ -82,15 +87,15 @@ internal sealed class DriveDialog
         return commands;
     }
 
-    private CompositeDialogOutcome<VolumeSelectionItem?> TryCompleteSelection(VolumeSelectionItem selected)
+    private DialogOutcome<VolumeSelectionItem?> TryCompleteSelection(VolumeSelectionItem selected)
     {
         if (selected.Volume is { } volume && !IsSelectable(volume.Status))
         {
             string statusText = volume.Status switch { VolumeStatus.NotReady => "not ready", VolumeStatus.Disconnected => "disconnected", _ => "error" };
             _dialogs.Message("Change drive", $"{volume.DisplayName}: volume is {statusText}.");
-            return CompositeDialogOutcome<VolumeSelectionItem?>.ContinueNoChange;
+            return DialogOutcome<VolumeSelectionItem?>.ContinueOpen();
         }
-        return CompositeDialogOutcome<VolumeSelectionItem?>.Complete(selected);
+        return DialogOutcome<VolumeSelectionItem?>.Complete(selected);
     }
 
     private static DriveDialogRow[] ProjectRows(IReadOnlyList<VolumeSelectionItem> items)
@@ -102,8 +107,7 @@ internal sealed class DriveDialog
 
     private static string FormatDisk(DriveDialogRow row)
     {
-        if (row.Item.Volume is { } volume)
-            return $"{volume.DisplayName} {KindLabel(volume.Kind, volume.Status)}".Trim();
+        if (row.Item.Volume is { } volume) return $"{volume.DisplayName} {KindLabel(volume.Kind, volume.Status)}".Trim();
         string prefix = row.EffectiveShortcut is null ? "   " : $"{row.EffectiveShortcut}: ";
         return prefix + row.Item.Label;
     }

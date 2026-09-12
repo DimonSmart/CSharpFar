@@ -27,21 +27,21 @@ public abstract record DialogOutcome<TResult>
     {
         public Refresh() { }
 
-        internal Refresh(int selectedIndex) => SelectedIndex = selectedIndex;
+        internal Refresh(int selectedIndex, bool reloadItems = true)
+        {
+            SelectedIndex = selectedIndex;
+            ReloadItems = reloadItems;
+        }
 
         internal int? SelectedIndex { get; }
+        internal bool ReloadItems { get; } = true;
     }
     public sealed record Close(TResult Result) : DialogOutcome<TResult>;
 
     public static DialogOutcome<TResult> ContinueOpen() => new Continue();
     public static DialogOutcome<TResult> RefreshOpen() => new Refresh();
-
-    public static DialogOutcome<TResult> RefreshOpen(int selectedIndex)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(selectedIndex);
-        return new Refresh(selectedIndex);
-    }
-
+    public static DialogOutcome<TResult> RefreshOpen(int selectedIndex) => new Refresh(selectedIndex);
+    public static DialogOutcome<TResult> ChangeSelection(int selectedIndex) => new Refresh(selectedIndex, reloadItems: false);
     public static DialogOutcome<TResult> Complete(TResult result) => new Close(result);
 }
 
@@ -60,7 +60,7 @@ internal sealed class ListDialog<T, TResult>
         ArgumentNullException.ThrowIfNull(options.Actions);
         ArgumentNullException.ThrowIfNull(options.HandleAction);
 
-        IReadOnlyList<T> items = options.Items();
+        IReadOnlyList<T> items = GetItems(options.Items);
         var dialog = new ListWithButtonsDialog<T>(items, options.ItemText, options.Actions, options.Title)
         {
             DialogWidth = options.DialogWidth,
@@ -79,25 +79,27 @@ internal sealed class ListDialog<T, TResult>
 
             DialogOutcome<TResult> outcome = options.HandleAction(
                 new ListDialogActionContext<T>(action.ActionId, action.SelectedItem, action.SelectedIndex));
-            return outcome switch
+            if (outcome is DialogOutcome<TResult>.Close close)
+                return ListWithButtonsDialogLoopResult<TResult?>.Complete(close.Result);
+            if (outcome is DialogOutcome<TResult>.Continue)
+                return ListWithButtonsDialogLoopResult<TResult?>.ContinueNoChange;
+            if (outcome is DialogOutcome<TResult>.Refresh refresh)
             {
-                DialogOutcome<TResult>.Close close => ListWithButtonsDialogLoopResult<TResult?>.Complete(close.Result),
-                DialogOutcome<TResult>.Continue => ListWithButtonsDialogLoopResult<TResult?>.ContinueNoChange,
-                DialogOutcome<TResult>.Refresh refresh => Refresh(dialog, options.Items, refresh.SelectedIndex),
-                _ => throw new InvalidOperationException("Unknown list-dialog outcome."),
-            };
+                if (refresh.ReloadItems)
+                {
+                    items = GetItems(options.Items);
+                    dialog.RefreshItems(items);
+                }
+
+                if (refresh.SelectedIndex.HasValue && items.Count > 0)
+                    dialog.SelectedIndex = Math.Clamp(refresh.SelectedIndex.Value, 0, items.Count - 1);
+                return ListWithButtonsDialogLoopResult<TResult?>.ContinueChanged;
+            }
+
+            throw new InvalidOperationException("Unknown list-dialog outcome.");
         });
     }
 
-    private static ListWithButtonsDialogLoopResult<TResult?> Refresh(
-        ListWithButtonsDialog<T> dialog,
-        Func<IReadOnlyList<T>> items,
-        int? selectedIndex)
-    {
-        IReadOnlyList<T> refreshedItems = items();
-        dialog.RefreshItems(refreshedItems);
-        if (selectedIndex.HasValue && refreshedItems.Count > 0)
-            dialog.SelectedIndex = Math.Min(selectedIndex.Value, refreshedItems.Count - 1);
-        return ListWithButtonsDialogLoopResult<TResult?>.ContinueChanged;
-    }
+    private static IReadOnlyList<T> GetItems(Func<IReadOnlyList<T>> items) =>
+        items() ?? throw new InvalidOperationException("List dialog item source returned null.");
 }

@@ -1,3 +1,4 @@
+using CSharpFar.Console;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
@@ -11,25 +12,30 @@ internal sealed class DestinationTemplatePreviewDialog
 
     public void Show(FileOperationPlan plan)
     {
-        var table = new TableList<FileOperationPlanItem>(plan.Items, new TableListDefinition<FileOperationPlanItem>
+        _ = _dialogs.Table(new TableDialogOptions<FileOperationPlanItem, bool>
         {
-            Columns =
-            [
-                TableColumn<FileOperationPlanItem>.Text("Source", item => item.Source.SourcePath, TableWidth.Flexible(24, 12), emphasized: true),
-                TableColumn<FileOperationPlanItem>.Text("Destination", item => item.Destination.SourcePath, TableWidth.Flexible(36, 16)),
-            ],
+            Title = "Destination template preview",
+            Items = () => plan.Items,
+            Definition = new TableListDefinition<FileOperationPlanItem>
+            {
+                Columns =
+                [
+                    TableColumn<FileOperationPlanItem>.Text("Source", item => item.Source.SourcePath, TableWidth.Flexible(24, 12), emphasized: true),
+                    TableColumn<FileOperationPlanItem>.Text("Destination", item => item.Destination.SourcePath, TableWidth.Flexible(36, 16)),
+                ],
+            },
+            Actions = [DialogButton.Default("close", "Close", 'C')],
+            DefaultItemActionId = null,
+            CancelKeys = [ConsoleKey.Escape],
+            Cancel = () => true,
+            HandleAction = action => action.ActionId == "close"
+                ? DialogOutcome<bool>.Complete(true)
+                : DialogOutcome<bool>.ContinueOpen(),
+            FooterText = $"{plan.Items.Count} planned item(s)",
+            PreferredWidth = 90,
+            PreferredHeight = 22,
+            MinWidth = 48,
+            MinHeight = 8,
         });
-        var close = FormControls.Buttons(DialogButton.Default("close", "Close", 'C'));
-        var form = new ScrollableFormDialog();
-        form.SetRows([], [close]);
-        _dialogs.Composite(
-            new CompositeDialogOptions("Destination template preview", 90, 22, 48, 8),
-            form,
-            table,
-            () => $"{plan.Items.Count} planned item(s)",
-            new Dictionary<ConsoleKey, string> { [ConsoleKey.Escape] = "close" },
-            semantic => semantic.Kind is CompositeDialogEventKind.Cancelled || semantic is { Kind: CompositeDialogEventKind.Command, Command: "close" }
-                ? CompositeDialogOutcome<bool>.Complete(true)
-                : CompositeDialogOutcome<bool>.ContinueNoChange);
     }
 }

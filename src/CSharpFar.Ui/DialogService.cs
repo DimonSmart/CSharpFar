@@ -72,6 +72,9 @@ public sealed class DialogService
     public TResult? List<T, TResult>(ListDialogOptions<T, TResult> options) =>
         new ListDialog<T, TResult>(_modalDialogs).Show(options);
 
+    public TResult? Table<T, TResult>(TableDialogOptions<T, TResult> options) =>
+        new TableDialog<T, TResult>(_modalDialogs).Show(options);
+
     public TResult Form<TResult>(
         FormDialogOptions options,
         Func<IReadOnlyList<FormRow>> rows,

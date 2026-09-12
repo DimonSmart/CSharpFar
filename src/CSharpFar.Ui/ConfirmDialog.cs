@@ -1,79 +1,28 @@
-using CSharpFar.Console;
-using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
-
 namespace CSharpFar.Ui;
 
 /// <summary>Asks the user to confirm a destructive action. Returns true if confirmed.</summary>
 internal sealed class ConfirmDialog
 {
-    private const int DialogWidth = 52;
-    private const int DialogHeight = 7;
+    private readonly ChoiceDialog _choice;
 
-    private readonly ModalDialogHost _modalDialogs;
-    private readonly ModalDialogRenderer _modalRenderer = new();
+    public ConfirmDialog(ModalDialogHost modalDialogs) =>
+        _choice = new ChoiceDialog(modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs)));
 
-    public ConfirmDialog(ModalDialogHost modalDialogs)
-    {
-        _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
-    }
-
-    /// <summary>
-    /// Draws the dialog and waits for input. Returns true if confirmed.
-    /// </summary>
     public bool Show(string title, string question, string itemName)
     {
-        var actions = new DialogActionController(
-        [
-            new DialogButton("ok", "OK", 'O', IsDefault: true),
-            new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
-        ], 0, 1);
-        return _modalDialogs.RunInteractive<ScrollableFormFrame, DialogActionOutcome?, bool>(
-            (context, focusScope) => RenderLayer(context, focusScope, actions, title, question, itemName),
-            actions.BuildInteractionFrame,
-            (input, frame, route) =>
-            {
-                FormRouteResult result = actions.RouteInput(input, frame, route);
-                return (actions.Interpret(result.FormResult), result.UiResult);
-            },
-            (_, outcome) =>
-            {
-                if (outcome is { } action)
-                    return ModalDialogLoopResult<bool>.Complete(action.Kind == DialogActionOutcomeKind.Activated && action.ButtonId == "ok");
-                return ModalDialogLoopResult<bool>.ContinueNoChange;
-            });
-    }
-
-    private ScrollableFormFrame RenderLayer(UiRenderContext context, IUiFocusState focusScope, DialogActionController actions, string title, string question, string itemName)
-    {
-        ScrollableFormFrame? frame = null;
-        IUiCanvas screen = context.Canvas;
-        var outerBounds = _modalRenderer.CenteredOuterBounds(context.Size, DialogWidth, DialogHeight, minWidth: 20, minHeight: 5);
-
-        _modalRenderer.Render(screen, outerBounds, title, true, DialogStyles.OuterOptions, DialogStyles.FrameOptions, (_, layout) =>
+        ChoiceDialogResult result = _choice.Show(new ChoiceDialogOptions
         {
-            Rect bounds = layout.FrameBounds;
-            int contentX = bounds.X + 2;
-            int contentWidth = Math.Max(1, bounds.Width - 4);
-
-            screen.Write(contentX, bounds.Y + 1, ConsoleTextMetrics.FitToCells(question, contentWidth), DialogStyles.Fill);
-
-            string truncatedName = Truncate(itemName, contentWidth);
-            int nameX = contentX + Math.Max(0, (contentWidth - ConsoleTextMetrics.GetCellWidth(truncatedName)) / 2);
-            screen.Write(contentX, bounds.Y + 2, new string(' ', contentWidth), DialogStyles.Fill);
-            screen.Write(nameX, bounds.Y + 2, truncatedName, DialogStyles.Fill);
-
-            frame = actions.Render(
-                new FormRenderContext(
-                    context,
-                    new Rect(contentX, bounds.Y + bounds.Height - 3, contentWidth, 1),
-                    DialogStyles.Border,
-                    new Rect(contentX, bounds.Y + bounds.Height - 2, contentWidth, 1)),
-                focusScope);
+            Title = title,
+            Lines = [question, itemName],
+            Buttons =
+            [
+                DialogButton.Default("ok", "OK", 'O'),
+                DialogButton.Cancel("Cancel", 'C'),
+            ],
+            DefaultButtonIndex = 0,
+            CancelButtonIndex = 1,
         });
-        return frame ?? throw new InvalidOperationException("Confirm dialog did not render its form frame.");
-    }
 
-    private static string Truncate(string s, int maxLen) =>
-        ConsoleTextMetrics.TruncateEndToCells(s, maxLen);
+        return result.ButtonId == "ok";
+    }
 }
