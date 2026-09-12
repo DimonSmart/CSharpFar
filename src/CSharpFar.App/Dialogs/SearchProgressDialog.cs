@@ -1,4 +1,3 @@
-using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
@@ -14,48 +13,42 @@ internal sealed class SearchProgressDialog
     private readonly DialogService _dialogs;
     private readonly ISearchService _searchService;
 
-    public SearchProgressDialog(ModalDialogHost _, ISearchService searchService, DialogService dialogs, CSharpFarPalette? palette = null)
+    public SearchProgressDialog(ISearchService searchService, DialogService dialogs)
     {
-        _searchService = searchService;
-        _dialogs = dialogs;
+        _searchService = searchService ?? throw new ArgumentNullException(nameof(searchService));
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
     }
 
     public SearchRunResult Show(SearchRequest request)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         var syncRoot = new object();
         var results = new List<SearchResultItem>();
         SearchProgress latestProgress = new() { CurrentPath = request.RootPath };
         var session = new SearchProgressSession();
-        var table = new TableList<SearchResultItem>([], new TableListDefinition<SearchResultItem>
-        {
-            Columns = [TableColumn<SearchResultItem>.Text("Results", item => FormatResult(item), TableWidth.Flexible(70, 12))],
-        });
-        var buttons = FormControls.Buttons(CreateButtons(false, true));
-        var form = new ScrollableFormDialog();
         SearchProgressViewState state = new(latestProgress, [], SearchProgressStatus.Running);
 
-        void SetRows()
+        return _dialogs.Operation(new OperationDialogDefinition<SearchResultItem, SearchBackgroundOutcome, SearchRunResult>
         {
-            form.SetRows(
-            [
-                FormControls.Label(ShortenMiddle(state.Progress.CurrentPath ?? request.RootPath, 70)),
-                FormControls.Label(StatsLine(state.Progress, 70)),
-                FormControls.Label(state.Progress.LastErrorMessage is null ? StatusText(state.Status) : state.Progress.LastErrorMessage),
-            ],
-            [buttons]);
-        }
-
-        SetRows();
-        return _dialogs.Operation(
-            new OperationDialogOptions(new CompositeDialogOptions($"Find file: {request.FileMaskExpression}", 76, 18, 50, 14), TimeSpan.FromMilliseconds(60)),
-            RunSearchAsync,
-            form,
-            table,
-            status: null,
-            commands: null,
-            synchronize: Synchronize,
-            handle: Handle,
-            complete: Complete);
+            Title = $"Find file: {request.FileMaskExpression}",
+            PreferredWidth = 76,
+            PreferredHeight = 18,
+            MinWidth = 50,
+            MinHeight = 14,
+            RefreshInterval = TimeSpan.FromMilliseconds(60),
+            TableDefinition = new TableListDefinition<SearchResultItem>
+            {
+                Columns = [TableColumn<SearchResultItem>.Text("Results", FormatResult, TableWidth.Flexible(70, 12))],
+            },
+            ItemIdentity = static item => new SearchResultKey(item.FullPath, item.Kind),
+            Operation = RunSearchAsync,
+            Synchronize = Synchronize,
+            HandleItemActivation = Activate,
+            HandleCommand = HandleCommand,
+            HandleCancel = RequestStop,
+            Complete = Complete,
+        });
 
         async Task<SearchBackgroundOutcome> RunSearchAsync(CancellationToken cancellationToken)
         {
@@ -76,39 +69,53 @@ internal sealed class SearchProgressDialog
             }
         }
 
-        bool Synchronize()
+        OperationDialogState<SearchResultItem> Synchronize()
         {
             SearchProgressSnapshot snapshot;
             lock (syncRoot) snapshot = new(latestProgress, [.. results]);
-            var next = new SearchProgressViewState(snapshot.Progress, snapshot.Results, session.IsStopping ? SearchProgressStatus.Stopping : SearchProgressStatus.Running);
-            bool changed = !Equals(state, next);
-            state = next;
-            table.ReplaceItems(next.Results, static item => new SearchResultKey(item.FullPath, item.Kind));
-            buttons.SetButtons(CreateButtons(session.CanGoTo && table.HasItems, session.CanStop));
-            SetRows();
-            return changed;
+
+            state = new(
+                snapshot.Progress,
+                snapshot.Results,
+                session.IsStopping ? SearchProgressStatus.Stopping : SearchProgressStatus.Running);
+
+            return new OperationDialogState<SearchResultItem>(
+                rows:
+                [
+                    FormControls.Label(ShortenMiddle(state.Progress.CurrentPath ?? request.RootPath, 70)),
+                    FormControls.Label(StatsLine(state.Progress, 70)),
+                    FormControls.Label(state.Progress.LastErrorMessage is null ? StatusText(state.Status) : state.Progress.LastErrorMessage),
+                ],
+                items: state.Results,
+                buttons: CreateButtons(session.CanGoTo && state.Results.Length > 0, session.CanStop));
         }
 
-        OperationDialogOutcome<SearchRunResult> Handle(CompositeDialogEvent @event)
+        OperationDialogOutcome<SearchRunResult> Activate(SearchResultItem selected) =>
+            session.TryGoTo(selected)
+                ? OperationDialogOutcome<SearchRunResult>.RequestCancellation
+                : OperationDialogOutcome<SearchRunResult>.ContinueNoChange;
+
+        OperationDialogOutcome<SearchRunResult> HandleCommand(ListDialogActionContext<SearchResultItem> action)
         {
-            if (@event.Kind == CompositeDialogEventKind.ContentConfirmed && table.TryGetSelectedItem(out SearchResultItem selected) && session.TryGoTo(selected))
+            if (action.ActionId == GoToButton && action.SelectedItem is { } selected)
+                return Activate(selected);
+
+            return action.ActionId == StopButton
+                ? RequestStop()
+                : OperationDialogOutcome<SearchRunResult>.ContinueNoChange;
+        }
+
+        OperationDialogOutcome<SearchRunResult> RequestStop()
+        {
+            if (session.CanStop && ConfirmStopSearch() && session.TryStop())
                 return OperationDialogOutcome<SearchRunResult>.RequestCancellation;
 
-            if (@event.Kind == CompositeDialogEventKind.Command && @event.Command == GoToButton && table.TryGetSelectedItem(out selected) && session.TryGoTo(selected))
-                return OperationDialogOutcome<SearchRunResult>.RequestCancellation;
-
-            if ((@event.Kind == CompositeDialogEventKind.Command && @event.Command == StopButton) || @event.Kind == CompositeDialogEventKind.Cancelled)
-            {
-                if (session.CanStop && ConfirmStopSearch() && session.TryStop())
-                    return OperationDialogOutcome<SearchRunResult>.RequestCancellation;
-            }
             return OperationDialogOutcome<SearchRunResult>.ContinueNoChange;
         }
 
         SearchRunResult Complete(SearchBackgroundOutcome outcome)
         {
             state = new(outcome.FinalProgress, outcome.Results, SearchProgressStatus.Completed);
-            table.ReplaceItems(outcome.Results, static item => new SearchResultKey(item.FullPath, item.Kind));
             return session.BuildResult(outcome.Results, outcome.Cancelled);
         }
     }

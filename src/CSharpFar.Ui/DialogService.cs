@@ -117,6 +117,11 @@ public sealed class DialogService
         CancellationToken cancellationToken = default) =>
         new CompositeDialogHost(_modalDialogs).Run(options, form, content, status, commands, handle, prepareRender, cancellationToken);
 
+    public TResult Operation<TItem, TBackground, TResult>(
+        OperationDialogDefinition<TItem, TBackground, TResult> options,
+        CancellationToken cancellationToken = default) =>
+        new SemanticOperationDialog<TItem, TBackground, TResult>(_modalDialogs).Show(options, cancellationToken);
+
     public TResult Operation<TBackground, TResult>(
         OperationDialogOptions options,
         Func<CancellationToken, Task<TBackground>> operation,

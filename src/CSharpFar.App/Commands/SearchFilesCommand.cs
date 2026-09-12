@@ -36,7 +36,7 @@ internal sealed class SearchFilesCommand : IApplicationCommand
             SearchRunResult result;
             try
             {
-                result = new SearchProgressDialog(context.ModalDialogs, context.SearchService, context.Dialogs, context.Palette).Show(request);
+                result = new SearchProgressDialog(context.SearchService, context.Dialogs).Show(request);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException or ArgumentException)
             {
