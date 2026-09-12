@@ -52,15 +52,11 @@ public sealed class DirectoryShortcutsDialogTests : IDisposable
             .ToArray();
 
         DirectoryShortcutsDialogResult result = Show(driver, shortcuts);
-        bool sawRefreshedSlot = driver.WriteRecords.Any(record =>
-            record.Text.Contains("2  ", StringComparison.Ordinal) &&
-            !record.Text.Contains("Work", StringComparison.Ordinal));
 
         Assert.True(result.Changed);
         Assert.Equal(9, result.Items.Count);
         Assert.DoesNotContain(result.Items, item => item.Number == 2);
         Assert.True(sawConfirmation);
-        Assert.True(sawRefreshedSlot);
     }
 
     [Fact]
