@@ -582,11 +582,15 @@ public sealed class ApplicationVolumeTests : IDisposable
     [Fact]
     public void DriveDialog_UnavailableShortcutDoesNotComplete()
     {
-        var driver = DialogDriver(KeyInput('y', ConsoleKey.Y), KeyInput(ConsoleKey.Escape));
+        var driver = DialogDriver(
+            KeyInput('y', ConsoleKey.Y),
+            KeyInput(ConsoleKey.Enter),
+            KeyInput(ConsoleKey.Escape));
 
         VolumeSelectionItem? result = CreateDriveDialog(driver).Show(DuplicateShortcutItems());
 
         Assert.Null(result);
+        Assert.Contains(driver.WriteRecords, record => record.Text.Contains("volume is disconnected", StringComparison.Ordinal));
     }
 
     [Fact]
