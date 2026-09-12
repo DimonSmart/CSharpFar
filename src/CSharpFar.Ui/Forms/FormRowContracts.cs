@@ -5,7 +5,7 @@ using CSharpFar.Ui;
 
 namespace CSharpFar.Ui;
 
-public enum FormInputResultKind
+internal enum FormInputResultKind
 {
     NotHandled,
     Handled,
@@ -18,7 +18,7 @@ public enum FormInputResultKind
     Cancel,
 }
 
-public readonly record struct FormInputResult(
+internal readonly record struct FormInputResult(
     FormInputResultKind Kind,
     string? Command = null,
     UiMouseCaptureRequestKind MouseCapture = UiMouseCaptureRequestKind.None,

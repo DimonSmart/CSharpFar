@@ -1,0 +1,139 @@
+name: Reusable NuGet packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the verified packages to NuGet.org
+        required: true
+        default: false
+        type: boolean
+      confirm_version:
+        description: Exact coordinated package version required when publishing
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+
+jobs:
+  verify:
+    name: Verify (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore CSharpFar.slnx
+
+      - name: Build
+        run: dotnet build CSharpFar.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test CSharpFar.slnx --configuration Release --no-build --verbosity minimal
+
+      - name: Verify reusable packages
+        shell: pwsh
+        run: ./eng/verify-reusable-packages.ps1
+
+  package:
+    name: Create release artifacts
+    needs: verify
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Read coordinated package version
+        id: version
+        shell: pwsh
+        run: |
+          $value = @(& dotnet msbuild src/DimonSmart.Terminal/DimonSmart.Terminal.csproj -nologo -getProperty:DimonSmartTerminalPackageVersion)
+          if ($LASTEXITCODE) { throw "Could not read coordinated package version." }
+          $version = (@($value | ForEach-Object { $_.Trim() } | Where-Object { $_ }))[0]
+          if ([string]::IsNullOrWhiteSpace($version)) { throw "Coordinated package version is empty." }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "Package version: $version"
+
+      - name: Require exact version confirmation for publish
+        if: ${{ inputs.publish }}
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $confirmation = '${{ inputs.confirm_version }}'
+          if ($confirmation -ne $version) {
+            throw "Publishing requires confirm_version=$version."
+          }
+
+      - name: Verify and pack
+        shell: pwsh
+        run: ./eng/verify-reusable-packages.ps1
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dimonsmart-terminal-${{ steps.version.outputs.version }}
+          path: artifacts/packages/*.nupkg
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish to NuGet.org
+    needs: package
+    if: ${{ inputs.publish }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download verified package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dimonsmart-terminal-${{ needs.package.outputs.version }}
+          path: packages
+
+      - name: NuGet login (OIDC)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      - name: Publish DimonSmart.Terminal
+        shell: pwsh
+        run: |
+          $version = '${{ needs.package.outputs.version }}'
+          dotnet nuget push "packages/DimonSmart.Terminal.$version.nupkg" `
+            --source https://api.nuget.org/v3/index.json `
+            --api-key '${{ steps.login.outputs.NUGET_API_KEY }}'
+          if ($LASTEXITCODE) { throw "DimonSmart.Terminal publish failed." }
+
+      - name: Publish DimonSmart.Terminal.Ui
+        shell: pwsh
+        run: |
+          $version = '${{ needs.package.outputs.version }}'
+          dotnet nuget push "packages/DimonSmart.Terminal.Ui.$version.nupkg" `
+            --source https://api.nuget.org/v3/index.json `
+            --api-key '${{ steps.login.outputs.NUGET_API_KEY }}'
+          if ($LASTEXITCODE) { throw "DimonSmart.Terminal.Ui publish failed." }

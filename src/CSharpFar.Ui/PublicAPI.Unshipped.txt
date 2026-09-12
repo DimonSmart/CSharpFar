@@ -1,6 +1,5 @@
 #nullable enable
 abstract CSharpFar.Ui.DialogOutcome<TResult>.<Clone>$() -> CSharpFar.Ui.DialogOutcome<TResult>!
-abstract CSharpFar.Ui.FormTargetFrame.<Clone>$() -> CSharpFar.Ui.FormTargetFrame!
 abstract CSharpFar.Ui.UiLayer<TFrame>.InputPolicy.get -> CSharpFar.Ui.UiLayerInputPolicy
 abstract CSharpFar.Ui.UiLayer<TFrame>.RenderFrame(CSharpFar.Ui.UiRenderContext! context) -> TFrame
 abstract CSharpFar.Ui.UiLayer<TFrame>.RouteInput(CSharpFar.Console.Input.ConsoleInputEvent! input, TFrame frame, CSharpFar.Ui.UiInputRouteContext! context) -> CSharpFar.Ui.UiInputResult
@@ -360,9 +359,6 @@ CSharpFar.Ui.DropdownSelectFormRow<T>.MaxVisibleRows.get -> int
 CSharpFar.Ui.DropdownSelectFormRow<T>.MaxVisibleRows.set -> void
 CSharpFar.Ui.DropdownSelectFormRow<T>.Value.get -> T
 CSharpFar.Ui.DropdownSelectFormRow<T>.Value.set -> void
-CSharpFar.Ui.FormBodyScrollbarTargetFrame
-CSharpFar.Ui.FormBodyScrollbarTargetFrame.Equals(CSharpFar.Ui.FormBodyScrollbarTargetFrame? other) -> bool
-CSharpFar.Ui.FormBodyScrollbarTargetFrame.FormBodyScrollbarTargetFrame(CSharpFar.Ui.UiTargetId! target, CSharpFar.Console.Models.Rect bounds, CSharpFar.Console.Models.Rect hitBounds) -> void
 CSharpFar.Ui.FormControls
 CSharpFar.Ui.FormControlTone
 CSharpFar.Ui.FormControlTone.Default = 0 -> CSharpFar.Ui.FormControlTone
@@ -443,32 +439,6 @@ CSharpFar.Ui.FormFieldFactory.Text() -> CSharpFar.Ui.TextField!
 CSharpFar.Ui.FormFieldFactory.Text(CSharpFar.Ui.TextFieldOptions! options) -> CSharpFar.Ui.TextField!
 CSharpFar.Ui.FormFieldFactory.WithDefaults(CSharpFar.Ui.TextFieldDefaults! defaults) -> CSharpFar.Ui.FormFieldFactory!
 CSharpFar.Ui.FormFooter
-CSharpFar.Ui.FormInputResult
-CSharpFar.Ui.FormInputResult.Command.get -> string?
-CSharpFar.Ui.FormInputResult.Command.init -> void
-CSharpFar.Ui.FormInputResult.Deconstruct(out CSharpFar.Ui.FormInputResultKind Kind, out string? Command, out CSharpFar.Ui.UiMouseCaptureRequestKind MouseCapture, out string? SourceRowId, out CSharpFar.Ui.IFormFocusTarget? SourceTarget) -> void
-CSharpFar.Ui.FormInputResult.Equals(CSharpFar.Ui.FormInputResult other) -> bool
-CSharpFar.Ui.FormInputResult.FormInputResult() -> void
-CSharpFar.Ui.FormInputResult.FormInputResult(CSharpFar.Ui.FormInputResultKind Kind, string? Command = null, CSharpFar.Ui.UiMouseCaptureRequestKind MouseCapture = CSharpFar.Ui.UiMouseCaptureRequestKind.None, string? SourceRowId = null, CSharpFar.Ui.IFormFocusTarget? SourceTarget = null) -> void
-CSharpFar.Ui.FormInputResult.IsHandled.get -> bool
-CSharpFar.Ui.FormInputResult.Kind.get -> CSharpFar.Ui.FormInputResultKind
-CSharpFar.Ui.FormInputResult.Kind.init -> void
-CSharpFar.Ui.FormInputResult.MouseCapture.get -> CSharpFar.Ui.UiMouseCaptureRequestKind
-CSharpFar.Ui.FormInputResult.MouseCapture.init -> void
-CSharpFar.Ui.FormInputResult.SourceRowId.get -> string?
-CSharpFar.Ui.FormInputResult.SourceRowId.init -> void
-CSharpFar.Ui.FormInputResult.SourceTarget.get -> CSharpFar.Ui.IFormFocusTarget?
-CSharpFar.Ui.FormInputResult.SourceTarget.init -> void
-CSharpFar.Ui.FormInputResultKind
-CSharpFar.Ui.FormInputResultKind.Auxiliary = 7 -> CSharpFar.Ui.FormInputResultKind
-CSharpFar.Ui.FormInputResultKind.Cancel = 8 -> CSharpFar.Ui.FormInputResultKind
-CSharpFar.Ui.FormInputResultKind.Handled = 1 -> CSharpFar.Ui.FormInputResultKind
-CSharpFar.Ui.FormInputResultKind.MoveFocusNext = 4 -> CSharpFar.Ui.FormInputResultKind
-CSharpFar.Ui.FormInputResultKind.MoveFocusPrevious = 5 -> CSharpFar.Ui.FormInputResultKind
-CSharpFar.Ui.FormInputResultKind.NotHandled = 0 -> CSharpFar.Ui.FormInputResultKind
-CSharpFar.Ui.FormInputResultKind.OverlayChanged = 2 -> CSharpFar.Ui.FormInputResultKind
-CSharpFar.Ui.FormInputResultKind.Submit = 6 -> CSharpFar.Ui.FormInputResultKind
-CSharpFar.Ui.FormInputResultKind.ValueChanged = 3 -> CSharpFar.Ui.FormInputResultKind
 CSharpFar.Ui.FormLabelColumnMode
 CSharpFar.Ui.FormLabelColumnMode.Auto = 0 -> CSharpFar.Ui.FormLabelColumnMode
 CSharpFar.Ui.FormLabelColumnMode.Fixed = 2 -> CSharpFar.Ui.FormLabelColumnMode
@@ -489,59 +459,10 @@ CSharpFar.Ui.FormLayoutOptions.LabelGap.init -> void
 CSharpFar.Ui.FormLayoutOptions.MinimumControlWidth.get -> int
 CSharpFar.Ui.FormLayoutOptions.MinimumControlWidth.init -> void
 CSharpFar.Ui.FormLayoutOptions.Validate() -> CSharpFar.Ui.FormLayoutOptions!
-CSharpFar.Ui.FormRenderContext
-CSharpFar.Ui.FormRenderContext.BodyBounds.get -> CSharpFar.Console.Models.Rect
-CSharpFar.Ui.FormRenderContext.Canvas.get -> CSharpFar.Ui.IUiCanvas!
-CSharpFar.Ui.FormRenderContext.FooterBounds.get -> CSharpFar.Console.Models.Rect?
-CSharpFar.Ui.FormRenderContext.FormRenderContext(CSharpFar.Ui.UiRenderContext! renderContext, CSharpFar.Console.Models.Rect bodyBounds, CSharpFar.Console.Models.CellStyle? scrollbarStyle = null, CSharpFar.Console.Models.Rect? footerBounds = null) -> void
-CSharpFar.Ui.FormRenderContext.PublishOnStable(System.Action! commit) -> void
-CSharpFar.Ui.FormRenderContext.PublishOnStable<T>(T value, System.Action<T>! commit) -> void
-CSharpFar.Ui.FormRenderContext.ScrollbarStyle.get -> CSharpFar.Console.Models.CellStyle
-CSharpFar.Ui.FormRenderContext.Viewport.get -> CSharpFar.Console.Models.ConsoleViewport
-CSharpFar.Ui.FormRouteResult
-CSharpFar.Ui.FormRouteResult.Deconstruct(out CSharpFar.Ui.FormInputResult FormResult, out CSharpFar.Ui.UiInputResult UiResult) -> void
-CSharpFar.Ui.FormRouteResult.Equals(CSharpFar.Ui.FormRouteResult other) -> bool
-CSharpFar.Ui.FormRouteResult.FormResult.get -> CSharpFar.Ui.FormInputResult
-CSharpFar.Ui.FormRouteResult.FormResult.init -> void
-CSharpFar.Ui.FormRouteResult.FormRouteResult() -> void
-CSharpFar.Ui.FormRouteResult.FormRouteResult(CSharpFar.Ui.FormInputResult FormResult, CSharpFar.Ui.UiInputResult UiResult) -> void
-CSharpFar.Ui.FormRouteResult.UiResult.get -> CSharpFar.Ui.UiInputResult
-CSharpFar.Ui.FormRouteResult.UiResult.init -> void
 CSharpFar.Ui.FormRow
-CSharpFar.Ui.FormRowLayout
-CSharpFar.Ui.FormRowLayout.ControlBounds.get -> CSharpFar.Console.Models.Rect
-CSharpFar.Ui.FormRowLayout.ControlBounds.init -> void
-CSharpFar.Ui.FormRowLayout.Deconstruct(out CSharpFar.Console.Models.Rect RowBounds, out CSharpFar.Console.Models.Rect? LabelBounds, out CSharpFar.Console.Models.Rect ControlBounds) -> void
-CSharpFar.Ui.FormRowLayout.Equals(CSharpFar.Ui.FormRowLayout other) -> bool
-CSharpFar.Ui.FormRowLayout.FormRowLayout() -> void
-CSharpFar.Ui.FormRowLayout.FormRowLayout(CSharpFar.Console.Models.Rect RowBounds, CSharpFar.Console.Models.Rect? LabelBounds, CSharpFar.Console.Models.Rect ControlBounds) -> void
-CSharpFar.Ui.FormRowLayout.LabelBounds.get -> CSharpFar.Console.Models.Rect?
-CSharpFar.Ui.FormRowLayout.LabelBounds.init -> void
-CSharpFar.Ui.FormRowLayout.RowBounds.get -> CSharpFar.Console.Models.Rect
-CSharpFar.Ui.FormRowLayout.RowBounds.init -> void
 CSharpFar.Ui.FormSubmit
 CSharpFar.Ui.FormSubmitResult<TResult>
 CSharpFar.Ui.FormSubmitResult<TResult>.FormSubmitResult() -> void
-CSharpFar.Ui.FormTargetFrame
-CSharpFar.Ui.FormTargetFrame.Bounds.get -> CSharpFar.Console.Models.Rect
-CSharpFar.Ui.FormTargetFrame.Bounds.init -> void
-CSharpFar.Ui.FormTargetFrame.Deconstruct(out CSharpFar.Ui.UiTargetId! Target, out CSharpFar.Ui.FormTargetKind Kind, out CSharpFar.Console.Models.Rect Bounds, out CSharpFar.Console.Models.Rect? HitBounds) -> void
-CSharpFar.Ui.FormTargetFrame.FormTargetFrame(CSharpFar.Ui.FormTargetFrame! original) -> void
-CSharpFar.Ui.FormTargetFrame.FormTargetFrame(CSharpFar.Ui.UiTargetId! Target, CSharpFar.Ui.FormTargetKind Kind, CSharpFar.Console.Models.Rect Bounds, CSharpFar.Console.Models.Rect? HitBounds) -> void
-CSharpFar.Ui.FormTargetFrame.HitBounds.get -> CSharpFar.Console.Models.Rect?
-CSharpFar.Ui.FormTargetFrame.HitBounds.init -> void
-CSharpFar.Ui.FormTargetFrame.Kind.get -> CSharpFar.Ui.FormTargetKind
-CSharpFar.Ui.FormTargetFrame.Kind.init -> void
-CSharpFar.Ui.FormTargetFrame.Target.get -> CSharpFar.Ui.UiTargetId!
-CSharpFar.Ui.FormTargetFrame.Target.init -> void
-CSharpFar.Ui.FormTargetKind
-CSharpFar.Ui.FormTargetKind.BodyScrollbar = 1 -> CSharpFar.Ui.FormTargetKind
-CSharpFar.Ui.FormTargetKind.CompositeChild = 2 -> CSharpFar.Ui.FormTargetKind
-CSharpFar.Ui.FormTargetKind.DropdownPopup = 5 -> CSharpFar.Ui.FormTargetKind
-CSharpFar.Ui.FormTargetKind.DropdownScrollbar = 6 -> CSharpFar.Ui.FormTargetKind
-CSharpFar.Ui.FormTargetKind.HistoryDropdown = 3 -> CSharpFar.Ui.FormTargetKind
-CSharpFar.Ui.FormTargetKind.HistoryScrollbar = 4 -> CSharpFar.Ui.FormTargetKind
-CSharpFar.Ui.FormTargetKind.Row = 0 -> CSharpFar.Ui.FormTargetKind
 CSharpFar.Ui.FunctionKeyBar
 CSharpFar.Ui.FunctionKeyBar.FunctionKeyBar() -> void
 CSharpFar.Ui.FunctionKeyBar.Render(CSharpFar.Ui.IUiCanvas! screen, int y, int totalWidth, System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FunctionKeyBarItem>! items) -> void
@@ -1239,45 +1160,18 @@ CSharpFar.Ui.ScreenRendererSurface.CompleteFrame(CSharpFar.Ui.UiFrameCompletion 
 CSharpFar.Ui.ScreenRendererSurface.Render(CSharpFar.Ui.UiRenderContext! context) -> void
 CSharpFar.Ui.ScreenRendererSurface.ScreenRendererSurface(CSharpFar.Console.ScreenRenderer! screen, System.Action<CSharpFar.Ui.UiRenderContext!>! render) -> void
 CSharpFar.Ui.ScrollableFormDialog
-CSharpFar.Ui.ScrollableFormDialog.BuildInteractionFragment(CSharpFar.Ui.ScrollableFormFrame! frame) -> CSharpFar.Ui.UiInteractionFragment!
-CSharpFar.Ui.ScrollableFormDialog.BuildInteractionFrame(CSharpFar.Ui.ScrollableFormFrame! frame) -> CSharpFar.Ui.UiInteractionFrame!
 CSharpFar.Ui.ScrollableFormDialog.FocusedRowId.get -> string?
 CSharpFar.Ui.ScrollableFormDialog.GetFocusTarget(string! rowId) -> CSharpFar.Ui.UiTargetId!
 CSharpFar.Ui.ScrollableFormDialog.IsFocused(CSharpFar.Ui.IFormFocusTarget! target) -> bool
 CSharpFar.Ui.ScrollableFormDialog.IsFocused(string! rowId) -> bool
 CSharpFar.Ui.ScrollableFormDialog.IsFocusedOnSubmitRow.get -> bool
 CSharpFar.Ui.ScrollableFormDialog.LayoutOptions.get -> CSharpFar.Ui.FormLayoutOptions!
-CSharpFar.Ui.ScrollableFormDialog.Render(CSharpFar.Ui.FormRenderContext! context, CSharpFar.Ui.IUiFocusState! focusScope, System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.UiFocusEntry!>? surroundingFocusEntries = null, CSharpFar.Ui.UiTargetId? surroundingDefaultFocusTarget = null) -> CSharpFar.Ui.ScrollableFormFrame!
-CSharpFar.Ui.ScrollableFormDialog.RouteInput(CSharpFar.Console.Input.ConsoleInputEvent! input, CSharpFar.Ui.ScrollableFormFrame! frame, CSharpFar.Ui.UiInputRouteContext! route, bool allowUnfocusedButtonHotkeys = false) -> CSharpFar.Ui.FormRouteResult
 CSharpFar.Ui.ScrollableFormDialog.ScrollableFormDialog(CSharpFar.Ui.FormLayoutOptions? layoutOptions = null) -> void
 CSharpFar.Ui.ScrollableFormDialog.ScrollableFormDialog(System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FormRow!>! rows, CSharpFar.Ui.FormLayoutOptions? layoutOptions = null) -> void
 CSharpFar.Ui.ScrollableFormDialog.ScrollTop.get -> int
 CSharpFar.Ui.ScrollableFormDialog.SetInitialFocus(CSharpFar.Ui.IFormFocusTarget! target) -> void
 CSharpFar.Ui.ScrollableFormDialog.SetInitialFocus(string! rowId) -> void
 CSharpFar.Ui.ScrollableFormDialog.SetRows(System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FormRow!>! bodyRows, System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FormRow!>? footerRows = null) -> void
-CSharpFar.Ui.ScrollableFormFrame
-CSharpFar.Ui.ScrollableFormFrame.<Clone>$() -> CSharpFar.Ui.ScrollableFormFrame!
-CSharpFar.Ui.ScrollableFormFrame.BodyBounds.get -> CSharpFar.Console.Models.Rect
-CSharpFar.Ui.ScrollableFormFrame.BodyBounds.init -> void
-CSharpFar.Ui.ScrollableFormFrame.Deconstruct(out CSharpFar.Console.Models.ConsoleViewport Viewport, out CSharpFar.Console.Models.Rect BodyBounds, out CSharpFar.Console.Models.Rect? FooterBounds, out int ViewportRows, out int ScreenHeight, out int EffectiveScrollTop, out System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FormTargetFrame!>! Targets, out CSharpFar.Ui.UiTargetId? DefaultTarget, out CSharpFar.Ui.VerticalScrollbarFrame? VerticalScrollbarFrame) -> void
-CSharpFar.Ui.ScrollableFormFrame.DefaultTarget.get -> CSharpFar.Ui.UiTargetId?
-CSharpFar.Ui.ScrollableFormFrame.DefaultTarget.init -> void
-CSharpFar.Ui.ScrollableFormFrame.EffectiveScrollTop.get -> int
-CSharpFar.Ui.ScrollableFormFrame.EffectiveScrollTop.init -> void
-CSharpFar.Ui.ScrollableFormFrame.Equals(CSharpFar.Ui.ScrollableFormFrame? other) -> bool
-CSharpFar.Ui.ScrollableFormFrame.FooterBounds.get -> CSharpFar.Console.Models.Rect?
-CSharpFar.Ui.ScrollableFormFrame.FooterBounds.init -> void
-CSharpFar.Ui.ScrollableFormFrame.ScreenHeight.get -> int
-CSharpFar.Ui.ScrollableFormFrame.ScreenHeight.init -> void
-CSharpFar.Ui.ScrollableFormFrame.ScrollableFormFrame(CSharpFar.Console.Models.ConsoleViewport Viewport, CSharpFar.Console.Models.Rect BodyBounds, CSharpFar.Console.Models.Rect? FooterBounds, int ViewportRows, int ScreenHeight, int EffectiveScrollTop, System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FormTargetFrame!>! Targets, CSharpFar.Ui.UiTargetId? DefaultTarget, CSharpFar.Ui.VerticalScrollbarFrame? VerticalScrollbarFrame = null) -> void
-CSharpFar.Ui.ScrollableFormFrame.Targets.get -> System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FormTargetFrame!>!
-CSharpFar.Ui.ScrollableFormFrame.Targets.init -> void
-CSharpFar.Ui.ScrollableFormFrame.VerticalScrollbarFrame.get -> CSharpFar.Ui.VerticalScrollbarFrame?
-CSharpFar.Ui.ScrollableFormFrame.VerticalScrollbarFrame.init -> void
-CSharpFar.Ui.ScrollableFormFrame.Viewport.get -> CSharpFar.Console.Models.ConsoleViewport
-CSharpFar.Ui.ScrollableFormFrame.Viewport.init -> void
-CSharpFar.Ui.ScrollableFormFrame.ViewportRows.get -> int
-CSharpFar.Ui.ScrollableFormFrame.ViewportRows.init -> void
 CSharpFar.Ui.ScrollableListFrame
 CSharpFar.Ui.ScrollableListFrame.ContentBounds.get -> CSharpFar.Console.Models.Rect
 CSharpFar.Ui.ScrollableListFrame.ItemCount.get -> int
@@ -2067,23 +1961,13 @@ override CSharpFar.Ui.DialogOutcome<TResult>.Refresh.Equals(object? obj) -> bool
 override CSharpFar.Ui.DialogOutcome<TResult>.Refresh.GetHashCode() -> int
 override CSharpFar.Ui.DialogOutcome<TResult>.Refresh.ToString() -> string!
 override CSharpFar.Ui.DialogOutcome<TResult>.ToString() -> string!
-override CSharpFar.Ui.FormBodyScrollbarTargetFrame.<Clone>$() -> CSharpFar.Ui.FormBodyScrollbarTargetFrame!
-override CSharpFar.Ui.FormBodyScrollbarTargetFrame.Equals(object? obj) -> bool
-override CSharpFar.Ui.FormBodyScrollbarTargetFrame.GetHashCode() -> int
-override CSharpFar.Ui.FormBodyScrollbarTargetFrame.ToString() -> string!
 override CSharpFar.Ui.FormDialogEvent.GetHashCode() -> int
 override CSharpFar.Ui.FormDialogOptions.Equals(object? obj) -> bool
 override CSharpFar.Ui.FormDialogOptions.GetHashCode() -> int
 override CSharpFar.Ui.FormDialogOptions.ToString() -> string!
-override CSharpFar.Ui.FormInputResult.GetHashCode() -> int
 override CSharpFar.Ui.FormLayoutOptions.Equals(object? obj) -> bool
 override CSharpFar.Ui.FormLayoutOptions.GetHashCode() -> int
 override CSharpFar.Ui.FormLayoutOptions.ToString() -> string!
-override CSharpFar.Ui.FormRouteResult.GetHashCode() -> int
-override CSharpFar.Ui.FormRowLayout.GetHashCode() -> int
-override CSharpFar.Ui.FormTargetFrame.Equals(object? obj) -> bool
-override CSharpFar.Ui.FormTargetFrame.GetHashCode() -> int
-override CSharpFar.Ui.FormTargetFrame.ToString() -> string!
 override CSharpFar.Ui.FunctionKeyBarAction<TAction>.GetHashCode() -> int
 override CSharpFar.Ui.FunctionKeyBarActionHit<TAction>.GetHashCode() -> int
 override CSharpFar.Ui.FunctionKeyBarItem.GetHashCode() -> int
@@ -2147,9 +2031,6 @@ override CSharpFar.Ui.RoutedScrollableListOptions.GetHashCode() -> int
 override CSharpFar.Ui.RoutedScrollableListOptions.ToString() -> string!
 override CSharpFar.Ui.RoutedScrollableViewportInputResult.GetHashCode() -> int
 override CSharpFar.Ui.RoutedScrollbarSurfaceInput.GetHashCode() -> int
-override CSharpFar.Ui.ScrollableFormFrame.Equals(object? obj) -> bool
-override CSharpFar.Ui.ScrollableFormFrame.GetHashCode() -> int
-override CSharpFar.Ui.ScrollableFormFrame.ToString() -> string!
 override CSharpFar.Ui.ScrollableListInputResult.GetHashCode() -> int
 override CSharpFar.Ui.ScrollableListRenderOptions<T>.GetHashCode() -> int
 override CSharpFar.Ui.ScrollableViewportFrameState.GetHashCode() -> int
@@ -2220,7 +2101,6 @@ override CSharpFar.Ui.VerticalScrollbarInputResult.GetHashCode() -> int
 override sealed CSharpFar.Ui.DialogOutcome<TResult>.Close.Equals(CSharpFar.Ui.DialogOutcome<TResult>? other) -> bool
 override sealed CSharpFar.Ui.DialogOutcome<TResult>.Continue.Equals(CSharpFar.Ui.DialogOutcome<TResult>? other) -> bool
 override sealed CSharpFar.Ui.DialogOutcome<TResult>.Refresh.Equals(CSharpFar.Ui.DialogOutcome<TResult>? other) -> bool
-override sealed CSharpFar.Ui.FormBodyScrollbarTargetFrame.Equals(CSharpFar.Ui.FormTargetFrame? other) -> bool
 static CSharpFar.Ui.ChoiceDialogResult.operator !=(CSharpFar.Ui.ChoiceDialogResult left, CSharpFar.Ui.ChoiceDialogResult right) -> bool
 static CSharpFar.Ui.ChoiceDialogResult.operator ==(CSharpFar.Ui.ChoiceDialogResult left, CSharpFar.Ui.ChoiceDialogResult right) -> bool
 static CSharpFar.Ui.CompositeDialogContentInputResult.NotHandled.get -> CSharpFar.Ui.CompositeDialogContentInputResult
@@ -2276,8 +2156,6 @@ static CSharpFar.Ui.DialogStyles.PopupOptions.get -> CSharpFar.Ui.PopupRenderOpt
 static CSharpFar.Ui.DialogStyles.PressedButton.get -> CSharpFar.Console.Models.CellStyle
 static CSharpFar.Ui.DialogStyles.Shadow.get -> CSharpFar.Console.Models.CellStyle
 static CSharpFar.Ui.DialogStyles.Title.get -> CSharpFar.Console.Models.CellStyle
-static CSharpFar.Ui.FormBodyScrollbarTargetFrame.operator !=(CSharpFar.Ui.FormBodyScrollbarTargetFrame? left, CSharpFar.Ui.FormBodyScrollbarTargetFrame? right) -> bool
-static CSharpFar.Ui.FormBodyScrollbarTargetFrame.operator ==(CSharpFar.Ui.FormBodyScrollbarTargetFrame? left, CSharpFar.Ui.FormBodyScrollbarTargetFrame? right) -> bool
 static CSharpFar.Ui.FormControls.Buttons(params CSharpFar.Ui.DialogButton![]! buttons) -> CSharpFar.Ui.ButtonRow!
 static CSharpFar.Ui.FormControls.Buttons(string! id, params CSharpFar.Ui.DialogButton![]! buttons) -> CSharpFar.Ui.ButtonRow!
 static CSharpFar.Ui.FormControls.Buttons(string! id, System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.DialogButton!>! buttons, CSharpFar.Ui.FormControlTone tone = CSharpFar.Ui.FormControlTone.Default) -> CSharpFar.Ui.ButtonRow!
@@ -2322,27 +2200,10 @@ static CSharpFar.Ui.FormDialogOutcome<TResult>.Continue() -> CSharpFar.Ui.FormDi
 static CSharpFar.Ui.FormDialogOutcome<TResult>.ContinueWithFocus(CSharpFar.Ui.IFormFocusTarget! target) -> CSharpFar.Ui.FormDialogOutcome<TResult>
 static CSharpFar.Ui.FormDialogOutcome<TResult>.ContinueWithFocus(string! rowId) -> CSharpFar.Ui.FormDialogOutcome<TResult>
 static CSharpFar.Ui.FormFooter.ErrorAndButtons(System.Func<string?>! error, CSharpFar.Ui.ButtonRow! buttons) -> System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FormRow!>!
-static CSharpFar.Ui.FormInputResult.Auxiliary(string? command = null) -> CSharpFar.Ui.FormInputResult
-static CSharpFar.Ui.FormInputResult.Cancel(string? command = null) -> CSharpFar.Ui.FormInputResult
-static CSharpFar.Ui.FormInputResult.Handled.get -> CSharpFar.Ui.FormInputResult
-static CSharpFar.Ui.FormInputResult.MoveFocusNext.get -> CSharpFar.Ui.FormInputResult
-static CSharpFar.Ui.FormInputResult.MoveFocusPrevious.get -> CSharpFar.Ui.FormInputResult
-static CSharpFar.Ui.FormInputResult.NotHandled.get -> CSharpFar.Ui.FormInputResult
-static CSharpFar.Ui.FormInputResult.operator !=(CSharpFar.Ui.FormInputResult left, CSharpFar.Ui.FormInputResult right) -> bool
-static CSharpFar.Ui.FormInputResult.operator ==(CSharpFar.Ui.FormInputResult left, CSharpFar.Ui.FormInputResult right) -> bool
-static CSharpFar.Ui.FormInputResult.OverlayChanged.get -> CSharpFar.Ui.FormInputResult
-static CSharpFar.Ui.FormInputResult.Submit(string? command = null) -> CSharpFar.Ui.FormInputResult
-static CSharpFar.Ui.FormInputResult.ValueChanged.get -> CSharpFar.Ui.FormInputResult
 static CSharpFar.Ui.FormLayoutOptions.operator !=(CSharpFar.Ui.FormLayoutOptions? left, CSharpFar.Ui.FormLayoutOptions? right) -> bool
 static CSharpFar.Ui.FormLayoutOptions.operator ==(CSharpFar.Ui.FormLayoutOptions? left, CSharpFar.Ui.FormLayoutOptions? right) -> bool
-static CSharpFar.Ui.FormRouteResult.operator !=(CSharpFar.Ui.FormRouteResult left, CSharpFar.Ui.FormRouteResult right) -> bool
-static CSharpFar.Ui.FormRouteResult.operator ==(CSharpFar.Ui.FormRouteResult left, CSharpFar.Ui.FormRouteResult right) -> bool
-static CSharpFar.Ui.FormRowLayout.operator !=(CSharpFar.Ui.FormRowLayout left, CSharpFar.Ui.FormRowLayout right) -> bool
-static CSharpFar.Ui.FormRowLayout.operator ==(CSharpFar.Ui.FormRowLayout left, CSharpFar.Ui.FormRowLayout right) -> bool
 static CSharpFar.Ui.FormSubmit.Invalid<TResult>(string! errorMessage, CSharpFar.Ui.IFormFocusTarget? focusTarget = null) -> CSharpFar.Ui.FormSubmitResult<TResult>
 static CSharpFar.Ui.FormSubmit.Success<TResult>(TResult result) -> CSharpFar.Ui.FormSubmitResult<TResult>
-static CSharpFar.Ui.FormTargetFrame.operator !=(CSharpFar.Ui.FormTargetFrame? left, CSharpFar.Ui.FormTargetFrame? right) -> bool
-static CSharpFar.Ui.FormTargetFrame.operator ==(CSharpFar.Ui.FormTargetFrame? left, CSharpFar.Ui.FormTargetFrame? right) -> bool
 static CSharpFar.Ui.FunctionKeyBar.BuildSlots(int y, int totalWidth) -> System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FunctionKeyBarSlot>!
 static CSharpFar.Ui.FunctionKeyBar.TryGetFunctionKey(int keyNumber, out System.ConsoleKey key) -> bool
 static CSharpFar.Ui.FunctionKeyBar.TryGetKeyNumberAt(CSharpFar.Console.Input.MouseConsoleInputEvent! mouse, int y, int totalWidth, out int keyNumber) -> bool
@@ -2459,8 +2320,6 @@ static CSharpFar.Ui.RoutedScrollableViewportInputResult.operator ==(CSharpFar.Ui
 static CSharpFar.Ui.RoutedScrollbarSurfaceInput.NotHandled.get -> CSharpFar.Ui.RoutedScrollbarSurfaceInput
 static CSharpFar.Ui.RoutedScrollbarSurfaceInput.operator !=(CSharpFar.Ui.RoutedScrollbarSurfaceInput left, CSharpFar.Ui.RoutedScrollbarSurfaceInput right) -> bool
 static CSharpFar.Ui.RoutedScrollbarSurfaceInput.operator ==(CSharpFar.Ui.RoutedScrollbarSurfaceInput left, CSharpFar.Ui.RoutedScrollbarSurfaceInput right) -> bool
-static CSharpFar.Ui.ScrollableFormFrame.operator !=(CSharpFar.Ui.ScrollableFormFrame? left, CSharpFar.Ui.ScrollableFormFrame? right) -> bool
-static CSharpFar.Ui.ScrollableFormFrame.operator ==(CSharpFar.Ui.ScrollableFormFrame? left, CSharpFar.Ui.ScrollableFormFrame? right) -> bool
 static CSharpFar.Ui.ScrollableListInputResult.Confirmed.get -> CSharpFar.Ui.ScrollableListInputResult
 static CSharpFar.Ui.ScrollableListInputResult.Handled.get -> CSharpFar.Ui.ScrollableListInputResult
 static CSharpFar.Ui.ScrollableListInputResult.NotHandled.get -> CSharpFar.Ui.ScrollableListInputResult
@@ -2592,9 +2451,6 @@ virtual CSharpFar.Ui.DialogOutcome<TResult>.Equals(CSharpFar.Ui.DialogOutcome<TR
 virtual CSharpFar.Ui.DialogOutcome<TResult>.PrintMembers(System.Text.StringBuilder! builder) -> bool
 virtual CSharpFar.Ui.FormRow.Id.get -> string?
 virtual CSharpFar.Ui.FormRow.Id.init -> void
-virtual CSharpFar.Ui.FormTargetFrame.EqualityContract.get -> System.Type!
-virtual CSharpFar.Ui.FormTargetFrame.Equals(CSharpFar.Ui.FormTargetFrame? other) -> bool
-virtual CSharpFar.Ui.FormTargetFrame.PrintMembers(System.Text.StringBuilder! builder) -> bool
 virtual CSharpFar.Ui.InteractiveSurfaceLayer<TFrame, TSemantic>.BuildInteractionFrameCore(TFrame frame) -> CSharpFar.Ui.UiInteractionFrame!
 virtual CSharpFar.Ui.InteractiveSurfaceLayer<TFrame, TSemantic>.RenderFrameCore(CSharpFar.Ui.UiRenderContext! context) -> TFrame
 virtual CSharpFar.Ui.InteractiveSurfaceLayer<TFrame, TSemantic>.RouteSemanticInput(CSharpFar.Console.Input.ConsoleInputEvent! input, TFrame frame, CSharpFar.Ui.UiInputRouteContext! context) -> CSharpFar.Ui.InteractiveSurfaceRouteResult<TSemantic>
@@ -2612,12 +2468,6 @@ virtual CSharpFar.Ui.UiLayer<TFrame>.OnFrameCommitted(TFrame frame) -> void
 ~override CSharpFar.Ui.ConsoleTextViewport.ToString() -> string
 ~override CSharpFar.Ui.FormDialogEvent.Equals(object obj) -> bool
 ~override CSharpFar.Ui.FormDialogEvent.ToString() -> string
-~override CSharpFar.Ui.FormInputResult.Equals(object obj) -> bool
-~override CSharpFar.Ui.FormInputResult.ToString() -> string
-~override CSharpFar.Ui.FormRouteResult.Equals(object obj) -> bool
-~override CSharpFar.Ui.FormRouteResult.ToString() -> string
-~override CSharpFar.Ui.FormRowLayout.Equals(object obj) -> bool
-~override CSharpFar.Ui.FormRowLayout.ToString() -> string
 ~override CSharpFar.Ui.FunctionKeyBarAction<TAction>.Equals(object obj) -> bool
 ~override CSharpFar.Ui.FunctionKeyBarAction<TAction>.ToString() -> string
 ~override CSharpFar.Ui.FunctionKeyBarActionHit<TAction>.Equals(object obj) -> bool

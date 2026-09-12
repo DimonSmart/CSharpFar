@@ -5,7 +5,7 @@ using CSharpFar.Ui;
 
 namespace CSharpFar.Ui;
 
-public enum FormTargetKind
+internal enum FormTargetKind
 {
     Row,
     BodyScrollbar,
@@ -35,7 +35,7 @@ internal static class FormTargetIds
     public static UiTargetId ForDropdownScrollbar(UiTargetId rowTarget) => ForCompositeChild(rowTarget, "scrollbar");
 }
 
-public sealed record ScrollableFormFrame(
+internal sealed record ScrollableFormFrame(
     ConsoleViewport Viewport,
     Rect BodyBounds,
     Rect? FooterBounds,
@@ -46,7 +46,7 @@ public sealed record ScrollableFormFrame(
     UiTargetId? DefaultTarget,
     VerticalScrollbarFrame? VerticalScrollbarFrame = null);
 
-public abstract record FormTargetFrame(UiTargetId Target, FormTargetKind Kind, Rect Bounds, Rect? HitBounds);
+internal abstract record FormTargetFrame(UiTargetId Target, FormTargetKind Kind, Rect Bounds, Rect? HitBounds);
 
 internal sealed record FormRowTargetFrame(
     UiTargetId Target,
@@ -65,7 +65,7 @@ internal sealed record FormRowTargetFrame(
     internal DropdownSelectFrame? DropdownFrame => CompositeFrame?.State is DropdownCompositeSnapshot { Frame: var frame } ? frame : null;
 }
 
-public sealed record FormBodyScrollbarTargetFrame : FormTargetFrame
+internal sealed record FormBodyScrollbarTargetFrame : FormTargetFrame
 {
     public FormBodyScrollbarTargetFrame(UiTargetId target, Rect bounds, Rect hitBounds)
         : base(target, FormTargetKind.BodyScrollbar, bounds, hitBounds)
@@ -92,7 +92,7 @@ internal sealed record FormCompositeChildTargetFrame : FormTargetFrame
     public bool CapturesMouse => Child.CapturesMouse;
 }
 
-public readonly record struct FormRouteResult(
+internal readonly record struct FormRouteResult(
     FormInputResult FormResult,
     UiInputResult UiResult);
 

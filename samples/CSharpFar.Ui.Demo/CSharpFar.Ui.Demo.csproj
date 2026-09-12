@@ -1,18 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\..\eng\DimonSmart.Terminal.props" />
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <DimonSmartTerminalPackageVersion>0.1.0-beta.1</DimonSmartTerminalPackageVersion>
     <UseDimonSmartTerminalPackages Condition="'$(UseDimonSmartTerminalPackages)' == ''">false</UseDimonSmartTerminalPackages>
   </PropertyGroup>
+
   <ItemGroup Condition="'$(UseDimonSmartTerminalPackages)' != 'true'">
     <ProjectReference Include="..\..\src\CSharpFar.Console\CSharpFar.Console.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Console.Windows\CSharpFar.Console.Windows.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Console.Ansi\CSharpFar.Console.Ansi.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Ui\CSharpFar.Ui.csproj" />
   </ItemGroup>
+
   <ItemGroup Condition="'$(UseDimonSmartTerminalPackages)' == 'true'">
     <PackageReference Include="DimonSmart.Terminal.Ui" Version="$(DimonSmartTerminalPackageVersion)" />
   </ItemGroup>

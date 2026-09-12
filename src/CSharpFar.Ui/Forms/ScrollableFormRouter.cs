@@ -7,7 +7,7 @@ namespace CSharpFar.Ui;
 
 public sealed partial class ScrollableFormDialog
 {
-    public FormRouteResult RouteInput(
+    internal FormRouteResult RouteInput(
         ConsoleInputEvent input,
         ScrollableFormFrame frame,
         UiInputRouteContext route,
