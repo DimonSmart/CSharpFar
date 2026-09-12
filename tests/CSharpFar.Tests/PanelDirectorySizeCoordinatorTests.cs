@@ -142,8 +142,7 @@ public sealed class PanelDirectorySizeCoordinatorTests
         Assert.Null(coordinator.GetPresentation(PanelSide.Left, left, a));
         coordinator.Reconcile(PanelSide.Left, left);
         Assert.True(active.Cancelled.Wait(TimeSpan.FromSeconds(2)));
-        active.Release.Set();
-        Thread.Sleep(50);
+        Assert.True(active.Completed.Wait(TimeSpan.FromSeconds(2)));
 
         Assert.Equal(0, scanner.CallCount("/root/b"));
         Assert.Null(coordinator.GetSnapshot(PanelSide.Left, left, a));
@@ -203,8 +202,8 @@ public sealed class PanelDirectorySizeCoordinatorTests
         Assert.Equal(new PanelDirectorySizePresentation(null, true), coordinator.GetPresentation(PanelSide.Right, right, rightItem));
 
         rightPlan.Release.Set();
-        leftPlan.Release.Set();
         WaitUntil(() => coordinator.GetSnapshot(PanelSide.Right, right, rightItem)?.State == PanelDirectorySizeState.Completed);
+        Assert.True(leftPlan.Completed.Wait(TimeSpan.FromSeconds(2)));
         Assert.Equal(new PanelDirectorySizePresentation(20, false), coordinator.GetPresentation(PanelSide.Right, right, rightItem));
     }
 
@@ -365,6 +364,7 @@ public sealed class PanelDirectorySizeCoordinatorTests
             _calls.AddOrUpdate(rootSourcePath, 1, (_, value) => value + 1);
             int active = Interlocked.Increment(ref _active);
             UpdateMax(active);
+            ScanPlan? activePlan = null;
             try
             {
                 if (!_plans.TryGetValue(rootSourcePath, out ConcurrentQueue<ScanPlan>? plans) ||
@@ -372,6 +372,9 @@ public sealed class PanelDirectorySizeCoordinatorTests
                 {
                     plan = new ScanPlan(false, 0, null, DirectoryTreeSizeCompletionStatus.Completed);
                 }
+
+                activePlan = plan;
+                using CancellationTokenRegistration cancellationRegistration = cancellationToken.Register(plan.Cancelled.Set);
 
                 plan.Started.Set();
                 if (plan.ProgressSize is { } partial)
@@ -383,10 +386,7 @@ public sealed class PanelDirectorySizeCoordinatorTests
                         [plan.Release.WaitHandle, cancellationToken.WaitHandle],
                         TimeSpan.FromSeconds(5));
                     if (signalled == 1)
-                    {
-                        plan.Cancelled.Set();
                         cancellationToken.ThrowIfCancellationRequested();
-                    }
                     if (signalled == WaitHandle.WaitTimeout)
                         throw new TimeoutException("Controlled scanner was not released.");
                 }
@@ -399,6 +399,7 @@ public sealed class PanelDirectorySizeCoordinatorTests
             }
             finally
             {
+                activePlan?.Completed.Set();
                 Interlocked.Decrement(ref _active);
             }
         }
@@ -431,5 +432,6 @@ public sealed class PanelDirectorySizeCoordinatorTests
         public ManualResetEventSlim Started { get; } = new(false);
         public ManualResetEventSlim Release { get; } = new(false);
         public ManualResetEventSlim Cancelled { get; } = new(false);
+        public ManualResetEventSlim Completed { get; } = new(false);
     }
 }
