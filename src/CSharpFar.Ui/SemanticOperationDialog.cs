@@ -68,7 +68,7 @@ internal sealed class SemanticOperationDialog<TItem, TBackground, TResult>
             throw new ArgumentOutOfRangeException(nameof(options.RefreshInterval));
 
         var form = new ScrollableFormDialog();
-        var buttonRow = FormControls.Buttons([]);
+        ButtonRow? buttonRow = null;
         TableList<TItem>? table = options.TableDefinition is null
             ? null
             : new TableList<TItem>([], options.TableDefinition, appearance: options.TableAppearance);
@@ -103,8 +103,16 @@ internal sealed class SemanticOperationDialog<TItem, TBackground, TResult>
             ValidateState(next, table is not null);
 
             bool changed = state is null || !Equivalent(state, next);
-            buttonRow.SetButtons(next.Buttons);
-            form.SetRows(next.Rows, next.Buttons.Count == 0 ? [] : [buttonRow]);
+            IReadOnlyList<FormRow> footer = [];
+            if (next.Buttons.Count > 0)
+            {
+                if (buttonRow is null)
+                    buttonRow = FormControls.Buttons(next.Buttons);
+                else
+                    buttonRow.SetButtons(next.Buttons);
+                footer = [buttonRow];
+            }
+            form.SetRows(next.Rows, footer);
 
             if (table is not null)
             {
