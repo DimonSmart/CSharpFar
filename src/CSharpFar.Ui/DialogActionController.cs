@@ -17,6 +17,7 @@ internal readonly record struct DialogActionOutcome(
 internal sealed class DialogActionController
 {
     private readonly DialogButton[] _buttons;
+    private readonly int _defaultButtonIndex;
     private readonly int? _cancelButtonIndex;
     private readonly ScrollableFormDialog _form;
 
@@ -30,9 +31,9 @@ internal sealed class DialogActionController
             throw new ArgumentException("At least one button is required.", nameof(buttons));
 
         _buttons = buttons.ToArray();
-        int normalizedDefaultIndex = NormalizeIndex(defaultButtonIndex);
+        _defaultButtonIndex = NormalizeIndex(defaultButtonIndex);
         _cancelButtonIndex = cancelButtonIndex is int index ? NormalizeIndex(index) : null;
-        var actions = new ButtonRow(_buttons, normalizedDefaultIndex) { Id = "actions" };
+        var actions = new ButtonRow(_buttons, _defaultButtonIndex) { Id = "actions" };
         _form = new ScrollableFormDialog();
         _form.SetRows([], [actions]);
     }
@@ -49,8 +50,11 @@ internal sealed class DialogActionController
     public FormRouteResult RouteInput(
         ConsoleInputEvent input,
         ScrollableFormFrame frame,
-        UiInputRouteContext route) =>
-        _form.RouteInput(input, frame, route);
+        UiInputRouteContext route,
+        bool allowUnfocusedButtonHotkeys = false) =>
+        _form.RouteInput(input, frame, route, allowUnfocusedButtonHotkeys);
+
+    public DialogActionOutcome DefaultAction() => Activated(_defaultButtonIndex);
 
     public DialogActionOutcome? Interpret(FormInputResult result)
     {

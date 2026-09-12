@@ -46,8 +46,11 @@ public sealed class ChoiceDialog
             actions.BuildInteractionFrame,
             (input, frame, route) =>
             {
-                FormRouteResult result = actions.RouteInput(input, frame, route);
-                return (actions.Interpret(result.FormResult), result.UiResult);
+                FormRouteResult result = actions.RouteInput(input, frame, route, allowUnfocusedButtonHotkeys: true);
+                DialogActionOutcome? outcome = actions.Interpret(result.FormResult);
+                if (outcome is null && input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter })
+                    return (actions.DefaultAction(), UiInputResult.HandledResult);
+                return (outcome, result.UiResult);
             },
             (_, outcome) =>
             {
