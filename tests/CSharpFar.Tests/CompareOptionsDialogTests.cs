@@ -133,6 +133,32 @@ public sealed class CompareOptionsDialogTests
     }
 
     [Fact]
+    public void BuildOptions_FixedDepthIgnoresInvalidHiddenCustomDepth()
+    {
+        var fields = new FormFieldFactory(TextFieldHistoryTestProvider.Create());
+        TextField customDepth = fields.Text(new TextFieldOptions("-1"));
+        TextField include = fields.Text(new TextFieldOptions("*"));
+        TextField exclude = fields.Text();
+
+        object submit = CompareOptionsDialog.BuildOptions(
+            CompareMode.FolderStructure,
+            recursive: true,
+            selectedOnly: false,
+            depth: "2",
+            customDepth,
+            include,
+            exclude,
+            CompareMethod.Fast,
+            TimestampTolerance.Exact,
+            NameComparisonMode.SystemDefault,
+            FileSetMatchMode.FileName);
+
+        Assert.True(ReadInternal<bool>(submit, "IsSuccess"));
+        ComparisonOptions result = Assert.IsType<ComparisonOptions>(ReadInternal<object?>(submit, "Result"));
+        Assert.Equal(2, result.MaxDepth);
+    }
+
+    [Fact]
     public void BuildOptions_LeavesHistoryCommitToTheFormSubmitLifecycle()
     {
         ITextFieldHistoryProvider provider = TextFieldHistoryTestProvider.Create();
