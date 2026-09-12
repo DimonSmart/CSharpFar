@@ -25,71 +25,6 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
 
     public FileAttributesDialogResult? Show(FileMetadataSnapshot snapshot)
     {
-        return RunLoop(snapshot);
-    }
-
-    internal static FileMetadataChangeSet CreateChangeSet(
-        FileMetadataSnapshot original,
-        IReadOnlyDictionary<FileAttributeId, AttributeEditState> currentAttributeStates,
-        IReadOnlyDictionary<UnixPermissionBit, AttributeEditState> currentUnixPermissionStates,
-        string creationText,
-        string writeText,
-        string accessText,
-        out string? error)
-    {
-        error = null;
-        var changes = new Dictionary<FileAttributeId, AttributeEditState>();
-        foreach (var descriptor in original.AttributesDescriptors.Where(static descriptor => descriptor.IsEditable))
-        {
-            var before = original.AttributeStates.TryGetValue(descriptor.Id, out var state)
-                ? state
-                : AttributeEditState.Unchecked;
-            var after = currentAttributeStates.TryGetValue(descriptor.Id, out var current)
-                ? current
-                : before;
-            if (after != before && after != AttributeEditState.Indeterminate)
-                changes[descriptor.Id] = after;
-        }
-
-        DateTime? creation = ParseChangedTime(
-            "creation",
-            creationText,
-            original.CreationTime,
-            original.CanEditCreationTime,
-            ref error);
-        DateTime? write = ParseChangedTime(
-            "write",
-            writeText,
-            original.LastWriteTime,
-            original.CanEditLastWriteTime,
-            ref error);
-        DateTime? access = ParseChangedTime(
-            "access",
-            accessText,
-            original.LastAccessTime,
-            original.CanEditLastAccessTime,
-            ref error);
-
-        var unixChanges = new Dictionary<UnixPermissionBit, AttributeEditState>();
-        if (original.UnixMetadata is { CanEditPermissions: true } unixMetadata)
-        {
-            foreach (UnixPermissionBit bit in Enum.GetValues<UnixPermissionBit>())
-            {
-                AttributeEditState before = unixMetadata.PermissionStates[bit];
-                AttributeEditState after = currentUnixPermissionStates.TryGetValue(bit, out var current) ? current : before;
-                if (after != before && after != AttributeEditState.Indeterminate)
-                    unixChanges[bit] = after;
-            }
-        }
-
-        return new FileMetadataChangeSet(changes, creation, write, access, unixChanges);
-    }
-
-    internal static string FormatTime(DateTime? value) =>
-        value is null ? string.Empty : value.Value.ToString(DateTimeFormat, CultureInfo.InvariantCulture);
-
-    private FileAttributesDialogResult? RunLoop(FileMetadataSnapshot snapshot)
-    {
         var attributeRows = snapshot.AttributesDescriptors
             .Select(descriptor => CreateAttributeRow(snapshot, descriptor))
             .ToList();
@@ -171,6 +106,66 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             });
     }
 
+    internal static FileMetadataChangeSet CreateChangeSet(
+        FileMetadataSnapshot original,
+        IReadOnlyDictionary<FileAttributeId, AttributeEditState> currentAttributeStates,
+        IReadOnlyDictionary<UnixPermissionBit, AttributeEditState> currentUnixPermissionStates,
+        string creationText,
+        string writeText,
+        string accessText,
+        out string? error)
+    {
+        error = null;
+        var changes = new Dictionary<FileAttributeId, AttributeEditState>();
+        foreach (var descriptor in original.AttributesDescriptors.Where(static descriptor => descriptor.IsEditable))
+        {
+            var before = original.AttributeStates.TryGetValue(descriptor.Id, out var state)
+                ? state
+                : AttributeEditState.Unchecked;
+            var after = currentAttributeStates.TryGetValue(descriptor.Id, out var current)
+                ? current
+                : before;
+            if (after != before && after != AttributeEditState.Indeterminate)
+                changes[descriptor.Id] = after;
+        }
+
+        DateTime? creation = ParseChangedTime(
+            "creation",
+            creationText,
+            original.CreationTime,
+            original.CanEditCreationTime,
+            ref error);
+        DateTime? write = ParseChangedTime(
+            "write",
+            writeText,
+            original.LastWriteTime,
+            original.CanEditLastWriteTime,
+            ref error);
+        DateTime? access = ParseChangedTime(
+            "access",
+            accessText,
+            original.LastAccessTime,
+            original.CanEditLastAccessTime,
+            ref error);
+
+        var unixChanges = new Dictionary<UnixPermissionBit, AttributeEditState>();
+        if (original.UnixMetadata is { CanEditPermissions: true } unixMetadata)
+        {
+            foreach (UnixPermissionBit bit in Enum.GetValues<UnixPermissionBit>())
+            {
+                AttributeEditState before = unixMetadata.PermissionStates[bit];
+                AttributeEditState after = currentUnixPermissionStates.TryGetValue(bit, out var current) ? current : before;
+                if (after != before && after != AttributeEditState.Indeterminate)
+                    unixChanges[bit] = after;
+            }
+        }
+
+        return new FileMetadataChangeSet(changes, creation, write, access, unixChanges);
+    }
+
+    internal static string FormatTime(DateTime? value) =>
+        value is null ? string.Empty : value.Value.ToString(DateTimeFormat, CultureInfo.InvariantCulture);
+
     private IReadOnlyList<FormRow> BuildRows(
         FileMetadataSnapshot snapshot,
         IReadOnlyList<AttributeDialogRow> attributeRows,
@@ -202,9 +197,9 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
 
         rows.Add(FormControls.Spacer());
         rows.Add(FormControls.Label("Date/Time:"));
-        AddTimeRows(rows, "write:", write, snapshot.LastWriteTime, snapshot.CanEditLastWriteTime);
-        AddTimeRows(rows, "creation:", creation, snapshot.CreationTime, snapshot.CanEditCreationTime);
-        AddTimeRows(rows, "access:", access, snapshot.LastAccessTime, snapshot.CanEditLastAccessTime);
+        AddTimeRows(rows, "write:", write, snapshot.CanEditLastWriteTime);
+        AddTimeRows(rows, "creation:", creation, snapshot.CanEditCreationTime);
+        AddTimeRows(rows, "access:", access, snapshot.CanEditLastAccessTime);
         rows.Add(FormControls.Spacer());
         if (snapshot.UnixMetadata is null)
         {
@@ -219,7 +214,6 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         List<FormRow> rows,
         string label,
         TextField field,
-        DateTime? original,
         bool enabled)
     {
         rows.Add(enabled
@@ -371,5 +365,4 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
     private sealed record UnixPermissionDialogRow(
         UnixPermissionBit Bit,
         TriStateCheckBoxRow Row);
-
 }
