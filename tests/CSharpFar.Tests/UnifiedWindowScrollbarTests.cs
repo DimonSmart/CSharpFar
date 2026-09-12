@@ -84,7 +84,7 @@ public sealed class UnifiedWindowScrollbarTests
         var screen = new ScreenRenderer(driver);
 
         var modals = ModalTestHost.Create(screen);
-        _ = new SearchProgressDialog(modals, new ManyResultsSearchService(), new DialogService(modals, new FormFieldFactory(TextFieldHistoryTestProvider.Create())))
+        _ = new SearchProgressDialog(new ManyResultsSearchService(), new DialogService(modals, new FormFieldFactory(TextFieldHistoryTestProvider.Create())))
             .Show(new SearchRequest
             {
                 RootPath = @"C:\root",
