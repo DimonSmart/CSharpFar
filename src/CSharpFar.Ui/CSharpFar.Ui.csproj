@@ -27,6 +27,7 @@
     <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.0.0" PrivateAssets="all" />
     <AdditionalFiles Include="PublicAPI.UserMenu\PublicAPI.Unshipped.txt" />
     <AdditionalFiles Include="PublicAPI.OperationDialog\PublicAPI.Unshipped.txt" />
+    <AdditionalFiles Include="PublicAPI.PointerRouting\PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
 </Project>
