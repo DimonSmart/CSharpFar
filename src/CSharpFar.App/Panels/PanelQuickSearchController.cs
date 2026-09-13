@@ -38,6 +38,27 @@ internal sealed class PanelQuickSearchController
     public void CloseForState(FilePanelState state) =>
         CloseForPanel(PanelSideForState(state));
 
+    public void SetText(string text)
+    {
+        if (State is not { } quickSearch)
+            return;
+
+        if (!_isPanelsMode() || quickSearch.PanelSide != _activeSide())
+        {
+            Close();
+            return;
+        }
+
+        quickSearch.SetText(text);
+        if (quickSearch.SearchText.Length == 0)
+        {
+            Close();
+            return;
+        }
+
+        MoveCursor();
+    }
+
     public PanelQuickSearchKeyResult HandleKey(ConsoleKeyInfo key)
     {
         if (State is not { } quickSearch)
@@ -91,7 +112,6 @@ internal sealed class PanelQuickSearchController
     private bool TryGetActivationCharacter(ConsoleKeyInfo key, out char ch)
     {
         ch = default;
-        var activeSide = _activeSide();
         if (!_isPanelsMode() ||
             (key.Modifiers & ConsoleModifiers.Alt) == 0 ||
             (key.Modifiers & ConsoleModifiers.Control) != 0)
