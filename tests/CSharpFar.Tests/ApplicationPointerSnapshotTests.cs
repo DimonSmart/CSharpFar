@@ -1,7 +1,6 @@
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
-using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
@@ -11,7 +10,7 @@ namespace CSharpFar.Tests;
 public sealed class ApplicationPointerSnapshotTests
 {
     [Fact]
-    public void CommittedPointerSnapshot_KeepsCapturedSemanticActionUntilNextFrameIsCommitted()
+    public void CommittedPointerSnapshot_RemainsDistinctFromFutureCaptureUntilFrameReplacement()
     {
         var viewport = new ConsoleViewport(0, 0, 80, 25);
         var oldHit = new ApplicationFunctionKeyHit(
@@ -29,16 +28,18 @@ public sealed class ApplicationPointerSnapshotTests
         ApplicationUiFrame futureRendered = Frame(viewport, newHit);
         ApplicationPointerFrame futureSnapshots = ApplicationPointerSnapshotBuilder.Capture(futureRendered);
 
-        UiTargetId target = ApplicationTargetIds.FunctionKeyAction(FunctionKeyLayer.Plain, ConsoleKey.F1);
-        RoutedPointerInput<ApplicationFunctionKeyHit> committedAction = Route(
-            committed.PointerSnapshots!.FunctionKeyBar!,
-            target);
-        RoutedPointerInput<ApplicationFunctionKeyHit> futureAction = Route(
-            futureSnapshots.FunctionKeyBar!,
-            target);
+        RoutedPointerSnapshot<ApplicationFunctionKeyHit> committedSnapshot =
+            committed.PointerSnapshots!.FunctionKeyBar!;
+        RoutedPointerSnapshot<ApplicationFunctionKeyHit> futureSnapshot =
+            futureSnapshots.FunctionKeyBar!;
+        UiHitRegion committedRegion = Assert.Single(committedSnapshot.InteractionFragment.HitRegions);
+        UiHitRegion futureRegion = Assert.Single(futureSnapshot.InteractionFragment.HitRegions);
 
-        Assert.Equal("old-command", committedAction.Action.Item!.CommandId);
-        Assert.Equal("new-command", futureAction.Action.Item!.CommandId);
+        Assert.Equal(ApplicationTargetIds.FunctionKeyAction(FunctionKeyLayer.Plain, ConsoleKey.F1), committedRegion.Target);
+        Assert.Equal(committedRegion.Target, futureRegion.Target);
+        Assert.Equal("old-command", Assert.Single(committed.FunctionKeyBar!.Actions).CommandId);
+        Assert.Equal("new-command", Assert.Single(futureRendered.FunctionKeyBar!.Actions).CommandId);
+        Assert.NotSame(committedSnapshot, futureSnapshot);
     }
 
     [Fact]
@@ -62,7 +63,7 @@ public sealed class ApplicationPointerSnapshotTests
         Assert.True(pointers.LeftPanel!.ContainsAdditionalTarget(retryTarget));
         Assert.Contains(
             pointers.LeftPanel.InteractionFragment.HitRegions,
-            region => region.Target == retryTarget && region.Bounds == retryBounds);
+            region => region.Target == retryTarget && region.Bounds.Equals(retryBounds));
     }
 
     private static ApplicationUiFrame Frame(ConsoleViewport viewport, ApplicationFunctionKeyHit? functionKey) =>
@@ -75,11 +76,4 @@ public sealed class ApplicationPointerSnapshotTests
             null,
             functionKey is null ? null : new ApplicationFunctionKeyBarFrame([functionKey]),
             null);
-
-    private static RoutedPointerInput<ApplicationFunctionKeyHit> Route(
-        RoutedPointerSnapshot<ApplicationFunctionKeyHit> snapshot,
-        UiTargetId target) =>
-        snapshot.RouteInput(
-            new MouseConsoleInputEvent(0, 24, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
-            UiInputRouteContext.HitTarget(new UiFocusController(), target));
 }
