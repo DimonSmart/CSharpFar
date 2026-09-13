@@ -1,4 +1,5 @@
 using CSharpFar.App.Rendering;
+using CSharpFar.App.State;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
@@ -118,9 +119,23 @@ public sealed class QuickViewMonitoringBehaviorTests : IDisposable
             0,
             list,
             listFrame);
+        var viewport = new ConsoleViewport(0, 0, 80, 25);
+        var applicationFrame = new ApplicationUiFrame(
+            viewport,
+            ApplicationWorkspaceMode.Panels,
+            null!,
+            new ApplicationCommandLineFrame(new Rect(0, 23, 80, 1), 0, 0, 0, null),
+            null,
+            null,
+            null,
+            null)
+        {
+            QuickView = quickView,
+        };
+        ApplicationPointerFrame pointers = ApplicationPointerSnapshotBuilder.Capture(applicationFrame);
         var builder = new UiInteractionFrameBuilder();
-
-        ApplicationUiSurface.AddQuickViewInteraction(builder, quickView, new ConsoleViewport(0, 0, 80, 25));
+        builder.AddFragment(pointers.QuickView!.InteractionFragment);
+        builder.AddFragment(list.BuildInteractionFragment(listFrame, 0));
         UiInteractionFrame interaction = builder.Build();
 
         Assert.True(interaction.TryHitTest(3, 6, out UiHitRegion contentHit));
