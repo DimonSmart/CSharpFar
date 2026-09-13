@@ -3,6 +3,7 @@ using CSharpFar.App.Commands;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Input;
 
