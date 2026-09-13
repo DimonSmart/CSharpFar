@@ -1,6 +1,6 @@
 #nullable enable
 CSharpFar.Ui.RoutedPointerCollectionSnapshotExtensions
-CSharpFar.Ui.RoutedPointerCollectionSnapshotExtensions.Capture<TItem>(this CSharpFar.Ui.RoutedPointerCollection<TItem>! collection, CSharpFar.Console.Models.Rect bounds, System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.RoutedPointerItem<TItem>>! items, System.Collections.Generic.IEnumerable<CSharpFar.Ui.UiHitRegion!>? additionalRegions = null) -> CSharpFar.Ui.RoutedPointerSnapshot<TItem>!
+static CSharpFar.Ui.RoutedPointerCollectionSnapshotExtensions.Capture<TItem>(this CSharpFar.Ui.RoutedPointerCollection<TItem>! collection, CSharpFar.Console.Models.Rect bounds, System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.RoutedPointerItem<TItem>>! items, System.Collections.Generic.IEnumerable<CSharpFar.Ui.UiHitRegion!>? additionalRegions = null) -> CSharpFar.Ui.RoutedPointerSnapshot<TItem>!
 CSharpFar.Ui.RoutedPointerSnapshot<TItem>
 CSharpFar.Ui.RoutedPointerSnapshot<TItem>.ContainsAdditionalTarget(CSharpFar.Ui.UiTargetId! target) -> bool
 CSharpFar.Ui.RoutedPointerSnapshot<TItem>.InteractionFragment.get -> CSharpFar.Ui.UiInteractionFragment!
