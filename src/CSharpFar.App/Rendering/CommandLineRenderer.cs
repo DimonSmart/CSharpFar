@@ -1,4 +1,5 @@
 using CSharpFar.Console;
+using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Rendering;
