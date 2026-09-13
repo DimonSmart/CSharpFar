@@ -16,7 +16,7 @@ internal sealed class CommandCompletionController
         _state = state;
     }
 
-    public bool IsNeutralSelected => _state.List.SelectedIndex == NeutralIndex;
+    public bool IsNeutralSelected => _state.SelectedIndex == NeutralIndex;
 
     public void Refresh(CommandLineState commandLine, bool hasRows)
     {
@@ -45,33 +45,33 @@ internal sealed class CommandCompletionController
         if (items.Count == 1)
             return;
 
-        _state.List.ResetItems(items, selectedIndex: NeutralIndex);
+        _state.SetItems(items, NeutralIndex);
         _state.Visible = true;
     }
 
-    public bool TryRemoveSelectedCommand(CommandLineState commandLine, int selectedIndex, int viewportRows)
+    public bool TryRemoveSelectedCommand(CommandLineState commandLine, int selectedIndex)
     {
         if (!_state.Visible ||
             selectedIndex <= NeutralIndex ||
-            selectedIndex >= _state.Matches.Count ||
+            selectedIndex >= _state.Count ||
             commandLine.HasSelection ||
             commandLine.CursorPosition != commandLine.Text.Length)
         {
             return false;
         }
 
-        string command = _state.Matches[selectedIndex];
+        string command = _state.Items[selectedIndex];
         if (string.IsNullOrEmpty(command) || !_history.RemoveCommand(command))
             return false;
 
-        var items = _state.Matches.Where((_, index) => index != selectedIndex).ToArray();
+        string[] items = _state.Items.Where((_, index) => index != selectedIndex).ToArray();
         if (items.Length <= 1)
         {
             _state.ClearMatches();
             return true;
         }
 
-        _state.List.ReplaceItems(items, static item => item, viewportRows);
+        _state.SetItems(items, Math.Min(selectedIndex, items.Length - 1));
         return true;
     }
 
