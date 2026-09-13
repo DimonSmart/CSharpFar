@@ -78,11 +78,16 @@ internal sealed class CommandCompletionLayer : TransientSelectionPopupLayer<stri
             },
             Command = command =>
             {
-                if (command.Command != "delete" ||
-                    !controller.TryRemoveSelectedCommand(
-                        context.CommandLine,
-                        command.SelectedIndex,
-                        Math.Max(1, Math.Min(8, completion.List.Count))))
+                if (command.Command != "delete")
+                    return TransientPopupAction.KeepOpen;
+
+                if (command.SelectedIndex <= 0)
+                    return TransientPopupAction.DismissAndContinue;
+
+                if (!controller.TryRemoveSelectedCommand(
+                    context.CommandLine,
+                    command.SelectedIndex,
+                    Math.Max(1, Math.Min(8, completion.List.Count))))
                 {
                     return TransientPopupAction.KeepOpen;
                 }
