@@ -1,5 +1,6 @@
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.Console;
+using CSharpFar.Console.Models;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Rendering;
