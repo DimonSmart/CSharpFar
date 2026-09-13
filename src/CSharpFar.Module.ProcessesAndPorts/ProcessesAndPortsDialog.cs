@@ -35,64 +35,84 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
         var tcp = FormControls.CheckBox("TCP listeners", true);
         var udp = FormControls.CheckBox("UDP endpoints", true);
         var other = FormControls.CheckBox("Other TCP connections");
-        var form = new ScrollableFormDialog();
-        DialogButton[] actionButtons = [
-            DialogButton.Action("details", "Details", 'D'), DialogButton.Action("refresh", "Refresh", 'R'),
-            DialogButton.Action("terminate", "Terminate", 'T'), DialogButton.Cancel("Close", 'C', "close")];
-        var actions = FormControls.Buttons(actionButtons);
-        form.SetRows([FormControls.Text("Filter:", filter), tcp, udp, other], [actions]);
+        DialogButton[] actions = [
+            DialogButton.Action("details", "Details", 'D'),
+            DialogButton.Action("refresh", "Refresh", 'R'),
+            DialogButton.Action("terminate", "Terminate", 'T'),
+            DialogButton.Cancel("Close", 'C', "close")];
 
         ProcessesAndPortsSnapshot? snapshot = TryCapture(null, out string? captureError);
-        var list = new TableList<ProcessesAndPortsRow>([], TableDefinition, appearance: ListAppearance.Dialog);
-        IReadOnlyList<ProcessesAndPortsRow> lastRows = [];
-        ProcessNetworkEndpoint? SelectedEndpoint() => list.TryGetSelectedItem(out ProcessesAndPortsRow selected) ? selected.Endpoint : null;
-        void RefreshPresentation()
-        {
-            IReadOnlyList<ProcessesAndPortsRow> rows = Project(snapshot?.Endpoints ?? [], filter.Text, tcp.Value, udp.Value, other.Value);
-            if (!SameRows(rows, lastRows))
-            {
-                list.ReplaceItems(rows, row => row.Key);
-                lastRows = rows;
-            }
-            bool canTerminate = CanTerminate(SelectedEndpoint());
-            actions.SetButtons(actionButtons.Select(button => button with
-            {
-                IsEnabled = button.Id == "details" ? list.HasItems : button.Id == "terminate" ? canTerminate : button.IsEnabled,
-            }).ToArray());
-        }
 
-        _ui.Dialogs.Composite<object?>(
-            new CompositeDialogOptions("Processes and Ports", DialogWidth, 24)
+        _ui.Dialogs.DynamicTable<ProcessesAndPortsRow, object?>(
+            new DynamicTableDialogDefinition<ProcessesAndPortsRow, object?>
             {
+                Title = "Processes and Ports",
+                PreferredWidth = DialogWidth,
+                PreferredHeight = 24,
                 ResizeMode = DialogResizeMode.Both,
-            },
-            form,
-            list,
-            () => captureError ?? Status(lastRows, AllowedCount(snapshot?.Endpoints ?? [], tcp.Value, udp.Value, other.Value)),
-            new Dictionary<ConsoleKey, string>
-            {
-                [ConsoleKey.F5] = "refresh",
-                [ConsoleKey.Delete] = "terminate",
-                [ConsoleKey.F10] = "close",
-            },
-            semantic =>
-            {
-                if (semantic.Kind == CompositeDialogEventKind.Cancelled)
-                    return CompositeDialogOutcome<object?>.Complete(null);
-                if (semantic.Kind == CompositeDialogEventKind.ContentConfirmed)
+                TableDefinition = TableDefinition,
+                ItemIdentity = row => row.Key,
+                KeyboardCommands = new Dictionary<ConsoleKey, string>
                 {
-                    ShowSelectedDetails(snapshot, SelectedEndpoint());
-                    return CompositeDialogOutcome<object?>.ContinueNoChange;
-                }
-                string? action = semantic.Command;
-                if (action is null) return CompositeDialogOutcome<object?>.ContinueNoChange;
-                if (action == "close") return CompositeDialogOutcome<object?>.Complete(null);
-                if (action == "refresh") { snapshot = TryCapture(snapshot, out captureError); return CompositeDialogOutcome<object?>.ContinueChanged; }
-                if (action == "details") { ShowSelectedDetails(snapshot, SelectedEndpoint()); return CompositeDialogOutcome<object?>.ContinueNoChange; }
-                if (action == "terminate") Terminate(snapshot, SelectedEndpoint(), ref captureError, ref snapshot);
-                return CompositeDialogOutcome<object?>.ContinueChanged;
-            },
-            prepareRender: RefreshPresentation);
+                    [ConsoleKey.F5] = "refresh",
+                    [ConsoleKey.Delete] = "terminate",
+                    [ConsoleKey.F10] = "close",
+                },
+                Synchronize = context =>
+                {
+                    IReadOnlyList<ProcessesAndPortsRow> rows = Project(
+                        snapshot?.Endpoints ?? [],
+                        filter.Text,
+                        tcp.Value,
+                        udp.Value,
+                        other.Value);
+                    ProcessNetworkEndpoint? selected = context.SelectedItem?.Endpoint;
+                    DialogButton[] currentActions = actions.Select(button => button with
+                    {
+                        IsEnabled = button.Id switch
+                        {
+                            "details" => selected is not null,
+                            "terminate" => CanTerminate(selected),
+                            _ => button.IsEnabled,
+                        },
+                    }).ToArray();
+                    string status = captureError ?? Status(
+                        rows,
+                        AllowedCount(snapshot?.Endpoints ?? [], tcp.Value, udp.Value, other.Value));
+                    return new DynamicTableDialogState<ProcessesAndPortsRow>(
+                        [FormControls.Text("Filter:", filter), tcp, udp, other],
+                        rows,
+                        currentActions,
+                        status);
+                },
+                HandleItemActivation = row =>
+                {
+                    ShowSelectedDetails(snapshot, row.Endpoint);
+                    return DynamicTableDialogOutcome<object?>.ContinueOpen;
+                },
+                HandleCommand = command =>
+                {
+                    if (command.ActionId == "close")
+                        return DynamicTableDialogOutcome<object?>.Complete(null);
+                    if (command.ActionId == "refresh")
+                    {
+                        snapshot = TryCapture(snapshot, out captureError);
+                        return DynamicTableDialogOutcome<object?>.RefreshOpen;
+                    }
+                    if (command.ActionId == "details")
+                    {
+                        ShowSelectedDetails(snapshot, command.SelectedItem?.Endpoint);
+                        return DynamicTableDialogOutcome<object?>.ContinueOpen;
+                    }
+                    if (command.ActionId == "terminate")
+                    {
+                        Terminate(snapshot, command.SelectedItem?.Endpoint, ref captureError, ref snapshot);
+                        return DynamicTableDialogOutcome<object?>.RefreshOpen;
+                    }
+                    return DynamicTableDialogOutcome<object?>.ContinueOpen;
+                },
+                HandleCancel = () => DynamicTableDialogOutcome<object?>.Complete(null),
+            });
     }
 
     private ProcessesAndPortsSnapshot? TryCapture(ProcessesAndPortsSnapshot? previous, out string? error)
@@ -143,5 +163,4 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
     private static string Address(IPAddress address, int? port = null) => address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? $"[{address}]{(port is null ? "" : $":{port}")}" : $"{address}{(port is null ? "" : $":{port}")}";
     private static string DisplayName(ProcessSnapshot process) => process.Name ?? MetadataText(process.MetadataStatus);
     private static string MetadataText(ProcessMetadataStatus status) => status switch { ProcessMetadataStatus.AccessDenied => "<access denied>", ProcessMetadataStatus.Exited => "<process exited>", _ => "<unavailable>" };
-    private static bool SameRows(IReadOnlyList<ProcessesAndPortsRow> left, IReadOnlyList<ProcessesAndPortsRow> right) => left.Count == right.Count && left.Zip(right).All(x => x.First.Key.Equals(x.Second.Key));
 }
