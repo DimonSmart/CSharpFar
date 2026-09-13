@@ -6,6 +6,7 @@ internal sealed class CommandCompletionState
     private int _selectedIndex = -1;
 
     public IReadOnlyList<string> Items => _items;
+    public IReadOnlyList<string> List => _items;
     public IReadOnlyList<string> Matches => _items;
     public int Count => _items.Count;
 
