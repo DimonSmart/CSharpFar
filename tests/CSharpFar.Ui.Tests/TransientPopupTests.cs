@@ -29,10 +29,10 @@ public sealed class TransientPopupTests
         Assert.True(layer.CommittedFrame.PopupVisible);
         UiFocusEntry focus = Assert.Single(layer.CommittedInteractionFrame.Focus.Entries);
         Assert.Equal(layer.CommittedFrame.Cursor, focus.Cursor);
-        Assert.NotNull(focus.Cursor);
-        Assert.Equal((focus.Cursor!.X, focus.Cursor.Y), (host.Driver.CursorX, host.Driver.CursorY));
+        UiCursorPlacement cursor = Assert.IsType<UiCursorPlacement>(focus.Cursor);
+        Assert.Equal((cursor.X, cursor.Y), (host.Driver.CursorX, host.Driver.CursorY));
         Assert.True(host.Driver.CursorVisible);
-        Assert.Equal(' ', host.Driver.GetCell(focus.Cursor.X, focus.Cursor.Y).Character);
+        Assert.Equal(' ', host.Driver.GetCell(cursor.X, cursor.Y).Character);
     }
 
     [Fact]
@@ -84,10 +84,8 @@ public sealed class TransientPopupTests
 
         Assert.NotEqual(first, layer.CommittedFrame.PopupBounds);
         Assert.True(layer.CommittedFrame.PopupVisible);
-        Assert.NotNull(layer.CommittedFrame.Cursor);
-        Assert.True(layer.CommittedFrame.InputBounds.Contains(
-            layer.CommittedFrame.Cursor!.X,
-            layer.CommittedFrame.Cursor.Y));
+        UiCursorPlacement cursor = Assert.IsType<UiCursorPlacement>(layer.CommittedFrame.Cursor);
+        Assert.True(layer.CommittedFrame.InputBounds.Contains(cursor.X, cursor.Y));
     }
 
     [Fact]
