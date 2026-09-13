@@ -1,6 +1,5 @@
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.Console;
-using CSharpFar.Console.Models;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Rendering;
@@ -25,40 +24,36 @@ internal sealed class ApplicationFunctionKeyBarRenderer
                 binding.Layer == layer &&
                 _canExecuteCommand(binding.CommandId))
             .ToArray();
-        var actions = visibleBindings
-            .Select(binding => new FunctionKeyBarAction<string>(
+        var pointerActions = visibleBindings
+            .Select(binding => new FunctionKeyBarAction<FunctionKeyBinding>(
                 binding.KeyNumber,
                 binding.Label,
-                binding.CommandId))
+                binding))
             .ToArray();
+        var controller = new FunctionKeyBarController<FunctionKeyBinding>();
+        controller.Render(canvas, size.Height - 1, size.Width, pointerActions);
 
-        new FunctionKeyBarController<string>().Render(canvas, size.Height - 1, size.Width, actions);
-
-        var hits = new List<ApplicationFunctionKeyHit>();
-        Dictionary<int, Rect> slotsByKey = size.Height <= 0 || size.Width <= 0
+        ApplicationFunctionKeyHit[] hits = size.Height <= 0 || size.Width <= 0
             ? []
-            : FunctionKeyBar.BuildSlots(size.Height - 1, size.Width)
-                .ToDictionary(slot => slot.KeyNumber, slot => slot.Bounds);
-        foreach (var binding in _bindings)
-        {
-            bool canExecute = _canExecuteCommand(binding.CommandId);
-            bool available = canExecute || binding.RunsWhenUnavailable;
-            if (!available)
-                continue;
-
-            Rect bounds = canExecute &&
-                binding.Layer == layer &&
-                slotsByKey.TryGetValue(binding.KeyNumber, out var slotBounds)
-                    ? slotBounds
-                    : new Rect(0, 0, 0, 0);
-            hits.Add(new ApplicationFunctionKeyHit(
-                bounds,
+            : controller.BuildActionHits(size.Height - 1, size.Width, pointerActions)
+                .Select(hit => new ApplicationFunctionKeyHit(
+                    hit.Bounds,
+                    hit.Action.CommandId,
+                    hit.Action.Layer,
+                    hit.Action.Key,
+                    hit.Action.RunsWhenUnavailable))
+                .ToArray();
+        ApplicationFunctionKeyAction[] keyboardActions = _bindings
+            .Where(binding => _canExecuteCommand(binding.CommandId) || binding.RunsWhenUnavailable)
+            .Select(binding => new ApplicationFunctionKeyAction(
                 binding.CommandId,
                 binding.Layer,
                 binding.Key,
-                binding.RunsWhenUnavailable));
-        }
+                binding.RunsWhenUnavailable))
+            .ToArray();
 
-        return hits.Count > 0 ? new ApplicationFunctionKeyBarFrame(hits) : null;
+        return keyboardActions.Length > 0
+            ? new ApplicationFunctionKeyBarFrame(hits, keyboardActions)
+            : null;
     }
 }

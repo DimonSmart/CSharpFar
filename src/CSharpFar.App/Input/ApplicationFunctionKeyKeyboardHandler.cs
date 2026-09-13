@@ -22,14 +22,14 @@ internal sealed class ApplicationFunctionKeyKeyboardHandler
         if (!FunctionKeyLayerResolver.TryResolveChordLayer(key.Modifiers, out var layer))
             return ApplicationInputHandlingResult.NotHandled;
 
-        var hit = input.Frame.FunctionKeyBar?.Actions.FirstOrDefault(action =>
-            action.Layer == layer &&
-            action.Key == key.Key);
-        if (hit is null)
+        var action = input.Frame.FunctionKeyBar?.KeyboardActions.FirstOrDefault(candidate =>
+            candidate.Layer == layer &&
+            candidate.Key == key.Key);
+        if (action is null)
             return ApplicationInputHandlingResult.NotHandled;
 
         bool shouldRender = _context.ExecuteRegisteredCommand(
-            hit.CommandId,
+            action.CommandId,
             ApplicationPanelCommandInvocationFactory.Create(input.Frame));
         return ApplicationInputHandlingResult.FromHandled(shouldRender);
     }
