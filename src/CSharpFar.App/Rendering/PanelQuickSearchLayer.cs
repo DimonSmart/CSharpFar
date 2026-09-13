@@ -55,8 +55,13 @@ internal sealed class PanelQuickSearchLayer : TransientTextPromptLayer
                 new CellStyle(inputStyle.Background, inputStyle.Foreground)),
             TryActivate = key =>
             {
-                if (!context.PanelQuickSearch.TryStart(key))
+                if ((key.Modifiers & ConsoleModifiers.Alt) == 0 ||
+                    (key.Modifiers & ConsoleModifiers.Control) != 0 ||
+                    !context.PanelQuickSearch.TryStart(key))
+                {
                     return false;
+                }
+
                 hideCompletion(false);
                 resetHistoryNavigation();
                 return true;
