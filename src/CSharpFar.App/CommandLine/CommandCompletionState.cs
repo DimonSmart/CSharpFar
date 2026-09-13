@@ -5,8 +5,13 @@ internal sealed class CommandCompletionState
     private IReadOnlyList<string> _items = [];
     private int _selectedIndex = -1;
 
+    public CommandCompletionState()
+    {
+        List = new CommandCompletionItems(this);
+    }
+
     public IReadOnlyList<string> Items => _items;
-    public IReadOnlyList<string> List => _items;
+    public CommandCompletionItems List { get; }
     public IReadOnlyList<string> Matches => _items;
     public int Count => _items.Count;
 
@@ -41,4 +46,23 @@ internal sealed class CommandCompletionState
     }
 
     public void CloseForHiddenScroll() => Reset(temporarilyHidden: false);
+
+    internal sealed class CommandCompletionItems : IReadOnlyList<string>
+    {
+        private readonly CommandCompletionState _owner;
+
+        public CommandCompletionItems(CommandCompletionState owner)
+        {
+            _owner = owner;
+        }
+
+        public int Count => _owner._items.Count;
+        public string this[int index] => _owner._items[index];
+
+        public void ResetItems(IEnumerable<string> items, int selectedIndex = 0) =>
+            _owner.SetItems(items, selectedIndex);
+
+        public IEnumerator<string> GetEnumerator() => _owner._items.GetEnumerator();
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
 }
