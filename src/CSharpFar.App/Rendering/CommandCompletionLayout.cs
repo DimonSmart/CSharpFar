@@ -11,6 +11,9 @@ internal static class CommandCompletionLayout
             ? new CommandCompletionLayoutFrame(bounds)
             : CommandCompletionLayoutFrame.Hidden;
     }
+
+    public static int VisibleRows(ConsoleSize size) =>
+        Calculate(size, 1).IsVisible ? 1 : 0;
 }
 
 internal readonly record struct CommandCompletionLayoutFrame(Rect PopupBounds)
