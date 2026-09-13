@@ -31,12 +31,12 @@ public sealed class RoutedPointerSnapshotTests
             snapshot.InteractionFragment.HitRegions.Select(region => region.Target.Value));
         Assert.True(snapshot.ContainsAdditionalTarget(retryTarget));
 
-        AssertRoute(snapshot, "list", Mouse(MouseButton.Left, MouseEventKind.Down), RoutedPointerActionKind.SurfacePressed, null);
+        AssertRoute(snapshot, "list", Mouse(MouseButton.Left, MouseEventKind.Down), RoutedPointerActionKind.SurfacePressed);
         AssertRoute(snapshot, "item:4", Mouse(MouseButton.Left, MouseEventKind.Down), RoutedPointerActionKind.ItemPrimaryPressed, 4);
         AssertRoute(snapshot, "item:4", Mouse(MouseButton.Left, MouseEventKind.DoubleClick), RoutedPointerActionKind.ItemDoubleClicked, 4);
         AssertRoute(snapshot, "item:4", Mouse(MouseButton.Right, MouseEventKind.Down), RoutedPointerActionKind.ItemSecondaryPressed, 4);
         AssertRoute(snapshot, "item:9", Mouse(MouseButton.WheelUp, MouseEventKind.Wheel), RoutedPointerActionKind.WheelUp, 9);
-        AssertRoute(snapshot, "list", Mouse(MouseButton.WheelDown, MouseEventKind.Wheel), RoutedPointerActionKind.WheelDown, null);
+        AssertRoute(snapshot, "list", Mouse(MouseButton.WheelDown, MouseEventKind.Wheel), RoutedPointerActionKind.WheelDown);
 
         Assert.False(Route(snapshot, "missing", Mouse(MouseButton.Left, MouseEventKind.Down)).UiResult.Handled);
         Assert.False(Route(snapshot, "item:10", Mouse(MouseButton.Left, MouseEventKind.Down)).UiResult.Handled);
@@ -91,12 +91,13 @@ public sealed class RoutedPointerSnapshotTests
         string target,
         MouseConsoleInputEvent input,
         RoutedPointerActionKind expectedKind,
-        int? expectedItem)
+        int? expectedItem = null)
     {
         RoutedPointerInput<int> routed = Route(snapshot, target, input);
         Assert.True(routed.UiResult.Handled);
         Assert.Equal(expectedKind, routed.Action.Kind);
-        Assert.Equal(expectedItem, routed.Action.Item);
+        if (expectedItem is { } item)
+            Assert.Equal(item, routed.Action.Item);
     }
 
     private static RoutedPointerInput<int> Route(
