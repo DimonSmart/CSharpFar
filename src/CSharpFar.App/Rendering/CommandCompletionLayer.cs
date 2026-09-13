@@ -57,11 +57,10 @@ internal sealed class CommandCompletionLayer : TransientSelectionPopupLayer<stri
                 completion.Visible &&
                 (context.App.WorkspaceMode != ApplicationWorkspaceMode.HiddenCommandLine ||
                  !context.Ui.HiddenUiDetachedByScroll),
-            Items = () => completion.List.Items,
+            Items = () => completion.Items,
             ItemText = static text => text.Replace('\n', '↵'),
-            SelectedIndex = () => completion.List.SelectedIndex,
-            SelectionChanged = index =>
-                completion.List.TrySetSelectedIndex(index, Math.Max(1, completion.List.Count)),
+            SelectedIndex = () => completion.SelectedIndex,
+            SelectionChanged = index => completion.SelectedIndex = index,
             ItemIdentity = static text => text,
             Placement = CreatePlacement(),
             Appearance = new TransientSelectionPopupAppearance(
@@ -81,16 +80,15 @@ internal sealed class CommandCompletionLayer : TransientSelectionPopupLayer<stri
                 if (command.Command != "delete")
                     return TransientPopupAction.KeepOpen;
 
-                if (command.SelectedIndex <= 0)
-                    return TransientPopupAction.DismissAndContinue;
-
-                if (!controller.TryRemoveSelectedCommand(
-                    context.CommandLine,
-                    command.SelectedIndex,
-                    Math.Max(1, Math.Min(8, completion.List.Count))))
+                if (command.SelectedIndex <= 0 ||
+                    context.CommandLine.HasSelection ||
+                    context.CommandLine.CursorPosition != context.CommandLine.Text.Length)
                 {
-                    return TransientPopupAction.KeepOpen;
+                    return TransientPopupAction.DismissAndContinue;
                 }
+
+                if (!controller.TryRemoveSelectedCommand(context.CommandLine, command.SelectedIndex))
+                    return TransientPopupAction.KeepOpen;
 
                 resetHistoryNavigation();
                 return TransientPopupAction.Refresh;
