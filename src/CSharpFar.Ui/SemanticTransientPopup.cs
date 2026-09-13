@@ -139,6 +139,9 @@ public class TransientTextPromptLayer : UiLayer<TransientTextPromptFrame>
         if (!layout.IsVisible)
             return new TransientTextPromptFrame(true, false, context.Viewport, default, default, null, _editor.Text);
 
+        // Keep one cell available for an end-of-line cursor. This also avoids placing
+        // the cursor past the content rect when the left edge begins with a wide rune.
+        int inputWidth = Math.Max(1, layout.ContentBounds.Width - 1);
         _popupRenderer.RenderPopup(
             context.Canvas,
             layout.PopupBounds,
@@ -147,13 +150,13 @@ public class TransientTextPromptLayer : UiLayer<TransientTextPromptFrame>
                 canvas,
                 content.X,
                 content.Y,
-                content.Width,
+                inputWidth,
                 _editor,
                 _definition.Appearance.TextStyle,
                 _definition.Appearance.SelectionStyle));
         RenderTitle(context.Canvas, layout.PopupBounds);
 
-        int cursorX = SingleLineTextInput.GetCursorX(layout.ContentBounds.X, layout.ContentBounds.Width, _editor);
+        int cursorX = SingleLineTextInput.GetCursorX(layout.ContentBounds.X, inputWidth, _editor);
         UiCursorPlacement? cursor = layout.ContentBounds.Contains(cursorX, layout.ContentBounds.Y)
             ? new UiCursorPlacement(cursorX, layout.ContentBounds.Y)
             : null;
@@ -526,7 +529,10 @@ public class TransientSelectionPopupLayer<T> : UiLayer<TransientSelectionPopupFr
         if (routed.ListResult.IsHandled)
         {
             if (routed.ListResult.Kind == ScrollableListInputResultKind.Confirmed)
+            {
+                PublishSelection();
                 return Activate(_state.SelectedIndex, TransientSelectionActivationSource.Pointer);
+            }
             if (routed.ListResult.Kind == ScrollableListInputResultKind.SelectionChanged)
                 PublishSelection();
             return routed.UiResult;
@@ -562,13 +568,26 @@ public class TransientSelectionPopupLayer<T> : UiLayer<TransientSelectionPopupFr
 
     private void SynchronizeState(IReadOnlyList<T> items, int visibleRows)
     {
+        bool preserveByIdentity = false;
         if (!SameItems(_lastItems, items))
         {
+            bool hadItems = _lastItems.Count > 0;
             if (_definition.ItemIdentity is null)
+            {
                 _state.ReplaceItems(items, visibleRows);
+            }
             else
+            {
                 _state.ReplaceItems(items, _definition.ItemIdentity, visibleRows);
+                preserveByIdentity = hadItems;
+            }
             _lastItems = Array.AsReadOnly(items.ToArray());
+        }
+
+        if (preserveByIdentity)
+        {
+            PublishSelection();
+            return;
         }
 
         int requestedSelection = _definition.SelectedIndex();
