@@ -106,6 +106,11 @@ public sealed class DialogService
         CancellationToken cancellationToken = default) =>
         new FormDialogs(_modalDialogs).Show(options, rows, footer: null, submit, auxiliary: null, cancellationToken);
 
+    public TResult DynamicTable<TItem, TResult>(
+        DynamicTableDialogDefinition<TItem, TResult> definition,
+        CancellationToken cancellationToken = default) =>
+        new SemanticDynamicTableDialog<TItem, TResult>(_modalDialogs).Show(definition, cancellationToken);
+
     public TResult Composite<TResult>(
         CompositeDialogOptions options,
         ScrollableFormDialog form,

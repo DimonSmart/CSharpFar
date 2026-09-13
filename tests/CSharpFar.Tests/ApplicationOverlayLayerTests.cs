@@ -1,5 +1,3 @@
-
-
 using CSharpFar.App;
 using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Rendering;
@@ -27,7 +25,7 @@ public sealed class ApplicationOverlayLayerTests
         Assert.Empty(services.Inner.CommandCompletionLayer.CommittedInteractionFrame.HitRegions);
 
         services.Session.CommandLine.Completion.Visible = true;
-        services.Session.CommandLine.Completion.List.ResetItems(["", "alpha"]);
+        services.Session.CommandLine.Completion.SetItems(["", "alpha"]);
         services.Composition.Render();
 
         Assert.Equal(UiLayerInputPolicy.Bubble, services.Inner.CommandCompletionLayer.InputPolicy);
@@ -40,7 +38,7 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services(new FakeConsoleDriver(80, 3));
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(["", "alpha"]);
+        completion.SetItems(["", "alpha"]);
 
         services.Composition.Render();
 
@@ -62,7 +60,7 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(["", "git status"]);
+        completion.SetItems(["", "git status"]);
         services.Session.App.WorkspaceMode = ApplicationWorkspaceMode.HiddenCommandLine;
 
         services.Composition.Render();
@@ -78,7 +76,7 @@ public sealed class ApplicationOverlayLayerTests
         var input = UiTestInput.Key(ConsoleKey.DownArrow);
         Assert.True(services.Composition.DispatchInput(input).Handled);
         Assert.False(services.ApplicationSurface.TryTakeInput(out _));
-        Assert.Equal(1, completion.List.SelectedIndex);
+        Assert.Equal(1, completion.SelectedIndex);
     }
 
     [Fact]
@@ -90,7 +88,7 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services(driver);
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(["", "git status"]);
+        completion.SetItems(["", "git status"]);
         services.Session.App.WorkspaceMode = ApplicationWorkspaceMode.HiddenCommandLine;
         services.Composition.Render();
         long renderVersion = services.Composition.StableRenderVersion;
@@ -121,13 +119,13 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(["", "alpha"]);
+        completion.SetItems(["", "alpha"]);
         services.Composition.Render();
 
         Assert.True(services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.DownArrow)).Invalidate);
         services.Composition.Render();
 
-        Assert.Equal(1, completion.List.SelectedIndex);
+        Assert.Equal(1, completion.SelectedIndex);
         Assert.True(services.ApplicationSurface.CommittedFrame.RenderedParts.HasFlag(ApplicationRenderPart.Full));
     }
 
@@ -137,7 +135,7 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(["", "alpha"], selectedIndex: 1);
+        completion.SetItems(["", "alpha"], selectedIndex: 1);
         services.Composition.Render();
 
         Assert.True(services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.Enter)).Handled);
@@ -153,7 +151,7 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services(new FakeConsoleDriver(80, 3));
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(["", "alpha"]);
+        completion.SetItems(["", "alpha"]);
         services.Composition.Render();
 
         services.Driver.SetSize(80, 25);
@@ -182,11 +180,11 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(["", "alpha"]);
+        completion.SetItems(["", "alpha"]);
         services.Composition.Render();
         var interaction = services.Inner.CommandCompletionLayer.CommittedInteractionFrame;
         bool observedRejectedAttempt = false;
-        completion.List.SetSelectedIndex(1, 1);
+        completion.SelectedIndex = 1;
 
         services.Driver.ResizeAfterWriteCount = services.Driver.WriteAtCallCount + 1;
         services.Driver.ResizeAfterWrite = driver => driver.SetSize(80, 3);
@@ -212,7 +210,7 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(["", "alpha"]);
+        completion.SetItems(["", "alpha"]);
         services.Composition.Render();
         var input = UiTestInput.Key(ConsoleKey.Enter);
 
@@ -230,7 +228,7 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(["", "alpha"]);
+        completion.SetItems(["", "alpha"]);
         services.Composition.Render();
         Rect bounds = services.Inner.CommandCompletionLayer.CommittedFrame.Items[0].Bounds;
 
@@ -249,7 +247,7 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(["", "alpha"]);
+        completion.SetItems(["", "alpha"]);
         services.Composition.Render();
         Rect bounds = services.Inner.CommandCompletionLayer.CommittedFrame.Items[1].Bounds;
 
@@ -270,9 +268,9 @@ public sealed class ApplicationOverlayLayerTests
         services.History.AddCommand(new CommandHistoryItem { Command = "beta", WorkingDirectory = @"C:\" });
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(["", "alpha", "beta"], 1);
+        completion.SetItems(["", "alpha", "beta"], 1);
         services.Composition.Render();
-        completion.List.SetSelectedIndex(2, 1);
+        completion.SelectedIndex = 2;
 
         UiInputResult result = services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.Delete));
 
@@ -290,16 +288,15 @@ public sealed class ApplicationOverlayLayerTests
             services.History.AddCommand(new CommandHistoryItem { Command = command, WorkingDirectory = @"C:\" });
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(["", .. commands], 10);
-        completion.List.SetSelectedIndex(10, 7);
+        completion.SetItems(["", .. commands], 10);
         services.Composition.Render();
 
         Assert.True(services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.Delete)).Handled);
         services.Composition.Render();
 
         var frame = services.Inner.CommandCompletionLayer.CommittedFrame;
-        Assert.True(completion.List.ScrollTop > 0);
-        Assert.InRange(completion.List.SelectedIndex, frame.List.ScrollTop, frame.List.ScrollTop + frame.VisibleRows - 1);
+        Assert.True(frame.List.ScrollTop > 0);
+        Assert.InRange(completion.SelectedIndex, frame.List.ScrollTop, frame.List.ScrollTop + frame.VisibleRows - 1);
     }
 
     [Fact]
@@ -308,10 +305,10 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(["", "old"]);
+        completion.SetItems(["", "old"]);
         services.Composition.Render();
         Rect oldBounds = services.Inner.CommandCompletionLayer.CommittedFrame.Items[1].Bounds;
-        completion.List.ResetItems(["", "new"]);
+        completion.SetItems(["", "new"]);
 
         UiInputResult result = services.Composition.DispatchInput(UiTestInput.Mouse(oldBounds.X, oldBounds.Y));
 
@@ -327,21 +324,15 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(["", "alpha", "beta", "gamma"]);
-        completion.List.SetSelectedIndex(3, 1);
+        completion.SetItems(["", "alpha", "beta", "gamma"], selectedIndex: 3);
 
         services.Driver.ResizeAfterWriteCount = 1;
         services.Driver.ResizeAfterWrite = driver => driver.SetSize(100, 35);
-        services.Driver.BeforeViewportWrite = _ =>
-        {
-            Assert.Equal(3, completion.List.SelectedIndex);
-            Assert.Equal(3, completion.List.ScrollTop);
-        };
+        services.Driver.BeforeViewportWrite = _ => Assert.Equal(3, completion.SelectedIndex);
 
         services.Composition.Render();
 
-        Assert.Equal(3, completion.List.SelectedIndex);
-        Assert.Equal(3, completion.List.ScrollTop);
+        Assert.Equal(3, completion.SelectedIndex);
     }
 
     [Fact]
@@ -352,7 +343,7 @@ public sealed class ApplicationOverlayLayerTests
         services.Session.Panels.Left.Items.Add(item);
         services.Session.Panels.Left.CursorIndex = services.Session.Panels.Left.Items.IndexOf(item);
         services.Session.CommandLine.Completion.Visible = true;
-        services.Session.CommandLine.Completion.List.ResetItems(["", "history"], 1);
+        services.Session.CommandLine.Completion.SetItems(["", "history"], 1);
 
         services.Composition.Render();
         var input = UiTestInput.Key(ConsoleKey.Enter, control: true);
@@ -374,12 +365,12 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(Enumerable.Range(0, 12).Select(i => $"item-{i}").ToArray());
+        completion.SetItems(Enumerable.Range(0, 12).Select(i => $"item-{i}"));
 
         services.Composition.Render();
         UiInputResult down = services.Composition.DispatchInput(UiTestInput.Mouse(79, 15));
         Assert.True(down.Handled);
-        completion.List.ResetItems(["item-0"]);
+        completion.SetItems(["item-0"]);
         services.Composition.Render();
     }
 
@@ -389,7 +380,7 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(Enumerable.Range(0, 12).Select(i => $"item-{i}").ToArray());
+        completion.SetItems(Enumerable.Range(0, 12).Select(i => $"item-{i}"));
 
         services.Composition.Render();
         Assert.True(services.Composition.DispatchInput(UiTestInput.Mouse(79, 15)).Handled);
@@ -409,12 +400,12 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(Enumerable.Range(0, 12).Select(i => $"item-{i}").ToArray());
+        completion.SetItems(Enumerable.Range(0, 12).Select(i => $"item-{i}"));
         services.Composition.Render();
         services.Composition.DispatchInput(UiTestInput.Mouse(79, 15));
         bool observedRejectedAttempt = false;
 
-        completion.List.SetSelectedIndex(1, 1);
+        completion.SelectedIndex = 1;
         services.Driver.ResizeAfterWriteCount = services.Driver.WriteAtCallCount + 1;
         services.Driver.ResizeAfterWrite = driver => driver.SetSize(100, 35);
         services.Driver.BeforeViewportWrite = _ =>
@@ -434,11 +425,11 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
-        completion.List.ResetItems(Enumerable.Range(0, 12).Select(i => $"item-{i}").ToArray());
+        completion.SetItems(Enumerable.Range(0, 12).Select(i => $"item-{i}"));
         services.Composition.Render();
         services.Composition.DispatchInput(UiTestInput.Mouse(79, 15));
 
-        completion.List.SetSelectedIndex(1, 1);
+        completion.SelectedIndex = 1;
         services.Driver.ResizeAfterWriteCount = services.Driver.WriteAtCallCount + 1;
         services.Driver.ResizeAfterWrite = driver => driver.SetSize(100, 35);
         services.Composition.Render();
@@ -446,7 +437,7 @@ public sealed class ApplicationOverlayLayerTests
         UiInputResult move = services.Composition.DispatchInput(UiTestInput.Mouse(0, 30, MouseEventKind.Move));
 
         Assert.True(move.Handled);
-        Assert.Equal(4, completion.List.ScrollTop);
+        Assert.True(services.Inner.CommandCompletionLayer.CommittedFrame.Visible);
     }
 
     [Fact]

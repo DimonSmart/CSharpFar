@@ -1,4 +1,63 @@
 #nullable enable
+CSharpFar.Ui.DialogService.DynamicTable<TItem, TResult>(CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>! definition, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> TResult
+CSharpFar.Ui.DynamicTableDialogContext<TItem>
+CSharpFar.Ui.DynamicTableDialogContext<TItem>.<Clone>$() -> CSharpFar.Ui.DynamicTableDialogContext<TItem>!
+CSharpFar.Ui.DynamicTableDialogContext<TItem>.Deconstruct(out TItem? SelectedItem, out int SelectedIndex) -> void
+CSharpFar.Ui.DynamicTableDialogContext<TItem>.DynamicTableDialogContext(TItem? SelectedItem, int SelectedIndex) -> void
+CSharpFar.Ui.DynamicTableDialogContext<TItem>.Equals(CSharpFar.Ui.DynamicTableDialogContext<TItem>? other) -> bool
+CSharpFar.Ui.DynamicTableDialogContext<TItem>.SelectedIndex.get -> int
+CSharpFar.Ui.DynamicTableDialogContext<TItem>.SelectedIndex.init -> void
+CSharpFar.Ui.DynamicTableDialogContext<TItem>.SelectedItem.get -> TItem?
+CSharpFar.Ui.DynamicTableDialogContext<TItem>.SelectedItem.init -> void
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.Appearance.get -> CSharpFar.Ui.DialogAppearance
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.Appearance.init -> void
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.DynamicTableDialogDefinition() -> void
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.HandleCancel.get -> System.Func<CSharpFar.Ui.DynamicTableDialogOutcome<TResult>>?
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.HandleCancel.init -> void
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.HandleCommand.get -> System.Func<CSharpFar.Ui.ListDialogActionContext<TItem>!, CSharpFar.Ui.DynamicTableDialogOutcome<TResult>>?
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.HandleCommand.init -> void
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.HandleItemActivation.get -> System.Func<TItem, CSharpFar.Ui.DynamicTableDialogOutcome<TResult>>?
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.HandleItemActivation.init -> void
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.ItemIdentity.get -> System.Func<TItem, object!>?
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.ItemIdentity.init -> void
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.KeyboardCommands.get -> System.Collections.Generic.IReadOnlyDictionary<System.ConsoleKey, string!>?
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.KeyboardCommands.init -> void
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.MinHeight.get -> int
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.MinHeight.init -> void
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.MinWidth.get -> int
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.MinWidth.init -> void
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.PreferredHeight.get -> int
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.PreferredHeight.init -> void
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.PreferredWidth.get -> int
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.PreferredWidth.init -> void
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.ResizeMode.get -> CSharpFar.Ui.DialogResizeMode
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.ResizeMode.init -> void
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.Synchronize.get -> System.Func<CSharpFar.Ui.DynamicTableDialogContext<TItem>!, CSharpFar.Ui.DynamicTableDialogState<TItem>!>!
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.Synchronize.init -> void
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.TableAppearance.get -> CSharpFar.Ui.ListAppearance
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.TableAppearance.init -> void
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.TableDefinition.get -> CSharpFar.Ui.TableListDefinition<TItem>!
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.TableDefinition.init -> void
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.Title.get -> string!
+CSharpFar.Ui.DynamicTableDialogDefinition<TItem, TResult>.Title.init -> void
+CSharpFar.Ui.DynamicTableDialogOutcome<TResult>
+CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.Deconstruct(out bool IsComplete, out bool IsChanged, out TResult Result) -> void
+CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.DynamicTableDialogOutcome() -> void
+CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.DynamicTableDialogOutcome(bool IsComplete, bool IsChanged, TResult Result) -> void
+CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.Equals(CSharpFar.Ui.DynamicTableDialogOutcome<TResult> other) -> bool
+CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.IsChanged.get -> bool
+CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.IsChanged.init -> void
+CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.IsComplete.get -> bool
+CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.IsComplete.init -> void
+CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.Result.get -> TResult
+CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.Result.init -> void
+CSharpFar.Ui.DynamicTableDialogState<TItem>
+CSharpFar.Ui.DynamicTableDialogState<TItem>.Actions.get -> System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.DialogButton!>!
+CSharpFar.Ui.DynamicTableDialogState<TItem>.DynamicTableDialogState(System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FormRow!>? rows = null, System.Collections.Generic.IReadOnlyList<TItem>? items = null, System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.DialogButton!>? actions = null, string? status = null) -> void
+CSharpFar.Ui.DynamicTableDialogState<TItem>.Items.get -> System.Collections.Generic.IReadOnlyList<TItem>!
+CSharpFar.Ui.DynamicTableDialogState<TItem>.Rows.get -> System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FormRow!>!
+CSharpFar.Ui.DynamicTableDialogState<TItem>.Status.get -> string?
 CSharpFar.Ui.SelectionDialogOptions<T>.Appearance.get -> CSharpFar.Ui.DialogAppearance
 CSharpFar.Ui.SelectionDialogOptions<T>.Appearance.init -> void
 CSharpFar.Ui.TableDialogOptions<T, TResult>
@@ -38,5 +97,268 @@ CSharpFar.Ui.TableDialogOptions<T, TResult>.TableDialogOptions() -> void
 CSharpFar.Ui.TableDialogOptions<T, TResult>.Title.get -> string!
 CSharpFar.Ui.TableDialogOptions<T, TResult>.Title.init -> void
 CSharpFar.Ui.DialogService.Table<T, TResult>(CSharpFar.Ui.TableDialogOptions<T, TResult>! options) -> TResult?
+CSharpFar.Ui.TransientPopupAction
+CSharpFar.Ui.TransientPopupAction.Dismiss = 2 -> CSharpFar.Ui.TransientPopupAction
+CSharpFar.Ui.TransientPopupAction.DismissAndContinue = 3 -> CSharpFar.Ui.TransientPopupAction
+CSharpFar.Ui.TransientPopupAction.KeepOpen = 0 -> CSharpFar.Ui.TransientPopupAction
+CSharpFar.Ui.TransientPopupAction.Refresh = 1 -> CSharpFar.Ui.TransientPopupAction
+CSharpFar.Ui.TransientPopupPlacement
+CSharpFar.Ui.TransientPopupPlacement.Anchor.get -> System.Func<CSharpFar.Console.Models.ConsoleSize, CSharpFar.Console.Models.Rect>!
+CSharpFar.Ui.TransientPopupPlacement.Anchor.init -> void
+CSharpFar.Ui.TransientPopupPlacement.HorizontalInset.get -> int
+CSharpFar.Ui.TransientPopupPlacement.HorizontalInset.init -> void
+CSharpFar.Ui.TransientPopupPlacement.MaxVisibleRows.get -> int
+CSharpFar.Ui.TransientPopupPlacement.MaxVisibleRows.init -> void
+CSharpFar.Ui.TransientPopupPlacement.MinimumWidth.get -> int
+CSharpFar.Ui.TransientPopupPlacement.MinimumWidth.init -> void
+CSharpFar.Ui.TransientPopupPlacement.Mode.get -> CSharpFar.Ui.TransientPopupPlacementMode
+CSharpFar.Ui.TransientPopupPlacement.Mode.init -> void
+CSharpFar.Ui.TransientPopupPlacement.PreferredWidth.get -> int
+CSharpFar.Ui.TransientPopupPlacement.PreferredWidth.init -> void
+CSharpFar.Ui.TransientPopupPlacement.ReservedRowsAbove.get -> int
+CSharpFar.Ui.TransientPopupPlacement.ReservedRowsAbove.init -> void
+CSharpFar.Ui.TransientPopupPlacement.TransientPopupPlacement() -> void
+CSharpFar.Ui.TransientPopupPlacement.VerticalInset.get -> int
+CSharpFar.Ui.TransientPopupPlacement.VerticalInset.init -> void
+CSharpFar.Ui.TransientPopupPlacementExtensions
+CSharpFar.Ui.TransientPopupPlacementMode
+CSharpFar.Ui.TransientPopupPlacementMode.AboveAnchor = 1 -> CSharpFar.Ui.TransientPopupPlacementMode
+CSharpFar.Ui.TransientPopupPlacementMode.CenteredBottomInsideAnchor = 0 -> CSharpFar.Ui.TransientPopupPlacementMode
+CSharpFar.Ui.TransientSelectionActivation<T>
+CSharpFar.Ui.TransientSelectionActivation<T>.Deconstruct(out T Item, out int Index, out CSharpFar.Ui.TransientSelectionActivationSource Source) -> void
+CSharpFar.Ui.TransientSelectionActivation<T>.Equals(CSharpFar.Ui.TransientSelectionActivation<T> other) -> bool
+CSharpFar.Ui.TransientSelectionActivation<T>.Index.get -> int
+CSharpFar.Ui.TransientSelectionActivation<T>.Index.init -> void
+CSharpFar.Ui.TransientSelectionActivation<T>.Item.get -> T
+CSharpFar.Ui.TransientSelectionActivation<T>.Item.init -> void
+CSharpFar.Ui.TransientSelectionActivation<T>.Source.get -> CSharpFar.Ui.TransientSelectionActivationSource
+CSharpFar.Ui.TransientSelectionActivation<T>.Source.init -> void
+CSharpFar.Ui.TransientSelectionActivation<T>.TransientSelectionActivation() -> void
+CSharpFar.Ui.TransientSelectionActivation<T>.TransientSelectionActivation(T Item, int Index, CSharpFar.Ui.TransientSelectionActivationSource Source) -> void
+CSharpFar.Ui.TransientSelectionActivationSource
+CSharpFar.Ui.TransientSelectionActivationSource.Keyboard = 0 -> CSharpFar.Ui.TransientSelectionActivationSource
+CSharpFar.Ui.TransientSelectionActivationSource.Pointer = 1 -> CSharpFar.Ui.TransientSelectionActivationSource
+CSharpFar.Ui.TransientSelectionCommand<T>
+CSharpFar.Ui.TransientSelectionCommand<T>.Command.get -> string!
+CSharpFar.Ui.TransientSelectionCommand<T>.Command.init -> void
+CSharpFar.Ui.TransientSelectionCommand<T>.Deconstruct(out string! Command, out T? Item, out int SelectedIndex) -> void
+CSharpFar.Ui.TransientSelectionCommand<T>.Equals(CSharpFar.Ui.TransientSelectionCommand<T> other) -> bool
+CSharpFar.Ui.TransientSelectionCommand<T>.Item.get -> T?
+CSharpFar.Ui.TransientSelectionCommand<T>.Item.init -> void
+CSharpFar.Ui.TransientSelectionCommand<T>.SelectedIndex.get -> int
+CSharpFar.Ui.TransientSelectionCommand<T>.SelectedIndex.init -> void
+CSharpFar.Ui.TransientSelectionCommand<T>.TransientSelectionCommand() -> void
+CSharpFar.Ui.TransientSelectionCommand<T>.TransientSelectionCommand(string! Command, T? Item, int SelectedIndex) -> void
+CSharpFar.Ui.TransientSelectionPopupAppearance
+CSharpFar.Ui.TransientSelectionPopupAppearance.<Clone>$() -> CSharpFar.Ui.TransientSelectionPopupAppearance!
+CSharpFar.Ui.TransientSelectionPopupAppearance.Deconstruct(out CSharpFar.Ui.PopupRenderOptions! Popup, out CSharpFar.Console.Models.CellStyle NormalStyle, out CSharpFar.Console.Models.CellStyle SelectedStyle, out CSharpFar.Console.Models.CellStyle EmptyStyle) -> void
+CSharpFar.Ui.TransientSelectionPopupAppearance.EmptyStyle.get -> CSharpFar.Console.Models.CellStyle
+CSharpFar.Ui.TransientSelectionPopupAppearance.EmptyStyle.init -> void
+CSharpFar.Ui.TransientSelectionPopupAppearance.Equals(CSharpFar.Ui.TransientSelectionPopupAppearance? other) -> bool
+CSharpFar.Ui.TransientSelectionPopupAppearance.NormalStyle.get -> CSharpFar.Console.Models.CellStyle
+CSharpFar.Ui.TransientSelectionPopupAppearance.NormalStyle.init -> void
+CSharpFar.Ui.TransientSelectionPopupAppearance.Popup.get -> CSharpFar.Ui.PopupRenderOptions!
+CSharpFar.Ui.TransientSelectionPopupAppearance.Popup.init -> void
+CSharpFar.Ui.TransientSelectionPopupAppearance.SelectedStyle.get -> CSharpFar.Console.Models.CellStyle
+CSharpFar.Ui.TransientSelectionPopupAppearance.SelectedStyle.init -> void
+CSharpFar.Ui.TransientSelectionPopupAppearance.TransientSelectionPopupAppearance(CSharpFar.Ui.PopupRenderOptions! Popup, CSharpFar.Console.Models.CellStyle NormalStyle, CSharpFar.Console.Models.CellStyle SelectedStyle, CSharpFar.Console.Models.CellStyle EmptyStyle) -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.Activated.get -> System.Func<CSharpFar.Ui.TransientSelectionActivation<T>, CSharpFar.Ui.TransientPopupAction>?
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.Activated.init -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.ActivateOnMouseDown.get -> bool
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.ActivateOnMouseDown.init -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.Appearance.get -> CSharpFar.Ui.TransientSelectionPopupAppearance!
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.Appearance.init -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.BubbleOutsideClick.get -> bool
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.BubbleOutsideClick.init -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.Command.get -> System.Func<CSharpFar.Ui.TransientSelectionCommand<T>, CSharpFar.Ui.TransientPopupAction>?
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.Command.init -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.Dismissed.get -> System.Action?
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.Dismissed.init -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.DismissOnOutsideClick.get -> bool
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.DismissOnOutsideClick.init -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.FocusList.get -> bool
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.FocusList.init -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.Id.get -> string!
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.Id.init -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.IsVisible.get -> System.Func<bool>!
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.IsVisible.init -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.ItemIdentity.get -> System.Func<T, object!>?
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.ItemIdentity.init -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.Items.get -> System.Func<System.Collections.Generic.IReadOnlyList<T>!>!
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.Items.init -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.ItemText.get -> System.Func<T, string!>!
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.ItemText.init -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.KeyboardCommands.get -> System.Collections.Generic.IReadOnlyDictionary<System.ConsoleKey, string!>?
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.KeyboardCommands.init -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.Placement.get -> CSharpFar.Ui.TransientPopupPlacement!
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.Placement.init -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.SelectedIndex.get -> System.Func<int>!
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.SelectedIndex.init -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.SelectionChanged.get -> System.Action<int>!
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.SelectionChanged.init -> void
+CSharpFar.Ui.TransientSelectionPopupDefinition<T>.TransientSelectionPopupDefinition() -> void
+CSharpFar.Ui.TransientSelectionPopupFrame<T>
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.<Clone>$() -> CSharpFar.Ui.TransientSelectionPopupFrame<T>!
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.ContentBounds.get -> CSharpFar.Console.Models.Rect
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.ContentBounds.init -> void
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.Deconstruct(out bool Visible, out CSharpFar.Console.Models.ConsoleViewport Viewport, out CSharpFar.Console.Models.Rect PopupBounds, out CSharpFar.Console.Models.Rect ContentBounds, out System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.TransientSelectionPopupItemFrame<T>!>! Items, out CSharpFar.Console.Models.Rect? ScrollbarBounds, out int VisibleRows, out int MatchCount, out CSharpFar.Ui.ScrollableListFrame! List) -> void
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.Equals(CSharpFar.Ui.TransientSelectionPopupFrame<T>? other) -> bool
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.Items.get -> System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.TransientSelectionPopupItemFrame<T>!>!
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.Items.init -> void
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.List.get -> CSharpFar.Ui.ScrollableListFrame!
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.List.init -> void
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.MatchCount.get -> int
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.MatchCount.init -> void
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.PopupBounds.get -> CSharpFar.Console.Models.Rect
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.PopupBounds.init -> void
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.ScrollbarBounds.get -> CSharpFar.Console.Models.Rect?
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.ScrollbarBounds.init -> void
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.TransientSelectionPopupFrame(bool Visible, CSharpFar.Console.Models.ConsoleViewport Viewport, CSharpFar.Console.Models.Rect PopupBounds, CSharpFar.Console.Models.Rect ContentBounds, System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.TransientSelectionPopupItemFrame<T>!>! Items, CSharpFar.Console.Models.Rect? ScrollbarBounds, int VisibleRows, int MatchCount, CSharpFar.Ui.ScrollableListFrame! List) -> void
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.Viewport.get -> CSharpFar.Console.Models.ConsoleViewport
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.Viewport.init -> void
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.Visible.get -> bool
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.Visible.init -> void
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.VisibleRows.get -> int
+CSharpFar.Ui.TransientSelectionPopupFrame<T>.VisibleRows.init -> void
+CSharpFar.Ui.TransientSelectionPopupItemFrame<T>
+CSharpFar.Ui.TransientSelectionPopupItemFrame<T>.<Clone>$() -> CSharpFar.Ui.TransientSelectionPopupItemFrame<T>!
+CSharpFar.Ui.TransientSelectionPopupItemFrame<T>.AbsoluteIndex.get -> int
+CSharpFar.Ui.TransientSelectionPopupItemFrame<T>.AbsoluteIndex.init -> void
+CSharpFar.Ui.TransientSelectionPopupItemFrame<T>.Bounds.get -> CSharpFar.Console.Models.Rect
+CSharpFar.Ui.TransientSelectionPopupItemFrame<T>.Bounds.init -> void
+CSharpFar.Ui.TransientSelectionPopupItemFrame<T>.Deconstruct(out int AbsoluteIndex, out T Item, out string! Text, out CSharpFar.Console.Models.Rect Bounds) -> void
+CSharpFar.Ui.TransientSelectionPopupItemFrame<T>.Equals(CSharpFar.Ui.TransientSelectionPopupItemFrame<T>? other) -> bool
+CSharpFar.Ui.TransientSelectionPopupItemFrame<T>.Item.get -> T
+CSharpFar.Ui.TransientSelectionPopupItemFrame<T>.Item.init -> void
+CSharpFar.Ui.TransientSelectionPopupItemFrame<T>.Text.get -> string!
+CSharpFar.Ui.TransientSelectionPopupItemFrame<T>.Text.init -> void
+CSharpFar.Ui.TransientSelectionPopupItemFrame<T>.TransientSelectionPopupItemFrame(int AbsoluteIndex, T Item, string! Text, CSharpFar.Console.Models.Rect Bounds) -> void
+CSharpFar.Ui.TransientSelectionPopupLayer<T>
+CSharpFar.Ui.TransientSelectionPopupLayer<T>.CalculatePopupBounds(CSharpFar.Console.Models.ConsoleSize size) -> CSharpFar.Console.Models.Rect?
+CSharpFar.Ui.TransientSelectionPopupLayer<T>.TransientSelectionPopupLayer(CSharpFar.Ui.TransientSelectionPopupDefinition<T>! definition) -> void
+CSharpFar.Ui.TransientTextPromptAppearance
+CSharpFar.Ui.TransientTextPromptAppearance.<Clone>$() -> CSharpFar.Ui.TransientTextPromptAppearance!
+CSharpFar.Ui.TransientTextPromptAppearance.Deconstruct(out CSharpFar.Ui.PopupRenderOptions! Popup, out CSharpFar.Console.Models.CellStyle TextStyle, out CSharpFar.Console.Models.CellStyle SelectionStyle) -> void
+CSharpFar.Ui.TransientTextPromptAppearance.Equals(CSharpFar.Ui.TransientTextPromptAppearance? other) -> bool
+CSharpFar.Ui.TransientTextPromptAppearance.Popup.get -> CSharpFar.Ui.PopupRenderOptions!
+CSharpFar.Ui.TransientTextPromptAppearance.Popup.init -> void
+CSharpFar.Ui.TransientTextPromptAppearance.SelectionStyle.get -> CSharpFar.Console.Models.CellStyle
+CSharpFar.Ui.TransientTextPromptAppearance.SelectionStyle.init -> void
+CSharpFar.Ui.TransientTextPromptAppearance.TextStyle.get -> CSharpFar.Console.Models.CellStyle
+CSharpFar.Ui.TransientTextPromptAppearance.TextStyle.init -> void
+CSharpFar.Ui.TransientTextPromptAppearance.TransientTextPromptAppearance(CSharpFar.Ui.PopupRenderOptions! Popup, CSharpFar.Console.Models.CellStyle TextStyle, CSharpFar.Console.Models.CellStyle SelectionStyle) -> void
+CSharpFar.Ui.TransientTextPromptDefinition
+CSharpFar.Ui.TransientTextPromptDefinition.AdditionalCharacter.get -> System.Func<System.ConsoleKeyInfo, char?>?
+CSharpFar.Ui.TransientTextPromptDefinition.AdditionalCharacter.init -> void
+CSharpFar.Ui.TransientTextPromptDefinition.Appearance.get -> CSharpFar.Ui.TransientTextPromptAppearance!
+CSharpFar.Ui.TransientTextPromptDefinition.Appearance.init -> void
+CSharpFar.Ui.TransientTextPromptDefinition.BubbleOutsideClick.get -> bool
+CSharpFar.Ui.TransientTextPromptDefinition.BubbleOutsideClick.init -> void
+CSharpFar.Ui.TransientTextPromptDefinition.Cancelled.get -> System.Action?
+CSharpFar.Ui.TransientTextPromptDefinition.Cancelled.init -> void
+CSharpFar.Ui.TransientTextPromptDefinition.CharacterFilter.get -> System.Func<char, bool>?
+CSharpFar.Ui.TransientTextPromptDefinition.CharacterFilter.init -> void
+CSharpFar.Ui.TransientTextPromptDefinition.Confirmed.get -> System.Action?
+CSharpFar.Ui.TransientTextPromptDefinition.Confirmed.init -> void
+CSharpFar.Ui.TransientTextPromptDefinition.DismissOnOutsideClick.get -> bool
+CSharpFar.Ui.TransientTextPromptDefinition.DismissOnOutsideClick.init -> void
+CSharpFar.Ui.TransientTextPromptDefinition.DismissOnUnhandledKey.get -> bool
+CSharpFar.Ui.TransientTextPromptDefinition.DismissOnUnhandledKey.init -> void
+CSharpFar.Ui.TransientTextPromptDefinition.Id.get -> string!
+CSharpFar.Ui.TransientTextPromptDefinition.Id.init -> void
+CSharpFar.Ui.TransientTextPromptDefinition.IsActive.get -> System.Func<bool>!
+CSharpFar.Ui.TransientTextPromptDefinition.IsActive.init -> void
+CSharpFar.Ui.TransientTextPromptDefinition.Placement.get -> CSharpFar.Ui.TransientPopupPlacement!
+CSharpFar.Ui.TransientTextPromptDefinition.Placement.init -> void
+CSharpFar.Ui.TransientTextPromptDefinition.Text.get -> System.Func<string!>!
+CSharpFar.Ui.TransientTextPromptDefinition.Text.init -> void
+CSharpFar.Ui.TransientTextPromptDefinition.TextChanged.get -> System.Action<string!>!
+CSharpFar.Ui.TransientTextPromptDefinition.TextChanged.init -> void
+CSharpFar.Ui.TransientTextPromptDefinition.Title.get -> string?
+CSharpFar.Ui.TransientTextPromptDefinition.Title.init -> void
+CSharpFar.Ui.TransientTextPromptDefinition.TransientTextPromptDefinition() -> void
+CSharpFar.Ui.TransientTextPromptDefinition.TryActivate.get -> System.Func<System.ConsoleKeyInfo, bool>?
+CSharpFar.Ui.TransientTextPromptDefinition.TryActivate.init -> void
+CSharpFar.Ui.TransientTextPromptFrame
+CSharpFar.Ui.TransientTextPromptFrame.<Clone>$() -> CSharpFar.Ui.TransientTextPromptFrame!
+CSharpFar.Ui.TransientTextPromptFrame.Active.get -> bool
+CSharpFar.Ui.TransientTextPromptFrame.Active.init -> void
+CSharpFar.Ui.TransientTextPromptFrame.Cursor.get -> CSharpFar.Ui.UiCursorPlacement?
+CSharpFar.Ui.TransientTextPromptFrame.Cursor.init -> void
+CSharpFar.Ui.TransientTextPromptFrame.Deconstruct(out bool Active, out bool PopupVisible, out CSharpFar.Console.Models.ConsoleViewport Viewport, out CSharpFar.Console.Models.Rect PopupBounds, out CSharpFar.Console.Models.Rect InputBounds, out CSharpFar.Ui.UiCursorPlacement? Cursor, out string! Text) -> void
+CSharpFar.Ui.TransientTextPromptFrame.Equals(CSharpFar.Ui.TransientTextPromptFrame? other) -> bool
+CSharpFar.Ui.TransientTextPromptFrame.InputBounds.get -> CSharpFar.Console.Models.Rect
+CSharpFar.Ui.TransientTextPromptFrame.InputBounds.init -> void
+CSharpFar.Ui.TransientTextPromptFrame.PopupBounds.get -> CSharpFar.Console.Models.Rect
+CSharpFar.Ui.TransientTextPromptFrame.PopupBounds.init -> void
+CSharpFar.Ui.TransientTextPromptFrame.PopupVisible.get -> bool
+CSharpFar.Ui.TransientTextPromptFrame.PopupVisible.init -> void
+CSharpFar.Ui.TransientTextPromptFrame.SearchText.get -> string!
+CSharpFar.Ui.TransientTextPromptFrame.Text.get -> string!
+CSharpFar.Ui.TransientTextPromptFrame.Text.init -> void
+CSharpFar.Ui.TransientTextPromptFrame.TransientTextPromptFrame(bool Active, bool PopupVisible, CSharpFar.Console.Models.ConsoleViewport Viewport, CSharpFar.Console.Models.Rect PopupBounds, CSharpFar.Console.Models.Rect InputBounds, CSharpFar.Ui.UiCursorPlacement? Cursor, string! Text) -> void
+CSharpFar.Ui.TransientTextPromptFrame.Viewport.get -> CSharpFar.Console.Models.ConsoleViewport
+CSharpFar.Ui.TransientTextPromptFrame.Viewport.init -> void
+CSharpFar.Ui.TransientTextPromptLayer
+CSharpFar.Ui.TransientTextPromptLayer.TransientTextPromptLayer(CSharpFar.Ui.TransientTextPromptDefinition! definition) -> void
+override CSharpFar.Ui.DynamicTableDialogContext<TItem>.Equals(object? obj) -> bool
+override CSharpFar.Ui.DynamicTableDialogContext<TItem>.GetHashCode() -> int
+override CSharpFar.Ui.DynamicTableDialogContext<TItem>.ToString() -> string!
+override CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.GetHashCode() -> int
+override CSharpFar.Ui.TransientSelectionActivation<T>.GetHashCode() -> int
+override CSharpFar.Ui.TransientSelectionCommand<T>.GetHashCode() -> int
+override CSharpFar.Ui.TransientSelectionPopupAppearance.Equals(object? obj) -> bool
+override CSharpFar.Ui.TransientSelectionPopupAppearance.GetHashCode() -> int
+override CSharpFar.Ui.TransientSelectionPopupAppearance.ToString() -> string!
+override CSharpFar.Ui.TransientSelectionPopupFrame<T>.Equals(object? obj) -> bool
+override CSharpFar.Ui.TransientSelectionPopupFrame<T>.GetHashCode() -> int
+override CSharpFar.Ui.TransientSelectionPopupFrame<T>.ToString() -> string!
+override CSharpFar.Ui.TransientSelectionPopupItemFrame<T>.Equals(object? obj) -> bool
+override CSharpFar.Ui.TransientSelectionPopupItemFrame<T>.GetHashCode() -> int
+override CSharpFar.Ui.TransientSelectionPopupItemFrame<T>.ToString() -> string!
+override CSharpFar.Ui.TransientSelectionPopupLayer<T>.BuildInteractionFrame(CSharpFar.Ui.TransientSelectionPopupFrame<T>! frame) -> CSharpFar.Ui.UiInteractionFrame!
+override CSharpFar.Ui.TransientSelectionPopupLayer<T>.InputPolicy.get -> CSharpFar.Ui.UiLayerInputPolicy
+override CSharpFar.Ui.TransientSelectionPopupLayer<T>.OnFrameCommitted(CSharpFar.Ui.TransientSelectionPopupFrame<T>! frame) -> void
+override CSharpFar.Ui.TransientSelectionPopupLayer<T>.RenderFrame(CSharpFar.Ui.UiRenderContext! context) -> CSharpFar.Ui.TransientSelectionPopupFrame<T>!
+override CSharpFar.Ui.TransientSelectionPopupLayer<T>.RouteInput(CSharpFar.Console.Input.ConsoleInputEvent! input, CSharpFar.Ui.TransientSelectionPopupFrame<T>! frame, CSharpFar.Ui.UiInputRouteContext! context) -> CSharpFar.Ui.UiInputResult
+override CSharpFar.Ui.TransientTextPromptAppearance.Equals(object? obj) -> bool
+override CSharpFar.Ui.TransientTextPromptAppearance.GetHashCode() -> int
+override CSharpFar.Ui.TransientTextPromptAppearance.ToString() -> string!
+override CSharpFar.Ui.TransientTextPromptFrame.Equals(object? obj) -> bool
+override CSharpFar.Ui.TransientTextPromptFrame.GetHashCode() -> int
+override CSharpFar.Ui.TransientTextPromptFrame.ToString() -> string!
+override CSharpFar.Ui.TransientTextPromptLayer.BuildInteractionFrame(CSharpFar.Ui.TransientTextPromptFrame! frame) -> CSharpFar.Ui.UiInteractionFrame!
+override CSharpFar.Ui.TransientTextPromptLayer.InputPolicy.get -> CSharpFar.Ui.UiLayerInputPolicy
+override CSharpFar.Ui.TransientTextPromptLayer.RenderFrame(CSharpFar.Ui.UiRenderContext! context) -> CSharpFar.Ui.TransientTextPromptFrame!
+override CSharpFar.Ui.TransientTextPromptLayer.RouteInput(CSharpFar.Console.Input.ConsoleInputEvent! input, CSharpFar.Ui.TransientTextPromptFrame! frame, CSharpFar.Ui.UiInputRouteContext! context) -> CSharpFar.Ui.UiInputResult
 static CSharpFar.Ui.DialogOutcome<TResult>.ChangeSelection(int selectedIndex) -> CSharpFar.Ui.DialogOutcome<TResult>!
 static CSharpFar.Ui.DialogOutcome<TResult>.RefreshOpen(int selectedIndex) -> CSharpFar.Ui.DialogOutcome<TResult>!
+static CSharpFar.Ui.DynamicTableDialogContext<TItem>.operator !=(CSharpFar.Ui.DynamicTableDialogContext<TItem>? left, CSharpFar.Ui.DynamicTableDialogContext<TItem>? right) -> bool
+static CSharpFar.Ui.DynamicTableDialogContext<TItem>.operator ==(CSharpFar.Ui.DynamicTableDialogContext<TItem>? left, CSharpFar.Ui.DynamicTableDialogContext<TItem>? right) -> bool
+static CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.Complete(TResult result) -> CSharpFar.Ui.DynamicTableDialogOutcome<TResult>
+static CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.ContinueOpen.get -> CSharpFar.Ui.DynamicTableDialogOutcome<TResult>
+static CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.operator !=(CSharpFar.Ui.DynamicTableDialogOutcome<TResult> left, CSharpFar.Ui.DynamicTableDialogOutcome<TResult> right) -> bool
+static CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.operator ==(CSharpFar.Ui.DynamicTableDialogOutcome<TResult> left, CSharpFar.Ui.DynamicTableDialogOutcome<TResult> right) -> bool
+static CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.RefreshOpen.get -> CSharpFar.Ui.DynamicTableDialogOutcome<TResult>
+static CSharpFar.Ui.TransientPopupPlacementExtensions.CalculateSelectionBounds(this CSharpFar.Ui.TransientPopupPlacement! placement, CSharpFar.Console.Models.ConsoleSize size, int itemCount) -> CSharpFar.Console.Models.Rect?
+static CSharpFar.Ui.TransientSelectionActivation<T>.operator !=(CSharpFar.Ui.TransientSelectionActivation<T> left, CSharpFar.Ui.TransientSelectionActivation<T> right) -> bool
+static CSharpFar.Ui.TransientSelectionActivation<T>.operator ==(CSharpFar.Ui.TransientSelectionActivation<T> left, CSharpFar.Ui.TransientSelectionActivation<T> right) -> bool
+static CSharpFar.Ui.TransientSelectionCommand<T>.operator !=(CSharpFar.Ui.TransientSelectionCommand<T> left, CSharpFar.Ui.TransientSelectionCommand<T> right) -> bool
+static CSharpFar.Ui.TransientSelectionCommand<T>.operator ==(CSharpFar.Ui.TransientSelectionCommand<T> left, CSharpFar.Ui.TransientSelectionCommand<T> right) -> bool
+static CSharpFar.Ui.TransientSelectionPopupAppearance.operator !=(CSharpFar.Ui.TransientSelectionPopupAppearance? left, CSharpFar.Ui.TransientSelectionPopupAppearance? right) -> bool
+static CSharpFar.Ui.TransientSelectionPopupAppearance.operator ==(CSharpFar.Ui.TransientSelectionPopupAppearance? left, CSharpFar.Ui.TransientSelectionPopupAppearance? right) -> bool
+static CSharpFar.Ui.TransientSelectionPopupFrame<T>.operator !=(CSharpFar.Ui.TransientSelectionPopupFrame<T>? left, CSharpFar.Ui.TransientSelectionPopupFrame<T>? right) -> bool
+static CSharpFar.Ui.TransientSelectionPopupFrame<T>.operator ==(CSharpFar.Ui.TransientSelectionPopupFrame<T>? left, CSharpFar.Ui.TransientSelectionPopupFrame<T>? right) -> bool
+static CSharpFar.Ui.TransientSelectionPopupItemFrame<T>.operator !=(CSharpFar.Ui.TransientSelectionPopupItemFrame<T>? left, CSharpFar.Ui.TransientSelectionPopupItemFrame<T>? right) -> bool
+static CSharpFar.Ui.TransientSelectionPopupItemFrame<T>.operator ==(CSharpFar.Ui.TransientSelectionPopupItemFrame<T>? left, CSharpFar.Ui.TransientSelectionPopupItemFrame<T>? right) -> bool
+static CSharpFar.Ui.TransientTextPromptAppearance.operator !=(CSharpFar.Ui.TransientTextPromptAppearance? left, CSharpFar.Ui.TransientTextPromptAppearance? right) -> bool
+static CSharpFar.Ui.TransientTextPromptAppearance.operator ==(CSharpFar.Ui.TransientTextPromptAppearance? left, CSharpFar.Ui.TransientTextPromptAppearance? right) -> bool
+static CSharpFar.Ui.TransientTextPromptFrame.operator !=(CSharpFar.Ui.TransientTextPromptFrame? left, CSharpFar.Ui.TransientTextPromptFrame? right) -> bool
+static CSharpFar.Ui.TransientTextPromptFrame.operator ==(CSharpFar.Ui.TransientTextPromptFrame? left, CSharpFar.Ui.TransientTextPromptFrame? right) -> bool
+~override CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.Equals(object obj) -> bool
+~override CSharpFar.Ui.DynamicTableDialogOutcome<TResult>.ToString() -> string
+~override CSharpFar.Ui.TransientSelectionActivation<T>.Equals(object obj) -> bool
+~override CSharpFar.Ui.TransientSelectionActivation<T>.ToString() -> string
+~override CSharpFar.Ui.TransientSelectionCommand<T>.Equals(object obj) -> bool
+~override CSharpFar.Ui.TransientSelectionCommand<T>.ToString() -> string

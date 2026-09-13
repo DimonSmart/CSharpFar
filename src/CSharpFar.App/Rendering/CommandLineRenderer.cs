@@ -1,4 +1,3 @@
-using CSharpFar.App.CommandLine;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
@@ -30,41 +29,24 @@ internal sealed class CommandLineRenderer
         if (frame.Bounds.Width <= 0)
             return;
 
-        _screen.FillRegion(frame.Bounds, _style);
-
-        string prompt = currentDirectory + ">";
-        string full = prompt + CommandLineDisplayText.Format(state.Text);
-        int offset = frame.DisplayOffset;
-
-        string display = full.Length > offset ? full[offset..] : string.Empty;
-        if (display.Length > frame.Bounds.Width)
-            display = display[..frame.Bounds.Width];
-        display = display.PadRight(frame.Bounds.Width);
-
-        if (!state.HasSelection)
-        {
-            _screen.Write(frame.Bounds.X, frame.Bounds.Y, display, _style);
-            return;
-        }
-
-        // Render selection over the text portion, not the prompt.
-        int selectionStartX = prompt.Length + state.SelectionStart!.Value - offset;
-        int selectionEndX = selectionStartX + state.SelectionLength;
-        for (int i = 0; i < display.Length; i++)
-        {
-            bool isSelected = i >= selectionStartX && i < selectionEndX;
-            _screen.WriteChar(frame.Bounds.X + i, frame.Bounds.Y, display[i], isSelected ? _selectionStyle : _style);
-        }
+        SingleLineTextEditState presentation = CommandLinePresentationState.Create(currentDirectory, state);
+        SingleLineTextInput.Render(
+            _screen,
+            frame.Bounds.X,
+            frame.Bounds.Y,
+            frame.Bounds.Width,
+            presentation,
+            _style,
+            _selectionStyle);
     }
 
-    /// <summary>
-    /// Returns the screen X coordinate of the cursor within the command line row.
-    /// Returns -1 if the cursor is scrolled off the left edge of the screen.
-    /// </summary>
     public int GetCursorX(int totalWidth, string currentDirectory, CommandLineState state)
     {
-        var frame = CommandLineLayoutCalculator.Calculate(0, totalWidth, currentDirectory, state);
-        return frame.Cursor?.X ?? -1;
-    }
+        if (totalWidth <= 0)
+            return -1;
 
+        SingleLineTextEditState presentation = CommandLinePresentationState.Create(currentDirectory, state);
+        int x = SingleLineTextInput.GetCursorX(0, totalWidth, presentation);
+        return x >= 0 && x < totalWidth ? x : -1;
+    }
 }

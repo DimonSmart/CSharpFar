@@ -1,5 +1,4 @@
 using CSharpFar.Console.Models;
-using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Rendering;
@@ -20,7 +19,11 @@ internal static class CommandLineLayoutCalculator
             promptLength,
             fullLength,
             state.CursorPosition);
-        int cursorX = promptLength + state.CursorPosition - displayOffset;
+
+        SingleLineTextEditState presentation = CommandLinePresentationState.Create(currentDirectory, state);
+        int cursorX = safeWidth > 0
+            ? SingleLineTextInput.GetCursorX(0, safeWidth, presentation)
+            : -1;
         UiCursorPlacement? cursor = cursorX >= 0 && cursorX < safeWidth
             ? new UiCursorPlacement(cursorX, row)
             : null;

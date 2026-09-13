@@ -3,6 +3,7 @@ using CSharpFar.App.Commands;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Input;
 
@@ -26,12 +27,9 @@ internal sealed class ApplicationCommandLineKeyboardHandler
         if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.A, '\u0001'))
         {
             if (frame.Mode == ApplicationWorkspaceMode.HiddenCommandLine || frame.Keyboard.CommandLineHasText)
-            {
-                _context.CommandLine.SelectAll();
-                return CommandLineChanged();
-            }
-            else
-                _context.ToggleSelectAllPanelItems(frame.Keyboard.ActiveSide);
+                return HandleStandardEditing(key, frame, resetHistoryNavigation: false);
+
+            _context.ToggleSelectAllPanelItems(frame.Keyboard.ActiveSide);
             return ApplicationInputHandlingResult.FromHandled(true);
         }
 
@@ -41,27 +39,14 @@ internal sealed class ApplicationCommandLineKeyboardHandler
         if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.V, '\u0016'))
             return CommandLineChanged(_context.PasteTextIntoCommandLine(frame.Mode));
 
-        if (TryHandleNavigationKey(
-            key,
-            frame.Mode == ApplicationWorkspaceMode.HiddenCommandLine,
-            frame.Keyboard.CommandLineHasText,
-            frame.Keyboard.CommandLineHasSelection))
-            return CommandLineChanged();
+        if (ShouldUseStandardNavigation(key, frame) ||
+            key.Key is ConsoleKey.Delete or ConsoleKey.Backspace)
+        {
+            return HandleStandardEditing(key, frame);
+        }
 
         switch (key.Key)
         {
-            case ConsoleKey.Delete:
-                ResetNavigation(frame);
-                _context.CommandLine.DeleteForward();
-                NotifyCommandLineEdit();
-                return CommandLineChanged();
-
-            case ConsoleKey.Backspace:
-                ResetNavigation(frame);
-                _context.CommandLine.DeleteBack();
-                NotifyCommandLineEdit();
-                return CommandLineChanged();
-
             case ConsoleKey.Escape:
                 ResetNavigation(frame);
                 _context.CommandLine.Clear();
@@ -96,79 +81,46 @@ internal sealed class ApplicationCommandLineKeyboardHandler
         }
 
         if (ApplicationKeyboardTargetResolver.IsPrintable(key))
-        {
-            ResetNavigation(frame);
-            _context.CommandLine.Insert(key.KeyChar);
-            NotifyCommandLineEdit();
-            return CommandLineChanged();
-        }
+            return HandleStandardEditing(key, frame);
 
         return ApplicationInputHandlingResult.NotHandled;
     }
 
-    private bool TryHandleNavigationKey(
+    private ApplicationInputHandlingResult HandleStandardEditing(
         ConsoleKeyInfo key,
-        bool forceCommandLine,
-        bool commandLineHasText,
-        bool commandLineHasSelection)
+        ApplicationUiFrame frame,
+        bool resetHistoryNavigation = true)
     {
-        bool hasAlt = (key.Modifiers & ConsoleModifiers.Alt) != 0;
-        if (hasAlt)
+        string? error = null;
+        TextInputKeyResult result = SingleLineTextInput.HandleKey(
+            _context.CommandLine,
+            key,
+            ref error);
+        if (result == TextInputKeyResult.Ignored)
+            return ApplicationInputHandlingResult.NotHandled;
+
+        if (resetHistoryNavigation)
+            ResetNavigation(frame);
+        if (result == TextInputKeyResult.TextChanged)
+            NotifyCommandLineEdit();
+        return CommandLineChanged();
+    }
+
+    private static bool ShouldUseStandardNavigation(ConsoleKeyInfo key, ApplicationUiFrame frame)
+    {
+        if (key.Key is not (ConsoleKey.LeftArrow or ConsoleKey.RightArrow or ConsoleKey.Home or ConsoleKey.End) ||
+            (key.Modifiers & ConsoleModifiers.Alt) != 0)
+        {
             return false;
+        }
 
         bool hasControl = (key.Modifiers & ConsoleModifiers.Control) != 0;
         bool hasShift = (key.Modifiers & ConsoleModifiers.Shift) != 0;
-        bool shouldUseCommandLine = forceCommandLine ||
-            commandLineHasText ||
-            commandLineHasSelection ||
+        return frame.Mode == ApplicationWorkspaceMode.HiddenCommandLine ||
+            frame.Keyboard.CommandLineHasText ||
+            frame.Keyboard.CommandLineHasSelection ||
             hasControl ||
             hasShift;
-
-        switch (key.Key)
-        {
-            case ConsoleKey.LeftArrow when shouldUseCommandLine:
-                if (hasControl && hasShift)
-                    _context.CommandLine.MoveToPreviousWordWithSelection();
-                else if (hasControl)
-                    _context.CommandLine.MoveToPreviousWord();
-                else if (hasShift)
-                    _context.CommandLine.MoveCursorWithSelection(_context.CommandLine.CursorPosition - 1);
-                else
-                    _context.CommandLine.MoveCursor(-1);
-                _context.ResetCommandHistoryNavigation();
-                return true;
-
-            case ConsoleKey.RightArrow when shouldUseCommandLine:
-                if (hasControl && hasShift)
-                    _context.CommandLine.MoveToNextWordWithSelection();
-                else if (hasControl)
-                    _context.CommandLine.MoveToNextWord();
-                else if (hasShift)
-                    _context.CommandLine.MoveCursorWithSelection(_context.CommandLine.CursorPosition + 1);
-                else
-                    _context.CommandLine.MoveCursor(+1);
-                _context.ResetCommandHistoryNavigation();
-                return true;
-
-            case ConsoleKey.Home when shouldUseCommandLine:
-                if (hasShift)
-                    _context.CommandLine.MoveCursorWithSelection(0);
-                else
-                    _context.CommandLine.MoveToStart();
-                _context.ResetCommandHistoryNavigation();
-                return true;
-
-            case ConsoleKey.End when shouldUseCommandLine:
-                if (hasShift)
-                    _context.CommandLine.MoveCursorWithSelection(_context.CommandLine.Text.Length);
-                else
-                    _context.CommandLine.MoveToEnd();
-                _context.ResetCommandHistoryNavigation();
-                return true;
-
-            default:
-                return false;
-        }
     }
 
     private bool TryHandleFarCommandLineShortcut(ApplicationKeyboardInput input)
@@ -225,7 +177,6 @@ internal sealed class ApplicationCommandLineKeyboardHandler
     private void InsertTextIntoCommandLine(string text, ApplicationWorkspaceMode mode)
     {
         _context.CommandLine.InsertText(QuoteCommandLineInsertion(text));
-
         _context.OnCommandLineTextEdited();
     }
 
