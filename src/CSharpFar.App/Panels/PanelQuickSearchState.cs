@@ -14,6 +14,9 @@ internal sealed class PanelQuickSearchState
 
     public string SearchText { get; private set; }
 
+    public void SetText(string text) =>
+        SearchText = text.ToLowerInvariant();
+
     public void Append(char ch) =>
         SearchText += Normalize(ch);
 
