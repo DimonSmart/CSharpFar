@@ -3,6 +3,7 @@ using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
+using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
