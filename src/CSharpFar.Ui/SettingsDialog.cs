@@ -68,6 +68,7 @@ internal sealed class SettingsDialog
 
         string? errorMessage = null;
         bool compactPageOpen = false;
+        bool? committedCompact = null;
 
         return _modalDialogs.RunInteractive<SettingsFrame, SettingsSemanticEvent, SettingsDialogResult>(
             (context, focus) =>
@@ -81,7 +82,8 @@ internal sealed class SettingsDialog
                     pageRuntimes,
                     footer,
                     errorMessage,
-                    compactPageOpen);
+                    compactPageOpen,
+                    committedCompact);
             },
             BuildInteractionFrame,
             (input, frame, route) => Route(
@@ -119,7 +121,10 @@ internal sealed class SettingsDialog
                             UiTargetId target = validation.FocusTarget is { } focusTarget
                                 ? invalidPage.Form.GetFocusTarget(focusTarget)
                                 : invalidPage.FirstContentTarget;
-                            invalidPage.PreferredFocusTarget = target;
+                            if (!frame.Compact && target == invalidPage.BackTarget)
+                                target = NavigationTarget;
+                            else
+                                invalidPage.PreferredFocusTarget = target;
                             return ModalDialogLoopResult<SettingsDialogResult>.ContinueWithFocus(target);
                         }
 
@@ -135,8 +140,14 @@ internal sealed class SettingsDialog
                     {
                         compactPageOpen = frame.Compact;
                         errorMessage = null;
-                        return ModalDialogLoopResult<SettingsDialogResult>.ContinueWithFocus(
-                            pageRuntimes[navigationState.SelectedIndex].PreferredFocusTarget);
+                        PageRuntime page = pageRuntimes[navigationState.SelectedIndex];
+                        if (!frame.Compact &&
+                            (frame.PageFrame is null || !Targets(frame.PageFrame, page.PreferredFocusTarget)))
+                        {
+                            return ModalDialogLoopResult<SettingsDialogResult>.ContinueChanged;
+                        }
+
+                        return ModalDialogLoopResult<SettingsDialogResult>.ContinueWithFocus(page.PreferredFocusTarget);
                     }
 
                     case SettingsSemanticKind.BackToNavigation:
@@ -155,6 +166,8 @@ internal sealed class SettingsDialog
             {
                 if (frame.NavigationFrame is { } navigationFrame)
                     navigation.ApplyCommittedFrame(navigationFrame);
+                compactPageOpen = frame.Compact && frame.CompactPageOpen;
+                committedCompact = frame.Compact;
             },
             cancellationToken: cancellationToken);
     }
@@ -167,7 +180,8 @@ internal sealed class SettingsDialog
         IReadOnlyList<PageRuntime> pages,
         ScrollableFormDialog footer,
         string? errorMessage,
-        bool compactPageOpen)
+        bool compactPageOpen,
+        bool? committedCompact)
     {
         (int width, int height) = DialogSizing.Resolve(
             context.Size,
@@ -198,8 +212,11 @@ internal sealed class SettingsDialog
         ScrollableFormFrame? pageFrame = null;
         ScrollableFormFrame? footerFrame = null;
         PageRuntime selectedPage = pages[navigation.State.SelectedIndex];
-        bool showCompactPage = compactPageOpen ||
-            compact && focus.FocusedTarget is UiTargetId focusedTarget && selectedPage.OwnsTarget(focusedTarget);
+        selectedPage.ConfigureLayout(compact);
+        bool enteringCompact = compact && committedCompact is false;
+        bool showCompactPage = compact &&
+            (compactPageOpen ||
+             enteringCompact && focus.FocusedTarget is UiTargetId focusedTarget && selectedPage.OwnsTarget(focusedTarget));
 
         if (compact)
         {
@@ -295,7 +312,7 @@ internal sealed class SettingsDialog
                             footerBounds),
                         focus,
                         previousFocus,
-                        compact && compactPageOpen ? selectedPage.FirstContentTarget : NavigationTarget);
+                        compact && showCompactPage ? selectedPage.PreferredFocusTarget : NavigationTarget);
                 }
             });
 
@@ -443,17 +460,18 @@ internal sealed class SettingsDialog
             rows,
             new FormLayoutOptions(CursorPolicy: FormCursorPolicy.Hidden));
 
+        UiTargetId backTarget = form.GetFocusTarget(back);
         FormRow? firstContent = page.Rows.FirstOrDefault(row => row.IsFocusable);
         UiTargetId firstContentTarget = firstContent switch
         {
-            null => form.GetFocusTarget(back),
+            null => backTarget,
             { FocusTarget: { } target } => form.GetFocusTarget(target),
             IFormFocusTarget target => form.GetFocusTarget(target),
             { Id: { Length: > 0 } id } => form.GetFocusTarget(id),
-            _ => form.GetFocusTarget(back),
+            _ => backTarget,
         };
 
-        return new PageRuntime(page, form, back, firstContentTarget);
+        return new PageRuntime(page, form, back, backTarget, firstContentTarget);
     }
 
     private static void ValidatePages(IReadOnlyList<SettingsPage> pages)
@@ -470,11 +488,20 @@ internal sealed class SettingsDialog
 
     private sealed class PageRuntime
     {
-        public PageRuntime(SettingsPage page, ScrollableFormDialog form, ButtonRow back, UiTargetId firstContentTarget)
+        private bool? _compact;
+        private HashSet<UiTargetId> _knownTargets = [];
+
+        public PageRuntime(
+            SettingsPage page,
+            ScrollableFormDialog form,
+            ButtonRow back,
+            UiTargetId backTarget,
+            UiTargetId firstContentTarget)
         {
             Page = page;
             Form = form;
             Back = back;
+            BackTarget = backTarget;
             FirstContentTarget = firstContentTarget;
             PreferredFocusTarget = firstContentTarget;
         }
@@ -482,12 +509,22 @@ internal sealed class SettingsDialog
         public SettingsPage Page { get; }
         public ScrollableFormDialog Form { get; }
         public ButtonRow Back { get; }
+        public UiTargetId BackTarget { get; }
         public UiTargetId FirstContentTarget { get; }
         public UiTargetId PreferredFocusTarget { get; set; }
 
-        private HashSet<UiTargetId> _knownTargets = [];
-
         public bool OwnsTarget(UiTargetId target) => _knownTargets.Contains(target);
+
+        public void ConfigureLayout(bool compact)
+        {
+            if (_compact == compact)
+                return;
+
+            Form.SetRows(compact ? [Back, .. Page.Rows] : Page.Rows);
+            if (!compact && PreferredFocusTarget == BackTarget && FirstContentTarget != BackTarget)
+                PreferredFocusTarget = FirstContentTarget;
+            _compact = compact;
+        }
 
         public void RememberTargets(ScrollableFormFrame frame)
         {
