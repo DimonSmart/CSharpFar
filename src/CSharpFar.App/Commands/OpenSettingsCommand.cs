@@ -18,7 +18,8 @@ internal sealed class OpenSettingsCommand : IApplicationCommand
             context.RightViewMode,
             context.Settings.Ui.Palette,
             context.Settings.Panels.FileHighlighting.Enabled,
-            context.Settings.Editor.SyntaxHighlightingEnabled);
+            context.Settings.Editor.SyntaxHighlightingEnabled,
+            rememberLastDirectories: context.Settings.Panels.Options.RememberLastDirectories);
 
         if (result is null)
             return ApplicationCommandResult.Rendered();
@@ -29,6 +30,7 @@ internal sealed class OpenSettingsCommand : IApplicationCommand
         context.Settings.Panels.RightViewMode = result.RightViewMode.ToString();
         context.Settings.Ui.Palette = result.PaletteName;
         context.Settings.Panels.FileHighlighting.Enabled = result.FileHighlightingEnabled;
+        context.Settings.Panels.Options.RememberLastDirectories = result.RememberLastDirectories;
         context.Settings.Editor.SyntaxHighlightingEnabled = result.EditorSyntaxHighlightingEnabled;
         context.CommandPalette = CSharpFarPaletteRegistry.Resolve(result.PaletteName);
         context.HighlightService = context.CreateHighlightService();

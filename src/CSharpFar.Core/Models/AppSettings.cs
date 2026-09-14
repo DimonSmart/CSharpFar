@@ -29,6 +29,8 @@ public sealed class AppSettings
     {
         public string? LeftStartDirectory { get; set; }
         public string? RightStartDirectory { get; set; }
+        public string? LastLeftDirectory { get; set; }
+        public string? LastRightDirectory { get; set; }
         public string DefaultSortMode { get; set; } = "name";
         public string LeftViewMode { get; set; } = "Full";
         public string RightViewMode { get; set; } = "Full";
@@ -42,6 +44,7 @@ public sealed class AppSettings
         public bool SelectFolders { get; set; } = true;
         public bool RightClickSelectsFiles { get; set; } = true;
         public bool SortFoldersByExtension { get; set; } = true;
+        public bool RememberLastDirectories { get; set; } = false;
         public PanelAutoRefreshSettings AutoRefresh { get; set; } = new();
         public bool DetectVolumeMountPoints { get; set; } = false;
         public bool ShowStatusLine { get; set; } = true;

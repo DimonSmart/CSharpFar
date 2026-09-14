@@ -13,7 +13,12 @@ public sealed class FilePanelState
     public PanelLocation CurrentLocation
     {
         get => _currentLocation;
-        internal set => _currentLocation = value;
+        internal set
+        {
+            _currentLocation = value;
+            if (value.SourceId == PanelSourceId.Local)
+                LastLocalDirectory = value.SourcePath;
+        }
     }
 
     public PanelSourceId SourceId
@@ -28,6 +33,7 @@ public sealed class FilePanelState
         internal set => _currentLocation = new PanelLocation(_currentLocation.SourceId, value);
     }
 
+    public string? LastLocalDirectory { get; internal set; }
     public List<FilePanelItem> Items { get; } = new();
     public HashSet<string> SelectedPaths { get; } = new(StringComparer.OrdinalIgnoreCase);
     public HashSet<PanelLocation> SelectedLocations { get; } = new();

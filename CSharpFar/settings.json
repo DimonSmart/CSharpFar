@@ -10,6 +10,8 @@
   "panels": {
     "leftStartDirectory": null,
     "rightStartDirectory": null,
+    "lastLeftDirectory": null,
+    "lastRightDirectory": null,
     "defaultSortMode": "name",
     "leftViewMode": "BriefTwoColumns",
     "rightViewMode": "Full",
@@ -25,6 +27,7 @@
       "selectFolders": true,
       "rightClickSelectsFiles": true,
       "sortFoldersByExtension": true,
+      "rememberLastDirectories": false,
       "autoRefresh": {
         "disableIfObjectCountExceeds": 0,
         "networkDrivesAutoRefresh": false
