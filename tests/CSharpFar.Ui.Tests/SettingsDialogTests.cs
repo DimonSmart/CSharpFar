@@ -35,6 +35,52 @@ public sealed class SettingsDialogTests
     }
 
     [Fact]
+    public void Show_CompactBackReturnsToNavigation()
+    {
+        var first = FormControls.CheckBox("first.value", "First");
+        var second = FormControls.CheckBox("second.value", "Second");
+        var driver = Driver(
+            Key(ConsoleKey.RightArrow),
+            Key(ConsoleKey.Tab, shift: true),
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.DownArrow),
+            Key(ConsoleKey.RightArrow),
+            Key(ConsoleKey.Spacebar),
+            Key(ConsoleKey.F10));
+        driver.SetSize(44, 20);
+
+        SettingsDialogResult result = new SettingsDialog(ModalTestHost.Create(driver)).Show(
+            new SettingsDialogOptions("Settings"),
+            [
+                new SettingsPage("first", "First", [first]),
+                new SettingsPage("second", "Second", [second]),
+            ]);
+
+        Assert.Equal(SettingsDialogResult.Saved, result);
+        Assert.False(first.Value);
+        Assert.True(second.Value);
+    }
+
+    [Fact]
+    public void Show_SplitLayoutDoesNotExposeBackRow()
+    {
+        var value = FormControls.CheckBox("page.value", "Value");
+        var driver = Driver(
+            Key(ConsoleKey.RightArrow),
+            Key(ConsoleKey.Tab, shift: true),
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.Spacebar),
+            Key(ConsoleKey.F10));
+
+        SettingsDialogResult result = new SettingsDialog(ModalTestHost.Create(driver)).Show(
+            new SettingsDialogOptions("Settings"),
+            [new SettingsPage("page", "Page", [value])]);
+
+        Assert.Equal(SettingsDialogResult.Saved, result);
+        Assert.True(value.Value);
+    }
+
+    [Fact]
     public void Show_ValidationCanSelectAndFocusNeverOpenedPage()
     {
         var required = FormControls.CheckBox("advanced.required", "Required");
@@ -128,8 +174,8 @@ public sealed class SettingsDialogTests
         return driver;
     }
 
-    private static KeyConsoleInputEvent Key(ConsoleKey key) =>
-        new(new ConsoleKeyInfo('\0', key, shift: false, alt: false, control: false));
+    private static KeyConsoleInputEvent Key(ConsoleKey key, bool shift = false) =>
+        new(new ConsoleKeyInfo('\0', key, shift, alt: false, control: false));
 
     private static void ResizeBeforeRead(FakeConsoleDriver driver, int readNumber, int width, int height)
     {
