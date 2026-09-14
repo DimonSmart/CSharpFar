@@ -18,10 +18,16 @@ internal static class ApplicationSessionFactory
     {
         runOptions ??= ApplicationRunOptions.Normal;
         PanelLocation leftStart = ResolveStartLocation(
+            settings.Panels.Options.RememberLastDirectories
+                ? settings.Panels.LastLeftDirectory
+                : null,
             settings.Panels.LeftStartDirectory,
             fileSystem,
             runOptions);
         PanelLocation rightStart = ResolveStartLocation(
+            settings.Panels.Options.RememberLastDirectories
+                ? settings.Panels.LastRightDirectory
+                : null,
             settings.Panels.RightStartDirectory,
             fileSystem,
             runOptions);
@@ -57,6 +63,7 @@ internal static class ApplicationSessionFactory
     }
 
     private static PanelLocation ResolveStartLocation(
+        string? remembered,
         string? configured,
         IFileSystemService fileSystem,
         ApplicationRunOptions runOptions)
@@ -64,10 +71,13 @@ internal static class ApplicationSessionFactory
         if (runOptions.Mode == ApplicationRunMode.Demo)
             return PanelLocation.Demo("/");
 
-        string fallback = Directory.GetCurrentDirectory();
+        if (!string.IsNullOrWhiteSpace(remembered) && fileSystem.DirectoryExists(remembered))
+            return PanelLocation.Local(remembered);
+
         if (!string.IsNullOrWhiteSpace(configured) && fileSystem.DirectoryExists(configured))
             return PanelLocation.Local(configured);
-        return PanelLocation.Local(fallback);
+
+        return PanelLocation.Local(Directory.GetCurrentDirectory());
     }
 
     private static SortMode ResolveSortMode(string? configured) =>
