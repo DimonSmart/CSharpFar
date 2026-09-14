@@ -30,8 +30,8 @@ public sealed class SettingsDialogTests
             ]);
 
         Assert.Equal(SettingsDialogResult.Saved, result);
-        Assert.False(first.IsChecked);
-        Assert.True(second.IsChecked);
+        Assert.False(first.Value);
+        Assert.True(second.Value);
     }
 
     [Fact]
@@ -51,13 +51,13 @@ public sealed class SettingsDialogTests
                     "advanced",
                     "Advanced",
                     [required],
-                    () => required.IsChecked
+                    () => required.Value
                         ? FormSubmit.Success(true)
                         : FormSubmit.Invalid<bool>("Required must be enabled.", required)),
             ]);
 
         Assert.Equal(SettingsDialogResult.Saved, result);
-        Assert.True(required.IsChecked);
+        Assert.True(required.Value);
     }
 
     [Fact]
@@ -78,8 +78,8 @@ public sealed class SettingsDialogTests
             ]);
 
         Assert.Equal(SettingsDialogResult.Saved, result);
-        Assert.True(first.IsChecked);
-        Assert.False(second.IsChecked);
+        Assert.True(first.Value);
+        Assert.False(second.Value);
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed class SettingsDialogTests
             [new SettingsPage("page", "Page", [value])]);
 
         Assert.Equal(SettingsDialogResult.Saved, result);
-        Assert.True(value.IsChecked);
+        Assert.True(value.Value);
     }
 
     [Fact]

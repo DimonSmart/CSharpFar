@@ -96,9 +96,9 @@ internal sealed class CSharpFarSettingsDialog
             leftViewMode.Value,
             rightViewMode.Value,
             palette.Value,
-            fileHighlighting.IsChecked,
-            syntaxHighlighting.IsChecked,
-            rememberDirectories.IsChecked);
+            fileHighlighting.Value,
+            syntaxHighlighting.Value,
+            rememberDirectories.Value);
     }
 
     private static string ViewModeLabel(PanelViewMode mode) =>
