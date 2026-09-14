@@ -1,6 +1,7 @@
 using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.Settings;
+using CSharpFar.App.State;
 using CSharpFar.Console.Input;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
