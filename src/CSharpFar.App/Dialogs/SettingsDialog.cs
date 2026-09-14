@@ -9,7 +9,8 @@ public sealed record SettingsDialogResult(
     PanelViewMode RightViewMode,
     string PaletteName,
     bool FileHighlightingEnabled,
-    bool EditorSyntaxHighlightingEnabled);
+    bool EditorSyntaxHighlightingEnabled,
+    bool RememberLastDirectories);
 
 /// <summary>
 /// Modal settings window.
@@ -37,12 +38,14 @@ internal sealed class SettingsDialog
         PanelViewMode rightMode,
         string paletteName,
         bool fileHighlightingEnabled,
-        bool editorSyntaxHighlightingEnabled)
+        bool editorSyntaxHighlightingEnabled,
+        bool rememberLastDirectories = false)
     {
         var leftViewMode = FormControls.CompactChoice("Left panel", ViewModes, ViewModeLabel, leftMode);
         var rightViewMode = FormControls.CompactChoice("Right panel", ViewModes, ViewModeLabel, rightMode);
         var palette = FormControls.CompactChoice("Palette", PaletteNames, static name => name, paletteName, StringComparer.OrdinalIgnoreCase);
         var fileHighlighting = FormControls.CheckBox("File highlighting", fileHighlightingEnabled);
+        var rememberDirectories = FormControls.CheckBox("Remember last panel folders", rememberLastDirectories);
         var syntaxHighlighting = FormControls.CheckBox("Editor syntax highlighting", editorSyntaxHighlightingEnabled);
         return _dialogs.Form(
             new FormDialogOptions("Settings")
@@ -56,6 +59,7 @@ internal sealed class SettingsDialog
                     rightViewMode,
                     palette,
                     fileHighlighting,
+                    rememberDirectories,
                     syntaxHighlighting,
                     FormControls.Spacer(),
                     FormControls.Label("Enter/Space  change value"),
@@ -69,7 +73,8 @@ internal sealed class SettingsDialog
                 rightViewMode.Value,
                 palette.Value,
                 fileHighlighting.Value,
-                syntaxHighlighting.Value)));
+                syntaxHighlighting.Value,
+                rememberDirectories.Value)));
     }
 
     private static string ViewModeLabel(PanelViewMode mode) => mode switch
