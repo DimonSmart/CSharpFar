@@ -31,10 +31,16 @@ public sealed partial class ScrollableFormDialog
         int effectiveScrollTop = ClampScrollTop(ScrollTop, viewportRows);
         ScrollableFormFrame provisionalFrame = BuildFrame(context, effectiveScrollTop);
         UiFocusFrame localFocusFrame = BuildInteractionFrame(provisionalFrame).Focus;
+        HashSet<UiTargetId> localFocusTargets = localFocusFrame.Entries
+            .Select(entry => entry.Target)
+            .ToHashSet();
         UiFocusFrame candidateFocusFrame = surroundingFocusEntries is null
             ? localFocusFrame
             : new UiFocusFrame(
-                surroundingFocusEntries.Concat(localFocusFrame.Entries).ToArray(),
+                surroundingFocusEntries
+                    .Where(entry => !localFocusTargets.Contains(entry.Target))
+                    .Concat(localFocusFrame.Entries)
+                    .ToArray(),
                 surroundingDefaultFocusTarget ?? localFocusFrame.DefaultTarget);
         UiTargetId? effectiveFocusedTarget = focusScope.ResolveFocusedTarget(candidateFocusFrame);
         bool focusChanges = effectiveFocusedTarget != focusScope.FocusedTarget;
@@ -320,4 +326,3 @@ public sealed partial class ScrollableFormDialog
     }
 
 }
-
