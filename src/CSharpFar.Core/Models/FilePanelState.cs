@@ -28,6 +28,7 @@ public sealed class FilePanelState
         internal set => _currentLocation = new PanelLocation(_currentLocation.SourceId, value);
     }
 
+    public string? LastLocalDirectory { get; internal set; }
     public List<FilePanelItem> Items { get; } = new();
     public HashSet<string> SelectedPaths { get; } = new(StringComparer.OrdinalIgnoreCase);
     public HashSet<PanelLocation> SelectedLocations { get; } = new();
