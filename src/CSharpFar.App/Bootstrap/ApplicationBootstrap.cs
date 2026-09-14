@@ -50,29 +50,51 @@ public static class ApplicationBootstrap
             settings.History.MaxDirectoryHistoryItems,
             settings.History.MaxFileHistoryItems);
 
-        ApplicationFactory.Create(
-                renderer,
-                fs,
-                platform.ShellService,
-                fileOps,
-                history,
+        var application = ApplicationFactory.Create(
+            renderer,
+            fs,
+            platform.ShellService,
+            fileOps,
+            history,
+            settings,
+            userMenu,
+            saveSettings: () => settingsStore.Save(),
+            volumeService: platform.VolumeService,
+            volumeInfoService: platform.VolumeInfoService,
+            changeWatcher: changeWatcher,
+            locationService: platform.LocationService,
+            mountPointService: platform.VolumeMountPointService,
+            fileLauncher: platform.FileLauncher,
+            searchService: searchService,
+            sourceRegistry: panelSources,
+            credentialStore: platform.CredentialStore,
+            configDirectory: settingsStore.ConfigDirectory,
+            terminalScreenMode: platform.TerminalScreenMode,
+            processesAndPorts: platform.ProcessesAndPorts,
+            fileUsage: platform.FileUsage);
+
+        application.Run();
+
+        if (CaptureLastPanelDirectories(
                 settings,
-                userMenu,
-                saveSettings: () => settingsStore.Save(),
-                volumeService: platform.VolumeService,
-                volumeInfoService: platform.VolumeInfoService,
-                changeWatcher: changeWatcher,
-                locationService: platform.LocationService,
-                mountPointService: platform.VolumeMountPointService,
-                fileLauncher: platform.FileLauncher,
-                searchService: searchService,
-                sourceRegistry: panelSources,
-                credentialStore: platform.CredentialStore,
-                configDirectory: settingsStore.ConfigDirectory,
-                terminalScreenMode: platform.TerminalScreenMode,
-                processesAndPorts: platform.ProcessesAndPorts,
-                fileUsage: platform.FileUsage)
-            .Run();
+                application.Session.Panels.Left,
+                application.Session.Panels.Right))
+        {
+            settingsStore.Save();
+        }
+    }
+
+    internal static bool CaptureLastPanelDirectories(
+        Core.Models.AppSettings settings,
+        Core.Models.FilePanelState left,
+        Core.Models.FilePanelState right)
+    {
+        if (!settings.Panels.Options.RememberLastDirectories)
+            return false;
+
+        settings.Panels.LastLeftDirectory = left.LastLocalDirectory;
+        settings.Panels.LastRightDirectory = right.LastLocalDirectory;
+        return true;
     }
 
     private static void RunDemo(
