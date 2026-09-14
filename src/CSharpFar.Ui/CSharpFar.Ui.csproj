@@ -28,6 +28,7 @@
     <AdditionalFiles Include="PublicAPI.UserMenu\PublicAPI.Unshipped.txt" />
     <AdditionalFiles Include="PublicAPI.OperationDialog\PublicAPI.Unshipped.txt" />
     <AdditionalFiles Include="PublicAPI.PointerRouting\PublicAPI.Unshipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Settings\PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
 </Project>

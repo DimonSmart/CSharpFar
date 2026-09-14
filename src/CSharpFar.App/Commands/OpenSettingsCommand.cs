@@ -1,5 +1,5 @@
-using CSharpFar.App.Dialogs;
 using CSharpFar.App.Rendering;
+using CSharpFar.App.Settings;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 
@@ -13,7 +13,7 @@ internal sealed class OpenSettingsCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        var result = new SettingsDialog(context.Dialogs).Show(
+        var result = new CSharpFarSettingsDialog(context.Dialogs).Show(
             context.LeftViewMode,
             context.RightViewMode,
             context.Settings.Ui.Palette,

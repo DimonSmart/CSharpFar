@@ -69,6 +69,12 @@ public sealed class DialogService
     public SearchOptionsDialogResult? SearchOptions(SearchOptionsDialogOptions options) =>
         new SearchOptionsDialog(_modalDialogs, _fields).Show(options);
 
+    public SettingsDialogResult Settings(
+        SettingsDialogOptions options,
+        IReadOnlyList<SettingsPage> pages,
+        CancellationToken cancellationToken = default) =>
+        new SettingsDialog(_modalDialogs).Show(options, pages, cancellationToken);
+
     public TResult? List<T, TResult>(ListDialogOptions<T, TResult> options) =>
         new ListDialog<T, TResult>(_modalDialogs).Show(options);
 

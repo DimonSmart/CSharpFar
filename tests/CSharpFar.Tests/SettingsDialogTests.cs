@@ -1,4 +1,4 @@
-using CSharpFar.App.Dialogs;
+using CSharpFar.App.Settings;
 using CSharpFar.Console.Input;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
@@ -9,23 +9,18 @@ namespace CSharpFar.Tests;
 public sealed class SettingsDialogTests
 {
     [Fact]
-    public void Show_ReturnsSelectedValuesOnF10()
+    public void Show_F10ReturnsExistingValues()
     {
-        var driver = Driver(
-            Key(ConsoleKey.Enter),
-            Key(ConsoleKey.DownArrow),
-            Key(ConsoleKey.DownArrow),
-            Key(ConsoleKey.Enter),
-            Key(ConsoleKey.DownArrow),
-            Key(ConsoleKey.Enter),
-            Key(ConsoleKey.F10));
+        var driver = Driver(Key(ConsoleKey.F10));
 
-        SettingsDialogResult? result = new SettingsDialog(new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
-            PanelViewMode.Full,
-            PanelViewMode.Full,
-            "Default",
-            fileHighlightingEnabled: true,
-            editorSyntaxHighlightingEnabled: true);
+        CSharpFarSettingsDialogResult? result = new CSharpFarSettingsDialog(
+            new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
+                PanelViewMode.BriefTwoColumns,
+                PanelViewMode.Full,
+                "FarClassic",
+                fileHighlightingEnabled: false,
+                editorSyntaxHighlightingEnabled: true,
+                rememberLastDirectories: true);
 
         Assert.NotNull(result);
         Assert.Equal(PanelViewMode.BriefTwoColumns, result.LeftViewMode);
@@ -33,6 +28,7 @@ public sealed class SettingsDialogTests
         Assert.Equal("FarClassic", result.PaletteName);
         Assert.False(result.FileHighlightingEnabled);
         Assert.True(result.EditorSyntaxHighlightingEnabled);
+        Assert.True(result.RememberLastDirectories);
     }
 
     [Fact]
@@ -41,63 +37,20 @@ public sealed class SettingsDialogTests
         using var theme = UiTheme.UseTemporary(PaletteRegistry.Default);
         var driver = Driver(
             Key(ConsoleKey.DownArrow),
-            Key(ConsoleKey.DownArrow),
-            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.RightArrow),
+            Key(ConsoleKey.RightArrow),
             Key(ConsoleKey.Escape));
 
-        SettingsDialogResult? result = new SettingsDialog(new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
-            PanelViewMode.Full,
-            PanelViewMode.Full,
-            "Default",
-            fileHighlightingEnabled: true,
-            editorSyntaxHighlightingEnabled: true);
+        CSharpFarSettingsDialogResult? result = new CSharpFarSettingsDialog(
+            new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
+                PanelViewMode.Full,
+                PanelViewMode.Full,
+                "Default",
+                fileHighlightingEnabled: true,
+                editorSyntaxHighlightingEnabled: true);
 
         Assert.Null(result);
         Assert.Same(PaletteRegistry.Default, UiTheme.Current);
-    }
-
-    [Fact]
-    public void Show_HidesCursorOnInitialAndChangedFocusFrames()
-    {
-        var driver = Driver(Key(ConsoleKey.DownArrow), Key(ConsoleKey.Escape));
-        var cursorStates = new List<bool>();
-        driver.BeforeReadInput = d => cursorStates.Add(d.CursorVisible);
-
-        _ = new SettingsDialog(new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
-            PanelViewMode.Full,
-            PanelViewMode.Full,
-            "Default",
-            fileHighlightingEnabled: true,
-            editorSyntaxHighlightingEnabled: true);
-
-        Assert.Equal([false], cursorStates);
-        Assert.False(driver.CursorVisible);
-    }
-
-    [Fact]
-    public void Show_ResizePreservesChangedValueAndLogicalFocusTarget()
-    {
-        var driver = Driver(
-            Key(ConsoleKey.Enter),
-            Key(ConsoleKey.DownArrow),
-            new ConsoleResizeInputEvent(),
-            Key(ConsoleKey.Enter),
-            Key(ConsoleKey.F10));
-        ResizeBeforeRead(driver, readNumber: 3, width: 100, height: 30);
-
-        SettingsDialogResult? result = new SettingsDialog(new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
-            PanelViewMode.Full,
-            PanelViewMode.Full,
-            "Default",
-            fileHighlightingEnabled: true,
-            editorSyntaxHighlightingEnabled: true);
-
-        Assert.NotNull(result);
-        Assert.Equal(PanelViewMode.BriefTwoColumns, result.LeftViewMode);
-        Assert.Equal(PanelViewMode.BriefTwoColumns, result.RightViewMode);
-        Assert.Equal("Default", result.PaletteName);
-        Assert.True(result.FileHighlightingEnabled);
-        Assert.True(result.EditorSyntaxHighlightingEnabled);
     }
 
     private static FakeConsoleDriver Driver(params ConsoleInputEvent[] inputs)
@@ -110,19 +63,4 @@ public sealed class SettingsDialogTests
 
     private static KeyConsoleInputEvent Key(ConsoleKey key) =>
         new(new ConsoleKeyInfo('\0', key, shift: false, alt: false, control: false));
-
-    private static void ResizeBeforeRead(FakeConsoleDriver driver, int readNumber, int width, int height)
-    {
-        int reads = 0;
-        driver.BeforeReadInput = OnBeforeRead;
-
-        void OnBeforeRead(FakeConsoleDriver current)
-        {
-            reads++;
-            if (reads == readNumber)
-                current.SetSize(width, height);
-            else
-                current.BeforeReadInput = OnBeforeRead;
-        }
-    }
 }

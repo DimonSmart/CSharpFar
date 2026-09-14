@@ -1,0 +1,36 @@
+#nullable enable
+CSharpFar.Ui.DialogService.Settings(CSharpFar.Ui.SettingsDialogOptions! options, System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.SettingsPage!>! pages, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CSharpFar.Ui.SettingsDialogResult
+CSharpFar.Ui.SettingsDialogOptions
+CSharpFar.Ui.SettingsDialogOptions.CompactBreakpoint.get -> int
+CSharpFar.Ui.SettingsDialogOptions.CompactBreakpoint.init -> void
+CSharpFar.Ui.SettingsDialogOptions.DoubleBorder.get -> bool
+CSharpFar.Ui.SettingsDialogOptions.DoubleBorder.init -> void
+CSharpFar.Ui.SettingsDialogOptions.HorizontalMargin.get -> int
+CSharpFar.Ui.SettingsDialogOptions.HorizontalMargin.init -> void
+CSharpFar.Ui.SettingsDialogOptions.InitialPageId.get -> string?
+CSharpFar.Ui.SettingsDialogOptions.InitialPageId.init -> void
+CSharpFar.Ui.SettingsDialogOptions.MinHeight.get -> int
+CSharpFar.Ui.SettingsDialogOptions.MinHeight.init -> void
+CSharpFar.Ui.SettingsDialogOptions.MinWidth.get -> int
+CSharpFar.Ui.SettingsDialogOptions.MinWidth.init -> void
+CSharpFar.Ui.SettingsDialogOptions.PreferredHeight.get -> int
+CSharpFar.Ui.SettingsDialogOptions.PreferredHeight.init -> void
+CSharpFar.Ui.SettingsDialogOptions.PreferredWidth.get -> int
+CSharpFar.Ui.SettingsDialogOptions.PreferredWidth.init -> void
+CSharpFar.Ui.SettingsDialogOptions.ResizeMode.get -> CSharpFar.Ui.DialogResizeMode
+CSharpFar.Ui.SettingsDialogOptions.ResizeMode.init -> void
+CSharpFar.Ui.SettingsDialogOptions.SettingsDialogOptions(string! title) -> void
+CSharpFar.Ui.SettingsDialogOptions.Theme.get -> System.Func<CSharpFar.Ui.ConsolePalette!>?
+CSharpFar.Ui.SettingsDialogOptions.Theme.init -> void
+CSharpFar.Ui.SettingsDialogOptions.Title.get -> string!
+CSharpFar.Ui.SettingsDialogOptions.VerticalMargin.get -> int
+CSharpFar.Ui.SettingsDialogOptions.VerticalMargin.init -> void
+CSharpFar.Ui.SettingsDialogResult
+CSharpFar.Ui.SettingsDialogResult.Cancelled = 0 -> CSharpFar.Ui.SettingsDialogResult
+CSharpFar.Ui.SettingsDialogResult.Saved = 1 -> CSharpFar.Ui.SettingsDialogResult
+CSharpFar.Ui.SettingsPage
+CSharpFar.Ui.SettingsPage.Id.get -> string!
+CSharpFar.Ui.SettingsPage.Rows.get -> System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FormRow!>!
+CSharpFar.Ui.SettingsPage.SettingsPage(string! id, string! title, System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FormRow!>! rows, System.Func<CSharpFar.Ui.FormSubmitResult<bool>>? validate = null) -> void
+CSharpFar.Ui.SettingsPage.Title.get -> string!
+CSharpFar.Ui.SettingsPage.Validate.get -> System.Func<CSharpFar.Ui.FormSubmitResult<bool>>?
