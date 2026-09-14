@@ -34,13 +34,24 @@ public sealed partial class ScrollableFormDialog
         HashSet<UiTargetId> localFocusTargets = localFocusFrame.Entries
             .Select(entry => entry.Target)
             .ToHashSet();
-        UiFocusFrame candidateFocusFrame = surroundingFocusEntries is null
+        List<UiFocusEntry>? composedFocusEntries = null;
+        if (surroundingFocusEntries is not null)
+        {
+            composedFocusEntries = surroundingFocusEntries
+                .Where(entry => !localFocusTargets.Contains(entry.Target))
+                .ToList();
+            if (surroundingDefaultFocusTarget is UiTargetId externalDefault &&
+                !localFocusTargets.Contains(externalDefault) &&
+                composedFocusEntries.All(entry => entry.Target != externalDefault))
+            {
+                composedFocusEntries.Add(new UiFocusEntry(externalDefault, composedFocusEntries.Count));
+            }
+            composedFocusEntries.AddRange(localFocusFrame.Entries);
+        }
+        UiFocusFrame candidateFocusFrame = composedFocusEntries is null
             ? localFocusFrame
             : new UiFocusFrame(
-                surroundingFocusEntries
-                    .Where(entry => !localFocusTargets.Contains(entry.Target))
-                    .Concat(localFocusFrame.Entries)
-                    .ToArray(),
+                composedFocusEntries,
                 surroundingDefaultFocusTarget ?? localFocusFrame.DefaultTarget);
         UiTargetId? effectiveFocusedTarget = focusScope.ResolveFocusedTarget(candidateFocusFrame);
         bool focusChanges = effectiveFocusedTarget != focusScope.FocusedTarget;
