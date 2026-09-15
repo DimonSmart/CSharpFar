@@ -16,6 +16,10 @@ public static class CSharpFarPaletteStyles
     public static CellStyle HelpSeparator(CSharpFarPalette p) => new(p.HelpSeparatorFg, p.HelpSeparatorBg);
     public static CellStyle PathHeaderActive(CSharpFarPalette p) => new(p.PanelPathActiveFg, p.PanelPathActiveBg);
     public static CellStyle CommandLine(CSharpFarPalette p) => new(p.CommandLineFg, p.CommandLineBg);
+    public static CellStyle MarkdownLink(CSharpFarPalette p) => new(p.MarkdownLinkFg, p.CommandLineBg);
+    public static CellStyle MarkdownBold(CSharpFarPalette p) => new(p.MarkdownBoldFg, p.CommandLineBg, TextAttributes.Bold);
+    public static CellStyle MarkdownItalic(CSharpFarPalette p) => new(p.MarkdownItalicFg, p.CommandLineBg);
+    public static CellStyle MarkdownInlineCode(CSharpFarPalette p) => new(p.MarkdownInlineCodeFg, p.CommandLineBg);
     public static CellStyle DirectoryShortcutBarNumber(CSharpFarPalette p) => new(p.DirectoryShortcutBarNumberFg, p.DirectoryShortcutBarNumberBg);
     public static CellStyle DirectoryShortcutBarLabel(CSharpFarPalette p) => new(p.DirectoryShortcutBarTextFg, p.DirectoryShortcutBarBg);
     public static CellStyle FileUsageNormal(CSharpFarPalette p) => new(p.FileUsageNormalFg, p.PanelBackground);

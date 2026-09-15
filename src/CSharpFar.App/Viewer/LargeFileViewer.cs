@@ -672,6 +672,7 @@ internal sealed class LargeFileViewer
         var layout = new ViewerTextLayout(line);
         string visible = layout.Slice(scrollLeft, width);
         canvas.WriteForced(0, y, visible, CSharpFarPaletteStyles.CommandLine(_palette));
+        ApplyMarkdownStyles(canvas, presented, line, y, scrollLeft, width, segmentStartIndex, layout);
         if (match is not { IsHex: false } ||
             match.LineStartOffset != presented.Source.StartOffset ||
             !presented.TryMapSourceRange(
@@ -703,6 +704,54 @@ internal sealed class LargeFileViewer
         if (ConsoleTextMetrics.GetCellWidth(highlight) > 0)
             canvas.Write(highlightStart - visibleStart, y, highlight, CSharpFarPaletteStyles.InputHighlight(_palette));
     }
+
+    private void ApplyMarkdownStyles(
+        IUiCanvas canvas,
+        PresentedLine presented,
+        string line,
+        int y,
+        int scrollLeft,
+        int width,
+        int segmentStartIndex,
+        ViewerTextLayout layout)
+    {
+        if (presented.StyleSpans.Count == 0)
+            return;
+
+        int segmentEndIndex = segmentStartIndex + line.Length;
+        int visibleStart = scrollLeft;
+        int visibleEnd = scrollLeft + width;
+
+        foreach (PresentedStyleSpan span in presented.StyleSpans)
+        {
+            int spanEnd = span.Start + span.Length;
+            if (spanEnd <= segmentStartIndex || span.Start >= segmentEndIndex)
+                continue;
+
+            int localStart = Math.Max(span.Start, segmentStartIndex) - segmentStartIndex;
+            int localEnd = Math.Min(spanEnd, segmentEndIndex) - segmentStartIndex;
+            int styleStartCell = layout.CellOffsetFromSourceIndex(localStart);
+            int styleEndCell = layout.CellOffsetFromSourceIndex(localEnd);
+            int drawStart = Math.Max(styleStartCell, visibleStart);
+            int drawEnd = Math.Min(styleEndCell, visibleEnd);
+            if (drawEnd <= drawStart)
+                continue;
+
+            string styled = layout.Slice(drawStart, drawEnd - drawStart);
+            if (ConsoleTextMetrics.GetCellWidth(styled) > 0)
+                canvas.Write(drawStart - visibleStart, y, styled, ResolveMarkdownStyle(span.Style));
+        }
+    }
+
+    private CellStyle ResolveMarkdownStyle(ViewerTextStyle style) =>
+        style switch
+        {
+            ViewerTextStyle.Link => CSharpFarPaletteStyles.MarkdownLink(_palette),
+            ViewerTextStyle.Bold => CSharpFarPaletteStyles.MarkdownBold(_palette),
+            ViewerTextStyle.Italic => CSharpFarPaletteStyles.MarkdownItalic(_palette),
+            ViewerTextStyle.InlineCode => CSharpFarPaletteStyles.MarkdownInlineCode(_palette),
+            _ => CSharpFarPaletteStyles.CommandLine(_palette),
+        };
 
     private static PresentedLine ResolvePresentationForSearch(
         PresentedLine presented,

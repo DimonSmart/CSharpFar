@@ -308,6 +308,97 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         Assert.Equal(1, provider.Calls);
     }
 
+    [Fact]
+    public void Show_InlineMarkdownRendersSemanticStyles()
+    {
+        string path = Write("inline.md", "plain **bold** `code` [link](url) *italic*\n");
+        var driver = ViewerDriver(width: 100);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
+
+        string row = driver.GetRegionText(new Rect(0, 1, 100, 1));
+        Assert.StartsWith("plain bold code link italic", row);
+        Assert.DoesNotContain("**", row);
+        Assert.DoesNotContain("(url)", row);
+
+        int boldX = row.IndexOf("bold", StringComparison.Ordinal);
+        int codeX = row.IndexOf("code", StringComparison.Ordinal);
+        int linkX = row.IndexOf("link", StringComparison.Ordinal);
+        int italicX = row.IndexOf("italic", StringComparison.Ordinal);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.MarkdownBoldFg, driver.GetCell(boldX, 1).Foreground);
+        Assert.True((driver.GetCell(boldX, 1).Attributes & TextAttributes.Bold) != 0);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.MarkdownInlineCodeFg, driver.GetCell(codeX, 1).Foreground);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.MarkdownLinkFg, driver.GetCell(linkX, 1).Foreground);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.MarkdownItalicFg, driver.GetCell(italicX, 1).Foreground);
+    }
+
+    [Fact]
+    public void Show_SearchHighlightOverridesMarkdownStyle()
+    {
+        string path = Write("search-inline.md", "See **target** here.\n");
+        var driver = ViewerDriver(width: 60, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.F7));
+        EnqueueText(driver, "target");
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
+
+        string row = driver.GetRegionText(new Rect(0, 1, 60, 1));
+        int targetX = row.IndexOf("target", StringComparison.Ordinal);
+        Assert.True(targetX >= 0, row);
+        var cell = driver.GetCell(targetX, 1);
+        CellStyle searchStyle = CSharpFarPaletteStyles.InputHighlight(CSharpFarPaletteRegistry.Default);
+        Assert.Equal(searchStyle.Foreground, cell.Foreground);
+        Assert.Equal(searchStyle.Background, cell.Background);
+    }
+
+    [Fact]
+    public void Show_SearchHiddenLinkDestinationFallsBackToRaw()
+    {
+        string path = Write("search-hidden.md", "See [documentation](README.md).\n");
+        var driver = ViewerDriver(width: 80, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.F7));
+        EnqueueText(driver, "README.md");
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
+
+        string row = driver.GetRegionText(new Rect(0, 1, 80, 1));
+        Assert.Contains("[documentation](README.md)", row);
+    }
+
+    [Fact]
+    public void Show_F5RawRestoresInlineMarkdownMarkers()
+    {
+        string path = Write("inline-raw.md", "**bold** `code` [link](url) *italic*\n");
+        var driver = ViewerDriver(width: 100);
+        driver.EnqueueKey(Key(ConsoleKey.F5));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
+
+        string row = driver.GetRegionText(new Rect(0, 1, 100, 1));
+        Assert.Contains("**bold** `code` [link](url) *italic*", row);
+    }
+
+    [Fact]
+    public void Show_WideStyledCharacterSurvivesHorizontalScrolling()
+    {
+        string path = Write("wide-inline.md", "0123456789 **界** tail\n");
+        var driver = ViewerDriver(width: 12);
+        for (int i = 0; i < 5; i++)
+            driver.EnqueueKey(Key(ConsoleKey.RightArrow));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
+
+        string row = driver.GetRegionText(new Rect(0, 1, 12, 1));
+        Assert.Contains("界", row);
+    }
+
     private static FakeConsoleDriver ViewerDriver(int width = 80, int height = 10) =>
         new(width, height);
 

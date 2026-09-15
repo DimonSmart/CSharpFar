@@ -16,24 +16,47 @@ internal enum ViewerColumnAlignment
     Right,
 }
 
+internal enum ViewerTextStyle
+{
+    Link,
+    Bold,
+    Italic,
+    InlineCode,
+}
+
 internal sealed record PresentedSourceSpan(
     int SourceStart,
     int SourceLength,
     int PresentedStart,
     int PresentedLength);
 
+internal sealed record PresentedStyleSpan(
+    int Start,
+    int Length,
+    ViewerTextStyle Style);
+
 internal sealed record PresentedLine(
     ScannedLine Source,
     string Text,
-    IReadOnlyList<PresentedSourceSpan> SourceSpans)
+    IReadOnlyList<PresentedSourceSpan> SourceSpans,
+    IReadOnlyList<PresentedStyleSpan> StyleSpans)
 {
+    public PresentedLine(
+        ScannedLine source,
+        string text,
+        IReadOnlyList<PresentedSourceSpan> sourceSpans)
+        : this(source, text, sourceSpans, [])
+    {
+    }
+
     public static PresentedLine Raw(ScannedLine source) =>
         new(
             source,
             source.Text,
             source.Text.Length == 0
                 ? []
-                : [new PresentedSourceSpan(0, source.Text.Length, 0, source.Text.Length)]);
+                : [new PresentedSourceSpan(0, source.Text.Length, 0, source.Text.Length)],
+            []);
 
     public bool TryMapSourceRange(
         int sourceStart,
@@ -329,7 +352,14 @@ internal sealed class MarkdownViewerPresentationProvider : IViewerPresentationPr
         presented = PresentedLine.Raw(source);
         var layout = FindForOffset(source.StartOffset);
         if (layout is null)
-            return false;
+        {
+            MarkdownInlineTransform inline = MarkdownInlinePresentation.Transform(source.Text);
+            if (!inline.Changed)
+                return false;
+
+            presented = new PresentedLine(source, inline.Text, inline.SourceSpans, inline.StyleSpans);
+            return true;
+        }
 
         if (source.StartOffset == layout.SeparatorOffset)
         {
@@ -409,7 +439,8 @@ internal sealed class MarkdownViewerPresentationProvider : IViewerPresentationPr
     {
         for (int i = 0; i < cells.Count; i++)
         {
-            int width = CellWidth(cells[i].Text);
+            MarkdownInlineTransform inline = MarkdownInlinePresentation.Transform(cells[i].Text, cells[i].SourceStart);
+            int width = CellWidth(inline.Text);
             if (width > MaxColumnWidthCells)
                 return false;
 
@@ -427,13 +458,15 @@ internal sealed class MarkdownViewerPresentationProvider : IViewerPresentationPr
         out PresentedLine presented)
     {
         var text = new StringBuilder();
-        var spans = new List<PresentedSourceSpan>();
+        var sourceSpans = new List<PresentedSourceSpan>();
+        var styleSpans = new List<PresentedStyleSpan>();
         text.Append('│');
 
         for (int i = 0; i < layout.ColumnCount; i++)
         {
             MarkdownCell cell = cells[i];
-            int contentWidth = CellWidth(cell.Text);
+            MarkdownInlineTransform inline = MarkdownInlinePresentation.Transform(cell.Text, cell.SourceStart);
+            int contentWidth = CellWidth(inline.Text);
             if (contentWidth > layout.Widths[i])
             {
                 presented = PresentedLine.Raw(source);
@@ -452,19 +485,27 @@ internal sealed class MarkdownViewerPresentationProvider : IViewerPresentationPr
             text.Append(' ');
             text.Append(' ', leftPadding);
             int presentedStart = text.Length;
-            text.Append(cell.Text);
-            if (cell.SourceLength > 0)
+            text.Append(inline.Text);
+
+            foreach (PresentedSourceSpan span in inline.SourceSpans)
             {
-                spans.Add(new PresentedSourceSpan(
-                    cell.SourceStart,
-                    cell.SourceLength,
-                    presentedStart,
-                    cell.Text.Length));
+                sourceSpans.Add(span with
+                {
+                    PresentedStart = span.PresentedStart + presentedStart,
+                });
+            }
+
+            foreach (PresentedStyleSpan span in inline.StyleSpans)
+            {
+                styleSpans.Add(span with
+                {
+                    Start = span.Start + presentedStart,
+                });
             }
 
             text.Append(' ', rightPadding);
             text.Append(' ');
-            text.Append(i == layout.ColumnCount - 1 ? '│' : '│');
+            text.Append('│');
 
             if (text.Length > MaxPresentedLineChars)
             {
@@ -473,7 +514,7 @@ internal sealed class MarkdownViewerPresentationProvider : IViewerPresentationPr
             }
         }
 
-        presented = new PresentedLine(source, text.ToString(), spans);
+        presented = new PresentedLine(source, text.ToString(), sourceSpans, styleSpans);
         return true;
     }
 
