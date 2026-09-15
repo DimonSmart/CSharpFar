@@ -41,7 +41,7 @@ jobs:
 
           path = Path('tests/CSharpFar.Tests/ViewerPresentationIntegrationTests.cs')
           text = path.read_text(encoding='utf-8')
-          text = text.replace('CSharpFarPalette.Default', 'new CSharpFarPalette()')
+          text = text.replace('CSharpFarPalette.Default', 'CSharpFarPaletteRegistry.Default')
           path.write_text(text, encoding='utf-8', newline='\n')
           PY
 
