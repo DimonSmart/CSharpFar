@@ -12,23 +12,31 @@ public sealed class SettingsDialogTests
     public void Show_F10ReturnsExistingValues()
     {
         var driver = Driver(Key(ConsoleKey.F10));
+        var panels = new CSharpFarPanelSettings(
+            PanelViewMode.BriefTwoColumns,
+            PanelViewMode.Full,
+            ShowHiddenAndSystemFiles: false,
+            SelectFolders: true,
+            RightClickSelectsFiles: false,
+            SortFoldersByExtension: true,
+            RememberLastDirectories: true,
+            FileHighlightingEnabled: false,
+            ShowStatusLine: true,
+            ShowFilesTotalInformation: false,
+            ShowFreeSize: true,
+            ShowSortModeLetter: false,
+            ShowParentDirectoryInRootFolders: true);
 
         CSharpFarSettingsDialogResult? result = new CSharpFarSettingsDialog(
             new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
-                PanelViewMode.BriefTwoColumns,
-                PanelViewMode.Full,
+                panels,
                 "FarClassic",
-                fileHighlightingEnabled: false,
-                editorSyntaxHighlightingEnabled: true,
-                rememberLastDirectories: true);
+                editorSyntaxHighlightingEnabled: true);
 
         Assert.NotNull(result);
-        Assert.Equal(PanelViewMode.BriefTwoColumns, result.LeftViewMode);
-        Assert.Equal(PanelViewMode.Full, result.RightViewMode);
+        Assert.Equal(panels, result.Panels);
         Assert.Equal("FarClassic", result.PaletteName);
-        Assert.False(result.FileHighlightingEnabled);
         Assert.True(result.EditorSyntaxHighlightingEnabled);
-        Assert.True(result.RememberLastDirectories);
     }
 
     [Fact]
@@ -43,15 +51,29 @@ public sealed class SettingsDialogTests
 
         CSharpFarSettingsDialogResult? result = new CSharpFarSettingsDialog(
             new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
-                PanelViewMode.Full,
-                PanelViewMode.Full,
+                DefaultPanels(),
                 "Default",
-                fileHighlightingEnabled: true,
                 editorSyntaxHighlightingEnabled: true);
 
         Assert.Null(result);
         Assert.Same(PaletteRegistry.Default, UiTheme.Current);
     }
+
+    private static CSharpFarPanelSettings DefaultPanels() =>
+        new(
+            PanelViewMode.Full,
+            PanelViewMode.Full,
+            ShowHiddenAndSystemFiles: true,
+            SelectFolders: true,
+            RightClickSelectsFiles: true,
+            SortFoldersByExtension: true,
+            RememberLastDirectories: false,
+            FileHighlightingEnabled: true,
+            ShowStatusLine: true,
+            ShowFilesTotalInformation: true,
+            ShowFreeSize: false,
+            ShowSortModeLetter: true,
+            ShowParentDirectoryInRootFolders: false);
 
     private static FakeConsoleDriver Driver(params ConsoleInputEvent[] inputs)
     {

@@ -154,49 +154,15 @@ public sealed class DefaultMenuDefinitionProvider
 
     private static TopMenuItemDefinition BuildOptionsMenu(MenuBuildContext context)
     {
-        var options = context.Settings.Panels.Options;
-        var highlighting = context.Settings.Panels.FileHighlighting;
-
         List<MenuItemDefinition> children =
         [
-            Command("Options.panelSettings", "Panel settings", 'P',
+            Command("Options.panelSettings", "Settings...", 'E',
                 MenuCommandIds.SettingsOpenPanelSettings),
             Command("Options.directoryShortcuts", "Directory shortcuts...", 'T',
                 MenuCommandIds.SettingsOpenDirectoryShortcuts),
             Command("Options.userMenu", "User menu...", 'N',
                 MenuCommandIds.SettingsOpenUserMenu),
             Separator("Options.sep.panelSettings"),
-            CheckBox("Options.showHiddenAndSystemFiles", "Show hidden and system files", 'H',
-                MenuCommandIds.SettingsToggleShowHiddenAndSystemFiles, null,
-                options.ShowHiddenAndSystemFiles),
-            CheckBox("Options.highlightFiles", "Highlight files", 'L',
-                MenuCommandIds.SettingsToggleHighlightFiles, null,
-                highlighting.Enabled),
-            CheckBox("Options.selectFolders", "Select folders", 'F',
-                MenuCommandIds.SettingsToggleSelectFolders, null,
-                options.SelectFolders),
-            CheckBox("Options.rightClickSelectsFiles", "Right click selects files", 'R',
-                MenuCommandIds.SettingsToggleRightClickSelectsFiles, null,
-                options.RightClickSelectsFiles),
-            CheckBox("Options.sortFoldersByExtension", "Sort folders by extension", 'X',
-                MenuCommandIds.SettingsToggleSortFoldersByExtension, null,
-                options.SortFoldersByExtension),
-            CheckBox("Options.showStatusLine", "Show status line", 'U',
-                MenuCommandIds.SettingsToggleShowStatusLine, null,
-                options.ShowStatusLine),
-            CheckBox("Options.showFilesTotalInformation", "Show files total information", 'I',
-                MenuCommandIds.SettingsToggleShowFilesTotalInformation, null,
-                options.ShowFilesTotalInformation),
-            CheckBox("Options.showFreeSize", "Show free size", 'Z',
-                MenuCommandIds.SettingsToggleShowFreeSize, null,
-                options.ShowFreeSize),
-            CheckBox("Options.showSortModeLetter", "Show sort mode letter", 'M',
-                MenuCommandIds.SettingsToggleShowSortModeLetter, null,
-                options.ShowSortModeLetter),
-            CheckBox("Options.showParentDirectoryInRootFolders", "Show \"..\" in root folders", 'D',
-                MenuCommandIds.SettingsToggleShowParentDirectoryInRootFolders, null,
-                options.ShowParentDirectoryInRootFolders),
-            Separator("Options.sep.diagnostics"),
             Command("Options.diagnostics", "Terminal diagnostics", 'G',
                 MenuCommandIds.DiagnosticsPrintTerminalInfo),
         ];
