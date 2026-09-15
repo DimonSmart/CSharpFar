@@ -42,13 +42,13 @@ internal sealed class CSharpFarSettingsDialog
 
         var leftViewMode = FormControls.CompactChoice(
             "panels.left-view-mode",
-            "Left panel",
+            "Left panel view",
             ViewModes,
             ViewModeLabel,
             panels.LeftViewMode);
         var rightViewMode = FormControls.CompactChoice(
             "panels.right-view-mode",
-            "Right panel",
+            "Right panel view",
             ViewModes,
             ViewModeLabel,
             panels.RightViewMode);
@@ -58,11 +58,11 @@ internal sealed class CSharpFarSettingsDialog
             panels.ShowHiddenAndSystemFiles);
         var selectFolders = FormControls.CheckBox(
             "panels.select-folders",
-            "Select folders",
+            "Allow folders to be selected",
             panels.SelectFolders);
         var rightClickSelectsFiles = FormControls.CheckBox(
             "panels.right-click-selects-files",
-            "Right click selects files",
+            "Right-click selects/deselects items",
             panels.RightClickSelectsFiles);
         var sortFoldersByExtension = FormControls.CheckBox(
             "panels.sort-folders-by-extension",
@@ -70,31 +70,31 @@ internal sealed class CSharpFarSettingsDialog
             panels.SortFoldersByExtension);
         var rememberDirectories = FormControls.CheckBox(
             "panels.remember-directories",
-            "Remember last panel folders",
+            "Restore last opened panel folders on startup",
             panels.RememberLastDirectories);
         var fileHighlighting = FormControls.CheckBox(
             "panels.file-highlighting",
-            "File highlighting",
+            "Enable file highlighting",
             panels.FileHighlightingEnabled);
         var showStatusLine = FormControls.CheckBox(
             "panels.show-status-line",
-            "Show status line",
+            "Show panel status line",
             panels.ShowStatusLine);
         var showFilesTotalInformation = FormControls.CheckBox(
             "panels.show-files-total-information",
-            "Show files total information",
+            "Show file count and total size",
             panels.ShowFilesTotalInformation);
         var showFreeSize = FormControls.CheckBox(
             "panels.show-free-size",
-            "Show free size",
+            "Show free disk space",
             panels.ShowFreeSize);
         var showSortModeLetter = FormControls.CheckBox(
             "panels.show-sort-mode-letter",
-            "Show sort mode letter",
+            "Show current sort mode indicator",
             panels.ShowSortModeLetter);
         var showParentDirectoryInRootFolders = FormControls.CheckBox(
             "panels.show-parent-directory-in-root-folders",
-            "Show \"..\" in root folders",
+            "Show \"..\" entry in filesystem roots",
             panels.ShowParentDirectoryInRootFolders);
         var palette = FormControls.CompactChoice(
             "appearance.palette",
@@ -114,19 +114,24 @@ internal sealed class CSharpFarSettingsDialog
                 "panels",
                 "Panels",
                 [
+                    FormControls.Label("View"),
                     leftViewMode,
                     rightViewMode,
-                    showHiddenAndSystemFiles,
-                    selectFolders,
-                    rightClickSelectsFiles,
-                    sortFoldersByExtension,
-                    rememberDirectories,
-                    fileHighlighting,
                     showStatusLine,
                     showFilesTotalInformation,
                     showFreeSize,
                     showSortModeLetter,
+                    FormControls.Spacer(),
+                    FormControls.Label("Files and folders"),
+                    showHiddenAndSystemFiles,
+                    fileHighlighting,
+                    sortFoldersByExtension,
                     showParentDirectoryInRootFolders,
+                    FormControls.Spacer(),
+                    FormControls.Label("Interaction"),
+                    selectFolders,
+                    rightClickSelectsFiles,
+                    rememberDirectories,
                 ]),
             new SettingsPage(
                 "appearance",
