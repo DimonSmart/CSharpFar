@@ -15,6 +15,7 @@ internal static class MarkdownInlinePresentation
         if (string.IsNullOrEmpty(source))
             return new MarkdownInlineTransform(source, [], [], false);
 
+        IReadOnlyDictionary<int, int> codeClosings = BuildCodeClosings(source);
         var text = new StringBuilder(source.Length);
         var sourceSpans = new List<PresentedSourceSpan>();
         var styleSpans = new List<PresentedStyleSpan>();
@@ -24,7 +25,7 @@ internal static class MarkdownInlinePresentation
 
         while (index < source.Length)
         {
-            if (!TryReadConstruct(source, index, out var construct))
+            if (!TryReadConstruct(source, index, codeClosings, out var construct))
             {
                 index++;
                 continue;
@@ -63,7 +64,11 @@ internal static class MarkdownInlinePresentation
         return new MarkdownInlineTransform(text.ToString(), sourceSpans, styleSpans, true);
     }
 
-    private static bool TryReadConstruct(string source, int index, out InlineConstruct construct)
+    private static bool TryReadConstruct(
+        string source,
+        int index,
+        IReadOnlyDictionary<int, int> codeClosings,
+        out InlineConstruct construct)
     {
         construct = default;
         if (IsEscaped(source, index))
@@ -71,46 +76,38 @@ internal static class MarkdownInlinePresentation
 
         return source[index] switch
         {
-            '`' => TryReadCode(source, index, out construct),
+            '`' => TryReadCode(source, index, codeClosings, out construct),
             '[' => TryReadLink(source, index, out construct),
             '*' => TryReadEmphasis(source, index, out construct),
             _ => false,
         };
     }
 
-    private static bool TryReadCode(string source, int index, out InlineConstruct construct)
+    private static bool TryReadCode(
+        string source,
+        int index,
+        IReadOnlyDictionary<int, int> codeClosings,
+        out InlineConstruct construct)
     {
         construct = default;
+        if (index > 0 && source[index - 1] == '`')
+            return false;
+
         int delimiterLength = CountRun(source, index, '`');
+        if (!codeClosings.TryGetValue(index, out int closingStart))
+            return false;
+
         int contentStart = index + delimiterLength;
+        int contentLength = closingStart - contentStart;
+        if (contentLength <= 0)
+            return false;
 
-        for (int current = contentStart; current < source.Length;)
-        {
-            if (source[current] != '`' || IsEscaped(source, current))
-            {
-                current++;
-                continue;
-            }
-
-            int closingLength = CountRun(source, current, '`');
-            if (closingLength == delimiterLength)
-            {
-                int contentLength = current - contentStart;
-                if (contentLength <= 0)
-                    return false;
-
-                construct = new InlineConstruct(
-                    contentStart,
-                    contentLength,
-                    current + closingLength,
-                    ViewerTextStyle.InlineCode);
-                return true;
-            }
-
-            current += closingLength;
-        }
-
-        return false;
+        construct = new InlineConstruct(
+            contentStart,
+            contentLength,
+            closingStart + delimiterLength,
+            ViewerTextStyle.InlineCode);
+        return true;
     }
 
     private static bool TryReadEmphasis(string source, int index, out InlineConstruct construct)
@@ -207,6 +204,34 @@ internal static class MarkdownInlinePresentation
             closeParenthesis + 1,
             ViewerTextStyle.Link);
         return true;
+    }
+
+    private static IReadOnlyDictionary<int, int> BuildCodeClosings(string source)
+    {
+        var nextByStart = new Dictionary<int, int>();
+        var previousByLength = new Dictionary<int, int>();
+
+        for (int index = 0; index < source.Length;)
+        {
+            if (source[index] != '`')
+            {
+                index++;
+                continue;
+            }
+
+            int delimiterLength = CountRun(source, index, '`');
+            if (!IsEscaped(source, index))
+            {
+                if (previousByLength.TryGetValue(delimiterLength, out int previousStart))
+                    nextByStart[previousStart] = index;
+
+                previousByLength[delimiterLength] = index;
+            }
+
+            index += delimiterLength;
+        }
+
+        return nextByStart;
     }
 
     private static void AppendSourceRange(
