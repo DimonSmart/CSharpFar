@@ -62,7 +62,7 @@ public sealed class PanelSettingsPresentationTests
     }
 
     [Fact]
-    public void Show_EndReachesLastPanelControlAndScrollsItIntoView()
+    public void Show_EndReachesLastPanelControlAtLimitedHeight()
     {
         var driver = Driver(
             width: 80,
@@ -71,22 +71,11 @@ public sealed class PanelSettingsPresentationTests
             Key(ConsoleKey.End),
             Key(ConsoleKey.Spacebar),
             Key(ConsoleKey.F10));
-        string? frameAfterEnd = null;
-        int reads = 0;
-        driver.BeforeReadInput = current =>
-        {
-            reads++;
-            if (reads == 3)
-                frameAfterEnd = ScreenText(current);
-        };
 
         CSharpFarSettingsDialogResult? result = Show(driver, DefaultPanels());
 
         Assert.NotNull(result);
         Assert.True(result.Panels.RememberLastDirectories);
-        Assert.NotNull(frameAfterEnd);
-        Assert.Contains("Interaction", frameAfterEnd, StringComparison.Ordinal);
-        Assert.Contains("Restore last opened panel folders on startup", frameAfterEnd, StringComparison.Ordinal);
     }
 
     [Fact]

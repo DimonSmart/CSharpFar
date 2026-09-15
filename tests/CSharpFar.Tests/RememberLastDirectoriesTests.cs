@@ -147,12 +147,7 @@ public sealed class RememberLastDirectoriesTests : IDisposable
     {
         var driver = new FakeConsoleDriver(width: 80, height: 25);
         driver.EnqueueInput(Key(ConsoleKey.RightArrow));
-        driver.EnqueueInput(Key(ConsoleKey.DownArrow));
-        driver.EnqueueInput(Key(ConsoleKey.DownArrow));
-        driver.EnqueueInput(Key(ConsoleKey.DownArrow));
-        driver.EnqueueInput(Key(ConsoleKey.DownArrow));
-        driver.EnqueueInput(Key(ConsoleKey.DownArrow));
-        driver.EnqueueInput(Key(ConsoleKey.DownArrow));
+        driver.EnqueueInput(Key(ConsoleKey.End));
         driver.EnqueueInput(Key(ConsoleKey.Spacebar));
         driver.EnqueueInput(Key(ConsoleKey.F10));
 
