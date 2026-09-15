@@ -1,13 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\..\eng\DimonSmart.Terminal.props" />
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <PackageId>DimonSmart.Terminal.Ui</PackageId>
-    <Version>0.1.0-beta.1</Version>
+    <Version>$(DimonSmartTerminalPackageVersion)</Version>
     <Title>DimonSmart.Terminal.Ui</Title>
     <Description>Reusable terminal UI components for .NET applications, including dialogs, forms, lists, tables, menus, composition, rendering, scrolling and input handling.</Description>
     <Authors>DimonSmart</Authors>
     <RepositoryUrl>https://github.com/DimonSmart/CSharpFar</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <PackageTags>console;terminal;ui;dialogs;cross-platform</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -16,9 +19,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CSharpFar.Ui\CSharpFar.Ui.csproj" PrivateAssets="all" />
-    <PackageReference Include="DimonSmart.Terminal" Version="0.1.0-beta.1" />
+    <PackageReference Include="DimonSmart.Terminal" Version="$(DimonSmartTerminalPackageVersion)" />
     <PackageReference Include="TextCopy" Version="6.2.1" />
+
     <None Include="..\..\docs\terminal-packages-readme.md" Pack="true" PackagePath="README.md" />
     <None Include="..\CSharpFar.Ui\bin\$(Configuration)\$(TargetFramework)\CSharpFar.Ui.dll" Pack="true" PackagePath="lib\$(TargetFramework)\" />
+    <None Include="..\CSharpFar.Ui\bin\$(Configuration)\$(TargetFramework)\CSharpFar.Ui.pdb" Pack="true" PackagePath="lib\$(TargetFramework)\" />
+    <None Include="..\CSharpFar.Ui\bin\$(Configuration)\$(TargetFramework)\CSharpFar.Ui.xml" Pack="true" PackagePath="lib\$(TargetFramework)\" />
   </ItemGroup>
 </Project>
