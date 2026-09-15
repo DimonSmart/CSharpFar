@@ -38,6 +38,11 @@ jobs:
           text = text.replace('ViewerTextStyle style)\n', 'object style)\n', 1)
           text = text.replace('new PresentedStyleSpan(0, expected.Length, style)', 'new PresentedStyleSpan(0, expected.Length, (ViewerTextStyle)style)', 1)
           path.write_text(text, encoding='utf-8', newline='\n')
+
+          path = Path('tests/CSharpFar.Tests/ViewerPresentationIntegrationTests.cs')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('CSharpFarPalette.Default', 'new CSharpFarPalette()')
+          path.write_text(text, encoding='utf-8', newline='\n')
           PY
 
       - name: Restore
