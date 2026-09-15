@@ -150,6 +150,9 @@ public sealed class RememberLastDirectoriesTests : IDisposable
         driver.EnqueueInput(Key(ConsoleKey.DownArrow));
         driver.EnqueueInput(Key(ConsoleKey.DownArrow));
         driver.EnqueueInput(Key(ConsoleKey.DownArrow));
+        driver.EnqueueInput(Key(ConsoleKey.DownArrow));
+        driver.EnqueueInput(Key(ConsoleKey.DownArrow));
+        driver.EnqueueInput(Key(ConsoleKey.DownArrow));
         driver.EnqueueInput(Key(ConsoleKey.Spacebar));
         driver.EnqueueInput(Key(ConsoleKey.F10));
 
@@ -158,15 +161,12 @@ public sealed class RememberLastDirectoriesTests : IDisposable
                 ModalTestHost.Create(driver),
                 new FormFieldFactory(TextFieldHistoryTestProvider.Create())))
             .Show(
-                PanelViewMode.Full,
-                PanelViewMode.Full,
+                DefaultPanelSettings(),
                 "Default",
-                fileHighlightingEnabled: true,
-                editorSyntaxHighlightingEnabled: true,
-                rememberLastDirectories: false);
+                editorSyntaxHighlightingEnabled: true);
 
         Assert.NotNull(result);
-        Assert.True(result.RememberLastDirectories);
+        Assert.True(result.Panels.RememberLastDirectories);
     }
 
     private string AddDirectory(FakeFileSystemService fs, string name)
@@ -189,6 +189,22 @@ public sealed class RememberLastDirectoriesTests : IDisposable
         var controller = new PanelController(new FakePanelViewBuilder(fs));
         return ApplicationSessionFactory.Create(settings, controller, fs);
     }
+
+    private static CSharpFarPanelSettings DefaultPanelSettings() =>
+        new(
+            PanelViewMode.Full,
+            PanelViewMode.Full,
+            ShowHiddenAndSystemFiles: true,
+            SelectFolders: true,
+            RightClickSelectsFiles: true,
+            SortFoldersByExtension: true,
+            RememberLastDirectories: false,
+            FileHighlightingEnabled: true,
+            ShowStatusLine: true,
+            ShowFilesTotalInformation: true,
+            ShowFreeSize: false,
+            ShowSortModeLetter: true,
+            ShowParentDirectoryInRootFolders: false);
 
     private static KeyConsoleInputEvent Key(ConsoleKey key) =>
         new(new ConsoleKeyInfo('\0', key, shift: false, alt: false, control: false));
