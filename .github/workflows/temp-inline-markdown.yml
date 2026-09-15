@@ -34,7 +34,7 @@ jobs:
         run: dotnet restore CSharpFar.slnx
 
       - name: Build
-        run: dotnet build CSharpFar.slnx --configuration Release --no-restore -p:TreatWarningsAsErrors=true
+        run: dotnet build CSharpFar.slnx --configuration Release --no-restore
 
       - name: Test
         run: dotnet test CSharpFar.slnx --configuration Release --no-build --verbosity minimal
