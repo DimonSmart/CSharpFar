@@ -2,6 +2,7 @@ using CSharpFar.App;
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Rendering;
+using CSharpFar.App.Settings;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
@@ -271,10 +272,8 @@ public sealed class UnifiedWindowScrollbarTests
         settingsDriver.EnqueueKey(Key(ConsoleKey.F10));
         var settingsScreen = new ScreenRenderer(settingsDriver);
         var settingsResult = new SettingsDialog(new DialogService(ModalTestHost.Create(settingsScreen), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
-            PanelViewMode.Full,
-            PanelViewMode.Full,
+            DefaultPanelSettings(),
             "Default",
-            fileHighlightingEnabled: true,
             editorSyntaxHighlightingEnabled: true);
 
         Assert.NotNull(searchResult);
@@ -284,6 +283,22 @@ public sealed class UnifiedWindowScrollbarTests
         AssertScrollbarWasWritten(operationDriver);
         AssertScrollbarWasWritten(settingsDriver);
     }
+
+    private static CSharpFarPanelSettings DefaultPanelSettings() =>
+        new(
+            PanelViewMode.Full,
+            PanelViewMode.Full,
+            ShowHiddenAndSystemFiles: true,
+            SelectFolders: true,
+            RightClickSelectsFiles: true,
+            SortFoldersByExtension: true,
+            RememberLastDirectories: false,
+            FileHighlightingEnabled: true,
+            ShowStatusLine: true,
+            ShowFilesTotalInformation: true,
+            ShowFreeSize: false,
+            ShowSortModeLetter: true,
+            ShowParentDirectoryInRootFolders: false);
 
     private static MenuBarDefinition LargeMenuDefinition() =>
         new()
