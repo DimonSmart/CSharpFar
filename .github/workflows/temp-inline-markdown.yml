@@ -28,7 +28,17 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Apply implementation
-        run: python eng/apply-inline-markdown-task.py
+        shell: bash
+        run: |
+          python eng/apply-inline-markdown-task.py
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('tests/CSharpFar.Tests/MarkdownInlinePresentationTests.cs')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('ViewerTextStyle style)\n', 'object style)\n', 1)
+          text = text.replace('new PresentedStyleSpan(0, expected.Length, style)', 'new PresentedStyleSpan(0, expected.Length, (ViewerTextStyle)style)', 1)
+          path.write_text(text, encoding='utf-8', newline='\n')
+          PY
 
       - name: Restore
         run: dotnet restore CSharpFar.slnx
