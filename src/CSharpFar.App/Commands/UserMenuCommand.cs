@@ -17,7 +17,10 @@ internal sealed class UserMenuCommand : IApplicationCommand
         if (!PanelCommandUserMenuOperands.TryCreate(target, context, out var operands))
             return ApplicationCommandResult.Rendered();
 
-        if (context.UserMenu.Items.Count == 0)
+        PlatformKind platform = context.UserMenu.RuntimePlatform
+            ?? throw new InvalidOperationException("User menu runtime platform is not configured.");
+        UserMenuItem[] items = UserMenuAvailability.FilterForPlatform(context.UserMenu.Items, platform);
+        if (items.Length == 0)
         {
             context.Dialogs.Message(
                 "User Menu", "User menu is empty.\nConfigure it in Options → User menu...");
@@ -27,7 +30,7 @@ internal sealed class UserMenuCommand : IApplicationCommand
         var result = context.Dialogs.Select(new SelectionDialogOptions<UserMenuItem>
         {
             Title = "User Menu",
-            Items = context.UserMenu.Items,
+            Items = items,
             ItemText = static item => item.Title,
             Presentation = SelectionDialogPresentation.Standard,
             Appearance = DialogAppearance.Standard,

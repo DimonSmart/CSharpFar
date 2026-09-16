@@ -6,7 +6,15 @@ namespace CSharpFar.App.Dialogs;
 internal sealed class UserMenuItemEditDialog
 {
     private const int DialogWidth = 64;
-    private const int DialogHeight = 15;
+    private const int DialogHeight = 17;
+
+    private static readonly PlatformKind?[] PlatformValues =
+    [
+        null,
+        PlatformKind.Windows,
+        PlatformKind.MacOs,
+        PlatformKind.Linux,
+    ];
 
     private readonly DialogService _dialogs;
     private readonly FormFieldFactory _fields;
@@ -23,6 +31,11 @@ internal sealed class UserMenuItemEditDialog
         TextField command = _fields.Text(new TextFieldOptions(currentItem?.Command ?? string.Empty));
         TextInputRow titleRow = FormControls.Text(title);
         TextInputRow commandRow = FormControls.Text(command);
+        CompactChoiceFormRow<PlatformKind?> platformRow = FormControls.CompactChoice(
+            "Platform",
+            PlatformValues,
+            FormatPlatform,
+            currentItem?.Platform);
         var actions = FormControls.OkCancel();
 
         return _dialogs.Form(
@@ -35,15 +48,20 @@ internal sealed class UserMenuItemEditDialog
                 FormControls.Label("Command"),
                 commandRow,
                 FormControls.Spacer(),
+                platformRow,
+                FormControls.Spacer(),
                 FormControls.Label("Available placeholders:"),
                 FormControls.Label("{current} {selected} {panelDir}"),
                 FormControls.Label("{otherPanelDir}"),
             ],
             footer: () => [actions],
-            submit: () => Validate(title, command));
+            submit: () => Validate(title, command, platformRow));
     }
 
-    private static FormSubmitResult<UserMenuItem> Validate(TextField title, TextField command)
+    private static FormSubmitResult<UserMenuItem> Validate(
+        TextField title,
+        TextField command,
+        CompactChoiceFormRow<PlatformKind?> platform)
     {
         if (string.IsNullOrWhiteSpace(title.Text))
             return FormSubmit.Invalid<UserMenuItem>("Title is required.", title);
@@ -54,6 +72,16 @@ internal sealed class UserMenuItemEditDialog
         {
             Title = title.Text.Trim(),
             Command = command.Text,
+            Platform = platform.Value,
         });
     }
+
+    private static string FormatPlatform(PlatformKind? platform) => platform switch
+    {
+        null => "All platforms",
+        PlatformKind.Windows => "Windows",
+        PlatformKind.MacOs => "macOS",
+        PlatformKind.Linux => "Linux",
+        _ => throw new ArgumentOutOfRangeException(nameof(platform)),
+    };
 }

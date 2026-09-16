@@ -1,10 +1,12 @@
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.Platform.Abstractions;
 
 public interface IPlatformServices : IDisposable
 {
+    PlatformKind Platform { get; }
     IConsoleDriver ConsoleDriver { get; }
     IShellService ShellService { get; }
     IFileLauncher FileLauncher { get; }

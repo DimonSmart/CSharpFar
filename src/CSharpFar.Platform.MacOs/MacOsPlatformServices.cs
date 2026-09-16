@@ -21,6 +21,7 @@ public sealed class MacOsPlatformServices : IPlatformServices
         FileSystemOperations = fileSystemOperations; ProcessesAndPorts = new UnsupportedProcessesAndPortsPlatformService();
         FileUsage = new UnsupportedFileUsagePlatformService();
     }
+    public PlatformKind Platform => PlatformKind.MacOs;
     public IConsoleDriver ConsoleDriver { get; }
     public IShellService ShellService { get; }
     public IFileLauncher FileLauncher { get; }

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.UserMenu;
@@ -9,15 +10,13 @@ namespace CSharpFar.App.UserMenu;
 /// </summary>
 public sealed class UserMenuStore
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    };
+    private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
 
     private readonly string _filePath;
 
     public IReadOnlyList<UserMenuItem> Items { get; private set; }
+
+    internal PlatformKind? RuntimePlatform { get; set; }
 
     public UserMenuStore(string configDirectory)
     {
@@ -102,17 +101,44 @@ public sealed class UserMenuStore
         }
     }
 
+    private static JsonSerializerOptions CreateJsonOptions()
+    {
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        };
+        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+        return options;
+    }
+
     private static UserMenuItem[] CloneItems(IEnumerable<UserMenuItem> items) =>
         items.Select(item => new UserMenuItem
         {
             Title = item.Title,
             Command = item.Command,
+            Platform = item.Platform,
         }).ToArray();
 
     private static List<UserMenuItem> CreateDefaults() =>
     [
-        new UserMenuItem { Title = "Open Explorer here",  Command = "explorer \"{panelDir}\"" },
-        new UserMenuItem { Title = "List directory",       Command = "dir \"{panelDir}\"" },
-        new UserMenuItem { Title = "Copy path to clipboard", Command = "echo {current}| clip" },
+        new UserMenuItem
+        {
+            Title = "Open Explorer here",
+            Command = "explorer \"{panelDir}\"",
+            Platform = PlatformKind.Windows,
+        },
+        new UserMenuItem
+        {
+            Title = "Open Finder here",
+            Command = "open \"{panelDir}\"",
+            Platform = PlatformKind.MacOs,
+        },
+        new UserMenuItem
+        {
+            Title = "Open in file manager here",
+            Command = "xdg-open \"{panelDir}\"",
+            Platform = PlatformKind.Linux,
+        },
     ];
 }

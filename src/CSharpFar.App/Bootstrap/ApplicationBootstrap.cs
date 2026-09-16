@@ -71,7 +71,8 @@ public static class ApplicationBootstrap
             configDirectory: settingsStore.ConfigDirectory,
             terminalScreenMode: platform.TerminalScreenMode,
             processesAndPorts: platform.ProcessesAndPorts,
-            fileUsage: platform.FileUsage);
+            fileUsage: platform.FileUsage,
+            platform: platform.Platform);
 
         application.Run();
 
@@ -140,7 +141,8 @@ public static class ApplicationBootstrap
                 terminalScreenMode: platform.TerminalScreenMode,
                 runOptions: runOptions,
                 processesAndPorts: new DemoModeServices.DemoProcessesAndPortsPlatformService(),
-                fileUsage: new UnsupportedFileUsagePlatformService("File Usage is unavailable in demo sessions."))
+                fileUsage: new UnsupportedFileUsagePlatformService("File Usage is unavailable in demo sessions."),
+                platform: platform.Platform)
             .Run();
     }
 }

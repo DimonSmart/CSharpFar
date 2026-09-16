@@ -41,6 +41,7 @@ public sealed class LinuxPlatformServices : IPlatformServices
         FileUsage = fileUsage ?? new UnsupportedFileUsagePlatformService();
     }
 
+    public PlatformKind Platform => PlatformKind.Linux;
     public IConsoleDriver ConsoleDriver { get; }
     public IShellService ShellService { get; }
     public IFileLauncher FileLauncher { get; }

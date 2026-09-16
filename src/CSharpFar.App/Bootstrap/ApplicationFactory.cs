@@ -2,6 +2,7 @@ using CSharpFar.App.Dialogs;
 using CSharpFar.App.UserMenu;
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
+using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
 using CSharpFar.Module.Ftp;
 using CSharpFar.Module.Sftp;
@@ -40,8 +41,10 @@ public static class ApplicationFactory
         Func<IFileAttributesDialog>? fileAttributesDialogFactory = null,
         ApplicationRunOptions? runOptions = null,
         IProcessesAndPortsPlatformService? processesAndPorts = null,
-        IFileUsagePlatformService? fileUsage = null) =>
-        new(ApplicationServicesBuilder.Create(
+        IFileUsagePlatformService? fileUsage = null,
+        PlatformKind? platform = null)
+    {
+        var services = ApplicationServicesBuilder.Create(
             screen,
             fs,
             shell,
@@ -69,6 +72,21 @@ public static class ApplicationFactory
             fileAttributesDialogFactory,
             runOptions,
             processesAndPorts,
-            fileUsage));
+            fileUsage);
 
+        services.CommandContext.UserMenu.RuntimePlatform = platform ?? DetectCurrentPlatform();
+        return new Application(services);
+    }
+
+    private static PlatformKind DetectCurrentPlatform()
+    {
+        if (OperatingSystem.IsWindows())
+            return PlatformKind.Windows;
+        if (OperatingSystem.IsMacOS())
+            return PlatformKind.MacOs;
+        if (OperatingSystem.IsLinux())
+            return PlatformKind.Linux;
+
+        throw new PlatformNotSupportedException("CSharpFar does not support the current operating system.");
+    }
 }

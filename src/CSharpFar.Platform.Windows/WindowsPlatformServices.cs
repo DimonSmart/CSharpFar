@@ -41,6 +41,7 @@ public sealed class WindowsPlatformServices : IPlatformServices
             new ProcessSnapshotReader(), new FileAccessNative(), ProcessesAndPorts);
     }
 
+    public PlatformKind Platform => PlatformKind.Windows;
     public IConsoleDriver ConsoleDriver { get; }
     public IShellService ShellService { get; }
     public IFileLauncher FileLauncher { get; }

@@ -131,13 +131,16 @@ internal sealed class UserMenuEditorDialog
         return new UserMenuEditorDialogResult(changed, snapshot);
     }
 
-    private static bool SameItem(UserMenuItem left, UserMenuItem right) =>
-        left.Title == right.Title && left.Command == right.Command;
+    internal static bool SameItem(UserMenuItem left, UserMenuItem right) =>
+        left.Title == right.Title &&
+        left.Command == right.Command &&
+        left.Platform == right.Platform;
 
-    private static UserMenuItem[] CloneItems(IEnumerable<UserMenuItem> items) =>
+    internal static UserMenuItem[] CloneItems(IEnumerable<UserMenuItem> items) =>
         items.Select(item => new UserMenuItem
         {
             Title = item.Title,
             Command = item.Command,
+            Platform = item.Platform,
         }).ToArray();
 }
