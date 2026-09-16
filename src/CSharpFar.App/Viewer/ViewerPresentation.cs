@@ -22,6 +22,12 @@ internal enum ViewerTextStyle
     Bold,
     Italic,
     InlineCode,
+    Heading1,
+    Heading2,
+    Heading3,
+    Heading4,
+    Heading5,
+    Heading6,
 }
 
 internal sealed record PresentedSourceSpan(
@@ -353,6 +359,9 @@ internal sealed class MarkdownViewerPresentationProvider : IViewerPresentationPr
         var layout = FindForOffset(source.StartOffset);
         if (layout is null)
         {
+            if (MarkdownHeadingPresentation.TryTransform(source, out presented))
+                return true;
+
             MarkdownInlineTransform inline = MarkdownInlinePresentation.Transform(source.Text);
             if (!inline.Changed)
                 return false;

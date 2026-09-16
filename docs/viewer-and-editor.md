@@ -10,7 +10,9 @@ The viewer uses a streaming path for small and large files. It reads fixed-size 
 
 Text-looking files open as text. Binary-looking files open as a 16-byte-per-row hexadecimal dump. Use `F4` or `H` to switch between text and hex display for the current file.
 
-Text presentation starts in `Auto`. Markdown (`.md` and `.markdown`) tables are automatically shown as aligned terminal tables while source navigation, wrapping, and search still operate on the original text. Press `F5` to switch to `Raw` and see the original representation; press `F5` again to return to `Auto`. The selected presentation mode remains active when moving between sibling files with `+` / `-`. Hex output is unchanged.
+Text presentation starts in `Auto`. Markdown (`.md` and `.markdown`) tables are automatically shown as aligned terminal tables. Supported inline Markdown (`**bold**`, `*italic*`, inline code, and links) hides its syntax and uses semantic styles. ATX headings from `#` through `######` also hide their opening syntax and valid optional closing hashes and use level-specific semantic heading styles; inline formatting inside a heading keeps its own style. Source navigation, wrapping, and search still operate on the original text, and a search match in hidden Markdown syntax falls back to the raw source line so the match remains visible. Press `F5` to switch to `Raw` and see the exact original representation; press `F5` again to return to `Auto`. The selected presentation mode remains active when moving between sibling files with `+` / `-`. Hex output is unchanged.
+
+Heading recognition is intentionally line-local: 0-3 leading ASCII spaces are allowed, the opening marker must contain 1-6 `#` characters followed by a space, tab, or end of line, and Setext headings are not interpreted. The viewer does not currently track fenced-code state across lines, so fenced-code-aware Markdown suppression remains outside this presentation layer.
 
 ### Navigation
 

@@ -20,6 +20,12 @@ public static class CSharpFarPaletteStyles
     public static CellStyle MarkdownBold(CSharpFarPalette p) => new(p.MarkdownBoldFg, p.CommandLineBg, TextAttributes.Bold);
     public static CellStyle MarkdownItalic(CSharpFarPalette p) => new(p.MarkdownItalicFg, p.CommandLineBg);
     public static CellStyle MarkdownInlineCode(CSharpFarPalette p) => new(p.MarkdownInlineCodeFg, p.CommandLineBg);
+    public static CellStyle MarkdownHeading1(CSharpFarPalette p) => new(p.MarkdownHeading1Fg, p.CommandLineBg, TextAttributes.Bold);
+    public static CellStyle MarkdownHeading2(CSharpFarPalette p) => new(p.MarkdownHeading2Fg, p.CommandLineBg, TextAttributes.Bold);
+    public static CellStyle MarkdownHeading3(CSharpFarPalette p) => new(p.MarkdownHeading3Fg, p.CommandLineBg);
+    public static CellStyle MarkdownHeading4(CSharpFarPalette p) => new(p.MarkdownHeading4Fg, p.CommandLineBg);
+    public static CellStyle MarkdownHeading5(CSharpFarPalette p) => new(p.MarkdownHeading5Fg, p.CommandLineBg);
+    public static CellStyle MarkdownHeading6(CSharpFarPalette p) => new(p.MarkdownHeading6Fg, p.CommandLineBg);
     public static CellStyle DirectoryShortcutBarNumber(CSharpFarPalette p) => new(p.DirectoryShortcutBarNumberFg, p.DirectoryShortcutBarNumberBg);
     public static CellStyle DirectoryShortcutBarLabel(CSharpFarPalette p) => new(p.DirectoryShortcutBarTextFg, p.DirectoryShortcutBarBg);
     public static CellStyle FileUsageNormal(CSharpFarPalette p) => new(p.FileUsageNormalFg, p.PanelBackground);

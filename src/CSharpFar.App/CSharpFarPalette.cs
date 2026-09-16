@@ -37,6 +37,12 @@ public sealed class CSharpFarPalette
     public ConsoleColor MarkdownBoldFg { get; init; } = ConsoleColor.White;
     public ConsoleColor MarkdownItalicFg { get; init; } = ConsoleColor.DarkGray;
     public ConsoleColor MarkdownInlineCodeFg { get; init; } = ConsoleColor.Yellow;
+    public ConsoleColor MarkdownHeading1Fg { get; init; } = ConsoleColor.Yellow;
+    public ConsoleColor MarkdownHeading2Fg { get; init; } = ConsoleColor.Cyan;
+    public ConsoleColor MarkdownHeading3Fg { get; init; } = ConsoleColor.Green;
+    public ConsoleColor MarkdownHeading4Fg { get; init; } = ConsoleColor.Magenta;
+    public ConsoleColor MarkdownHeading5Fg { get; init; } = ConsoleColor.DarkCyan;
+    public ConsoleColor MarkdownHeading6Fg { get; init; } = ConsoleColor.DarkGray;
     public ConsoleColor DirectoryShortcutBarBg { get; init; } = ConsoleColor.Blue;
     public ConsoleColor DirectoryShortcutBarNumberFg { get; init; } = ConsoleColor.White;
     public ConsoleColor DirectoryShortcutBarNumberBg { get; init; } = ConsoleColor.Black;

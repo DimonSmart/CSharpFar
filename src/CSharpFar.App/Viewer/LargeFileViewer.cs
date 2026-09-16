@@ -750,6 +750,12 @@ internal sealed class LargeFileViewer
             ViewerTextStyle.Bold => CSharpFarPaletteStyles.MarkdownBold(_palette),
             ViewerTextStyle.Italic => CSharpFarPaletteStyles.MarkdownItalic(_palette),
             ViewerTextStyle.InlineCode => CSharpFarPaletteStyles.MarkdownInlineCode(_palette),
+            ViewerTextStyle.Heading1 => CSharpFarPaletteStyles.MarkdownHeading1(_palette),
+            ViewerTextStyle.Heading2 => CSharpFarPaletteStyles.MarkdownHeading2(_palette),
+            ViewerTextStyle.Heading3 => CSharpFarPaletteStyles.MarkdownHeading3(_palette),
+            ViewerTextStyle.Heading4 => CSharpFarPaletteStyles.MarkdownHeading4(_palette),
+            ViewerTextStyle.Heading5 => CSharpFarPaletteStyles.MarkdownHeading5(_palette),
+            ViewerTextStyle.Heading6 => CSharpFarPaletteStyles.MarkdownHeading6(_palette),
             _ => CSharpFarPaletteStyles.CommandLine(_palette),
         };
 
@@ -1155,11 +1161,11 @@ internal sealed class LargeFileViewer
             SelectionChanged = (item, _) =>
             {
                 ApplyEncodingSelection(
-                reader,
-                state,
-                item.Selection,
-                anchorByteOffset,
-                originalViewMode);
+                    reader,
+                    state,
+                    item.Selection,
+                    anchorByteOffset,
+                    originalViewMode);
                 _surfaces.RequestRedraw();
             },
         });
