@@ -89,6 +89,29 @@ public sealed class MarkdownInlinePresentationTests
     }
 
     [Fact]
+    public void Transform_MalformedConstruct_DoesNotBlockLaterValidConstruct()
+    {
+        MarkdownInlineTransform result = MarkdownInlinePresentation.Transform("*unfinished and `code`");
+
+        Assert.Equal("*unfinished and code", result.Text);
+        Assert.Equal(
+            new PresentedStyleSpan("*unfinished and ".Length, "code".Length, ViewerTextStyle.InlineCode),
+            Assert.Single(result.StyleSpans));
+    }
+
+    [Fact]
+    public void Transform_LongUnmatchedBacktickRun_RemainsRaw()
+    {
+        string source = new('`', 20_000);
+
+        MarkdownInlineTransform result = MarkdownInlinePresentation.Transform(source);
+
+        Assert.Equal(source, result.Text);
+        Assert.Empty(result.StyleSpans);
+        Assert.False(result.Changed);
+    }
+
+    [Fact]
     public void Provider_LinkMapsOnlyVisibleLabel()
     {
         const string sourceText = "See [documentation](README.md).";
