@@ -7,19 +7,21 @@ namespace CSharpFar.Tests;
 public class MarkdownHeadingPresentationTests
 {
     [Theory]
-    [InlineData("# H1", ViewerTextStyle.Heading1)]
-    [InlineData("## H2", ViewerTextStyle.Heading2)]
-    [InlineData("### H3", ViewerTextStyle.Heading3)]
-    [InlineData("#### H4", ViewerTextStyle.Heading4)]
-    [InlineData("##### H5", ViewerTextStyle.Heading5)]
-    [InlineData("###### H6", ViewerTextStyle.Heading6)]
-    public void Provider_PresentsAllAtxLevels(string source, ViewerTextStyle style)
+    [InlineData("# H1", "Heading1")]
+    [InlineData("## H2", "Heading2")]
+    [InlineData("### H3", "Heading3")]
+    [InlineData("#### H4", "Heading4")]
+    [InlineData("##### H5", "Heading5")]
+    [InlineData("###### H6", "Heading6")]
+    public void Provider_PresentsAllAtxLevels(string source, string styleName)
     {
         PresentedLine result = Present(source);
 
         Assert.Equal(source[(source.IndexOf(' ') + 1)..], result.Text);
         PresentedStyleSpan span = Assert.Single(result.StyleSpans);
-        Assert.Equal(new PresentedStyleSpan(0, result.Text.Length, style), span);
+        Assert.Equal(styleName, span.Style.ToString());
+        Assert.Equal(0, span.Start);
+        Assert.Equal(result.Text.Length, span.Length);
     }
 
     [Theory]
