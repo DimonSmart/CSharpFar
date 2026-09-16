@@ -13,7 +13,10 @@ internal static class MarkdownInlinePresentation
     public static MarkdownInlineTransform Transform(string source, int sourceOffset = 0)
     {
         if (string.IsNullOrEmpty(source))
-            return new MarkdownInlineTransform(source, [], [], false);
+            return Raw(source, sourceOffset);
+
+        if (source.Length > MarkdownViewerPresentationProvider.MaxPresentedLineChars)
+            return Raw(source, sourceOffset);
 
         IReadOnlyDictionary<int, int> codeClosings = BuildCodeClosings(source);
         var text = new StringBuilder(source.Length);
@@ -51,18 +54,23 @@ internal static class MarkdownInlinePresentation
         AppendSourceRange(source, sourceOffset, rawStart, source.Length - rawStart, text, sourceSpans);
 
         if (!changed)
-        {
-            return new MarkdownInlineTransform(
-                source,
-                source.Length == 0
-                    ? []
-                    : [new PresentedSourceSpan(sourceOffset, source.Length, 0, source.Length)],
-                [],
-                false);
-        }
+            return Raw(source, sourceOffset);
 
-        return new MarkdownInlineTransform(text.ToString(), sourceSpans, styleSpans, true);
+        string presentedText = text.ToString();
+        if (presentedText.Length > MarkdownViewerPresentationProvider.MaxPresentedLineChars)
+            return Raw(source, sourceOffset);
+
+        return new MarkdownInlineTransform(presentedText, sourceSpans, styleSpans, true);
     }
+
+    private static MarkdownInlineTransform Raw(string source, int sourceOffset) =>
+        new(
+            source,
+            source.Length == 0
+                ? []
+                : [new PresentedSourceSpan(sourceOffset, source.Length, 0, source.Length)],
+            [],
+            false);
 
     private static bool TryReadConstruct(
         string source,
