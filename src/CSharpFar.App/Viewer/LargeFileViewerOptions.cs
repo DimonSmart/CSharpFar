@@ -10,6 +10,8 @@ internal sealed class LargeFileViewerOptions
     public Action<string>? EditFile { get; init; }
     public Action? EditCurrentFile { get; init; }
     public ITextClipboard? Clipboard { get; init; }
+    public IFileLauncher? FileLauncher { get; init; }
+    public IUriLauncher? UriLauncher { get; init; }
 
     public bool HasSiblingFiles =>
         FilePaths.Count > 0 &&

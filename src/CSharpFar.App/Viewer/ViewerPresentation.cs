@@ -41,17 +41,32 @@ internal sealed record PresentedStyleSpan(
     int Length,
     ViewerTextStyle Style);
 
+internal sealed record PresentedLinkSpan(
+    int Start,
+    int Length,
+    string Target);
+
 internal sealed record PresentedLine(
     ScannedLine Source,
     string Text,
     IReadOnlyList<PresentedSourceSpan> SourceSpans,
-    IReadOnlyList<PresentedStyleSpan> StyleSpans)
+    IReadOnlyList<PresentedStyleSpan> StyleSpans,
+    IReadOnlyList<PresentedLinkSpan> LinkSpans)
 {
     public PresentedLine(
         ScannedLine source,
         string text,
         IReadOnlyList<PresentedSourceSpan> sourceSpans)
-        : this(source, text, sourceSpans, [])
+        : this(source, text, sourceSpans, [], [])
+    {
+    }
+
+    public PresentedLine(
+        ScannedLine source,
+        string text,
+        IReadOnlyList<PresentedSourceSpan> sourceSpans,
+        IReadOnlyList<PresentedStyleSpan> styleSpans)
+        : this(source, text, sourceSpans, styleSpans, [])
     {
     }
 
@@ -366,7 +381,12 @@ internal sealed class MarkdownViewerPresentationProvider : IViewerPresentationPr
             if (!inline.Changed)
                 return false;
 
-            presented = new PresentedLine(source, inline.Text, inline.SourceSpans, inline.StyleSpans);
+            presented = new PresentedLine(
+                source,
+                inline.Text,
+                inline.SourceSpans,
+                inline.StyleSpans,
+                inline.LinkSpans);
             return true;
         }
 
@@ -469,6 +489,7 @@ internal sealed class MarkdownViewerPresentationProvider : IViewerPresentationPr
         var text = new StringBuilder();
         var sourceSpans = new List<PresentedSourceSpan>();
         var styleSpans = new List<PresentedStyleSpan>();
+        var linkSpans = new List<PresentedLinkSpan>();
         text.Append('│');
 
         for (int i = 0; i < layout.ColumnCount; i++)
@@ -512,6 +533,14 @@ internal sealed class MarkdownViewerPresentationProvider : IViewerPresentationPr
                 });
             }
 
+            foreach (PresentedLinkSpan span in inline.LinkSpans)
+            {
+                linkSpans.Add(span with
+                {
+                    Start = span.Start + presentedStart,
+                });
+            }
+
             text.Append(' ', rightPadding);
             text.Append(' ');
             text.Append('│');
@@ -523,7 +552,7 @@ internal sealed class MarkdownViewerPresentationProvider : IViewerPresentationPr
             }
         }
 
-        presented = new PresentedLine(source, text.ToString(), sourceSpans, styleSpans);
+        presented = new PresentedLine(source, text.ToString(), sourceSpans, styleSpans, linkSpans);
         return true;
     }
 

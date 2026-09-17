@@ -60,7 +60,7 @@ internal static class MarkdownHeadingPresentation
             return false;
         }
 
-        presented = new PresentedLine(source, inline.Text, inline.SourceSpans, styles);
+        presented = new PresentedLine(source, inline.Text, inline.SourceSpans, styles, inline.LinkSpans);
         return true;
     }
 
