@@ -54,8 +54,8 @@ public sealed class MarkdownLinkTargetResolverTests : IDisposable
     [InlineData("docs/readme.md#section")]
     [InlineData("docs/readme.md?x=1")]
     [InlineData("/usr/local/file.txt")]
-    [InlineData("\\server\share\file.txt")]
-    [InlineData("C:\file.txt")]
+    [InlineData(@"\\server\share\file.txt")]
+    [InlineData(@"C:\file.txt")]
     [InlineData("")]
     public void UnsupportedTargetsNeverBecomeFiles(string target)
     {
