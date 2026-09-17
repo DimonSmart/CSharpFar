@@ -82,6 +82,6 @@ internal static class MarkdownLinkTargetResolver
     private static bool IsRootedTarget(string target) =>
         Path.IsPathRooted(target) ||
         target.StartsWith('/') ||
-        target.StartsWith('\') ||
+        target.StartsWith('\\') ||
         (target.Length >= 2 && char.IsAsciiLetter(target[0]) && target[1] == ':');
 }
