@@ -22,7 +22,9 @@ jobs:
           fetch-depth: 0
 
       - name: Fix bootstrap patch
-        run: python3 .github/scripts/fixup-markdown-links.py
+        run: |
+          python3 .github/scripts/fixup-markdown-links.py
+          python3 .github/scripts/fixup-markdown-links-2.py
 
       - name: Apply implementation
         run: python3 .github/scripts/apply-markdown-links.py
@@ -30,7 +32,7 @@ jobs:
       - name: Commit generated implementation
         shell: bash
         run: |
-          rm -f .github/scripts/fixup-markdown-links.py
+          rm -f .github/scripts/fixup-markdown-links.py .github/scripts/fixup-markdown-links-2.py
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
