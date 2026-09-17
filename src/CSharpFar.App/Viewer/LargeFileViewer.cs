@@ -60,7 +60,14 @@ internal sealed class LargeFileViewer
                 long knownFollowLength = reader.Length;
                 var action = _surfaces.Run(
                     layer,
-                    (routed, input) => HandleViewerInput(filePath, reader, state, options, routed.Frame, input),
+                    (routed, input) => HandleViewerInput(
+                        filePath,
+                        hasPhysicalSourcePath: true,
+                        reader,
+                        state,
+                        options,
+                        routed.Frame,
+                        input),
                     getNextWakeUtc: () => state.FollowMode ? DateTimeOffset.UtcNow.AddMilliseconds(FollowPollMs) : null,
                     handleWake: frame =>
                     {
@@ -118,7 +125,14 @@ internal sealed class LargeFileViewer
             long knownFollowLength = reader.Length;
             _surfaces.Run(
                 layer,
-                (routed, input) => HandleViewerInput(filePath, reader, state, options, routed.Frame, input),
+                (routed, input) => HandleViewerInput(
+                    filePath,
+                    hasPhysicalSourcePath: false,
+                    reader,
+                    state,
+                    options,
+                    routed.Frame,
+                    input),
                 getNextWakeUtc: () => state.FollowMode ? DateTimeOffset.UtcNow.AddMilliseconds(FollowPollMs) : null,
                 handleWake: frame =>
                 {
@@ -158,6 +172,7 @@ internal sealed class LargeFileViewer
 
     private ModalDialogLoopResult<ViewerLoopAction> HandleViewerInput(
         string filePath,
+        bool hasPhysicalSourcePath,
         IFileByteReader reader,
         LargeFileViewerState state,
         LargeFileViewerOptions options,
@@ -172,6 +187,15 @@ internal sealed class LargeFileViewer
         {
             ApplyScrollLines(reader, state, view, lines);
             return ModalDialogLoopResult<ViewerLoopAction>.ContinueChanged;
+        }
+
+        if (input.LinkTarget is { } linkTarget)
+        {
+            OpenMarkdownLink(
+                linkTarget,
+                hasPhysicalSourcePath ? filePath : null,
+                options);
+            return ModalDialogLoopResult<ViewerLoopAction>.ContinueNoChange;
         }
 
         if (input.Key is not { } key || key.Key == ConsoleKey.NoName)
@@ -532,6 +556,7 @@ internal sealed class LargeFileViewer
             state.LineScanner,
             scanned.Lines,
             width);
+        var linkHits = new List<ViewerLinkHit>();
 
         for (int row = 0; row < contentHeight; row++)
         {
@@ -546,7 +571,8 @@ internal sealed class LargeFileViewer
                     state.HorizontalOffset,
                     width,
                     state.SearchMatch,
-                    segmentStartIndex: 0);
+                    segmentStartIndex: 0,
+                    linkHits);
             }
             else
             {
@@ -554,7 +580,7 @@ internal sealed class LargeFileViewer
             }
         }
 
-        return new LargeFileRenderView(scanned.Lines, scanned.NextOffset);
+        return new LargeFileRenderView(scanned.Lines, scanned.NextOffset, linkHits);
     }
 
     private LargeFileRenderView DrawWrappedTextContent(
@@ -566,6 +592,7 @@ internal sealed class LargeFileViewer
         int width)
     {
         var lines = new List<ScannedLine>();
+        var linkHits = new List<ViewerLinkHit>();
         int row = 0;
         long offset = Math.Clamp(state.TopByteOffset, state.LineScanner.ContentStartOffset, reader.Length);
         long nextOffset = offset;
@@ -604,7 +631,8 @@ internal sealed class LargeFileViewer
                     scrollLeft: 0,
                     width,
                     state.SearchMatch,
-                    segment.StartIndex);
+                    segment.StartIndex,
+                    linkHits);
                 row++;
             }
 
@@ -620,7 +648,7 @@ internal sealed class LargeFileViewer
             row++;
         }
 
-        return new LargeFileRenderView(lines, nextOffset);
+        return new LargeFileRenderView(lines, nextOffset, linkHits);
     }
 
     private LargeFileRenderView DrawBinaryContent(
@@ -648,7 +676,7 @@ internal sealed class LargeFileViewer
             canvas.WriteForced(0, row + 1, FormatLine(text, state.HorizontalOffset, width), style);
         }
 
-        return new LargeFileRenderView(rows, nextOffset);
+        return new LargeFileRenderView(rows, nextOffset, []);
     }
 
     private static bool IsHexMatchOnRow(ViewerSearchMatch? match, long rowOffset) =>
@@ -664,7 +692,8 @@ internal sealed class LargeFileViewer
         int scrollLeft,
         int width,
         ViewerSearchMatch? match,
-        int segmentStartIndex)
+        int segmentStartIndex,
+        List<ViewerLinkHit> linkHits)
     {
         if (width <= 0)
             return;
@@ -673,6 +702,7 @@ internal sealed class LargeFileViewer
         string visible = layout.Slice(scrollLeft, width);
         canvas.WriteForced(0, y, visible, CSharpFarPaletteStyles.CommandLine(_palette));
         ApplyMarkdownStyles(canvas, presented, line, y, scrollLeft, width, segmentStartIndex, layout);
+        CollectLinkHits(presented, line, y, scrollLeft, width, segmentStartIndex, layout, linkHits);
         if (match is not { IsHex: false } ||
             match.LineStartOffset != presented.Source.StartOffset ||
             !presented.TryMapSourceRange(
@@ -703,6 +733,44 @@ internal sealed class LargeFileViewer
         string highlight = layout.Slice(highlightStart, highlightEnd - highlightStart);
         if (ConsoleTextMetrics.GetCellWidth(highlight) > 0)
             canvas.Write(highlightStart - visibleStart, y, highlight, CSharpFarPaletteStyles.InputHighlight(_palette));
+    }
+
+    private static void CollectLinkHits(
+        PresentedLine presented,
+        string line,
+        int y,
+        int scrollLeft,
+        int width,
+        int segmentStartIndex,
+        ViewerTextLayout layout,
+        List<ViewerLinkHit> linkHits)
+    {
+        if (presented.LinkSpans.Count == 0)
+            return;
+
+        int segmentEndIndex = segmentStartIndex + line.Length;
+        int visibleStart = scrollLeft;
+        int visibleEnd = scrollLeft + width;
+
+        foreach (PresentedLinkSpan span in presented.LinkSpans)
+        {
+            int spanEnd = span.Start + span.Length;
+            if (spanEnd <= segmentStartIndex || span.Start >= segmentEndIndex)
+                continue;
+
+            int localStart = Math.Max(span.Start, segmentStartIndex) - segmentStartIndex;
+            int localEnd = Math.Min(spanEnd, segmentEndIndex) - segmentStartIndex;
+            int linkStartCell = layout.CellOffsetFromSourceIndex(localStart);
+            int linkEndCell = layout.CellOffsetFromSourceIndex(localEnd);
+            int hitStart = Math.Max(linkStartCell, visibleStart);
+            int hitEnd = Math.Min(linkEndCell, visibleEnd);
+            if (hitEnd <= hitStart)
+                continue;
+
+            linkHits.Add(new ViewerLinkHit(
+                new Rect(hitStart - visibleStart, y, hitEnd - hitStart, 1),
+                span.Target));
+        }
     }
 
     private void ApplyMarkdownStyles(
@@ -1263,6 +1331,36 @@ internal sealed class LargeFileViewer
         return false;
     }
 
+    private void OpenMarkdownLink(
+        string target,
+        string? sourceFilePath,
+        LargeFileViewerOptions options)
+    {
+        MarkdownLinkTarget resolved = MarkdownLinkTargetResolver.Resolve(target, sourceFilePath);
+        try
+        {
+            switch (resolved.Kind)
+            {
+                case MarkdownLinkTargetKind.ExternalUri when
+                    resolved.Uri is not null &&
+                    options.UriLauncher is not null:
+                    options.UriLauncher.Open(resolved.Uri);
+                    break;
+
+                case MarkdownLinkTargetKind.RelativeFile when
+                    resolved.FilePath is not null &&
+                    options.FileLauncher is not null:
+                    string workingDirectory = Path.GetDirectoryName(resolved.FilePath) ?? string.Empty;
+                    options.FileLauncher.OpenFile(resolved.FilePath, workingDirectory);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _dialogs.Message("Viewer", ex.Message);
+        }
+    }
+
     private void ShowUnsupported(string command) =>
         _dialogs.Message("Viewer", $"{command} is not supported yet.");
 
@@ -1477,6 +1575,37 @@ internal sealed class LargeFileViewer
         }
     }
 
+    internal static bool TryGetLinkTarget(
+        MouseConsoleInputEvent mouse,
+        IReadOnlyList<ViewerLinkHit> linkHits,
+        out string target)
+    {
+        target = string.Empty;
+        if (mouse.Button != MouseButton.Left ||
+            mouse.Kind != MouseEventKind.Up ||
+            mouse.Modifiers is not (MouseKeyModifiers.None or MouseKeyModifiers.Control))
+        {
+            return false;
+        }
+
+        foreach (ViewerLinkHit hit in linkHits)
+        {
+            Rect bounds = hit.Bounds;
+            if (mouse.X < bounds.X ||
+                mouse.X >= bounds.X + bounds.Width ||
+                mouse.Y < bounds.Y ||
+                mouse.Y >= bounds.Y + bounds.Height)
+            {
+                continue;
+            }
+
+            target = hit.Target;
+            return true;
+        }
+
+        return false;
+    }
+
     private sealed class LargeFileViewerLayer : InteractiveSurfaceLayer<LargeFileViewerFrame, ViewerInput>
     {
         internal static readonly UiTargetId Keyboard = Targets.Child("keyboard");
@@ -1569,6 +1698,12 @@ internal sealed class LargeFileViewer
                 };
             }
 
+            if (context.Target == Content &&
+                TryGetLinkTarget(mouse, frame.View.LinkHits, out string linkTarget))
+            {
+                return new InteractiveSurfaceRouteResult<ViewerInput>(ViewerInput.FromLink(linkTarget));
+            }
+
             if (FunctionKeysController.TryGetAction(
                     mouse,
                     context,
@@ -1595,16 +1730,23 @@ internal sealed class LargeFileViewer
         IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> FunctionKeyActions,
         IReadOnlyList<FunctionKeyBarActionHit<ConsoleKeyInfo>> FunctionKeyActionHits);
 
-    private readonly record struct ViewerInput(ConsoleKeyInfo? Key, int? ScrollLines)
+    private readonly record struct ViewerInput(ConsoleKeyInfo? Key, int? ScrollLines, string? LinkTarget)
     {
-        public static ViewerInput None => new(null, null);
+        public static ViewerInput None => new(null, null, null);
 
-        public static ViewerInput FromKey(ConsoleKeyInfo key) => new(key, null);
+        public static ViewerInput FromKey(ConsoleKeyInfo key) => new(key, null, null);
 
-        public static ViewerInput FromScroll(int lines) => new(null, lines);
+        public static ViewerInput FromScroll(int lines) => new(null, lines, null);
+
+        public static ViewerInput FromLink(string target) => new(null, null, target);
     }
 
-    private sealed record LargeFileRenderView(IReadOnlyList<ScannedLine> Lines, long NextOffset);
+    private sealed record LargeFileRenderView(
+        IReadOnlyList<ScannedLine> Lines,
+        long NextOffset,
+        IReadOnlyList<ViewerLinkHit> LinkHits);
+
+    internal sealed record ViewerLinkHit(Rect Bounds, string Target);
 
     private sealed record WrappedTextSegment(int StartIndex, string Text);
 

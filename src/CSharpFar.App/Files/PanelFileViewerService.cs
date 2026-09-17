@@ -26,6 +26,8 @@ internal sealed class PanelFileViewerService
     private readonly Func<FilePanelState, PanelSide> _panelSideForState;
     private readonly Func<PanelSide, int> _visibleRows;
     private readonly Action<FilePanelState, int> _safeRefresh;
+    private readonly IFileLauncher? _fileLauncher;
+    private readonly IUriLauncher? _uriLauncher;
 
     public PanelFileViewerService(
         InteractiveSurfaceHost surfaces,
@@ -40,7 +42,9 @@ internal sealed class PanelFileViewerService
         PanelController controller,
         Func<FilePanelState, PanelSide> panelSideForState,
         Func<PanelSide, int> visibleRows,
-        Action<FilePanelState, int> safeRefresh)
+        Action<FilePanelState, int> safeRefresh,
+        IFileLauncher? fileLauncher = null,
+        IUriLauncher? uriLauncher = null)
     {
         _surfaces = surfaces;
         _modalDialogs = modalDialogs;
@@ -55,6 +59,8 @@ internal sealed class PanelFileViewerService
         _panelSideForState = panelSideForState;
         _visibleRows = visibleRows;
         _safeRefresh = safeRefresh;
+        _fileLauncher = fileLauncher;
+        _uriLauncher = uriLauncher;
     }
 
     public void ViewPanelFile(FilePanelState state, FilePanelItem item)
@@ -83,6 +89,8 @@ internal sealed class PanelFileViewerService
             new LargeFileViewerOptions
             {
                 Clipboard = _clipboard,
+                FileLauncher = _fileLauncher,
+                UriLauncher = _uriLauncher,
                 EditCurrentFile = () => EditPanelFile(state, item),
             });
     }
@@ -122,6 +130,8 @@ internal sealed class PanelFileViewerService
             FilePaths = filePaths,
             CurrentFileIndex = currentIndex,
             Clipboard = _clipboard,
+            FileLauncher = _fileLauncher,
+            UriLauncher = _uriLauncher,
             EditFile = path =>
             {
                 _history.AddFile(new FileHistoryItem { Path = path });

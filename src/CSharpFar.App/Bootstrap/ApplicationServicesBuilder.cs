@@ -62,7 +62,8 @@ internal static class ApplicationServicesBuilder
         Func<IFileAttributesDialog>? fileAttributesDialogFactory = null,
         ApplicationRunOptions? runOptions = null,
         IProcessesAndPortsPlatformService? processesAndPorts = null,
-        IFileUsagePlatformService? fileUsage = null)
+        IFileUsagePlatformService? fileUsage = null,
+        IUriLauncher? uriLauncher = null)
     {
         var core = CoreServicesFactory.Create(
             fs,
@@ -89,6 +90,7 @@ internal static class ApplicationServicesBuilder
         var formFields = new FormFieldFactory(fieldHistoryRegistry);
         var effectiveSearchService = core.SearchService;
         var effectiveFileLauncher = core.FileLauncher;
+        var effectiveUriLauncher = uriLauncher ?? new SystemUriLauncher();
         var effectiveClipboard = core.Clipboard;
         var effectiveUserMenu = core.UserMenu;
         var effectiveFileMetadata = fileMetadata ?? new FileMetadataService();
@@ -345,7 +347,9 @@ internal static class ApplicationServicesBuilder
             controller,
             state => callbacks.PanelSideForState(state),
             side => callbacks.VisibleRowsForSide(side),
-            (state, rows) => callbacks.SafeRefresh(state, rows));
+            (state, rows) => callbacks.SafeRefresh(state, rows),
+            effectiveFileLauncher,
+            effectiveUriLauncher);
         var panelFileOpener = new PanelFileOpener(
             effectiveFileLauncher,
             dialogs,

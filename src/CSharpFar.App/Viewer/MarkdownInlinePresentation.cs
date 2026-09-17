@@ -6,6 +6,7 @@ internal sealed record MarkdownInlineTransform(
     string Text,
     IReadOnlyList<PresentedSourceSpan> SourceSpans,
     IReadOnlyList<PresentedStyleSpan> StyleSpans,
+    IReadOnlyList<PresentedLinkSpan> LinkSpans,
     bool Changed);
 
 internal static class MarkdownInlinePresentation
@@ -22,6 +23,7 @@ internal static class MarkdownInlinePresentation
         var text = new StringBuilder(source.Length);
         var sourceSpans = new List<PresentedSourceSpan>();
         var styleSpans = new List<PresentedStyleSpan>();
+        var linkSpans = new List<PresentedLinkSpan>();
         int rawStart = 0;
         int index = 0;
         bool changed = false;
@@ -45,6 +47,13 @@ internal static class MarkdownInlinePresentation
                 text,
                 sourceSpans);
             styleSpans.Add(new PresentedStyleSpan(presentedStart, construct.ContentLength, construct.Style));
+            if (construct.LinkTarget is not null)
+            {
+                linkSpans.Add(new PresentedLinkSpan(
+                    presentedStart,
+                    construct.ContentLength,
+                    construct.LinkTarget));
+            }
 
             changed = true;
             index = construct.EndExclusive;
@@ -60,7 +69,7 @@ internal static class MarkdownInlinePresentation
         if (presentedText.Length > MarkdownViewerPresentationProvider.MaxPresentedLineChars)
             return Raw(source, sourceOffset);
 
-        return new MarkdownInlineTransform(presentedText, sourceSpans, styleSpans, true);
+        return new MarkdownInlineTransform(presentedText, sourceSpans, styleSpans, linkSpans, true);
     }
 
     private static MarkdownInlineTransform Raw(string source, int sourceOffset) =>
@@ -69,6 +78,7 @@ internal static class MarkdownInlinePresentation
             source.Length == 0
                 ? []
                 : [new PresentedSourceSpan(sourceOffset, source.Length, 0, source.Length)],
+            [],
             [],
             false);
 
@@ -114,7 +124,8 @@ internal static class MarkdownInlinePresentation
             contentStart,
             contentLength,
             closingStart + delimiterLength,
-            ViewerTextStyle.InlineCode);
+            ViewerTextStyle.InlineCode,
+            null);
         return true;
     }
 
@@ -148,7 +159,8 @@ internal static class MarkdownInlinePresentation
                     contentStart,
                     contentLength,
                     current + closingLength,
-                    delimiterLength == 2 ? ViewerTextStyle.Bold : ViewerTextStyle.Italic);
+                    delimiterLength == 2 ? ViewerTextStyle.Bold : ViewerTextStyle.Italic,
+                    null);
                 return true;
             }
 
@@ -210,7 +222,8 @@ internal static class MarkdownInlinePresentation
             labelStart,
             closeBracket - labelStart,
             closeParenthesis + 1,
-            ViewerTextStyle.Link);
+            ViewerTextStyle.Link,
+            source[destinationStart..closeParenthesis]);
         return true;
     }
 
@@ -282,5 +295,6 @@ internal static class MarkdownInlinePresentation
         int ContentStart,
         int ContentLength,
         int EndExclusive,
-        ViewerTextStyle Style);
+        ViewerTextStyle Style,
+        string? LinkTarget);
 }
