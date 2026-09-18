@@ -19,8 +19,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <DebugType>portable</DebugType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <WarningsAsErrors>$(WarningsAsErrors);RS0016;RS0017</WarningsAsErrors>
-    <NoWarn>$(NoWarn);RS0026</NoWarn>
+    <NoWarn>$(NoWarn);RS0026;CS1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

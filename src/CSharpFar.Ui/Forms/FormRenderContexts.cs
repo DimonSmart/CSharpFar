@@ -5,7 +5,7 @@ using CSharpFar.Ui;
 
 namespace CSharpFar.Ui;
 
-public sealed class FormRenderContext
+internal sealed class FormRenderContext
 {
     private readonly UiRenderContext _renderContext;
 
