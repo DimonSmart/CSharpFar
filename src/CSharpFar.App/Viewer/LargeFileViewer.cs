@@ -2167,8 +2167,34 @@ internal sealed class LargeFileViewer
 
         protected override LargeFileViewerFrame RenderFrameCore(UiRenderContext context)
         {
+            ViewerTransientState snapshot = ViewerTransientState.Capture(_state);
+            try
+            {
+                int contentHeight = Math.Max(0, context.Size.Height - 2);
+                LargeFileRenderView view = _viewer.Draw(
+                    context.Canvas,
+                    _filePath,
+                    _reader,
+                    _state,
+                    contentHeight,
+                    context.Size);
+                return CreateFrame(context, view);
+            }
+            catch (Exception ex) when (
+                _reader is RandomAccessFileByteReader &&
+                RandomAccessFileByteReader.IsTransientFileAccess(ex) &&
+                HasCommittedFrame)
+            {
+                snapshot.Restore(_state);
+                return CreateFrame(context, CommittedFrame.View);
+            }
+        }
+
+        private LargeFileViewerFrame CreateFrame(
+            UiRenderContext context,
+            LargeFileRenderView view)
+        {
             int contentHeight = Math.Max(0, context.Size.Height - 2);
-            LargeFileRenderView view = _viewer.Draw(context.Canvas, _filePath, _reader, _state, contentHeight, context.Size);
             var functionKeyActions = ViewerFunctionKeyBarActions(_state);
             Rect functionKeyBarBounds = context.Size.Height > 0
                 ? new Rect(0, context.Size.Height - 1, context.Size.Width, 1)
@@ -2281,6 +2307,58 @@ internal sealed class LargeFileViewer
     internal sealed record ViewerLinkHit(Rect Bounds, string Target);
 
     private sealed record WrappedTextSegment(int StartIndex, string Text);
+
+    private readonly record struct ViewerTransientState(
+        ViewerSourceState Source,
+        long TopByteOffset,
+        int TopVisualSegment,
+        int HorizontalOffset,
+        ViewerLiveMode LiveMode,
+        bool WrapLines,
+        bool WordWrap,
+        LargeFileViewMode ViewMode,
+        ViewerSearchRequest? LastSearch,
+        ViewerSearchMatch? SearchMatch,
+        ViewerPresentationMode PresentationMode,
+        int LastViewportWidth,
+        int LastViewportHeight,
+        bool ViewportNeedsNormalization)
+    {
+        public static ViewerTransientState Capture(LargeFileViewerState state) =>
+            new(
+                state.CaptureSourceState(),
+                state.TopByteOffset,
+                state.TopVisualSegment,
+                state.HorizontalOffset,
+                state.LiveMode,
+                state.WrapLines,
+                state.WordWrap,
+                state.ViewMode,
+                state.LastSearch,
+                state.SearchMatch,
+                state.PresentationMode,
+                state.LastViewportWidth,
+                state.LastViewportHeight,
+                state.ViewportNeedsNormalization);
+
+        public void Restore(LargeFileViewerState state)
+        {
+            state.RestoreSourceState(Source);
+            state.TopByteOffset = TopByteOffset;
+            state.TopVisualSegment = TopVisualSegment;
+            state.HorizontalOffset = HorizontalOffset;
+            state.LiveMode = LiveMode;
+            state.WrapLines = WrapLines;
+            state.WordWrap = WordWrap;
+            state.ViewMode = ViewMode;
+            state.LastSearch = LastSearch;
+            state.SearchMatch = SearchMatch;
+            state.PresentationMode = PresentationMode;
+            state.LastViewportWidth = LastViewportWidth;
+            state.LastViewportHeight = LastViewportHeight;
+            state.ViewportNeedsNormalization = ViewportNeedsNormalization;
+        }
+    }
 
     private enum ViewerLoopAction
     {
