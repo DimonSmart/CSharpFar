@@ -227,6 +227,7 @@ internal sealed class LargeFileViewer
 
         try
         {
+            _ = reader.GetCurrentLength();
             ViewerViewportAnchor anchor = state.ViewportAnchor;
             LargeFileViewMode viewMode = state.ViewMode;
 
@@ -584,6 +585,7 @@ internal sealed class LargeFileViewer
         ConsoleSize size)
     {
         NormalizeViewportIfNeeded(filePath, reader, state, contentHeight, size.Width);
+        EnsureViewportReadable(filePath, reader, state, contentHeight, size.Width);
         DrawHeader(canvas, filePath, reader, state, size);
 
         var view = state.IsHexMode
@@ -1301,6 +1303,67 @@ internal sealed class LargeFileViewer
             presented.Text,
             Math.Max(1, width),
             state.WordWrap).Count());
+    }
+
+    private void EnsureViewportReadable(
+        string sourcePath,
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        int contentHeight,
+        int width)
+    {
+        int visibleRows = Math.Max(0, contentHeight);
+        long length = reader.Length;
+        if (visibleRows == 0 || length == 0)
+            return;
+
+        if (state.IsHexMode)
+        {
+            long available = Math.Max(0, length - state.TopByteOffset);
+            int bytes = (int)Math.Min(available, (long)visibleRows * BinaryBytesPerRow);
+            if (bytes <= 0)
+                return;
+
+            var buffer = new byte[bytes];
+            _ = state.BlockCache.ReadAsync(state.TopByteOffset, buffer).GetAwaiter().GetResult();
+            return;
+        }
+
+        if (!state.WrapLines)
+        {
+            int bytesPerLine = Math.Max(256, (state.HorizontalOffset + width + 32) * 4);
+            _ = state.LineScanner
+                .ReadLinesAsync(state.TopByteOffset, visibleRows, bytesPerLine)
+                .GetAwaiter()
+                .GetResult();
+            return;
+        }
+
+        int row = 0;
+        long offset = Math.Clamp(state.TopByteOffset, state.LineScanner.ContentStartOffset, length);
+        bool firstPhysicalLine = true;
+        while (row < visibleRows && offset < length)
+        {
+            var scanned = state.LineScanner
+                .ReadLinesAsync(offset, 1, MaxWrappedLineCaptureBytes)
+                .GetAwaiter()
+                .GetResult();
+            if (scanned.Lines.Count == 0)
+                break;
+
+            ScannedLine line = scanned.Lines[0];
+            int segmentCount = GetWrappedSegmentCount(sourcePath, state, line, width);
+            int startSegment = firstPhysicalLine
+                ? Math.Min(state.TopVisualSegment, Math.Max(0, segmentCount - 1))
+                : 0;
+            row += Math.Max(1, segmentCount - startSegment);
+            firstPhysicalLine = false;
+
+            if (line.NextOffset <= offset)
+                break;
+
+            offset = line.NextOffset;
+        }
     }
 
     private void NormalizeViewportIfNeeded(
