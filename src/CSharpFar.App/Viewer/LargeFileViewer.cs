@@ -1650,18 +1650,24 @@ internal sealed class LargeFileViewer
 
     private static void RefreshScanner(IFileByteReader reader, LargeFileViewerState state)
     {
-        long anchorByteOffset = state.TopByteOffset;
-        var originalViewMode = state.ViewMode;
-        state.BlockCache.Clear();
+        ViewerViewportAnchor anchor = state.ViewportAnchor;
+        LargeFileViewMode viewMode = state.ViewMode;
+        TextEncodingSelection selection = state.EncodingSelection;
+
+        var cache = new BlockCache(reader, capacity: ViewerBlockCacheCapacity);
         var scanner = LineScanner
-            .CreateAsync(state.BlockCache, reader, state.EncodingSelection)
+            .CreateAsync(cache, reader, selection)
             .GetAwaiter()
             .GetResult();
-        state.ResetScanner(scanner, state.EncodingSelection);
-        state.ViewMode = originalViewMode;
-        state.TopByteOffset = state.IsHexMode
-            ? Math.Clamp(anchorByteOffset, 0, reader.Length)
-            : scanner.FindLineStartAtOrBeforeAsync(anchorByteOffset).GetAwaiter().GetResult();
+
+        long targetOffset = viewMode == LargeFileViewMode.Hex
+            ? Math.Clamp(anchor.ByteOffset, 0, reader.Length)
+            : scanner.FindLineStartAtOrBeforeAsync(anchor.ByteOffset).GetAwaiter().GetResult();
+
+        state.ReplaceSource(cache, scanner, selection);
+        state.ViewMode = viewMode;
+        state.ViewportAnchor = new ViewerViewportAnchor(targetOffset, 0);
+        state.ViewportNeedsNormalization = true;
     }
 
     private void ChangeEncoding(
@@ -1676,7 +1682,7 @@ internal sealed class LargeFileViewer
         var originalSelection = state.EncodingSelection;
         var originalViewMode = state.ViewMode;
         int originalHorizontalOffset = state.HorizontalOffset;
-        bool originalFollowMode = state.FollowMode;
+        ViewerLiveMode originalLiveMode = state.LiveMode;
 
         var result = _dialogs.Select(new SelectionDialogOptions<TextEncodingCatalogItem>
         {
@@ -1704,7 +1710,7 @@ internal sealed class LargeFileViewer
         {
             ApplyEncodingSelection(reader, state, originalSelection, anchorByteOffset, originalViewMode);
             state.HorizontalOffset = originalHorizontalOffset;
-            state.FollowMode = originalFollowMode;
+            state.LiveMode = originalLiveMode;
             return;
         }
 
@@ -1756,14 +1762,15 @@ internal sealed class LargeFileViewer
                              selection.Kind == TextEncodingSelectionKind.Explicit
             ? LargeFileViewMode.Text
             : baseViewMode;
+        long targetOffset = targetViewMode == LargeFileViewMode.Hex
+            ? Math.Clamp(anchorByteOffset, 0, reader.Length)
+            : scanner.FindLineStartAtOrBeforeAsync(anchorByteOffset).GetAwaiter().GetResult();
 
         state.ResetScanner(scanner, selection);
         state.ViewMode = targetViewMode;
-
-        state.TopByteOffset = state.IsHexMode
-            ? Math.Clamp(anchorByteOffset, 0, reader.Length)
-            : scanner.FindLineStartAtOrBeforeAsync(anchorByteOffset).GetAwaiter().GetResult();
+        state.ViewportAnchor = new ViewerViewportAnchor(targetOffset, 0);
         state.HorizontalOffset = 0;
+        state.ViewportNeedsNormalization = true;
     }
 
     private static bool TryMoveToSibling(
