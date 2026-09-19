@@ -12,7 +12,8 @@ namespace CSharpFar.App.Viewer;
 internal sealed class LargeFileViewer
 {
     private const int BinaryBytesPerRow = 16;
-    private const int FollowPollMs = 250;
+    private const int LivePollMs = 250;
+    private const int MaxWrappedLineCaptureBytes = 4 * 1024 * 1024;
     private const int FastHorizontalTextScrollCells = 20;
     private const int FastPageMultiplier = 5;
 
@@ -47,38 +48,36 @@ internal sealed class LargeFileViewer
     {
         options ??= new LargeFileViewerOptions();
         RandomAccessFileByteReader? reader = null;
+        LocalFileChangeMonitor? monitor = null;
 
         try
         {
             var opened = OpenViewerFile(filePath);
             reader = opened.Reader;
             var state = opened.State;
+            monitor = new LocalFileChangeMonitor(filePath);
 
             while (true)
             {
                 var layer = new LargeFileViewerLayer(this, filePath, reader, state);
-                long knownFollowLength = reader.Length;
                 var action = _surfaces.Run(
                     layer,
-                    (routed, input) => HandleViewerInput(
+                    (routed, input) => HandleLocalViewerInput(
                         filePath,
-                        hasPhysicalSourcePath: true,
                         reader,
                         state,
                         options,
                         routed.Frame,
                         input),
-                    getNextWakeUtc: () => state.FollowMode ? DateTimeOffset.UtcNow.AddMilliseconds(FollowPollMs) : null,
-                    handleWake: frame =>
-                    {
-                        long currentLength = reader.Length;
-                        if (currentLength == knownFollowLength)
-                            return InteractiveSurfaceWakeResult.NoChange;
-
-                        knownFollowLength = currentLength;
-                        MoveToEnd(reader, state, frame.ContentHeight);
-                        return InteractiveSurfaceWakeResult.Changed;
-                    });
+                    getNextWakeUtc: () => state.LiveMode != ViewerLiveMode.Off
+                        ? DateTimeOffset.UtcNow.AddMilliseconds(LivePollMs)
+                        : null,
+                    handleWake: frame => HandleLocalLiveWake(
+                        filePath,
+                        reader,
+                        state,
+                        monitor,
+                        frame));
                 if (action == ViewerLoopAction.Close)
                     return;
 
@@ -89,6 +88,8 @@ internal sealed class LargeFileViewer
                 }
 
                 var presentationMode = state.PresentationMode;
+                monitor.Dispose();
+                monitor = null;
                 reader.Dispose();
                 reader = null;
 
@@ -97,6 +98,7 @@ internal sealed class LargeFileViewer
                 reader = opened.Reader;
                 state = opened.State;
                 state.PresentationMode = presentationMode;
+                monitor = new LocalFileChangeMonitor(filePath);
                 options.CurrentFileChanged?.Invoke(filePath);
             }
         }
@@ -106,6 +108,7 @@ internal sealed class LargeFileViewer
         }
         finally
         {
+            monitor?.Dispose();
             reader?.Dispose();
         }
     }
@@ -122,7 +125,7 @@ internal sealed class LargeFileViewer
             if (state.IsHexMode)
                 state.TopByteOffset = 0;
             var layer = new LargeFileViewerLayer(this, filePath, reader, state);
-            long knownFollowLength = reader.Length;
+            long knownLength = reader.Length;
             _surfaces.Run(
                 layer,
                 (routed, input) => HandleViewerInput(
@@ -133,15 +136,22 @@ internal sealed class LargeFileViewer
                     options,
                     routed.Frame,
                     input),
-                getNextWakeUtc: () => state.FollowMode ? DateTimeOffset.UtcNow.AddMilliseconds(FollowPollMs) : null,
+                getNextWakeUtc: () => state.LiveMode != ViewerLiveMode.Off
+                    ? DateTimeOffset.UtcNow.AddMilliseconds(LivePollMs)
+                    : null,
                 handleWake: frame =>
                 {
                     long currentLength = reader.Length;
-                    if (currentLength == knownFollowLength)
+                    if (currentLength == knownLength)
                         return InteractiveSurfaceWakeResult.NoChange;
 
-                    knownFollowLength = currentLength;
-                    MoveToEnd(reader, state, frame.ContentHeight);
+                    knownLength = currentLength;
+                    state.ViewportNeedsNormalization = true;
+                    if (state.LiveMode == ViewerLiveMode.Tail)
+                        MoveToEnd(filePath, reader, state, frame.ContentHeight, frame.Size.Width);
+                    else
+                        NormalizeViewport(filePath, reader, state, frame.ContentHeight, frame.Size.Width);
+
                     return InteractiveSurfaceWakeResult.Changed;
                 });
         }
