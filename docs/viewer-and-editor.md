@@ -6,7 +6,7 @@ CSharpFar includes a built-in streaming viewer and text editor so common inspect
 
 Press `F3` to open the selected file in the full-screen viewer.
 
-The viewer uses a streaming path for small and large files. It reads fixed-size byte blocks by offset and keeps a bounded cache, so opening a large log does not require loading the complete file into memory.
+The viewer uses a streaming path for small and large files. It reads fixed-size byte blocks by offset and keeps a bounded cache, so opening a large log does not require loading the complete file into memory. For local physical files it keeps only the path between reads: each read opens a short-lived handle with read/write/delete sharing and closes it immediately, so an idle viewer does not block replace, rename, delete, or an exclusive open by another process.
 
 Text-looking files open as text. Binary-looking files open as a 16-byte-per-row hexadecimal dump. Use `F4` or `H` to switch between text and hex display for the current file.
 
@@ -16,8 +16,8 @@ Heading recognition is intentionally line-local: 0-3 leading ASCII spaces are al
 
 ### Navigation
 
-- `Home` / `End` — start or end of the file.
-- `Up` / `Down` / `PageUp` / `PageDown` — vertical navigation.
+- `Home` / `End` — start or end of the file. `End` also enables `TAIL`.
+- `Up` / `Down` / `PageUp` / `PageDown` — vertical navigation. The viewport is clamped to the last useful visual page, including wrapped text and partial hex rows.
 - `Alt+PageUp` / `Alt+PageDown` — faster page scrolling.
 - `Left` / `Right` — horizontal scrolling.
 - `Ctrl+Left` / `Ctrl+Right` — larger horizontal steps.
@@ -27,7 +27,11 @@ Heading recognition is intentionally line-local: 0-3 leading ASCII spaces are al
 
 ### Display modes
 
-- `F` — follow a file that keeps growing.
+- `F` — cycle local-file live refresh: `Off -> WATCH -> TAIL -> Off`.
+- `WATCH` refreshes changed content while preserving the current viewport as far as possible.
+- `TAIL` refreshes changed content and keeps the last visual page on screen. Moving upward, using `Home`, or searching/jumping away from EOF changes `TAIL` to `WATCH`; reaching the last viewport by normal downward navigation enables `TAIL`.
+- Local live refresh detects append, truncate, overwrite, replace, delete, and recreate at the original path. A temporarily unavailable file leaves the last successful frame on screen and is retried later.
+
 - `F2` — toggle line wrapping.
 - `Shift+F2` — switch word/character wrap behavior.
 - `F4` or `H` — switch text/hex mode.
