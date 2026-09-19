@@ -104,11 +104,14 @@ public sealed class ViewerLiveRefreshTests : IDisposable
         string path = Write("idle-lock.txt", "content");
         var driver = new FakeConsoleDriver(width: 60, height: 6);
         bool openedExclusively = false;
-        driver.BeforeReadInput = _ =>
+        OnTryRead(driver, d =>
         {
+            if (d.PendingInputCount != 1 || openedExclusively)
+                return;
+
             using var exclusive = File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
             openedExclusively = true;
-        };
+        });
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
         FileViewerFor(new ScreenRenderer(driver)).Show(path);
@@ -122,9 +125,9 @@ public sealed class ViewerLiveRefreshTests : IDisposable
         string path = WriteLines("live-cycle.txt", 8);
         var driver = new FakeConsoleDriver(width: 60, height: 6);
         string? finalHeader = null;
-        OnRead(driver, (reads, d) =>
+        OnTryRead(driver, d =>
         {
-            if (reads == 4)
+            if (d.PendingInputCount == 1)
                 finalHeader = d.GetRegionText(new Rect(0, 0, 60, 1));
         });
         driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
@@ -175,9 +178,9 @@ public sealed class ViewerLiveRefreshTests : IDisposable
         string path = WriteLines("text-eof.txt", 8);
         var driver = new FakeConsoleDriver(width: 60, height: 6);
         string? content = null;
-        OnRead(driver, (reads, d) =>
+        OnTryRead(driver, d =>
         {
-            if (reads == 5)
+            if (d.PendingInputCount == 1)
                 content = d.GetRegionText(new Rect(0, 1, 60, 4));
         });
         for (int i = 0; i < 4; i++)
@@ -199,9 +202,9 @@ public sealed class ViewerLiveRefreshTests : IDisposable
         File.WriteAllBytes(path, Enumerable.Range(0, 70).Select(i => (byte)i).ToArray());
         var driver = new FakeConsoleDriver(width: 80, height: 6);
         string? content = null;
-        OnRead(driver, (reads, d) =>
+        OnTryRead(driver, d =>
         {
-            if (reads == 5)
+            if (d.PendingInputCount == 1)
                 content = d.GetRegionText(new Rect(0, 1, 80, 4));
         });
         for (int i = 0; i < 4; i++)
@@ -222,9 +225,9 @@ public sealed class ViewerLiveRefreshTests : IDisposable
         string path = Write("wrapped-tail.txt", new string('x', 72) + "TAIL");
         var driver = new FakeConsoleDriver(width: 10, height: 6);
         string? content = null;
-        OnRead(driver, (reads, d) =>
+        OnTryRead(driver, d =>
         {
-            if (reads == 3)
+            if (d.PendingInputCount == 1)
                 content = d.GetRegionText(new Rect(0, 1, 10, 4));
         });
         driver.EnqueueKey(Key(ConsoleKey.F2));
@@ -244,9 +247,9 @@ public sealed class ViewerLiveRefreshTests : IDisposable
         string path = WriteLines("fast-eof.txt", 12);
         var driver = new FakeConsoleDriver(width: 60, height: 6);
         string? content = null;
-        OnRead(driver, (reads, d) =>
+        OnTryRead(driver, d =>
         {
-            if (reads == 4)
+            if (d.PendingInputCount == 1)
                 content = d.GetRegionText(new Rect(0, 1, 60, 4));
         });
         driver.EnqueueKey(Key(ConsoleKey.PageDown, alt: true));
@@ -270,13 +273,13 @@ public sealed class ViewerLiveRefreshTests : IDisposable
         var driver = new FakeConsoleDriver(width: 60, height: 6);
         OnRead(driver, (reads, d) =>
         {
-            if (reads == 3)
+            if (reads == 1)
             {
                 string text = File.ReadAllText(path, Encoding.UTF8)
                     .Replace("line02", "LINE02", StringComparison.Ordinal);
                 File.WriteAllText(path, text, new UTF8Encoding(false));
             }
-            else if (reads == 4)
+            else if (reads == 2)
             {
                 d.EnqueueKey(Key(ConsoleKey.F10));
             }
@@ -297,9 +300,9 @@ public sealed class ViewerLiveRefreshTests : IDisposable
         var driver = new FakeConsoleDriver(width: 60, height: 6);
         OnRead(driver, (reads, d) =>
         {
-            if (reads == 2)
+            if (reads == 1)
                 File.AppendAllText(path, "line09\n", new UTF8Encoding(false));
-            else if (reads == 3)
+            else if (reads == 2)
                 d.EnqueueKey(Key(ConsoleKey.F10));
         });
         driver.EnqueueKey(Key(ConsoleKey.End));
@@ -330,7 +333,7 @@ public sealed class ViewerLiveRefreshTests : IDisposable
                 exclusive!.Dispose();
                 exclusive = null;
             }
-            else if (reads == 4)
+            else if (reads == 2)
             {
                 d.EnqueueKey(Key(ConsoleKey.F10));
             }
@@ -356,11 +359,11 @@ public sealed class ViewerLiveRefreshTests : IDisposable
         var driver = new FakeConsoleDriver(width: 60, height: 6);
         OnRead(driver, (reads, d) =>
         {
-            if (reads == 2)
+            if (reads == 1)
                 File.Delete(path);
-            else if (reads == 3)
+            else if (reads == 2)
                 File.WriteAllText(path, "new01\nnew02\nnew03\n", new UTF8Encoding(false));
-            else if (reads == 4)
+            else if (reads == 3)
                 d.EnqueueKey(Key(ConsoleKey.F10));
         });
         driver.EnqueueKey(Key(ConsoleKey.End));
@@ -378,9 +381,9 @@ public sealed class ViewerLiveRefreshTests : IDisposable
         string? resizedContent = null;
         OnRead(driver, (reads, d) =>
         {
-            if (reads == 2)
+            if (reads == 1)
                 d.SetSize(60, 10);
-            else if (reads == 3)
+            else if (reads == 2)
             {
                 resizedContent = d.GetRegionText(new Rect(0, 1, 60, 8));
                 d.EnqueueKey(Key(ConsoleKey.F10));
@@ -405,6 +408,22 @@ public sealed class ViewerLiveRefreshTests : IDisposable
         FileViewerFor(new ScreenRenderer(driver)).Show("virtual://snapshot.txt", reader);
 
         Assert.Contains("virtual-content", WrittenText(driver));
+    }
+
+    private static void OnTryRead(
+        FakeConsoleDriver driver,
+        Action<FakeConsoleDriver> callback)
+    {
+        void Arm()
+        {
+            driver.BeforeTryReadInput = current =>
+            {
+                callback(current);
+                Arm();
+            };
+        }
+
+        Arm();
     }
 
     private static void OnRead(
