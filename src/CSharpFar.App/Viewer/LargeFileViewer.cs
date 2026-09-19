@@ -14,6 +14,7 @@ internal sealed class LargeFileViewer
     private const int BinaryBytesPerRow = 16;
     private const int LivePollMs = 250;
     private const int MaxWrappedLineCaptureBytes = 4 * 1024 * 1024;
+    private const int ViewerBlockCacheCapacity = 32;
     private const int FastHorizontalTextScrollCells = 20;
     private const int FastPageMultiplier = 5;
 
@@ -119,7 +120,7 @@ internal sealed class LargeFileViewer
 
         try
         {
-            var cache = new BlockCache(reader);
+            var cache = new BlockCache(reader, capacity: ViewerBlockCacheCapacity);
             var scanner = LineScanner.CreateAsync(cache, reader).GetAwaiter().GetResult();
             var state = new LargeFileViewerState(cache, scanner);
             if (state.IsHexMode)
@@ -166,7 +167,7 @@ internal sealed class LargeFileViewer
         var reader = new RandomAccessFileByteReader(filePath);
         try
         {
-            var cache = new BlockCache(reader);
+            var cache = new BlockCache(reader, capacity: ViewerBlockCacheCapacity);
             var scanner = LineScanner.CreateAsync(cache, reader).GetAwaiter().GetResult();
             var state = new LargeFileViewerState(cache, scanner);
             if (state.IsHexMode)
@@ -255,7 +256,7 @@ internal sealed class LargeFileViewer
         LargeFileViewMode viewMode)
     {
         TextEncodingSelection selection = state.EncodingSelection;
-        var cache = new BlockCache(reader);
+        var cache = new BlockCache(reader, capacity: ViewerBlockCacheCapacity);
         var scanner = LineScanner
             .CreateAsync(cache, reader, selection)
             .GetAwaiter()
