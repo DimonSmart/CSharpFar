@@ -56,7 +56,10 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     [Fact]
     public void Show_F5SwitchesToRawWithoutChangingSourcePosition()
     {
-        string path = Write("raw-position.md", "| A | B |\n| --- | --- |\n| C | D |\n");
+        string path = Write(
+            "raw-position.md",
+            "| A | B |\n| --- | --- |\n| C | D |\n" +
+            string.Concat(Enumerable.Range(1, 10).Select(i => $"filler-{i}\n")));
         var driver = ViewerDriver(width: 100);
         driver.EnqueueKey(Key(ConsoleKey.DownArrow));
         driver.EnqueueKey(Key(ConsoleKey.F5));
@@ -162,13 +165,15 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
-        string row = driver.GetRegionText(new Rect(0, 1, 60, 1));
-        int targetX = row.IndexOf("target", StringComparison.Ordinal);
-        Assert.True(targetX > 0, row);
-        Assert.Equal('t', driver.GetCell(targetX, 1).Character);
+        var targetRow = Enumerable.Range(1, 10)
+            .Select(y => (Y: y, Text: driver.GetRegionText(new Rect(0, y, 60, 1))))
+            .First(row => row.Text.Contains("target", StringComparison.Ordinal));
+        int targetX = targetRow.Text.IndexOf("target", StringComparison.Ordinal);
+        Assert.True(targetX > 0, targetRow.Text);
+        Assert.Equal('t', driver.GetCell(targetX, targetRow.Y).Character);
         Assert.True(
-            driver.GetCell(targetX, 1).Foreground != driver.GetCell(0, 1).Foreground ||
-            driver.GetCell(targetX, 1).Background != driver.GetCell(0, 1).Background);
+            driver.GetCell(targetX, targetRow.Y).Foreground != driver.GetCell(0, targetRow.Y).Foreground ||
+            driver.GetCell(targetX, targetRow.Y).Background != driver.GetCell(0, targetRow.Y).Background);
     }
 
     [Fact]
