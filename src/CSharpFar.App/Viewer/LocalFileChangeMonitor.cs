@@ -94,7 +94,9 @@ internal sealed class LocalFileChangeMonitor : IDisposable
         {
             kind = LocalFileChangeKind.Reload;
         }
-        else if (!structuralChanged && current.Length > _accepted.Length)
+        else if (!structuralChanged &&
+                 current.CreationTimeUtcTicks == _accepted.CreationTimeUtcTicks &&
+                 current.Length > _accepted.Length)
         {
             kind = LocalFileChangeKind.Append;
         }
