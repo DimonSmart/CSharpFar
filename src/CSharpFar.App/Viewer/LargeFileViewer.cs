@@ -180,6 +180,93 @@ internal sealed class LargeFileViewer
         }
     }
 
+    private ModalDialogLoopResult<ViewerLoopAction> HandleLocalViewerInput(
+        string filePath,
+        RandomAccessFileByteReader reader,
+        LargeFileViewerState state,
+        LargeFileViewerOptions options,
+        LargeFileViewerFrame frame,
+        ViewerInput input)
+    {
+        ViewerTransientState snapshot = ViewerTransientState.Capture(state);
+        try
+        {
+            return HandleViewerInput(
+                filePath,
+                hasPhysicalSourcePath: true,
+                reader,
+                state,
+                options,
+                frame,
+                input);
+        }
+        catch (Exception ex) when (RandomAccessFileByteReader.IsTransientFileAccess(ex))
+        {
+            snapshot.Restore(state);
+            return ModalDialogLoopResult<ViewerLoopAction>.ContinueNoChange;
+        }
+    }
+
+    private InteractiveSurfaceWakeResult HandleLocalLiveWake(
+        string filePath,
+        RandomAccessFileByteReader reader,
+        LargeFileViewerState state,
+        LocalFileChangeMonitor monitor,
+        LargeFileViewerFrame frame)
+    {
+        LocalFileChange change = monitor.Check();
+        if (change.Kind is LocalFileChangeKind.None or LocalFileChangeKind.Unavailable)
+            return InteractiveSurfaceWakeResult.NoChange;
+
+        if (change.Kind == LocalFileChangeKind.Missing)
+        {
+            monitor.Accept(change);
+            return InteractiveSurfaceWakeResult.NoChange;
+        }
+
+        try
+        {
+            ViewerViewportAnchor anchor = state.ViewportAnchor;
+            LargeFileViewMode viewMode = state.ViewMode;
+
+            if (change.Kind == LocalFileChangeKind.Reload)
+                ReloadSource(reader, state, anchor, viewMode);
+            else
+                state.ViewportNeedsNormalization = true;
+
+            if (state.LiveMode == ViewerLiveMode.Tail)
+                MoveToEnd(filePath, reader, state, frame.ContentHeight, frame.Size.Width);
+            else
+                NormalizeViewport(filePath, reader, state, frame.ContentHeight, frame.Size.Width);
+
+            monitor.Accept(change);
+            return InteractiveSurfaceWakeResult.Changed;
+        }
+        catch (Exception ex) when (RandomAccessFileByteReader.IsTransientFileAccess(ex))
+        {
+            return InteractiveSurfaceWakeResult.NoChange;
+        }
+    }
+
+    private static void ReloadSource(
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        ViewerViewportAnchor anchor,
+        LargeFileViewMode viewMode)
+    {
+        TextEncodingSelection selection = state.EncodingSelection;
+        var cache = new BlockCache(reader);
+        var scanner = LineScanner
+            .CreateAsync(cache, reader, selection)
+            .GetAwaiter()
+            .GetResult();
+
+        state.ReplaceSource(cache, scanner, selection);
+        state.ViewMode = viewMode;
+        state.ViewportAnchor = new ViewerViewportAnchor(anchor.ByteOffset, 0);
+        state.ViewportNeedsNormalization = true;
+    }
+
     private ModalDialogLoopResult<ViewerLoopAction> HandleViewerInput(
         string filePath,
         bool hasPhysicalSourcePath,
