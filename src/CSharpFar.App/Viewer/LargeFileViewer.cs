@@ -1395,7 +1395,9 @@ internal sealed class LargeFileViewer
 
         if (state.IsHexMode)
         {
-            current = new ViewerViewportAnchor(Math.Clamp(current.ByteOffset, 0, length), 0);
+            long clamped = Math.Clamp(current.ByteOffset, 0, length);
+            long rowStart = clamped / BinaryBytesPerRow * BinaryBytesPerRow;
+            current = new ViewerViewportAnchor(rowStart, 0);
         }
         else
         {
