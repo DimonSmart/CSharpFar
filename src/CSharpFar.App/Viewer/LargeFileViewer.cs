@@ -1419,7 +1419,12 @@ internal sealed class LargeFileViewer
         state.HorizontalOffset = Math.Max(0, lineLength - Math.Max(1, width));
     }
 
-    private void JumpToPosition(IFileByteReader reader, LargeFileViewerState state, int contentHeight)
+    private void JumpToPosition(
+        string sourcePath,
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        int contentHeight,
+        int width)
     {
         string? input = _dialogs.Input(new SingleLineInputDialogOptions
         {
@@ -1455,10 +1460,14 @@ internal sealed class LargeFileViewer
                 .GetResult();
         }
 
-        if (state.TopByteOffset >= reader.Length)
-            MoveToEnd(reader, state, contentHeight);
-
-        state.FollowMode = false;
+        state.TopVisualSegment = 0;
+        state.ViewportNeedsNormalization = true;
+        NormalizeViewport(sourcePath, reader, state, contentHeight, width);
+        if (state.LiveMode == ViewerLiveMode.Tail &&
+            !IsAtEnd(sourcePath, reader, state, contentHeight, width))
+        {
+            state.LiveMode = ViewerLiveMode.Watch;
+        }
     }
 
     private static void ToggleViewMode(LargeFileViewerState state)
@@ -1474,21 +1483,27 @@ internal sealed class LargeFileViewer
         else
         {
             state.ViewMode = LargeFileViewMode.Hex;
-            state.TopByteOffset = 0;
         }
 
+        state.TopVisualSegment = 0;
         state.HorizontalOffset = 0;
         state.SearchMatch = null;
+        state.ViewportNeedsNormalization = true;
     }
 
-    private void ShowFindDialog(string filePath, IFileByteReader reader, LargeFileViewerState state, int width)
+    private void ShowFindDialog(
+        string filePath,
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        int contentHeight,
+        int width)
     {
         var selected = new ViewerFindDialog(_dialogs).Show(state.LastSearch, state.IsHexMode);
         if (selected is null)
             return;
 
         var request = ViewerSearchRequest.FromDialog(selected);
-        FindAndApply(filePath, reader, state, request, searchBackward: false, width);
+        FindAndApply(filePath, reader, state, request, searchBackward: false, contentHeight, width);
     }
 
     private void RepeatSearch(
@@ -1496,15 +1511,23 @@ internal sealed class LargeFileViewer
         IFileByteReader reader,
         LargeFileViewerState state,
         bool searchBackward,
+        int contentHeight,
         int width)
     {
         if (state.LastSearch is null)
         {
-            ShowFindDialog(filePath, reader, state, width);
+            ShowFindDialog(filePath, reader, state, contentHeight, width);
             return;
         }
 
-        FindAndApply(filePath, reader, state, state.LastSearch, searchBackward, width);
+        FindAndApply(
+            filePath,
+            reader,
+            state,
+            state.LastSearch,
+            searchBackward,
+            contentHeight,
+            width);
     }
 
     private void FindAndApply(
@@ -1513,6 +1536,7 @@ internal sealed class LargeFileViewer
         LargeFileViewerState state,
         ViewerSearchRequest request,
         bool searchBackward,
+        int contentHeight,
         int width)
     {
         ViewerSearchMatch? match;
@@ -1535,7 +1559,8 @@ internal sealed class LargeFileViewer
         state.LastSearch = request;
         state.SearchMatch = match;
         state.TopByteOffset = match.TopByteOffset;
-        state.FollowMode = false;
+        state.TopVisualSegment = 0;
+        state.ViewportNeedsNormalization = true;
 
         if (!match.IsHex && !state.WrapLines)
         {
@@ -1572,6 +1597,13 @@ internal sealed class LargeFileViewer
         else if (match.IsHex)
         {
             state.ViewMode = LargeFileViewMode.Hex;
+        }
+
+        NormalizeViewport(filePath, reader, state, contentHeight, width);
+        if (state.LiveMode == ViewerLiveMode.Tail &&
+            !IsAtEnd(filePath, reader, state, contentHeight, width))
+        {
+            state.LiveMode = ViewerLiveMode.Watch;
         }
     }
 
