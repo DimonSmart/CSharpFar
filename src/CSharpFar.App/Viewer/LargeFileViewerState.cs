@@ -2,6 +2,12 @@ using CSharpFar.Core.Text;
 
 namespace CSharpFar.App.Viewer;
 
+internal readonly record struct ViewerSourceState(
+    BlockCache BlockCache,
+    LineScanner LineScanner,
+    SparseLineIndex LineIndex,
+    TextEncodingSelection EncodingSelection);
+
 internal sealed class LargeFileViewerState
 {
     public LargeFileViewerState(BlockCache blockCache, LineScanner lineScanner)
@@ -55,6 +61,18 @@ internal sealed class LargeFileViewerState
         SearchMatch = null;
         Presentation.Reset();
         ViewportNeedsNormalization = true;
+    }
+
+    public ViewerSourceState CaptureSourceState() =>
+        new(BlockCache, LineScanner, LineIndex, EncodingSelection);
+
+    public void RestoreSourceState(ViewerSourceState source)
+    {
+        BlockCache = source.BlockCache;
+        LineScanner = source.LineScanner;
+        LineIndex = source.LineIndex;
+        EncodingSelection = source.EncodingSelection;
+        Presentation.Reset();
     }
 
     public void ReplaceSource(
