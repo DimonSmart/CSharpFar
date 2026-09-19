@@ -581,6 +581,7 @@ internal sealed class LargeFileViewer
         int contentHeight,
         ConsoleSize size)
     {
+        NormalizeViewportIfNeeded(filePath, reader, state, contentHeight, size.Width);
         DrawHeader(canvas, filePath, reader, state, size);
 
         var view = state.IsHexMode
@@ -602,11 +603,16 @@ internal sealed class LargeFileViewer
         string wrap = !state.IsHexMode && state.WrapLines
             ? state.WordWrap ? " WRAP-W" : " WRAP-C"
             : string.Empty;
-        string follow = state.FollowMode ? " F " : string.Empty;
+        string live = state.LiveMode switch
+        {
+            ViewerLiveMode.Watch => " WATCH",
+            ViewerLiveMode.Tail => " TAIL",
+            _ => string.Empty,
+        };
         string found = state.SearchMatch is not null ? " FIND" : string.Empty;
         string posSection = reader.Length == 0
-            ? $" 0%{mode}{wrap}{follow}{found} "
-            : $" {FormatPercent(state.TopByteOffset, reader.Length)}%{mode}{wrap}{follow}{found} ";
+            ? $" 0%{mode}{wrap}{live}{found} "
+            : $" {FormatPercent(state.TopByteOffset, reader.Length)}%{mode}{wrap}{live}{found} ";
 
         int nameWidth = Math.Max(0, size.Width - ConsoleTextMetrics.GetCellWidth(posSection));
         string nameSection = FormatHeaderPath(filePath, nameWidth);
@@ -698,12 +704,12 @@ internal sealed class LargeFileViewer
         int row = 0;
         long offset = Math.Clamp(state.TopByteOffset, state.LineScanner.ContentStartOffset, reader.Length);
         long nextOffset = offset;
-        int bytesPerLine = Math.Max(256, Math.Max(1, width) * Math.Max(1, contentHeight) * 4 + 1024);
+        bool firstPhysicalLine = true;
 
         while (row < contentHeight && offset < reader.Length)
         {
             var scanned = state.LineScanner
-                .ReadLinesAsync(offset, 1, bytesPerLine)
+                .ReadLinesAsync(offset, 1, MaxWrappedLineCaptureBytes)
                 .GetAwaiter()
                 .GetResult();
             if (scanned.Lines.Count == 0)
@@ -720,11 +726,20 @@ internal sealed class LargeFileViewer
                 width)[0];
             presented = ResolvePresentationForSearch(presented, state.SearchMatch);
 
-            foreach (var segment in SplitWrappedLine(presented.Text, Math.Max(1, width), state.WordWrap))
-            {
-                if (row >= contentHeight)
-                    break;
+            WrappedTextSegment[] segments = SplitWrappedLine(
+                    presented.Text,
+                    Math.Max(1, width),
+                    state.WordWrap)
+                .ToArray();
+            int startSegment = firstPhysicalLine
+                ? Math.Min(state.TopVisualSegment, Math.Max(0, segments.Length - 1))
+                : 0;
 
+            for (int segmentIndex = startSegment;
+                 segmentIndex < segments.Length && row < contentHeight;
+                 segmentIndex++)
+            {
+                WrappedTextSegment segment = segments[segmentIndex];
                 WriteTextLine(
                     canvas,
                     presented,
@@ -738,6 +753,7 @@ internal sealed class LargeFileViewer
                 row++;
             }
 
+            firstPhysicalLine = false;
             if (line.NextOffset <= offset)
                 break;
 
