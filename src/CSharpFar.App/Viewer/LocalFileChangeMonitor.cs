@@ -34,6 +34,7 @@ internal sealed class LocalFileChangeMonitor : IDisposable
     private long _structuralGeneration;
     private long _acceptedEventGeneration;
     private long _acceptedStructuralGeneration;
+    private bool _pendingLengthGrowth;
 
     public LocalFileChangeMonitor(string filePath)
     {
@@ -94,17 +95,33 @@ internal sealed class LocalFileChangeMonitor : IDisposable
         {
             kind = LocalFileChangeKind.Reload;
         }
-        else if (!structuralChanged &&
-                 current.CreationTimeUtcTicks == _accepted.CreationTimeUtcTicks &&
-                 current.Length > _accepted.Length)
+        else if (current.Length > _accepted.Length && !structuralChanged)
         {
-            kind = LocalFileChangeKind.Append;
+            if (OperatingSystem.IsWindows() &&
+                current.CreationTimeUtcTicks != _accepted.CreationTimeUtcTicks)
+            {
+                kind = LocalFileChangeKind.Reload;
+            }
+            else if (eventChanged)
+            {
+                kind = LocalFileChangeKind.Append;
+            }
+            else if (_watcher is not null && !_pendingLengthGrowth)
+            {
+                _pendingLengthGrowth = true;
+                return new LocalFileChange(LocalFileChangeKind.None, _accepted, current);
+            }
+            else
+            {
+                kind = LocalFileChangeKind.Reload;
+            }
         }
         else
         {
             kind = LocalFileChangeKind.Reload;
         }
 
+        _pendingLengthGrowth = false;
         return new LocalFileChange(kind, _accepted, current);
     }
 
@@ -116,6 +133,7 @@ internal sealed class LocalFileChangeMonitor : IDisposable
         _accepted = change.Current;
         _acceptedEventGeneration = Volatile.Read(ref _eventGeneration);
         _acceptedStructuralGeneration = Volatile.Read(ref _structuralGeneration);
+        _pendingLengthGrowth = false;
     }
 
     public void Dispose() => _watcher?.Dispose();
