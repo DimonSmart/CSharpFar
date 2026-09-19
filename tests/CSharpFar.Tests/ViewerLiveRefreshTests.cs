@@ -222,7 +222,9 @@ public sealed class ViewerLiveRefreshTests : IDisposable
     [Fact]
     public void Show_WrappedEndShowsTrueVisualTail()
     {
-        string path = Write("wrapped-tail.txt", new string('x', 72) + "TAIL");
+        string path = Write(
+            "wrapped-tail.txt",
+            string.Concat(Enumerable.Range(0, 8).Select(i => $"{i}{new string((char)('a' + i), 9)}")));
         var driver = new FakeConsoleDriver(width: 10, height: 6);
         string? content = null;
         OnTryRead(driver, d =>
@@ -237,8 +239,8 @@ public sealed class ViewerLiveRefreshTests : IDisposable
         FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
         Assert.NotNull(content);
-        Assert.Contains("TAIL", content);
-        Assert.DoesNotContain(new string('x', 40), content);
+        Assert.Contains("7hhhhhhhhh", content);
+        Assert.DoesNotContain("0aaaaaaaaa", content);
     }
 
     [Fact]
@@ -321,19 +323,19 @@ public sealed class ViewerLiveRefreshTests : IDisposable
         FileStream? exclusive = null;
         OnRead(driver, (reads, d) =>
         {
-            if (reads == 2)
+            if (reads == 1)
             {
                 string text = File.ReadAllText(path, Encoding.UTF8)
                     .Replace("line01", "LINE01", StringComparison.Ordinal);
                 File.WriteAllText(path, text, new UTF8Encoding(false));
                 exclusive = File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
             }
-            else if (reads == 3)
+            else if (reads == 2)
             {
                 exclusive!.Dispose();
                 exclusive = null;
             }
-            else if (reads == 2)
+            else if (reads == 3)
             {
                 d.EnqueueKey(Key(ConsoleKey.F10));
             }
