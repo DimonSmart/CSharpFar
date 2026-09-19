@@ -282,7 +282,7 @@ internal sealed class LargeFileViewer
 
         if (input.ScrollLines is { } lines)
         {
-            ApplyScrollLines(reader, state, view, lines);
+            ApplyScrollLines(filePath, reader, state, lines, contentHeight, size.Width);
             return ModalDialogLoopResult<ViewerLoopAction>.ContinueChanged;
         }
 
@@ -308,11 +308,11 @@ internal sealed class LargeFileViewer
         switch (key.Key)
         {
             case ConsoleKey.UpArrow:
-                MoveUp(state);
+                MoveUp(filePath, reader, state, size.Width);
                 break;
 
             case ConsoleKey.DownArrow:
-                MoveDown(reader, state, view);
+                MoveDown(filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.LeftArrow when control && shift:
@@ -345,31 +345,34 @@ internal sealed class LargeFileViewer
                 break;
 
             case ConsoleKey.PageUp when alt:
-                MovePageUp(state, contentHeight, FastPageMultiplier);
+                MovePageUp(filePath, reader, state, contentHeight, size.Width, FastPageMultiplier);
                 break;
 
             case ConsoleKey.PageDown when alt:
-                MovePageDown(reader, state, contentHeight, FastPageMultiplier);
+                MovePageDown(filePath, reader, state, contentHeight, size.Width, FastPageMultiplier);
                 break;
 
             case ConsoleKey.PageUp:
-                MovePageUp(state, contentHeight, pages: 1);
+                MovePageUp(filePath, reader, state, contentHeight, size.Width, pages: 1);
                 break;
 
             case ConsoleKey.PageDown:
-                MovePageDown(reader, state, view, contentHeight);
+                MovePageDown(filePath, reader, state, contentHeight, size.Width, pages: 1);
                 break;
 
             case ConsoleKey.Home:
-                state.TopByteOffset = state.IsHexMode ? 0 : state.LineScanner.ContentStartOffset;
+                state.ViewportAnchor = new ViewerViewportAnchor(
+                    state.IsHexMode ? 0 : state.LineScanner.ContentStartOffset,
+                    0);
                 state.HorizontalOffset = 0;
-                state.FollowMode = false;
+                if (state.LiveMode == ViewerLiveMode.Tail)
+                    state.LiveMode = ViewerLiveMode.Watch;
                 break;
 
             case ConsoleKey.End:
-                MoveToEnd(reader, state, contentHeight);
+                MoveToEnd(filePath, reader, state, contentHeight, size.Width);
                 state.HorizontalOffset = 0;
-                state.FollowMode = true;
+                state.LiveMode = ViewerLiveMode.Tail;
                 break;
 
             case ConsoleKey.F1:
@@ -379,13 +382,17 @@ internal sealed class LargeFileViewer
             case ConsoleKey.F2 when shift && !alt && !control:
                 state.WordWrap = !state.WordWrap;
                 state.WrapLines = true;
+                state.TopVisualSegment = 0;
                 state.HorizontalOffset = 0;
+                state.ViewportNeedsNormalization = true;
                 break;
 
             case ConsoleKey.F2 when !shift && !alt && !control:
                 state.WrapLines = !state.WrapLines;
+                state.TopVisualSegment = 0;
                 if (state.WrapLines)
                     state.HorizontalOffset = 0;
+                state.ViewportNeedsNormalization = true;
                 break;
 
             case ConsoleKey.F3 when !shift && !alt && !control:
@@ -415,19 +422,19 @@ internal sealed class LargeFileViewer
                 break;
 
             case ConsoleKey.F7 when alt:
-                RepeatSearch(filePath, reader, state, searchBackward: true, size.Width);
+                RepeatSearch(filePath, reader, state, searchBackward: true, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.F7 when shift && !alt:
-                RepeatSearch(filePath, reader, state, searchBackward: false, size.Width);
+                RepeatSearch(filePath, reader, state, searchBackward: false, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.F7 when !shift && !alt && !control:
-                ShowFindDialog(filePath, reader, state, size.Width);
+                ShowFindDialog(filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.F8 when alt:
-                JumpToPosition(reader, state, contentHeight);
+                JumpToPosition(filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.F8 when control:
@@ -463,13 +470,11 @@ internal sealed class LargeFileViewer
                 break;
 
             case ConsoleKey.F when !shift && !alt && !control:
-                state.FollowMode = !state.FollowMode;
-                if (state.FollowMode)
-                    MoveToEnd(reader, state, contentHeight);
+                CycleLiveMode(filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.G when !shift && !alt && !control:
-                JumpToPosition(reader, state, contentHeight);
+                JumpToPosition(filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.H when !shift && !alt && !control:
@@ -477,7 +482,7 @@ internal sealed class LargeFileViewer
                 break;
 
             case ConsoleKey.Spacebar when !shift && !alt && !control:
-                RepeatSearch(filePath, reader, state, searchBackward: false, size.Width);
+                RepeatSearch(filePath, reader, state, searchBackward: false, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.U when control:
