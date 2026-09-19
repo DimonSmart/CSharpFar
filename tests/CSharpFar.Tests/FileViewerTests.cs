@@ -392,12 +392,12 @@ public class FileViewerTests : IDisposable
     }
 
     [Fact]
-    public void Show_FollowKeyShowsFollowStatus()
+    public void Show_FKeyShowsWatchStatus()
     {
         string path = WriteLargeTextFile(
-            "large-follow.txt",
+            "large-watch.txt",
             LargeTestFileSize,
-            "tail-follow-file");
+            "tail-watch-file");
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
         driver.EnqueueKey(Key(ConsoleKey.F10));
@@ -405,7 +405,7 @@ public class FileViewerTests : IDisposable
 
         FileViewerFor(screen).Show(path);
 
-        Assert.Contains(" F ", WrittenText(driver));
+        Assert.Contains("WATCH", WrittenText(driver));
     }
 
     [Fact]
