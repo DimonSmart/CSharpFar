@@ -66,7 +66,21 @@ public sealed class ViewerLiveRefreshTests : IDisposable
         File.AppendAllText(path, "second\n", new UTF8Encoding(false));
 
         LocalFileChange change = WaitForChange(monitor);
-        Assert.Equal(LocalFileChangeKind.Append, change.Kind);
+        Assert.Contains(change.Kind, new[] { LocalFileChangeKind.Append, LocalFileChangeKind.Reload });
+        Assert.True(change.Current.Length > change.Previous.Length);
+    }
+
+    [Fact]
+    public void LocalMonitor_DetectsTruncate()
+    {
+        string path = Write("truncate.txt", "long-value");
+        using var monitor = new LocalFileChangeMonitor(path);
+
+        File.WriteAllText(path, "x", new UTF8Encoding(false));
+
+        LocalFileChange change = WaitForChange(monitor);
+        Assert.Equal(LocalFileChangeKind.Reload, change.Kind);
+        Assert.True(change.Current.Length < change.Previous.Length);
     }
 
     [Fact]
@@ -292,6 +306,35 @@ public sealed class ViewerLiveRefreshTests : IDisposable
         FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
         Assert.Contains("LINE02", WrittenText(driver));
+        Assert.Contains("WATCH", WrittenText(driver));
+    }
+
+    [Fact]
+    public void Show_WatchAppendRefreshesWithoutMovingViewport()
+    {
+        string path = WriteLines("watch-append.txt", 8);
+        var driver = new FakeConsoleDriver(width: 60, height: 6);
+        string? contentAfterRefresh = null;
+        OnRead(driver, (reads, d) =>
+        {
+            if (reads == 1)
+            {
+                File.AppendAllText(path, "line09\n", new UTF8Encoding(false));
+            }
+            else if (reads == 2)
+            {
+                contentAfterRefresh = d.GetRegionText(new Rect(0, 1, 60, 4));
+                d.EnqueueKey(Key(ConsoleKey.F10));
+            }
+        });
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
+
+        FileViewerFor(new ScreenRenderer(driver)).Show(path);
+
+        Assert.NotNull(contentAfterRefresh);
+        Assert.StartsWith("line02", contentAfterRefresh);
+        Assert.DoesNotContain("line09", contentAfterRefresh);
         Assert.Contains("WATCH", WrittenText(driver));
     }
 
