@@ -22,16 +22,21 @@ internal sealed class RandomAccessFileByteReader : IFileByteReader, IDisposable
         {
             try
             {
-                using SafeFileHandle handle = OpenHandle();
-                long length = RandomAccess.GetLength(handle);
-                Volatile.Write(ref _lastKnownLength, length);
-                return length;
+                return GetCurrentLength();
             }
             catch (Exception ex) when (IsTransientFileAccess(ex))
             {
                 return Math.Max(0, Volatile.Read(ref _lastKnownLength));
             }
         }
+    }
+
+    internal long GetCurrentLength()
+    {
+        using SafeFileHandle handle = OpenHandle();
+        long length = RandomAccess.GetLength(handle);
+        Volatile.Write(ref _lastKnownLength, length);
+        return length;
     }
 
     public async Task<int> ReadAsync(
