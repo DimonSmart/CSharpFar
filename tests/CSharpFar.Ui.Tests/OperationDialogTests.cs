@@ -150,7 +150,6 @@ public sealed class OperationDialogTests
     public void OperationCompletion_CanRefreshAndKeepDialogOpen()
     {
         var driver = new FakeConsoleDriver();
-        driver.EnqueueKey(Key(ConsoleKey.Escape));
         bool completionHandled = false;
         int completionCalls = 0;
 
@@ -166,6 +165,7 @@ public sealed class OperationDialogTests
                 Assert.Equal(7, value);
                 completionHandled = true;
                 completionCalls++;
+                driver.EnqueueKey(Key(ConsoleKey.Escape));
                 return OperationDialogOutcome<string>.ContinueChanged;
             },
             HandleCancel = () => OperationDialogOutcome<string>.Complete("closed"),
