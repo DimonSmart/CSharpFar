@@ -392,20 +392,87 @@ public class FileViewerTests : IDisposable
     }
 
     [Fact]
-    public void Show_FollowKeyShowsFollowStatus()
+    public void Show_FKeyCyclesWatchAndTailStatus()
     {
         string path = WriteLargeTextFile(
-            "large-follow.txt",
+            "large-live.txt",
             LargeTestFileSize,
-            "tail-follow-file");
+            "tail-live-file");
         var driver = new FakeConsoleDriver(width: 80, height: 10);
+        driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
         driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
 
-        Assert.Contains(" F ", WrittenText(driver));
+        string writes = WrittenText(driver);
+        Assert.Contains("WATCH", writes);
+        Assert.Contains("TAIL", writes);
+        Assert.Contains("tail-live-file", writes);
+    }
+
+    [Fact]
+    public void Show_EndEnablesTailForLocalFile()
+    {
+        string path = Write("end-tail.txt", "first\nsecond\nthird", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 80, height: 8);
+        driver.EnqueueKey(Key(ConsoleKey.End));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        FileViewerFor(new ScreenRenderer(driver)).Show(path);
+
+        Assert.Contains("TAIL", WrittenText(driver));
+    }
+
+    [Fact]
+    public void Show_EndOnVirtualSourceDoesNotEnableTail()
+    {
+        var driver = new FakeConsoleDriver(width: 80, height: 8);
+        driver.EnqueueKey(Key(ConsoleKey.End));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var reader = new MemoryFileByteReader(Encoding.UTF8.GetBytes("first\nsecond\n"));
+
+        FileViewerFor(new ScreenRenderer(driver)).Show("remote.txt", reader);
+
+        Assert.DoesNotContain("TAIL", WrittenText(driver));
+    }
+
+    [Fact]
+    public void Show_WrappedEndShowsFinalSegmentsOfLongLine()
+    {
+        string path = Write(
+            "wrapped-tail.txt",
+            new string('x', 96) + "TAIL",
+            new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 10, height: 6);
+        driver.EnqueueKey(Key(ConsoleKey.F2));
+        driver.EnqueueKey(Key(ConsoleKey.End));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        FileViewerFor(new ScreenRenderer(driver)).Show(path);
+
+        Assert.Contains("TAIL", WrittenText(driver));
+    }
+
+    [Fact]
+    public void Show_PageDownClampsToLastFullPage()
+    {
+        string path = Write(
+            "page-down-clamp.txt",
+            string.Join('\n', Enumerable.Range(1, 8).Select(i => $"line{i}")),
+            new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 80, height: 8);
+        driver.EnqueueKey(Key(ConsoleKey.PageDown));
+        driver.EnqueueKey(Key(ConsoleKey.PageDown));
+        driver.EnqueueKey(Key(ConsoleKey.PageDown));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        FileViewerFor(new ScreenRenderer(driver)).Show(path);
+
+        string content = driver.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
+        Assert.Contains("line3", content);
+        Assert.Contains("line8", content);
     }
 
     [Fact]
@@ -420,6 +487,74 @@ public class FileViewerTests : IDisposable
         FileViewerFor(screen).Show(path);
 
         Assert.Contains("WRAP-W", WrittenText(driver));
+    }
+
+    [Fact]
+    public void RandomAccessFileByteReader_DoesNotHoldPersistentHandle()
+    {
+        string path = Write("non-blocking-reader.txt", "content", new UTF8Encoding(false));
+        using var reader = new RandomAccessFileByteReader(path);
+
+        using var exclusive = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.ReadWrite,
+            FileShare.None);
+
+        Assert.True(exclusive.CanRead);
+    }
+
+    [Fact]
+    public async Task RandomAccessFileByteReader_ReadsReplacementAtSamePath()
+    {
+        string path = WritePath("replace-reader.txt");
+        File.WriteAllBytes(path, "AAAA"u8.ToArray());
+        using var reader = new RandomAccessFileByteReader(path);
+        var buffer = new byte[4];
+
+        Assert.Equal(4, await reader.ReadAsync(0, buffer));
+        Assert.Equal("AAAA", Encoding.ASCII.GetString(buffer));
+
+        string replacement = WritePath("replace-reader.tmp");
+        File.WriteAllBytes(replacement, "BBBB"u8.ToArray());
+        File.Move(replacement, path, overwrite: true);
+
+        Array.Clear(buffer);
+        Assert.Equal(4, await reader.ReadAsync(0, buffer));
+        Assert.Equal("BBBB", Encoding.ASCII.GetString(buffer));
+    }
+
+    [Fact]
+    public async Task BlockCache_ClearDropsSameLengthStaleBlock()
+    {
+        string path = WritePath("cache-overwrite.txt");
+        File.WriteAllBytes(path, "AAAA"u8.ToArray());
+        using var reader = new RandomAccessFileByteReader(path);
+        var cache = new BlockCache(reader, blockSize: 4, capacity: 2);
+
+        Assert.Equal("AAAA", Encoding.ASCII.GetString((await cache.ReadBlockAsync(0)).Span));
+
+        File.WriteAllBytes(path, "BBBB"u8.ToArray());
+        Assert.Equal("AAAA", Encoding.ASCII.GetString((await cache.ReadBlockAsync(0)).Span));
+
+        cache.Clear();
+        Assert.Equal("BBBB", Encoding.ASCII.GetString((await cache.ReadBlockAsync(0)).Span));
+    }
+
+    [Fact]
+    public void LocalFileMonitor_DirtySignalForcesRefreshWithUnchangedMetadata()
+    {
+        var snapshot = new LocalFileSnapshot(
+            Exists: true,
+            Length: 4,
+            LastWriteTimeUtc: new DateTime(2026, 9, 21, 12, 0, 0, DateTimeKind.Utc));
+
+        Assert.False(LocalFileMonitor.ShouldRefresh(snapshot, snapshot, watcherDirty: false));
+        Assert.True(LocalFileMonitor.ShouldRefresh(snapshot, snapshot, watcherDirty: true));
+        Assert.True(LocalFileMonitor.ShouldRefresh(
+            snapshot,
+            snapshot with { Length = 5 },
+            watcherDirty: false));
     }
 
     [Fact]
