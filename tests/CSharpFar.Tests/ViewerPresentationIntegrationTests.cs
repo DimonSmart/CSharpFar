@@ -112,13 +112,13 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void Session_SingleWrappedHeaderUsesBoundedLookAheadToFindSeparator()
+    public async Task Session_SingleWrappedHeaderUsesBoundedLookAheadToFindSeparator()
     {
         byte[] bytes = Encoding.UTF8.GetBytes("| A | B |\n| --- | --- |\n| C | D |\n");
         var reader = new MemoryFileByteReader(bytes);
         var cache = new BlockCache(reader, blockSize: 32, capacity: 8);
-        var scanner = LineScanner.CreateAsync(cache, reader).GetAwaiter().GetResult();
-        ScannedLine header = scanner.ReadLinesAsync(0, 1, 256).GetAwaiter().GetResult().Lines.Single();
+        var scanner = await LineScanner.CreateAsync(cache, reader);
+        ScannedLine header = (await scanner.ReadLinesAsync(0, 1, 256)).Lines.Single();
         var session = new ViewerPresentationSession();
 
         PresentedLine result = session.Present(
@@ -172,12 +172,12 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void ViewerSearchEngine_DoesNotSearchPresentationDecoration()
+    public async Task ViewerSearchEngine_DoesNotSearchPresentationDecoration()
     {
         byte[] bytes = Encoding.UTF8.GetBytes("| A | B |\n| --- | --- |\n| C | D |\n");
         var reader = new MemoryFileByteReader(bytes);
         var cache = new BlockCache(reader);
-        var scanner = LineScanner.CreateAsync(cache, reader).GetAwaiter().GetResult();
+        var scanner = await LineScanner.CreateAsync(cache, reader);
         var state = new LargeFileViewerState(cache, scanner);
 
         ViewerSearchMatch? match = ViewerSearchEngine.Find(
@@ -222,7 +222,7 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void Session_DistantTableJumpUsesBoundedReadsAndFallsBackRaw()
+    public async Task Session_DistantTableJumpUsesBoundedReadsAndFallsBackRaw()
     {
         const int targetRow = 5000;
         var source = new StringBuilder();
@@ -243,7 +243,7 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         byte[] bytes = Encoding.UTF8.GetBytes(source.ToString());
         var reader = new RecordingFileByteReader(bytes);
         var cache = new BlockCache(reader, blockSize: 4096, capacity: 128);
-        var scanner = LineScanner.CreateAsync(cache, reader).GetAwaiter().GetResult();
+        var scanner = await LineScanner.CreateAsync(cache, reader);
         reader.ResetMetrics();
         int targetByteLength = Encoding.UTF8.GetByteCount(targetText) + 1;
         var visible = new ScannedLine(targetOffset, targetOffset + targetByteLength, targetText);
@@ -263,22 +263,22 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void ResetScannerInvalidatesPresentationLayoutCache()
+    public async Task ResetScannerInvalidatesPresentationLayoutCache()
     {
         var firstReader = new MemoryFileByteReader(
             Encoding.UTF8.GetBytes("| A | B |\n| --- | --- |\n| C | D |\n"));
         var firstCache = new BlockCache(firstReader, blockSize: 64, capacity: 8);
-        var firstScanner = LineScanner.CreateAsync(firstCache, firstReader).GetAwaiter().GetResult();
+        var firstScanner = await LineScanner.CreateAsync(firstCache, firstReader);
         var state = new LargeFileViewerState(firstCache, firstScanner);
-        IReadOnlyList<ScannedLine> firstLines = firstScanner.ReadLinesAsync(0, 3, 256).GetAwaiter().GetResult().Lines;
+        IReadOnlyList<ScannedLine> firstLines = (await firstScanner.ReadLinesAsync(0, 3, 256)).Lines;
         Assert.StartsWith("│", state.Presentation.Present(
             ViewerPresentationMode.Auto, "cache.md", firstScanner, firstLines, 80)[2].Text);
 
         var secondReader = new MemoryFileByteReader(Encoding.UTF8.GetBytes("| C | D |\n"));
         var secondCache = new BlockCache(secondReader, blockSize: 64, capacity: 8);
-        var secondScanner = LineScanner.CreateAsync(secondCache, secondReader).GetAwaiter().GetResult();
+        var secondScanner = await LineScanner.CreateAsync(secondCache, secondReader);
         state.ResetScanner(secondScanner, secondScanner.Detection.Selection);
-        ScannedLine secondLine = secondScanner.ReadLinesAsync(0, 1, 256).GetAwaiter().GetResult().Lines.Single();
+        ScannedLine secondLine = (await secondScanner.ReadLinesAsync(0, 1, 256)).Lines.Single();
 
         PresentedLine result = state.Presentation.Present(
             ViewerPresentationMode.Auto, "cache.md", secondScanner, [secondLine], 80).Single();
@@ -287,12 +287,12 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void Session_ProviderFailureFallsBackRawAndDoesNotLoop()
+    public async Task Session_ProviderFailureFallsBackRawAndDoesNotLoop()
     {
         var reader = new MemoryFileByteReader(Encoding.UTF8.GetBytes("plain\n"));
         var cache = new BlockCache(reader, blockSize: 32, capacity: 4);
-        var scanner = LineScanner.CreateAsync(cache, reader).GetAwaiter().GetResult();
-        ScannedLine source = scanner.ReadLinesAsync(0, 1, 256).GetAwaiter().GetResult().Lines.Single();
+        var scanner = await LineScanner.CreateAsync(cache, reader);
+        ScannedLine source = (await scanner.ReadLinesAsync(0, 1, 256)).Lines.Single();
         var session = new ViewerPresentationSession();
         var provider = new ThrowingProvider();
         SetPrivate(session, "_sourcePath", "broken.md");

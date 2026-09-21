@@ -76,13 +76,13 @@ public sealed class MarkdownPresentationLimitTests
     }
 
     [Fact]
-    public void SearchNavigation_LargeSourceLineCannotBypassInlineGuard()
+    public async Task SearchNavigation_LargeSourceLineCannotBypassInlineGuard()
     {
         string sourceText = "**target** " + new string('x', Limit);
         byte[] bytes = Encoding.UTF8.GetBytes(sourceText + "\n");
         var reader = new MemoryFileByteReader(bytes);
         var cache = new BlockCache(reader, blockSize: 4096, capacity: 32);
-        var scanner = LineScanner.CreateAsync(cache, reader).GetAwaiter().GetResult();
+        var scanner = await LineScanner.CreateAsync(cache, reader);
         var state = new LargeFileViewerState(cache, scanner);
 
         ViewerSearchMatch? match = ViewerSearchEngine.Find(
@@ -97,10 +97,8 @@ public sealed class MarkdownPresentationLimitTests
             searchBackward: false);
 
         Assert.NotNull(match);
-        ScannedLine source = scanner
-            .ReadLinesAsync(match.LineStartOffset, 1, bytes.Length)
-            .GetAwaiter()
-            .GetResult()
+        ScannedLine source = (await scanner
+            .ReadLinesAsync(match.LineStartOffset, 1, bytes.Length))
             .Lines
             .Single();
 

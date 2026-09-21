@@ -6,11 +6,11 @@ namespace CSharpFar.Tests;
 public sealed class ViewerPresentationSessionBehaviorTests
 {
     [Fact]
-    public void RawModeDoesNotReadPresentationContext()
+    public async Task RawModeDoesNotReadPresentationContext()
     {
         var reader = new CountingReader(Encoding.UTF8.GetBytes("first\nsecond\nthird\n"));
         var cache = new BlockCache(reader, blockSize: 16, capacity: 4);
-        var scanner = LineScanner.CreateAsync(cache, reader).GetAwaiter().GetResult();
+        var scanner = await LineScanner.CreateAsync(cache, reader);
         reader.Reset();
         var source = new ScannedLine(6, 13, "second");
         var session = new ViewerPresentationSession();
@@ -27,11 +27,11 @@ public sealed class ViewerPresentationSessionBehaviorTests
     }
 
     [Fact]
-    public void AutoWithoutMatchingProviderDoesNotReadPresentationContext()
+    public async Task AutoWithoutMatchingProviderDoesNotReadPresentationContext()
     {
         var reader = new CountingReader(Encoding.UTF8.GetBytes("first\nsecond\nthird\n"));
         var cache = new BlockCache(reader, blockSize: 16, capacity: 4);
-        var scanner = LineScanner.CreateAsync(cache, reader).GetAwaiter().GetResult();
+        var scanner = await LineScanner.CreateAsync(cache, reader);
         reader.Reset();
         var source = new ScannedLine(6, 13, "second");
         var session = new ViewerPresentationSession();

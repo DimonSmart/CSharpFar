@@ -170,8 +170,17 @@ public sealed class QuickViewMonitoringBehaviorTests : IDisposable
     private sealed class ControlledCalculator : IDirectorySizeCalculator
     {
         private long _nextOperationId;
-        public event Action<DirectoryScanUpdate>? Progress;
-        public event Action<DirectoryScanUpdate>? Completed;
+        public event Action<DirectoryScanUpdate>? Progress
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action<DirectoryScanUpdate>? Completed
+        {
+            add { }
+            remove { }
+        }
         public int StartCount { get; private set; }
 
         public long Start(string path, DirectoryScanProgressMode progressMode, Action<long>? operationStarted = null)

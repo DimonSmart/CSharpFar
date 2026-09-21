@@ -371,7 +371,8 @@ public sealed class DiagnosticsTests
         _ = await httpService.CheckAsync(new ReleaseVersion(1, 0, 68), CancellationToken.None);
 
         DiagnosticEntry exceptionEntry = Assert.Single(
-            httpLog.GetSnapshot().Where(entry => entry.ExceptionInfo is not null));
+            httpLog.GetSnapshot(),
+            entry => entry.ExceptionInfo is not null);
         Assert.Contains("HttpRequestException", exceptionEntry.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("secret-value", exceptionEntry.ExceptionInfo!.Message, StringComparison.Ordinal);
 
