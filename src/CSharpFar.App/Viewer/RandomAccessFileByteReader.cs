@@ -6,6 +6,7 @@ internal sealed class RandomAccessFileByteReader : IFileByteReader, IDisposable
 {
     private readonly string _filePath;
     private long _lastKnownLength;
+    private int _transientFailureVersion;
 
     public RandomAccessFileByteReader(string filePath)
     {
@@ -15,6 +16,8 @@ internal sealed class RandomAccessFileByteReader : IFileByteReader, IDisposable
     }
 
     public string FilePath => _filePath;
+
+    public int TransientFailureVersion => Volatile.Read(ref _transientFailureVersion);
 
     public long Length
     {
@@ -28,6 +31,7 @@ internal sealed class RandomAccessFileByteReader : IFileByteReader, IDisposable
             }
             catch (Exception ex) when (IsTransientFileAccess(ex))
             {
+                Interlocked.Increment(ref _transientFailureVersion);
                 return Volatile.Read(ref _lastKnownLength);
             }
         }
@@ -94,6 +98,7 @@ internal sealed class RandomAccessFileByteReader : IFileByteReader, IDisposable
         }
         catch (Exception ex) when (IsTransientFileAccess(ex))
         {
+            Interlocked.Increment(ref _transientFailureVersion);
             return 0;
         }
     }
