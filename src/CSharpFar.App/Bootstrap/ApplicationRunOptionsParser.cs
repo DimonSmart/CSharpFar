@@ -9,34 +9,54 @@ public static class ApplicationRunOptionsParser
     {
         ArgumentNullException.ThrowIfNull(args);
 
-        if (args.Count == 0)
-        {
-            options = ApplicationRunOptions.Normal;
-            error = null;
-            return true;
-        }
+        ApplicationRunMode mode = ApplicationRunMode.Normal;
+        string? demoRootPath = null;
+        bool diagnosticsEnabled = false;
 
-        if (args.Count == 2 && string.Equals(args[0], "--demo", StringComparison.Ordinal))
+        for (int index = 0; index < args.Count; index++)
         {
-            if (string.IsNullOrWhiteSpace(args[1]))
+            string argument = args[index];
+
+            if (string.Equals(argument, "--diagnostics", StringComparison.Ordinal))
             {
-                options = ApplicationRunOptions.Normal;
-                error = "Demo mode requires a fixture directory path.\nUsage: csharpfar --demo <root-path>";
-                return false;
+                if (diagnosticsEnabled)
+                    return FailUnknown(out options, out error);
+
+                diagnosticsEnabled = true;
+                continue;
             }
 
-            options = new ApplicationRunOptions(ApplicationRunMode.Demo, args[1]);
-            error = null;
-            return true;
+            if (string.Equals(argument, "--demo", StringComparison.Ordinal))
+            {
+                if (mode == ApplicationRunMode.Demo)
+                    return FailUnknown(out options, out error);
+
+                if (index + 1 >= args.Count ||
+                    string.IsNullOrWhiteSpace(args[index + 1]) ||
+                    args[index + 1].StartsWith("--", StringComparison.Ordinal))
+                {
+                    options = ApplicationRunOptions.Normal;
+                    error = "Demo mode requires a fixture directory path.\nUsage: csharpfar --demo <root-path>";
+                    return false;
+                }
+
+                mode = ApplicationRunMode.Demo;
+                demoRootPath = args[++index];
+                continue;
+            }
+
+            return FailUnknown(out options, out error);
         }
 
-        if (args.Count == 1 && string.Equals(args[0], "--demo", StringComparison.Ordinal))
-        {
-            options = ApplicationRunOptions.Normal;
-            error = "Demo mode requires a fixture directory path.\nUsage: csharpfar --demo <root-path>";
-            return false;
-        }
+        options = new ApplicationRunOptions(mode, demoRootPath, diagnosticsEnabled);
+        error = null;
+        return true;
+    }
 
+    private static bool FailUnknown(
+        out ApplicationRunOptions options,
+        out string? error)
+    {
         options = ApplicationRunOptions.Normal;
         error = "Unknown command-line arguments.";
         return false;

@@ -9,6 +9,7 @@ internal static class DefaultApplicationCommands
     [
         new HelpCommand(),
         new AboutCommand(),
+        new DiagnosticsCommand(),
         new UserMenuCommand(),
         new ViewFileCommand(directorySizes),
         new CalculateDirectorySizesCommand(directorySizes),

@@ -19,23 +19,32 @@ public static class ApplicationVersionProvider
         string? informationalVersion,
         Version? assemblyVersion)
     {
-        string displayVersion = !string.IsNullOrWhiteSpace(informationalVersion)
-            ? informationalVersion.Trim()
-            : assemblyVersion?.ToString() ?? "unknown";
+        string? normalizedInformational = string.IsNullOrWhiteSpace(informationalVersion)
+            ? null
+            : informationalVersion.Trim();
+        string displayVersion = normalizedInformational
+            ?? assemblyVersion?.ToString()
+            ?? "unknown";
 
         ReleaseVersion? comparable = null;
-        if (ReleaseVersionParser.TryParse(informationalVersion, out ReleaseVersion fromInformational))
+        if (ReleaseVersionParser.TryParse(normalizedInformational, out ReleaseVersion fromInformational))
             comparable = fromInformational;
         else if (ReleaseVersionParser.TryParse(assemblyVersion, out ReleaseVersion fromAssembly))
             comparable = fromAssembly;
 
-        return new ApplicationVersionInfo(displayVersion, comparable);
+        return new ApplicationVersionInfo(
+            displayVersion,
+            comparable,
+            normalizedInformational,
+            assemblyVersion);
     }
 }
 
 internal sealed record ApplicationVersionInfo(
     string DisplayVersion,
-    ReleaseVersion? ComparableVersion)
+    ReleaseVersion? ComparableVersion,
+    string? InformationalVersion = null,
+    Version? AssemblyVersion = null)
 {
     public string AboutVersion => ComparableVersion?.ToString() ?? DisplayVersion;
 }

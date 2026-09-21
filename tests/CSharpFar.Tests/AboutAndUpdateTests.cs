@@ -215,6 +215,8 @@ public sealed class AboutAndUpdateTests
         Assert.Equal(MenuItemKind.Separator, help.Children[1].Kind);
         Assert.Equal("About...", help.Children[2].Text);
         Assert.Equal(ApplicationCommandIds.About, help.Children[2].CommandId);
+        Assert.Equal("Diagnostics...", help.Children[3].Text);
+        Assert.Equal(ApplicationCommandIds.Diagnostics, help.Children[3].CommandId);
     }
 
     [Fact]

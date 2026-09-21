@@ -26,13 +26,14 @@ public static class ApplicationBootstrap
             return;
         }
 
-        RunNormal(renderer, platform, settingsStore, settings);
+        RunNormal(renderer, platform, settingsStore, runOptions, settings);
     }
 
     private static void RunNormal(
         ScreenRenderer renderer,
         IPlatformServices platform,
         JsonSettingsStore settingsStore,
+        ApplicationRunOptions runOptions,
         Core.Models.AppSettings settings)
     {
         var fs = new FileSystemService();
@@ -70,6 +71,7 @@ public static class ApplicationBootstrap
             credentialStore: platform.CredentialStore,
             configDirectory: settingsStore.ConfigDirectory,
             terminalScreenMode: platform.TerminalScreenMode,
+            runOptions: runOptions,
             processesAndPorts: platform.ProcessesAndPorts,
             fileUsage: platform.FileUsage,
             platform: platform.Platform);

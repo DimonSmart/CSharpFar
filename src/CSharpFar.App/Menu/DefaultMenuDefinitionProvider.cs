@@ -194,6 +194,7 @@ public sealed class DefaultMenuDefinitionProvider
                 Command("Help.help", "Help", 'H', FunctionKeyCommandIds.Help),
                 Separator("Help.sep.about"),
                 Command("Help.about", "About...", 'A', ApplicationCommandIds.About),
+                Command("Help.diagnostics", "Diagnostics...", 'D', ApplicationCommandIds.Diagnostics),
             ],
         };
 

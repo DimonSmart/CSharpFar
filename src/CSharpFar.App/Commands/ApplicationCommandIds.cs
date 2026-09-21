@@ -9,4 +9,5 @@ internal static class ApplicationCommandIds
     public const string CompareFolders = "application.compareFolders";
     public const string CompareFileSets = "application.compareFileSets";
     public const string About = "application.about";
+    public const string Diagnostics = "application.diagnostics";
 }

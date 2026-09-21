@@ -2,6 +2,7 @@ using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.CommandLine;
 using CSharpFar.App.Commands;
 using CSharpFar.App.Dialogs;
+using CSharpFar.App.Diagnostics;
 using CSharpFar.App.Files;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
@@ -9,6 +10,7 @@ using CSharpFar.App.Panels;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.App.UserMenu;
+using CSharpFar.App.Updates;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
@@ -71,7 +73,9 @@ internal static class CommandServicesFactory
         IVolumeService? volumeService,
         IFileMetadataService fileMetadata,
         Func<IFileAttributesDialog> fileAttributesDialogFactory,
-        IFileHighlightService? highlightService)
+        IFileHighlightService? highlightService,
+        IDiagnosticLog diagnosticLog,
+        UpdateCheckService updateCheckService)
     {
         var changeDirectoryCommandExecutor = new ChangeDirectoryCommandExecutor(
             panelController,
@@ -141,7 +145,9 @@ internal static class CommandServicesFactory
             volumeService,
             fileMetadata,
             fileAttributesDialogFactory,
-            highlightService);
+            highlightService,
+            diagnosticLog,
+            updateCheckService);
 
         return new CommandServices(
             commandRegistry,

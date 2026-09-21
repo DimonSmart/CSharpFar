@@ -1,6 +1,7 @@
 using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.CommandLine;
 using CSharpFar.App.Dialogs;
+using CSharpFar.App.Diagnostics;
 using CSharpFar.App.Editor;
 using CSharpFar.App.Files;
 using CSharpFar.App.FunctionKeys;
@@ -67,6 +68,8 @@ internal sealed class ApplicationCommandContext
     private readonly IFileMetadataService _fileMetadata;
     private readonly Func<IFileAttributesDialog> _fileAttributesDialogFactory;
     private readonly FilePanelSourceRegistry _sourceRegistry;
+    private readonly IDiagnosticLog _diagnosticLog;
+    private readonly UpdateCheckService _updateCheckService;
     private IFileHighlightService? _highlightService;
 
     public ApplicationCommandContext(
@@ -108,7 +111,9 @@ internal sealed class ApplicationCommandContext
         IVolumeService? volumeService,
         IFileMetadataService fileMetadata,
         Func<IFileAttributesDialog> fileAttributesDialogFactory,
-        IFileHighlightService? highlightService)
+        IFileHighlightService? highlightService,
+        IDiagnosticLog diagnosticLog,
+        UpdateCheckService updateCheckService)
     {
         _interactiveSurfaces = interactiveSurfaces;
         ModalDialogs = modalDialogs;
@@ -149,6 +154,8 @@ internal sealed class ApplicationCommandContext
         _fileMetadata = fileMetadata;
         _fileAttributesDialogFactory = fileAttributesDialogFactory;
         _highlightService = highlightService;
+        _diagnosticLog = diagnosticLog ?? throw new ArgumentNullException(nameof(diagnosticLog));
+        _updateCheckService = updateCheckService ?? throw new ArgumentNullException(nameof(updateCheckService));
     }
 
     public ModalDialogHost ModalDialogs { get; }
@@ -192,6 +199,8 @@ internal sealed class ApplicationCommandContext
     public IVolumeService? VolumeService => _volumeService;
 
     public IFileMetadataService FileMetadata => _fileMetadata;
+
+    internal IDiagnosticLog DiagnosticLog => _diagnosticLog;
 
     public IReadOnlyList<ModuleMenuProjection> ModuleDiskMenuItems =>
         _moduleCatalog.DiskMenuItems;
@@ -259,8 +268,17 @@ internal sealed class ApplicationCommandContext
         new AboutDialog(
             Dialogs,
             UriLauncher,
-            new UpdateCheckService(),
+            _updateCheckService,
             ApplicationVersionProvider.GetVersionInfo()).Show();
+
+    public void ShowDiagnostics() =>
+        new DiagnosticsDialog(
+            Dialogs,
+            TextClipboard,
+            _diagnosticLog,
+            new DiagnosticReportBuilder(),
+            ApplicationVersionProvider.GetVersionInfo(),
+            () => GetTerminalDiagnostics()).Show();
 
     public void ViewFile(string path) =>
         new FileViewer(_interactiveSurfaces, ModalDialogs, Dialogs, Fields, Palette).Show(path);

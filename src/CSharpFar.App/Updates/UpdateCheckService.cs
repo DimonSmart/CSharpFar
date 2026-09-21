@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using CSharpFar.App.Diagnostics;
 
 namespace CSharpFar.App.Updates;
 
@@ -13,11 +15,16 @@ internal sealed class UpdateCheckService
 
     private readonly HttpClient _httpClient;
     private readonly TimeSpan _timeout;
+    private readonly IDiagnosticLog _diagnostics;
 
-    public UpdateCheckService(HttpClient? httpClient = null, TimeSpan? timeout = null)
+    public UpdateCheckService(
+        HttpClient? httpClient = null,
+        TimeSpan? timeout = null,
+        IDiagnosticLog? diagnostics = null)
     {
         _httpClient = httpClient ?? SharedHttpClient;
         _timeout = timeout ?? TimeSpan.FromSeconds(5);
+        _diagnostics = diagnostics ?? DisabledDiagnosticLog.Instance;
         if (_timeout <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(timeout));
     }
@@ -27,7 +34,15 @@ internal sealed class UpdateCheckService
         CancellationToken cancellationToken)
     {
         if (currentVersion is null)
-            return UpdateCheckResult.Unavailable(null);
+            return Unavailable(null, "current comparable version unavailable");
+
+        Stopwatch? stopwatch = _diagnostics.IsEnabled ? Stopwatch.StartNew() : null;
+        if (_diagnostics.IsEnabled)
+        {
+            _diagnostics.Write(
+                DiagnosticCategory.UpdateCheck,
+                $"Request started. Current={currentVersion} Endpoint={LatestReleaseUrl} Timeout={_timeout.TotalSeconds:0.###}s");
+        }
 
         using var timeoutCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCancellation.CancelAfter(_timeout);
@@ -46,19 +61,43 @@ internal sealed class UpdateCheckService
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
                 timeoutCancellation.Token);
+
+            LogHttpResponse(response, stopwatch);
             if (!response.IsSuccessStatusCode)
-                return UpdateCheckResult.Unavailable(currentVersion);
+            {
+                return Unavailable(
+                    currentVersion,
+                    $"non-success HTTP status {(int)response.StatusCode} {response.ReasonPhrase ?? response.StatusCode.ToString()}");
+            }
 
             await using Stream stream =
                 await response.Content.ReadAsStreamAsync(timeoutCancellation.Token);
             GitHubReleaseDto? release = await JsonSerializer.DeserializeAsync<GitHubReleaseDto>(
                 stream,
                 cancellationToken: timeoutCancellation.Token);
-            if (!ReleaseVersionParser.TryParse(release?.TagName, out ReleaseVersion latestVersion))
-                return UpdateCheckResult.Unavailable(currentVersion);
+
+            if (string.IsNullOrWhiteSpace(release?.TagName))
+                return Unavailable(currentVersion, "missing tag_name");
+
+            if (!ReleaseVersionParser.TryParse(release.TagName, out ReleaseVersion latestVersion))
+                return Unavailable(currentVersion, "invalid release version");
+
+            if (_diagnostics.IsEnabled)
+            {
+                _diagnostics.Write(
+                    DiagnosticCategory.UpdateCheck,
+                    $"Latest release tag={release.TagName}");
+            }
 
             if (latestVersion.CompareTo(currentVersion.Value) <= 0)
             {
+                if (_diagnostics.IsEnabled)
+                {
+                    _diagnostics.Write(
+                        DiagnosticCategory.UpdateCheck,
+                        $"Result=UpToDate Current={currentVersion} Latest={latestVersion}");
+                }
+
                 return new UpdateCheckResult(
                     UpdateCheckStatus.UpToDate,
                     currentVersion,
@@ -66,8 +105,15 @@ internal sealed class UpdateCheckService
                     null);
             }
 
-            if (!TryValidateReleaseUri(release?.HtmlUrl, out Uri? releaseUri))
-                return UpdateCheckResult.Unavailable(currentVersion);
+            if (!TryValidateReleaseUri(release.HtmlUrl, out Uri? releaseUri))
+                return Unavailable(currentVersion, "invalid release URL");
+
+            if (_diagnostics.IsEnabled)
+            {
+                _diagnostics.Write(
+                    DiagnosticCategory.UpdateCheck,
+                    $"Result=UpdateAvailable Current={currentVersion} Latest={latestVersion}");
+            }
 
             return new UpdateCheckResult(
                 UpdateCheckStatus.UpdateAvailable,
@@ -77,25 +123,106 @@ internal sealed class UpdateCheckService
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            if (_diagnostics.IsEnabled)
+            {
+                _diagnostics.Write(
+                    DiagnosticCategory.UpdateCheck,
+                    $"Request cancelled by caller after {Elapsed(stopwatch)}");
+            }
+
             throw;
         }
         catch (OperationCanceledException)
         {
-            return UpdateCheckResult.Unavailable(currentVersion);
+            if (_diagnostics.IsEnabled)
+            {
+                _diagnostics.Write(
+                    DiagnosticCategory.UpdateCheck,
+                    $"Request failed after {Elapsed(stopwatch)}: timeout");
+            }
+
+            return Unavailable(currentVersion, "timeout");
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
-            return UpdateCheckResult.Unavailable(currentVersion);
+            if (_diagnostics.IsEnabled)
+            {
+                _diagnostics.WriteException(
+                    DiagnosticCategory.UpdateCheck,
+                    ex,
+                    $"Request failed after {Elapsed(stopwatch)}: HttpRequestException");
+            }
+
+            return Unavailable(currentVersion, "HttpRequestException");
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            return UpdateCheckResult.Unavailable(currentVersion);
+            if (_diagnostics.IsEnabled)
+            {
+                _diagnostics.WriteException(
+                    DiagnosticCategory.UpdateCheck,
+                    ex,
+                    $"Request failed after {Elapsed(stopwatch)}: invalid JSON");
+            }
+
+            return Unavailable(currentVersion, "invalid JSON");
         }
-        catch (NotSupportedException)
+        catch (NotSupportedException ex)
         {
-            return UpdateCheckResult.Unavailable(currentVersion);
+            if (_diagnostics.IsEnabled)
+            {
+                _diagnostics.WriteException(
+                    DiagnosticCategory.UpdateCheck,
+                    ex,
+                    $"Request failed after {Elapsed(stopwatch)}: unsupported response format");
+            }
+
+            return Unavailable(currentVersion, "unsupported response format");
         }
     }
+
+    private UpdateCheckResult Unavailable(
+        ReleaseVersion? currentVersion,
+        string reason)
+    {
+        if (_diagnostics.IsEnabled)
+        {
+            _diagnostics.Write(
+                DiagnosticCategory.UpdateCheck,
+                $"Result=Unavailable Current={currentVersion?.ToString() ?? "unavailable"} Reason={reason}");
+        }
+
+        return UpdateCheckResult.Unavailable(currentVersion);
+    }
+
+    private void LogHttpResponse(HttpResponseMessage response, Stopwatch? stopwatch)
+    {
+        if (!_diagnostics.IsEnabled)
+            return;
+
+        var parts = new List<string>
+        {
+            $"HTTP {(int)response.StatusCode} {response.ReasonPhrase ?? response.StatusCode.ToString()} after {Elapsed(stopwatch)}",
+        };
+
+        AddHeader(response, parts, "X-RateLimit-Limit");
+        AddHeader(response, parts, "X-RateLimit-Remaining");
+        AddHeader(response, parts, "X-RateLimit-Reset");
+
+        _diagnostics.Write(DiagnosticCategory.UpdateCheck, string.Join("; ", parts));
+    }
+
+    private static void AddHeader(
+        HttpResponseMessage response,
+        ICollection<string> parts,
+        string name)
+    {
+        if (response.Headers.TryGetValues(name, out IEnumerable<string>? values))
+            parts.Add($"{name}={string.Join(",", values)}");
+    }
+
+    private static string Elapsed(Stopwatch? stopwatch) =>
+        stopwatch is null ? "unknown" : $"{stopwatch.Elapsed.TotalSeconds:0.00}s";
 
     private static bool TryValidateReleaseUri(string? value, out Uri? uri)
     {

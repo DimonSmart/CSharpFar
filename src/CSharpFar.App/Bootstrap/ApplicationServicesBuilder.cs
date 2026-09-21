@@ -2,6 +2,7 @@ using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.CommandLine;
 using CSharpFar.App.Commands;
 using CSharpFar.App.Dialogs;
+using CSharpFar.App.Diagnostics;
 using CSharpFar.App.Files;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Highlighting;
@@ -12,6 +13,7 @@ using CSharpFar.App.Panels;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.App.UserMenu;
+using CSharpFar.App.Updates;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
@@ -65,6 +67,19 @@ internal static class ApplicationServicesBuilder
         IFileUsagePlatformService? fileUsage = null,
         IUriLauncher? uriLauncher = null)
     {
+        var effectiveRunOptions = runOptions ?? ApplicationRunOptions.Normal;
+        IDiagnosticLog diagnosticLog = effectiveRunOptions.DiagnosticsEnabled
+            ? new InMemoryDiagnosticLog()
+            : DisabledDiagnosticLog.Instance;
+        if (diagnosticLog.IsEnabled)
+        {
+            diagnosticLog.Write(
+                DiagnosticCategory.Application,
+                $"Diagnostics enabled. Mode={effectiveRunOptions.Mode}.");
+        }
+
+        var updateCheckService = new UpdateCheckService(diagnostics: diagnosticLog);
+
         var core = CoreServicesFactory.Create(
             fs,
             history,
@@ -77,7 +92,7 @@ internal static class ApplicationServicesBuilder
             sourceRegistry,
             configDirectory,
             clipboard,
-            runOptions);
+            effectiveRunOptions);
         var effectiveSettings = core.Settings;
         var effectiveSourceRegistry = core.SourceRegistry;
         var controller = core.PanelController;
@@ -441,7 +456,9 @@ internal static class ApplicationServicesBuilder
                 formFields,
                 canOpenSystemProperties: System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
                     System.Runtime.InteropServices.OSPlatform.Windows))),
-            highlightService);
+            highlightService,
+            diagnosticLog,
+            updateCheckService);
         var runtime = ApplicationRuntimeBuilder.Create(
             composition,
             screen,
