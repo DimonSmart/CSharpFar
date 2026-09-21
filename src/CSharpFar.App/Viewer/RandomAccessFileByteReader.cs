@@ -2,7 +2,29 @@ using Microsoft.Win32.SafeHandles;
 
 namespace CSharpFar.App.Viewer;
 
-internal sealed class RandomAccessFileByteReader : IFileByteReader, IDisposable
+internal interface ILocalFileByteReader : IFileByteReader, IDisposable
+{
+    int TransientFailureVersion { get; }
+}
+
+internal interface ILocalFileByteReaderFactory
+{
+    ILocalFileByteReader Create(string filePath);
+}
+
+internal sealed class LocalFileByteReaderFactory : ILocalFileByteReaderFactory
+{
+    public static LocalFileByteReaderFactory Instance { get; } = new();
+
+    private LocalFileByteReaderFactory()
+    {
+    }
+
+    public ILocalFileByteReader Create(string filePath) =>
+        new RandomAccessFileByteReader(filePath);
+}
+
+internal sealed class RandomAccessFileByteReader : ILocalFileByteReader
 {
     private readonly string _filePath;
     private long _lastKnownLength;

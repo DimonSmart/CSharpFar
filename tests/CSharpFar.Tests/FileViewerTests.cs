@@ -631,6 +631,70 @@ public class FileViewerTests : IDisposable
     }
 
     [Fact]
+    public void Show_TransientReadDuringOffNavigationPreservesViewportAndCanRetry()
+    {
+        string path = WritePath("transient-off-navigation.txt");
+        string middle = string.Join(
+            '\n',
+            Enumerable.Range(0, 40000).Select(i => $"line{i:D5}"));
+        File.WriteAllText(
+            path,
+            $"START\n{middle}\nTRANSIENT-TAIL",
+            new UTF8Encoding(false));
+
+        var monitorFactory = new FakeLocalFileMonitorFactory();
+        var readerFactory = new ControlledLocalFileByteReaderFactory();
+        var driver = new FakeConsoleDriver(width: 80, height: 8);
+        string? afterFailure = null;
+        string? afterRecovery = null;
+        int hook = 0;
+        Action<FakeConsoleDriver>? beforeInput = null;
+        beforeInput = current =>
+        {
+            switch (hook++)
+            {
+                case 0:
+                    readerFactory.Current.FailNextRead = true;
+                    current.BeforeTryReadInput = beforeInput;
+                    break;
+                case 1:
+                    afterFailure = current.GetRegionText(
+                        new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
+                    current.BeforeTryReadInput = beforeInput;
+                    break;
+                case 2:
+                    afterRecovery = current.GetRegionText(
+                        new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
+                    break;
+            }
+        };
+        driver.BeforeTryReadInput = beforeInput;
+        driver.EnqueueKey(Key(ConsoleKey.End));
+        driver.EnqueueKey(Key(ConsoleKey.End));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        FileViewerFor(
+            new ScreenRenderer(driver),
+            monitorFactory,
+            readerFactory).Show(path);
+
+        Assert.NotNull(afterFailure);
+        Assert.Contains("START", afterFailure);
+        Assert.DoesNotContain("TRANSIENT-TAIL", afterFailure);
+        Assert.NotNull(afterRecovery);
+        Assert.Contains("TRANSIENT-TAIL", afterRecovery);
+    }
+
+    [Fact]
+    public void RandomAccessFileByteReader_UnexpectedExceptionsAreNotTransient()
+    {
+        Assert.False(RandomAccessFileByteReader.IsTransientFileAccess(
+            new ArgumentException("programming error")));
+        Assert.False(RandomAccessFileByteReader.IsTransientFileAccess(
+            new InvalidOperationException("invalid state")));
+    }
+
+    [Fact]
     public void RandomAccessFileByteReader_DoesNotHoldPersistentHandle()
     {
         string path = Write("non-blocking-reader.txt", "content", new UTF8Encoding(false));
@@ -1201,6 +1265,50 @@ public class FileViewerTests : IDisposable
         }
 
         return new string(row);
+    }
+
+    private sealed class ControlledLocalFileByteReaderFactory : ILocalFileByteReaderFactory
+    {
+        public ControlledLocalFileByteReader Current { get; private set; } = null!;
+
+        public ILocalFileByteReader Create(string filePath)
+        {
+            Current = new ControlledLocalFileByteReader(filePath);
+            return Current;
+        }
+    }
+
+    private sealed class ControlledLocalFileByteReader : ILocalFileByteReader
+    {
+        private readonly RandomAccessFileByteReader _inner;
+        private int _injectedFailureVersion;
+
+        public ControlledLocalFileByteReader(string filePath)
+        {
+            _inner = new RandomAccessFileByteReader(filePath);
+        }
+
+        public bool FailNextRead { get; set; }
+
+        public int TransientFailureVersion =>
+            _inner.TransientFailureVersion + _injectedFailureVersion;
+
+        public long Length => _inner.Length;
+
+        public Task<int> ReadAsync(
+            long offset,
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            if (!FailNextRead)
+                return _inner.ReadAsync(offset, buffer, cancellationToken);
+
+            FailNextRead = false;
+            _injectedFailureVersion++;
+            return Task.FromResult(0);
+        }
+
+        public void Dispose() => _inner.Dispose();
     }
 
     private sealed class FakeLocalFileMonitorFactory : ILocalFileMonitorFactory

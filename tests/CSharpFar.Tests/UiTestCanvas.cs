@@ -8,7 +8,8 @@ internal static class UiTestCanvas
 {
     public static FileViewer FileViewerFor(
         ScreenRenderer screen,
-        ILocalFileMonitorFactory? localFileMonitorFactory = null)
+        ILocalFileMonitorFactory? localFileMonitorFactory = null,
+        ILocalFileByteReaderFactory? localFileByteReaderFactory = null)
     {
         UiTestHost host = UiTestHost.Create(screen);
         return new FileViewer(
@@ -16,6 +17,7 @@ internal static class UiTestCanvas
             host.ModalDialogs,
             new DialogService(host.ModalDialogs, new FormFieldFactory(new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore()))),
             new FormFieldFactory(new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore())),
-            localFileMonitorFactory: localFileMonitorFactory);
+            localFileMonitorFactory: localFileMonitorFactory,
+            localFileByteReaderFactory: localFileByteReaderFactory);
     }
 }

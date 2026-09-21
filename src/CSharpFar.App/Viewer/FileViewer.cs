@@ -15,6 +15,7 @@ internal sealed class FileViewer
     private readonly CSharpFarPalette _palette;
     private readonly FormFieldFactory _fields;
     private readonly ILocalFileMonitorFactory? _localFileMonitorFactory;
+    private readonly ILocalFileByteReaderFactory? _localFileByteReaderFactory;
 
     public FileViewer(
         InteractiveSurfaceHost surfaces,
@@ -22,7 +23,8 @@ internal sealed class FileViewer
         DialogService dialogs,
         FormFieldFactory fields,
         CSharpFarPalette? palette = null,
-        ILocalFileMonitorFactory? localFileMonitorFactory = null)
+        ILocalFileMonitorFactory? localFileMonitorFactory = null,
+        ILocalFileByteReaderFactory? localFileByteReaderFactory = null)
     {
         _surfaces = surfaces;
         _modalDialogs = modalDialogs;
@@ -30,6 +32,7 @@ internal sealed class FileViewer
         _palette = palette ?? CSharpFarPaletteRegistry.Default;
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
         _localFileMonitorFactory = localFileMonitorFactory;
+        _localFileByteReaderFactory = localFileByteReaderFactory;
     }
 
     public void Show(string filePath)
@@ -40,7 +43,14 @@ internal sealed class FileViewer
             return;
         }
 
-        new LargeFileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette, _localFileMonitorFactory).Show(filePath);
+        new LargeFileViewer(
+            _surfaces,
+            _modalDialogs,
+            _dialogs,
+            _fields,
+            _palette,
+            _localFileMonitorFactory,
+            _localFileByteReaderFactory).Show(filePath);
     }
 
     internal void Show(string filePath, LargeFileViewerOptions options)
@@ -51,9 +61,23 @@ internal sealed class FileViewer
             return;
         }
 
-        new LargeFileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette, _localFileMonitorFactory).Show(filePath, options);
+        new LargeFileViewer(
+            _surfaces,
+            _modalDialogs,
+            _dialogs,
+            _fields,
+            _palette,
+            _localFileMonitorFactory,
+            _localFileByteReaderFactory).Show(filePath, options);
     }
 
     internal void Show(string displayPath, IFileByteReader reader, LargeFileViewerOptions? options = null) =>
-        new LargeFileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette, _localFileMonitorFactory).ShowVirtual(displayPath, reader, options);
+        new LargeFileViewer(
+            _surfaces,
+            _modalDialogs,
+            _dialogs,
+            _fields,
+            _palette,
+            _localFileMonitorFactory,
+            _localFileByteReaderFactory).ShowVirtual(displayPath, reader, options);
 }

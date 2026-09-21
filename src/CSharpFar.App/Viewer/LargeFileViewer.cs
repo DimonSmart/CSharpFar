@@ -30,6 +30,7 @@ internal sealed class LargeFileViewer
     private readonly InteractiveSurfaceHost _surfaces;
     private readonly FormFieldFactory _fields;
     private readonly ILocalFileMonitorFactory _localFileMonitorFactory;
+    private readonly ILocalFileByteReaderFactory _localFileByteReaderFactory;
 
     public LargeFileViewer(
         InteractiveSurfaceHost surfaces,
@@ -37,7 +38,8 @@ internal sealed class LargeFileViewer
         DialogService dialogs,
         FormFieldFactory fields,
         CSharpFarPalette? palette = null,
-        ILocalFileMonitorFactory? localFileMonitorFactory = null)
+        ILocalFileMonitorFactory? localFileMonitorFactory = null,
+        ILocalFileByteReaderFactory? localFileByteReaderFactory = null)
     {
         _surfaces = surfaces ?? throw new ArgumentNullException(nameof(surfaces));
         _modalDialogs = modalDialogs;
@@ -45,6 +47,7 @@ internal sealed class LargeFileViewer
         _palette = palette ?? CSharpFarPaletteRegistry.Default;
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
         _localFileMonitorFactory = localFileMonitorFactory ?? LocalFileMonitorFactory.Instance;
+        _localFileByteReaderFactory = localFileByteReaderFactory ?? LocalFileByteReaderFactory.Instance;
     }
 
     public void Show(string filePath) => Show(filePath, null);
@@ -140,7 +143,7 @@ internal sealed class LargeFileViewer
 
     private LocalViewerSession OpenViewerFile(string filePath)
     {
-        var reader = new RandomAccessFileByteReader(filePath);
+        ILocalFileByteReader reader = _localFileByteReaderFactory.Create(filePath);
         try
         {
             if (!LocalFileMonitor.TryCaptureSnapshot(filePath, out LocalFileSnapshot before) || !before.Exists)
@@ -1487,7 +1490,7 @@ internal sealed class LargeFileViewer
         int width,
         bool keepTail = true)
     {
-        var localReader = reader as RandomAccessFileByteReader;
+        var localReader = reader as ILocalFileByteReader;
         int failureVersion = localReader?.TransientFailureVersion ?? 0;
         var originalPosition = new ViewerViewportPosition(
             state.TopByteOffset,
@@ -2407,7 +2410,7 @@ internal sealed class LargeFileViewer
 
         public LocalViewerSession(
             string filePath,
-            RandomAccessFileByteReader reader,
+            ILocalFileByteReader reader,
             LargeFileViewerState state,
             LocalFileMonitoringSession monitoring)
         {
@@ -2418,7 +2421,7 @@ internal sealed class LargeFileViewer
         }
 
         public string FilePath { get; }
-        public RandomAccessFileByteReader Reader { get; }
+        public ILocalFileByteReader Reader { get; }
         public LargeFileViewerState State { get; }
         public bool PendingRefresh => _monitoring.PendingRefresh;
 
