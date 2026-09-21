@@ -56,7 +56,7 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     [Fact]
     public void Show_F5SwitchesToRawWithoutChangingSourcePosition()
     {
-        string path = Write("raw-position.md", "| A | B |\n| --- | --- |\n| C | D |\n");
+        string path = Write("raw-position.md", "| A | B |\n| --- | --- |\n| C | D |\n" + string.Join('\n', Enumerable.Range(1, 10).Select(i => $"after {i}")) + "\n");
         var driver = ViewerDriver(width: 100);
         driver.EnqueueKey(Key(ConsoleKey.DownArrow));
         driver.EnqueueKey(Key(ConsoleKey.F5));
