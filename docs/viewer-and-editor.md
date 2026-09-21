@@ -8,6 +8,8 @@ Press `F3` to open the selected file in the full-screen viewer.
 
 The viewer uses a streaming path for small and large files. It reads fixed-size byte blocks by offset and keeps a bounded cache, so opening a large log does not require loading the complete file into memory.
 
+For a local physical file the viewer does not keep the file handle open between logical reads. Each read reopens the current object at the original path with sharing that permits writers, rename, delete, and atomic replacement. If an atomic update temporarily removes the path, the viewer keeps the last successfully displayed state and retries the pending refresh later.
+
 Text-looking files open as text. Binary-looking files open as a 16-byte-per-row hexadecimal dump. Use `F4` or `H` to switch between text and hex display for the current file.
 
 Text presentation starts in `Auto`. Markdown (`.md` and `.markdown`) tables are automatically shown as aligned terminal tables. Supported inline Markdown (`**bold**`, `*italic*`, inline code, and links) hides its syntax and uses semantic styles. ATX headings from `#` through `######` also hide their opening syntax and valid optional closing hashes and use level-specific semantic heading styles; inline formatting inside a heading keeps its own style. Source navigation, wrapping, and search still operate on the original text, and a search match in hidden Markdown syntax falls back to the raw source line so the match remains visible. Press `F5` to switch to `Raw` and see the exact original representation; press `F5` again to return to `Auto`. The selected presentation mode remains active when moving between sibling files with `+` / `-`. Hex output is unchanged.
@@ -16,7 +18,8 @@ Heading recognition is intentionally line-local: 0-3 leading ASCII spaces are al
 
 ### Navigation
 
-- `Home` / `End` — start or end of the file.
+- `Home` — start of the file.
+- `End` — last useful page; for a local physical file it also enables `TAIL`.
 - `Up` / `Down` / `PageUp` / `PageDown` — vertical navigation.
 - `Alt+PageUp` / `Alt+PageDown` — faster page scrolling.
 - `Left` / `Right` — horizontal scrolling.
@@ -27,7 +30,11 @@ Heading recognition is intentionally line-local: 0-3 leading ASCII spaces are al
 
 ### Display modes
 
-- `F` — follow a file that keeps growing.
+- `F` on a local physical file — cycle `Off -> WATCH -> TAIL -> Off`.
+- `WATCH` — automatically refresh changed content while preserving the current logical position as closely as possible.
+- `TAIL` — automatically refresh changed content and keep the last useful page visible.
+- Scrolling upward or otherwise leaving the real end changes `TAIL -> WATCH`; reaching the real end again with downward navigation changes `WATCH -> TAIL`. Reaching the end from `Off` by downward navigation also enables `TAIL`.
+- Live refresh is local-filesystem-only. Remote, virtual, and in-memory viewer sources keep snapshot semantics; `F` does not enable a fake live mode for them.
 - `F2` — toggle line wrapping.
 - `Shift+F2` — switch word/character wrap behavior.
 - `F4` or `H` — switch text/hex mode.
@@ -47,6 +54,8 @@ Heading recognition is intentionally line-local: 0-3 leading ASCII spaces are al
 - `Shift+F8` — explicitly select automatic detection, UTF-8, UTF-16, Windows ANSI, Windows-1251, Windows-1252 or CP866 for the current viewer session.
 
 Text decoding detects UTF-8 and UTF-16 BOMs, attempts UTF-8 without a BOM and falls back to the current Windows ANSI code page where appropriate. Invalid byte sequences are rendered as replacement characters rather than aborting the viewer. Control characters from file content are rendered inertly instead of being emitted to the terminal.
+
+Local live refresh combines filesystem notifications with periodic metadata checks, so append, truncate, same-length overwrite, atomic replace, and delete/recreate are detected without hashing the entire file. The last page is shared by ordinary navigation, `End`, and `TAIL`; wrapped text uses rendered rows, including the final segments of a long wrapped line.
 
 Quick View (`Ctrl+Q`) remains a bounded preview rather than a full streaming viewer.
 
