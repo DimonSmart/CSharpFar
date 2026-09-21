@@ -8,6 +8,7 @@ internal static class DefaultApplicationCommands
         PanelDirectorySizeCoordinator? directorySizes = null) =>
     [
         new HelpCommand(),
+        new AboutCommand(),
         new UserMenuCommand(),
         new ViewFileCommand(directorySizes),
         new CalculateDirectorySizesCommand(directorySizes),

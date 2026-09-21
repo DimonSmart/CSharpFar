@@ -8,4 +8,5 @@ internal static class ApplicationCommandIds
     public const string SwapPanels = "application.swapPanels";
     public const string CompareFolders = "application.compareFolders";
     public const string CompareFileSets = "application.compareFileSets";
+    public const string About = "application.about";
 }

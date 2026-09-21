@@ -1,4 +1,4 @@
-using System.Reflection;
+using CSharpFar.App.Updates;
 using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Diagnostics;
 using CSharpFar.App.Settings;
@@ -17,7 +17,7 @@ try
 }
 catch (Exception ex) { string? report = ApplicationCrashReport.Write(ex); Console.Error.WriteLine(report is null ? ex.ToString() : $"CSharpFar stopped because of an unexpected error. Details were saved to: {report}"); return 1; }
 
-static void PrintVersion() => Console.WriteLine($"CSharpFar {typeof(Program).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown"}");
+static void PrintVersion() => Console.WriteLine($"CSharpFar {ApplicationVersionProvider.GetDisplayVersion()}");
 static int RunSelfTest(JsonSettingsStore settings)
 {
     if (!OperatingSystem.IsMacOS()) { Console.Error.WriteLine("macOS host cannot run on this platform."); return 1; }

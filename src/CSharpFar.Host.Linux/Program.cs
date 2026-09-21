@@ -1,4 +1,4 @@
-using System.Reflection;
+using CSharpFar.App.Updates;
 using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Diagnostics;
 using CSharpFar.App.Settings;
@@ -89,14 +89,8 @@ static void WriteFailure(Exception exception)
         : $"CSharpFar stopped because of an unexpected error. Details were saved to: {reportPath}");
 }
 
-static void PrintVersion()
-{
-    var assembly = typeof(Program).Assembly;
-    string version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ??
-                     assembly.GetName().Version?.ToString() ??
-                     "unknown";
-    Console.WriteLine($"CSharpFar {version}");
-}
+static void PrintVersion() =>
+    Console.WriteLine($"CSharpFar {ApplicationVersionProvider.GetDisplayVersion()}");
 
 static int RunSelfTest(JsonSettingsStore settingsStore)
 {

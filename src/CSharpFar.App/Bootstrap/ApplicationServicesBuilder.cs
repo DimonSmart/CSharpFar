@@ -403,6 +403,7 @@ internal static class ApplicationServicesBuilder
             shell,
             fileOps,
             effectiveFileLauncher,
+            effectiveUriLauncher,
             effectiveSearchService,
             effectiveHistory,
             formFields,

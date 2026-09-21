@@ -19,6 +19,7 @@ public sealed class DefaultMenuDefinitionProvider
                 BuildPanelMenu("Right", PanelSide.Right, context.RightPanel, context.RightViewMode),
                 BuildModuleMenu(context.ModuleMenuItems),
                 BuildOptionsMenu(context),
+                BuildHelpMenu(),
             ],
         };
 
@@ -181,6 +182,20 @@ public sealed class DefaultMenuDefinitionProvider
             Children = children,
         };
     }
+
+    private static TopMenuItemDefinition BuildHelpMenu() =>
+        new()
+        {
+            Id = "Help",
+            Text = "Help",
+            HotChar = 'H',
+            Children =
+            [
+                Command("Help.help", "Help", 'H', FunctionKeyCommandIds.Help),
+                Separator("Help.sep.about"),
+                Command("Help.about", "About...", 'A', ApplicationCommandIds.About),
+            ],
+        };
 
     private static MenuItemDefinition Command(
         string id,

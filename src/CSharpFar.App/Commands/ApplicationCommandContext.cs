@@ -11,6 +11,7 @@ using CSharpFar.App.Panels;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.App.UserMenu;
+using CSharpFar.App.Updates;
 using CSharpFar.App.Viewer;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
@@ -74,6 +75,7 @@ internal sealed class ApplicationCommandContext
         DialogService dialogs,
         PanelController controller,
         IFileLauncher fileLauncher,
+        IUriLauncher uriLauncher,
         IFileOperationService fileOperations,
         ISearchService searchService,
         IHistoryStore history,
@@ -113,6 +115,7 @@ internal sealed class ApplicationCommandContext
         Dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         Controller = controller;
         FileLauncher = fileLauncher;
+        UriLauncher = uriLauncher;
         FileOperations = fileOperations;
         SearchService = searchService;
         History = history;
@@ -167,6 +170,8 @@ internal sealed class ApplicationCommandContext
     public PanelController Controller { get; }
 
     public IFileLauncher FileLauncher { get; }
+
+    public IUriLauncher UriLauncher { get; }
 
     public IFileOperationService FileOperations { get; }
 
@@ -249,6 +254,13 @@ internal sealed class ApplicationCommandContext
 
     public void ShowHelp(HelpTopic topic = HelpTopic.Main) =>
         new HelpViewer(_interactiveSurfaces, Palette).Show(topic);
+
+    public void ShowAbout() =>
+        new AboutDialog(
+            Dialogs,
+            UriLauncher,
+            new UpdateCheckService(),
+            ApplicationVersionProvider.GetVersionInfo()).Show();
 
     public void ViewFile(string path) =>
         new FileViewer(_interactiveSurfaces, ModalDialogs, Dialogs, Fields, Palette).Show(path);

@@ -31,12 +31,13 @@ public sealed class Spec008MenuLayoutAndRenderingTests
             ProviderMenu(),
             new MenuState());
 
-        Assert.Equal(6, layout.TopItemBounds.Count);
+        Assert.Equal(7, layout.TopItemBounds.Count);
         Assert.True(layout.TopItemBounds[0].X < layout.TopItemBounds[1].X);
         Assert.True(layout.TopItemBounds[1].X < layout.TopItemBounds[2].X);
         Assert.True(layout.TopItemBounds[2].X < layout.TopItemBounds[3].X);
         Assert.True(layout.TopItemBounds[3].X < layout.TopItemBounds[4].X);
         Assert.True(layout.TopItemBounds[4].X < layout.TopItemBounds[5].X);
+        Assert.True(layout.TopItemBounds[5].X < layout.TopItemBounds[6].X);
     }
 
     [Fact]
@@ -332,7 +333,7 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
     {
         var menu = BuildProviderMenu(canSaveSettings: false);
 
-        Assert.Equal(["File", "Commands", "Left", "Right", "Plugins", "Options"], menu.Items.Select(i => i.Text).ToArray());
+        Assert.Equal(["File", "Commands", "Left", "Right", "Plugins", "Options", "Help"], menu.Items.Select(i => i.Text).ToArray());
         Assert.DoesNotContain(menu.Items[2].Children, item => item.Text.Contains("Wide", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(menu.Items[5].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
     }
