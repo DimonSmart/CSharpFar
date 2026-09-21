@@ -433,6 +433,7 @@ internal sealed class LargeFileViewer
 
             case ConsoleKey.F8 when !shift && !alt && !control:
                 CycleCommonEncoding(reader, state);
+                NormalizeViewport(filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.F9:
@@ -1471,7 +1472,12 @@ internal sealed class LargeFileViewer
         state.HorizontalOffset = Math.Max(0, lineLength - Math.Max(1, width));
     }
 
-    private void JumpToPosition(IFileByteReader reader, LargeFileViewerState state, int contentHeight)
+    private void JumpToPosition(
+        string sourcePath,
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        int contentHeight,
+        int width)
     {
         string? input = _dialogs.Input(new SingleLineInputDialogOptions
         {
@@ -1507,10 +1513,8 @@ internal sealed class LargeFileViewer
                 .GetResult();
         }
 
-        if (state.TopByteOffset >= reader.Length)
-            MoveToEnd(reader, state, contentHeight);
-
-        state.FollowMode = false;
+        state.TopWrappedSegmentIndex = 0;
+        NormalizeViewport(sourcePath, reader, state, contentHeight, width);
     }
 
     private static void ToggleViewMode(LargeFileViewerState state)
@@ -1529,6 +1533,7 @@ internal sealed class LargeFileViewer
             state.TopByteOffset = 0;
         }
 
+        state.TopWrappedSegmentIndex = 0;
         state.HorizontalOffset = 0;
         state.SearchMatch = null;
     }
@@ -1587,7 +1592,9 @@ internal sealed class LargeFileViewer
         state.LastSearch = request;
         state.SearchMatch = match;
         state.TopByteOffset = match.TopByteOffset;
-        state.FollowMode = false;
+        state.TopWrappedSegmentIndex = 0;
+        if (state.LiveMode == ViewerLiveMode.Tail)
+            state.LiveMode = ViewerLiveMode.Watch;
 
         if (!match.IsHex && !state.WrapLines)
         {
@@ -1649,39 +1656,52 @@ internal sealed class LargeFileViewer
         string filePath,
         IFileByteReader reader,
         LargeFileViewerState state,
-        LargeFileViewerOptions options)
+        LargeFileViewerOptions options,
+        LocalViewerSession? localSession,
+        int contentHeight,
+        int width)
     {
         if (options.EditCurrentFile is not null)
         {
             options.EditCurrentFile();
-            RefreshScanner(reader, state);
-            return;
         }
-
-        if (options.EditFile is null)
+        else if (options.EditFile is not null)
+        {
+            options.EditFile(filePath);
+        }
+        else
         {
             ShowUnsupported("Edit from viewer");
             return;
         }
 
-        options.EditFile(filePath);
+        if (localSession is not null)
+        {
+            localSession.MarkDirty();
+            localSession.DetectChanges();
+            TryRefreshLocalFile(localSession, filePath, contentHeight, width);
+            return;
+        }
+
         RefreshScanner(reader, state);
     }
 
     private static void RefreshScanner(IFileByteReader reader, LargeFileViewerState state)
     {
         long anchorByteOffset = state.TopByteOffset;
+        int anchorWrappedSegment = state.TopWrappedSegmentIndex;
         var originalViewMode = state.ViewMode;
-        state.BlockCache.Clear();
+        var cache = new BlockCache(reader);
         var scanner = LineScanner
-            .CreateAsync(state.BlockCache, reader, state.EncodingSelection)
+            .CreateAsync(cache, reader, state.EncodingSelection)
             .GetAwaiter()
             .GetResult();
-        state.ResetScanner(scanner, state.EncodingSelection);
+        state.ReplaceContent(cache, scanner, state.EncodingSelection);
         state.ViewMode = originalViewMode;
         state.TopByteOffset = state.IsHexMode
             ? Math.Clamp(anchorByteOffset, 0, reader.Length)
             : scanner.FindLineStartAtOrBeforeAsync(anchorByteOffset).GetAwaiter().GetResult();
+        state.TopWrappedSegmentIndex = anchorWrappedSegment;
     }
 
     private void ChangeEncoding(
@@ -1696,7 +1716,7 @@ internal sealed class LargeFileViewer
         var originalSelection = state.EncodingSelection;
         var originalViewMode = state.ViewMode;
         int originalHorizontalOffset = state.HorizontalOffset;
-        bool originalFollowMode = state.FollowMode;
+        var originalLiveMode = state.LiveMode;
 
         var result = _dialogs.Select(new SelectionDialogOptions<TextEncodingCatalogItem>
         {
@@ -1715,6 +1735,7 @@ internal sealed class LargeFileViewer
                     item.Selection,
                     anchorByteOffset,
                     originalViewMode);
+                NormalizeViewport(filePath, reader, state, contentHeight, size.Width);
                 _surfaces.RequestRedraw();
             },
         });
@@ -1724,11 +1745,14 @@ internal sealed class LargeFileViewer
         {
             ApplyEncodingSelection(reader, state, originalSelection, anchorByteOffset, originalViewMode);
             state.HorizontalOffset = originalHorizontalOffset;
-            state.FollowMode = originalFollowMode;
+            state.LiveMode = originalLiveMode;
+            NormalizeViewport(filePath, reader, state, contentHeight, size.Width);
             return;
         }
 
         ApplyEncodingSelection(reader, state, selected.Selection, anchorByteOffset, originalViewMode);
+        state.LiveMode = originalLiveMode;
+        NormalizeViewport(filePath, reader, state, contentHeight, size.Width);
     }
 
     private static int FindEncodingSelection(
