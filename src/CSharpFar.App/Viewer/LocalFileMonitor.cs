@@ -73,6 +73,12 @@ internal sealed class LocalFileMonitor : IDisposable
         }
     }
 
+    internal static bool ShouldRefresh(
+        LocalFileSnapshot appliedSnapshot,
+        LocalFileSnapshot currentSnapshot,
+        bool watcherDirty) =>
+        watcherDirty || currentSnapshot != appliedSnapshot;
+
     public void Dispose()
     {
         _watcher.EnableRaisingEvents = false;
