@@ -44,17 +44,9 @@ internal sealed class BlockCache
         }
 
         var buffer = new byte[BlockSize];
-        int totalRead = 0;
-        while (totalRead < buffer.Length)
-        {
-            int read = await _reader
-                .ReadAsync(blockStart + totalRead, buffer.AsMemory(totalRead), cancellationToken)
-                .ConfigureAwait(false);
-            if (read == 0)
-                break;
-
-            totalRead += read;
-        }
+        int totalRead = await _reader
+            .ReadAsync(blockStart, buffer, cancellationToken)
+            .ConfigureAwait(false);
 
         if (totalRead != buffer.Length)
             Array.Resize(ref buffer, totalRead);
@@ -74,7 +66,7 @@ internal sealed class BlockCache
             throw new ArgumentOutOfRangeException(nameof(offset));
 
         int totalRead = 0;
-        while (totalRead < destination.Length && offset + totalRead < _reader.Length)
+        while (totalRead < destination.Length)
         {
             long currentOffset = offset + totalRead;
             ReadOnlyMemory<byte> block = await ReadBlockAsync(currentOffset, cancellationToken)
