@@ -30,6 +30,7 @@ public sealed class PlatformCompositionTests
         Assert.IsType<DpapiCredentialStore>(platform.CredentialStore);
         Assert.IsType<WindowsVolumeService>(platform.VolumeService);
         Assert.IsType<WindowsFileSystemPlatformOperations>(platform.FileSystemOperations);
+        Assert.IsType<WindowsProcessesAndPortsPlatformService>(platform.ProcessesAndPorts);
         Assert.IsType<WindowsFileUsagePlatformService>(platform.FileUsage);
     }
 
@@ -56,11 +57,13 @@ public sealed class PlatformCompositionTests
         Assert.IsType<FileCredentialStore>(platform.CredentialStore);
         Assert.IsType<LinuxVolumeService>(platform.VolumeService);
         Assert.IsType<LinuxFileSystemPlatformOperations>(platform.FileSystemOperations);
+        Assert.False(platform.ProcessesAndPorts.Support.IsSupported);
+        Assert.DoesNotContain("Windows only", platform.ProcessesAndPorts.Support.Reason ?? string.Empty, StringComparison.OrdinalIgnoreCase);
         Assert.IsType<UnsupportedFileUsagePlatformService>(platform.FileUsage);
     }
 
     [Fact]
-    public void MacOsPlatformServices_DoesNotUseLinuxOrWindowsVolumeServices()
+    public void MacOsPlatformServices_UsesMacOsProcessesAndPorts()
     {
         var driver = new FakeConsoleDriver();
         using var platform = new MacOsPlatformServices(
@@ -73,6 +76,9 @@ public sealed class PlatformCompositionTests
         Assert.IsType<MacOsFileSystemPlatformOperations>(platform.FileSystemOperations);
         Assert.IsNotType<LinuxVolumeService>(platform.VolumeService);
         Assert.IsNotType<WindowsVolumeService>(platform.VolumeService);
+        MacOsProcessesAndPortsPlatformService processes = Assert.IsType<MacOsProcessesAndPortsPlatformService>(platform.ProcessesAndPorts);
+        Assert.True(processes.Support.IsSupported);
+        Assert.True(processes.Support.CanTerminate);
         Assert.IsType<UnsupportedFileUsagePlatformService>(platform.FileUsage);
     }
 }

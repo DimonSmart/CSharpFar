@@ -10,5 +10,5 @@
     <ProjectReference Include="..\CSharpFar.Platform.Abstractions\CSharpFar.Platform.Abstractions.csproj" />
     <ProjectReference Include="..\CSharpFar.Shell\CSharpFar.Shell.csproj" />
   </ItemGroup>
-  <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><AllowUnsafeBlocks>true</AllowUnsafeBlocks></PropertyGroup>
 </Project>

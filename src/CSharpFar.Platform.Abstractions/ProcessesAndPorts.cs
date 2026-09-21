@@ -24,7 +24,7 @@ public interface IProcessesAndPortsPlatformService
     ProcessTerminationResult TerminateProcess(ProcessIdentity identity, CancellationToken cancellationToken = default);
 }
 
-public sealed class UnsupportedProcessesAndPortsPlatformService(string reason = "Processes and Ports is supported on Windows only.") : IProcessesAndPortsPlatformService
+public sealed class UnsupportedProcessesAndPortsPlatformService(string reason = "Processes and Ports is not supported on this platform.") : IProcessesAndPortsPlatformService
 {
     public ProcessesAndPortsSupportInfo Support { get; } = new(false, false, reason, reason);
     public ProcessesAndPortsSnapshot CaptureSnapshot(ProcessesAndPortsQuery query, CancellationToken cancellationToken = default) => new(DateTimeOffset.Now, []);
