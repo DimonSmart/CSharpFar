@@ -654,7 +654,7 @@ public class FileViewerTests : IDisposable
             switch (hook++)
             {
                 case 0:
-                    readerFactory.Current.FailNextRead = true;
+                    readerFactory.Current.FailNextLength = true;
                     current.BeforeTryReadInput = beforeInput;
                     break;
                 case 1:
@@ -1288,25 +1288,30 @@ public class FileViewerTests : IDisposable
             _inner = new RandomAccessFileByteReader(filePath);
         }
 
-        public bool FailNextRead { get; set; }
+        public bool FailNextLength { get; set; }
 
         public int TransientFailureVersion =>
             _inner.TransientFailureVersion + _injectedFailureVersion;
 
-        public long Length => _inner.Length;
+        public long Length
+        {
+            get
+            {
+                long length = _inner.Length;
+                if (!FailNextLength)
+                    return length;
+
+                FailNextLength = false;
+                _injectedFailureVersion++;
+                return length;
+            }
+        }
 
         public Task<int> ReadAsync(
             long offset,
             Memory<byte> buffer,
-            CancellationToken cancellationToken = default)
-        {
-            if (!FailNextRead)
-                return _inner.ReadAsync(offset, buffer, cancellationToken);
-
-            FailNextRead = false;
-            _injectedFailureVersion++;
-            return Task.FromResult(0);
-        }
+            CancellationToken cancellationToken = default) =>
+            _inner.ReadAsync(offset, buffer, cancellationToken);
 
         public void Dispose() => _inner.Dispose();
     }
