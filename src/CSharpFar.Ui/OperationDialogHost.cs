@@ -57,12 +57,70 @@ public sealed class OperationDialogHost
         Action? onCancellationRequested = null,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(complete);
+        return RunCore(
+            options,
+            operation,
+            form,
+            content,
+            status,
+            commands,
+            synchronize,
+            handle,
+            result => OperationDialogOutcome<TResult>.Complete(complete(result)),
+            waitForOperationOnClose: true,
+            onCancellationRequested,
+            cancellationToken);
+    }
+
+    internal TResult RunPersistent<TBackground, TResult>(
+        OperationDialogOptions options,
+        Func<CancellationToken, Task<TBackground>> operation,
+        ScrollableFormDialog form,
+        ICompositeDialogContent content,
+        Func<string?>? status,
+        IReadOnlyDictionary<ConsoleKey, string>? commands,
+        Func<bool>? synchronize,
+        Func<CompositeDialogEvent, OperationDialogOutcome<TResult>> handle,
+        Func<TBackground, OperationDialogOutcome<TResult>> operationCompleted,
+        Action? onCancellationRequested = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(operationCompleted);
+        return RunCore(
+            options,
+            operation,
+            form,
+            content,
+            status,
+            commands,
+            synchronize,
+            handle,
+            operationCompleted,
+            waitForOperationOnClose: false,
+            onCancellationRequested,
+            cancellationToken);
+    }
+
+    private TResult RunCore<TBackground, TResult>(
+        OperationDialogOptions options,
+        Func<CancellationToken, Task<TBackground>> operation,
+        ScrollableFormDialog form,
+        ICompositeDialogContent content,
+        Func<string?>? status,
+        IReadOnlyDictionary<ConsoleKey, string>? commands,
+        Func<bool>? synchronize,
+        Func<CompositeDialogEvent, OperationDialogOutcome<TResult>> handle,
+        Func<TBackground, OperationDialogOutcome<TResult>> operationCompleted,
+        bool waitForOperationOnClose,
+        Action? onCancellationRequested,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(form);
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(handle);
-        ArgumentNullException.ThrowIfNull(complete);
         options.Validate();
 
         using var operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -75,12 +133,10 @@ public sealed class OperationDialogHost
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
 
-        // Synchronization has one lifecycle: once before the first frame, once per
-        // periodic wake, and once when the operation completes. A changed semantic
-        // command invalidates the next render without triggering another refresh.
         _ = synchronize?.Invoke();
         bool cancellationNotified = false;
         bool cancellationPending = false;
+        bool operationCompletionHandled = false;
 
         void RequestCancellation()
         {
@@ -90,6 +146,14 @@ public sealed class OperationDialogHost
                 cancellationNotified = true;
                 onCancellationRequested?.Invoke();
             }
+        }
+
+        void ObserveOnClose()
+        {
+            if (waitForOperationOnClose)
+                ObserveBeforeClose(task);
+            else
+                ObserveEventually(task);
         }
 
         try
@@ -115,21 +179,40 @@ public sealed class OperationDialogHost
                             return ModalDialogLoopResult<TResult>.ContinueChanged;
                         case OperationDialogAction.Complete:
                             RequestCancellation();
-                            ObserveBeforeClose(task);
+                            ObserveOnClose();
                             return ModalDialogLoopResult<TResult>.Complete(outcome.Result!);
                         default:
                             return ModalDialogLoopResult<TResult>.ContinueNoChange;
                     }
                 },
-                () => DateTimeOffset.UtcNow + options.RefreshInterval,
+                () => operationCompletionHandled
+                    ? null
+                    : DateTimeOffset.UtcNow + options.RefreshInterval,
                 () =>
                 {
                     bool changed = synchronize?.Invoke() ?? false;
-                    if (!task.IsCompleted)
+                    if (!task.IsCompleted || operationCompletionHandled)
                         return changed ? ModalDialogWakeResult<TResult>.Changed : ModalDialogWakeResult<TResult>.NoChange;
 
                     TBackground result = task.GetAwaiter().GetResult();
-                    return ModalDialogWakeResult<TResult>.Complete(complete(result), true);
+                    operationCompletionHandled = true;
+                    OperationDialogOutcome<TResult> outcome = operationCompleted(result);
+                    switch (outcome.Action)
+                    {
+                        case OperationDialogAction.Complete:
+                            return ModalDialogWakeResult<TResult>.Complete(outcome.Result!, true);
+                        case OperationDialogAction.ContinueChanged:
+                            _ = synchronize?.Invoke();
+                            return ModalDialogWakeResult<TResult>.Changed;
+                        case OperationDialogAction.RequestCancellation:
+                        case OperationDialogAction.RequestImmediateCancellation:
+                            RequestCancellation();
+                            return ModalDialogWakeResult<TResult>.Changed;
+                        default:
+                            return changed
+                                ? ModalDialogWakeResult<TResult>.Changed
+                                : ModalDialogWakeResult<TResult>.NoChange;
+                    }
                 },
                 prepareRender: null,
                 afterFrameCommitted: () =>
@@ -146,9 +229,24 @@ public sealed class OperationDialogHost
         catch
         {
             RequestCancellation();
-            ObserveBeforeClose(task);
+            ObserveOnClose();
             throw;
         }
+    }
+
+    private static void ObserveEventually(Task task)
+    {
+        if (task.IsCompleted)
+        {
+            ObserveBeforeClose(task);
+            return;
+        }
+
+        _ = task.ContinueWith(
+            static completed => ObserveBeforeClose(completed),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 
     private static void ObserveBeforeClose(Task task)

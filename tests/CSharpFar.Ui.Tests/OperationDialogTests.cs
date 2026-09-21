@@ -147,6 +147,37 @@ public sealed class OperationDialogTests
     }
 
     [Fact]
+    public void OperationCompletion_CanRefreshAndKeepDialogOpen()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        bool completionHandled = false;
+        int completionCalls = 0;
+
+        string result = Create(driver).Operation(new OperationDialogDefinition<string, int, string>
+        {
+            Title = "Persistent",
+            RefreshInterval = TimeSpan.FromDays(1),
+            Operation = _ => Task.FromResult(7),
+            Synchronize = () => new OperationDialogState<string>(
+                rows: [FormControls.Label(completionHandled ? "Completed" : "Working")]),
+            HandleOperationCompleted = value =>
+            {
+                Assert.Equal(7, value);
+                completionHandled = true;
+                completionCalls++;
+                return OperationDialogOutcome<string>.ContinueChanged;
+            },
+            HandleCancel = () => OperationDialogOutcome<string>.Complete("closed"),
+            Complete = _ => "legacy",
+        });
+
+        Assert.Equal("closed", result);
+        Assert.True(completionHandled);
+        Assert.Equal(1, completionCalls);
+    }
+
+    [Fact]
     public void CompletedOperation_UsesCompletionHandler()
     {
         var driver = new FakeConsoleDriver();

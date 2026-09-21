@@ -10,6 +10,8 @@ CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.HandleComman
 CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.HandleCommand.init -> void
 CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.HandleItemActivation.get -> System.Func<TItem, CSharpFar.Ui.OperationDialogOutcome<TResult>>?
 CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.HandleItemActivation.init -> void
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.HandleOperationCompleted.get -> System.Func<TBackground, CSharpFar.Ui.OperationDialogOutcome<TResult>>?
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.HandleOperationCompleted.init -> void
 CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.ItemIdentity.get -> System.Func<TItem, object!>?
 CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.ItemIdentity.init -> void
 CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.KeyboardCommands.get -> System.Collections.Generic.IReadOnlyDictionary<System.ConsoleKey, string!>?

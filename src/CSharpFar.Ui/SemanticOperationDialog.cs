@@ -23,6 +23,7 @@ public sealed class OperationDialogDefinition<TItem, TBackground, TResult>
     public Func<TItem, OperationDialogOutcome<TResult>>? HandleItemActivation { get; init; }
     public Func<ListDialogActionContext<TItem>, OperationDialogOutcome<TResult>>? HandleCommand { get; init; }
     public Func<OperationDialogOutcome<TResult>>? HandleCancel { get; init; }
+    public Func<TBackground, OperationDialogOutcome<TResult>>? HandleOperationCompleted { get; init; }
     public required Func<TBackground, TResult> Complete { get; init; }
     public Action? OnCancellationRequested { get; init; }
 }
@@ -75,26 +76,41 @@ internal sealed class SemanticOperationDialog<TItem, TBackground, TResult>
         ICompositeDialogContent content = table is null ? EmptyCompositeDialogContent.Instance : table;
         OperationDialogState<TItem>? state = null;
 
-        return _host.Run(
-            new OperationDialogOptions(
-                new CompositeDialogOptions(
-                    options.Title,
-                    options.PreferredWidth,
-                    options.PreferredHeight,
-                    options.MinWidth,
-                    options.MinHeight,
-                    Appearance: options.Appearance),
-                options.RefreshInterval),
-            options.Operation,
-            form,
-            content,
-            status: () => state?.Status,
-            commands: options.KeyboardCommands,
-            synchronize: Synchronize,
-            handle: Handle,
-            complete: options.Complete,
-            onCancellationRequested: options.OnCancellationRequested,
-            cancellationToken);
+        var hostOptions = new OperationDialogOptions(
+            new CompositeDialogOptions(
+                options.Title,
+                options.PreferredWidth,
+                options.PreferredHeight,
+                options.MinWidth,
+                options.MinHeight,
+                Appearance: options.Appearance),
+            options.RefreshInterval);
+
+        return options.HandleOperationCompleted is null
+            ? _host.Run(
+                hostOptions,
+                options.Operation,
+                form,
+                content,
+                status: () => state?.Status,
+                commands: options.KeyboardCommands,
+                synchronize: Synchronize,
+                handle: Handle,
+                complete: options.Complete,
+                onCancellationRequested: options.OnCancellationRequested,
+                cancellationToken)
+            : _host.RunPersistent(
+                hostOptions,
+                options.Operation,
+                form,
+                content,
+                status: () => state?.Status,
+                commands: options.KeyboardCommands,
+                synchronize: Synchronize,
+                handle: Handle,
+                operationCompleted: options.HandleOperationCompleted,
+                onCancellationRequested: options.OnCancellationRequested,
+                cancellationToken);
 
         bool Synchronize()
         {

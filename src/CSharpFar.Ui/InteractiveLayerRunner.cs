@@ -66,11 +66,14 @@ internal sealed class InteractiveLayerRunner
                 tryTakeInput,
                 static () => { });
 
+            CancellationToken effectiveWakeSignal = wakeSignal;
             while (true)
             {
                 CompositionInputPumpResult<InteractiveLayerInput<TFrame, TSemantic>> read = getNextWakeUtc is null
                     ? CompositionInputPumpResult<InteractiveLayerInput<TFrame, TSemantic>>.Input(pump.Read(cancellationToken))
-                    : pump.ReadOrWake(getNextWakeUtc, cancellationToken, wakeSignal);
+                    : pump.ReadOrWake(getNextWakeUtc, cancellationToken, effectiveWakeSignal);
+                if (read.IsWake && effectiveWakeSignal.IsCancellationRequested)
+                    effectiveWakeSignal = default;
                 if (read.IsWake)
                 {
                     InteractiveLayerWakeResult<TResult> wake = handleWake!(committedFrame());
