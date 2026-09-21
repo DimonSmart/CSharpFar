@@ -1807,6 +1807,7 @@ internal sealed class LargeFileViewer
         state.TopByteOffset = state.IsHexMode
             ? Math.Clamp(anchorByteOffset, 0, reader.Length)
             : scanner.FindLineStartAtOrBeforeAsync(anchorByteOffset).GetAwaiter().GetResult();
+        state.TopWrappedSegmentIndex = 0;
         state.HorizontalOffset = 0;
     }
 
@@ -2223,6 +2224,69 @@ internal sealed class LargeFileViewer
             return new InteractiveSurfaceRouteResult<ViewerInput>(ViewerInput.None);
         }
     }
+
+    private sealed class LocalViewerSession : IDisposable
+    {
+        private readonly LocalFileMonitor _monitor;
+
+        public LocalViewerSession(
+            string filePath,
+            RandomAccessFileByteReader reader,
+            LargeFileViewerState state,
+            LocalFileMonitor monitor,
+            LocalFileSnapshot appliedSnapshot,
+            bool pendingRefresh)
+        {
+            FilePath = filePath;
+            Reader = reader;
+            State = state;
+            _monitor = monitor;
+            AppliedSnapshot = appliedSnapshot;
+            PendingRefresh = pendingRefresh;
+        }
+
+        public string FilePath { get; }
+        public RandomAccessFileByteReader Reader { get; }
+        public LargeFileViewerState State { get; }
+        public LocalFileSnapshot AppliedSnapshot { get; private set; }
+        public bool PendingRefresh { get; private set; }
+
+        public void MarkDirty()
+        {
+            PendingRefresh = true;
+            _monitor.MarkDirty();
+        }
+
+        public void DetectChanges()
+        {
+            bool watcherDirty = _monitor.TakeDirty();
+            if (LocalFileMonitor.TryCaptureSnapshot(FilePath, out LocalFileSnapshot snapshot))
+            {
+                if (watcherDirty || snapshot != AppliedSnapshot)
+                    PendingRefresh = true;
+                return;
+            }
+
+            if (watcherDirty)
+                PendingRefresh = true;
+        }
+
+        public void Commit(LocalFileSnapshot snapshot)
+        {
+            AppliedSnapshot = snapshot;
+            PendingRefresh = false;
+        }
+
+        public void Dispose()
+        {
+            _monitor.Dispose();
+            Reader.Dispose();
+        }
+    }
+
+    private readonly record struct ViewerViewportPosition(
+        long ByteOffset,
+        int WrappedSegmentIndex);
 
     private sealed record LargeFileViewerFrame(
         ConsoleViewport Viewport,
