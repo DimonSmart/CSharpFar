@@ -2263,7 +2263,7 @@ internal sealed class LargeFileViewer
             bool watcherDirty = _monitor.TakeDirty();
             if (LocalFileMonitor.TryCaptureSnapshot(FilePath, out LocalFileSnapshot snapshot))
             {
-                if (watcherDirty || snapshot != AppliedSnapshot)
+                if (LocalFileMonitor.ShouldRefresh(AppliedSnapshot, snapshot, watcherDirty))
                     PendingRefresh = true;
                 return;
             }
