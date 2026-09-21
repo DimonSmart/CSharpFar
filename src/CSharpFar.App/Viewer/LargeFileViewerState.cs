@@ -32,13 +32,6 @@ internal sealed class LargeFileViewerState
     public int LastViewportWidth { get; set; } = -1;
     public int LastContentHeight { get; set; } = -1;
 
-    // Compatibility bridge while LargeFileViewer migrates to LiveMode.
-    public bool FollowMode
-    {
-        get => LiveMode == ViewerLiveMode.Tail;
-        set => LiveMode = value ? ViewerLiveMode.Tail : ViewerLiveMode.Off;
-    }
-
     public bool IsHexMode => ViewMode == LargeFileViewMode.Hex;
 
     public void ResetScanner(LineScanner lineScanner, TextEncodingSelection encodingSelection) =>
