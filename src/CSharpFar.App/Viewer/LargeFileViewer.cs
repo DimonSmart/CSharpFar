@@ -251,7 +251,8 @@ internal sealed class LargeFileViewer
         LargeFileViewerState state,
         LargeFileViewerOptions options,
         LargeFileViewerFrame frame,
-        ViewerInput input)
+        ViewerInput input,
+        LocalViewerSession? localSession)
     {
         var size = frame.Size;
         int contentHeight = frame.ContentHeight;
@@ -259,7 +260,7 @@ internal sealed class LargeFileViewer
 
         if (input.ScrollLines is { } lines)
         {
-            ApplyScrollLines(reader, state, view, lines);
+            ApplyScrollLines(filePath, reader, state, view, lines, contentHeight, size.Width, localSession);
             return ModalDialogLoopResult<ViewerLoopAction>.ContinueChanged;
         }
 
@@ -285,11 +286,13 @@ internal sealed class LargeFileViewer
         switch (key.Key)
         {
             case ConsoleKey.UpArrow:
-                MoveUp(state);
+                MoveUp(filePath, reader, state, contentHeight, size.Width);
+                UpdateLiveModeAfterAwayNavigation(filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.DownArrow:
-                MoveDown(reader, state, view);
+                MoveDown(filePath, reader, state, view, contentHeight, size.Width);
+                UpdateLiveModeAfterDownwardNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.LeftArrow when control && shift:
@@ -322,31 +325,38 @@ internal sealed class LargeFileViewer
                 break;
 
             case ConsoleKey.PageUp when alt:
-                MovePageUp(state, contentHeight, FastPageMultiplier);
+                MovePageUp(filePath, reader, state, contentHeight, size.Width, FastPageMultiplier);
+                UpdateLiveModeAfterAwayNavigation(filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.PageDown when alt:
-                MovePageDown(reader, state, contentHeight, FastPageMultiplier);
+                MovePageDown(filePath, reader, state, contentHeight, size.Width, FastPageMultiplier);
+                UpdateLiveModeAfterDownwardNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.PageUp:
-                MovePageUp(state, contentHeight, pages: 1);
+                MovePageUp(filePath, reader, state, contentHeight, size.Width, pages: 1);
+                UpdateLiveModeAfterAwayNavigation(filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.PageDown:
-                MovePageDown(reader, state, view, contentHeight);
+                MovePageDown(filePath, reader, state, view, contentHeight, size.Width);
+                UpdateLiveModeAfterDownwardNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.Home:
                 state.TopByteOffset = state.IsHexMode ? 0 : state.LineScanner.ContentStartOffset;
+                state.TopWrappedSegmentIndex = 0;
                 state.HorizontalOffset = 0;
-                state.FollowMode = false;
+                NormalizeViewport(filePath, reader, state, contentHeight, size.Width);
+                UpdateLiveModeAfterAwayNavigation(filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.End:
-                MoveToEnd(reader, state, contentHeight);
+                MoveToEnd(filePath, reader, state, contentHeight, size.Width);
                 state.HorizontalOffset = 0;
-                state.FollowMode = true;
+                if (localSession is not null)
+                    state.LiveMode = ViewerLiveMode.Tail;
                 break;
 
             case ConsoleKey.F1:
@@ -357,12 +367,16 @@ internal sealed class LargeFileViewer
                 state.WordWrap = !state.WordWrap;
                 state.WrapLines = true;
                 state.HorizontalOffset = 0;
+                state.TopWrappedSegmentIndex = 0;
+                NormalizeViewport(filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.F2 when !shift && !alt && !control:
                 state.WrapLines = !state.WrapLines;
+                state.TopWrappedSegmentIndex = 0;
                 if (state.WrapLines)
                     state.HorizontalOffset = 0;
+                NormalizeViewport(filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.F3 when !shift && !alt && !control:
@@ -371,6 +385,7 @@ internal sealed class LargeFileViewer
 
             case ConsoleKey.F4 when !shift && !alt && !control:
                 ToggleViewMode(state);
+                NormalizeViewport(filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.F5 when alt:
@@ -384,7 +399,7 @@ internal sealed class LargeFileViewer
                 break;
 
             case ConsoleKey.F6 when !shift && !alt && !control:
-                EditCurrentFile(filePath, reader, state, options);
+                EditCurrentFile(filePath, reader, state, options, localSession, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.F7 when control:
@@ -404,7 +419,8 @@ internal sealed class LargeFileViewer
                 break;
 
             case ConsoleKey.F8 when alt:
-                JumpToPosition(reader, state, contentHeight);
+                JumpToPosition(filePath, reader, state, contentHeight, size.Width);
+                UpdateLiveModeAfterAwayNavigation(filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.F8 when control:
@@ -440,17 +456,35 @@ internal sealed class LargeFileViewer
                 break;
 
             case ConsoleKey.F when !shift && !alt && !control:
-                state.FollowMode = !state.FollowMode;
-                if (state.FollowMode)
-                    MoveToEnd(reader, state, contentHeight);
+                if (localSession is null)
+                {
+                    _dialogs.Message("Viewer", "Live refresh is not supported for this source.");
+                    break;
+                }
+
+                state.LiveMode = state.LiveMode switch
+                {
+                    ViewerLiveMode.Off => ViewerLiveMode.Watch,
+                    ViewerLiveMode.Watch => ViewerLiveMode.Tail,
+                    _ => ViewerLiveMode.Off,
+                };
+                if (state.LiveMode != ViewerLiveMode.Off)
+                {
+                    localSession.DetectChanges();
+                    TryRefreshLocalFile(localSession, filePath, contentHeight, size.Width);
+                    if (state.LiveMode == ViewerLiveMode.Tail)
+                        MoveToEnd(filePath, reader, state, contentHeight, size.Width);
+                }
                 break;
 
             case ConsoleKey.G when !shift && !alt && !control:
-                JumpToPosition(reader, state, contentHeight);
+                JumpToPosition(filePath, reader, state, contentHeight, size.Width);
+                UpdateLiveModeAfterAwayNavigation(filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.H when !shift && !alt && !control:
                 ToggleViewMode(state);
+                NormalizeViewport(filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.Spacebar when !shift && !alt && !control:
