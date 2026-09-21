@@ -127,7 +127,11 @@ public sealed class OperationDialogHost
         using var completionWake = new CancellationTokenSource();
         Task<TBackground> task = Task.Run(() => operation(operationCancellation.Token), CancellationToken.None);
         _ = task.ContinueWith(
-            static (_, state) => ((CancellationTokenSource)state!).Cancel(),
+            static (_, state) =>
+            {
+                try { ((CancellationTokenSource)state!).Cancel(); }
+                catch (ObjectDisposedException) { }
+            },
             completionWake,
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
