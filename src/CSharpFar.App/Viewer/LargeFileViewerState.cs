@@ -15,24 +15,41 @@ internal sealed class LargeFileViewerState
     }
 
     public long TopByteOffset { get; set; }
+    public int TopWrappedSegmentIndex { get; set; }
     public int HorizontalOffset { get; set; }
-    public bool FollowMode { get; set; }
+    public ViewerLiveMode LiveMode { get; set; }
     public bool WrapLines { get; set; }
     public bool WordWrap { get; set; } = true;
     public LargeFileViewMode ViewMode { get; set; }
     public TextEncodingSelection EncodingSelection { get; private set; }
-    public BlockCache BlockCache { get; }
+    public BlockCache BlockCache { get; private set; }
     public LineScanner LineScanner { get; private set; }
     public SparseLineIndex LineIndex { get; private set; } = new();
     public ViewerSearchRequest? LastSearch { get; set; }
     public ViewerSearchMatch? SearchMatch { get; set; }
     public ViewerPresentationMode PresentationMode { get; set; } = ViewerPresentationMode.Auto;
     public ViewerPresentationSession Presentation { get; } = new();
+    public int LastViewportWidth { get; set; } = -1;
+    public int LastContentHeight { get; set; } = -1;
+
+    // Compatibility bridge while LargeFileViewer migrates to LiveMode.
+    public bool FollowMode
+    {
+        get => LiveMode == ViewerLiveMode.Tail;
+        set => LiveMode = value ? ViewerLiveMode.Tail : ViewerLiveMode.Off;
+    }
 
     public bool IsHexMode => ViewMode == LargeFileViewMode.Hex;
 
-    public void ResetScanner(LineScanner lineScanner, TextEncodingSelection encodingSelection)
+    public void ResetScanner(LineScanner lineScanner, TextEncodingSelection encodingSelection) =>
+        ReplaceContent(BlockCache, lineScanner, encodingSelection);
+
+    public void ReplaceContent(
+        BlockCache blockCache,
+        LineScanner lineScanner,
+        TextEncodingSelection encodingSelection)
     {
+        BlockCache = blockCache;
         LineScanner = lineScanner;
         EncodingSelection = encodingSelection;
         LineIndex = new SparseLineIndex();
