@@ -456,6 +456,26 @@ public class FileViewerTests : IDisposable
     }
 
     [Fact]
+    public void Show_F5KeepsTailAtNewPresentationMaximum()
+    {
+        string path = Write(
+            "tail-presentation.md",
+            "[label](https://example.test/" + new string('x', 180) + ") RAW-END",
+            new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 20, height: 7);
+        driver.EnqueueKey(Key(ConsoleKey.F2));
+        driver.EnqueueKey(Key(ConsoleKey.End));
+        driver.EnqueueKey(Key(ConsoleKey.F5));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        FileViewerFor(new ScreenRenderer(driver)).Show(path);
+
+        string content = driver.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 20, 5));
+        Assert.Contains("RAW-END", content);
+        Assert.Contains("TAIL", WrittenText(driver));
+    }
+
+    [Fact]
     public void Show_PageDownClampsToLastFullPage()
     {
         string path = Write(
@@ -555,6 +575,139 @@ public class FileViewerTests : IDisposable
             snapshot,
             snapshot with { Length = 5 },
             watcherDirty: false));
+    }
+
+    [Fact]
+    public void LocalFileMonitoringSession_IsLazyAndReusesActiveMonitor()
+    {
+        string path = Write("monitor-lifecycle.txt", "AAAA", new UTF8Encoding(false));
+        Assert.True(LocalFileMonitor.TryCaptureSnapshot(path, out LocalFileSnapshot snapshot));
+        var factory = new FakeLocalFileMonitorFactory();
+
+        using var monitoring = new LocalFileMonitoringSession(path, snapshot, factory);
+
+        Assert.False(monitoring.IsActive);
+        Assert.False(monitoring.PendingRefresh);
+        Assert.Equal(0, factory.CreateCount);
+
+        monitoring.Activate();
+
+        Assert.True(monitoring.IsActive);
+        Assert.True(monitoring.PendingRefresh);
+        Assert.Equal(1, factory.CreateCount);
+
+        long initialRefresh = monitoring.BeginRefresh();
+        monitoring.Commit(snapshot, initialRefresh);
+        Assert.False(monitoring.PendingRefresh);
+
+        monitoring.Activate();
+        Assert.Equal(1, factory.CreateCount);
+
+        FakeLocalFileMonitor first = factory.Current;
+        monitoring.Deactivate();
+
+        Assert.True(first.IsDisposed);
+        Assert.False(monitoring.IsActive);
+        Assert.False(monitoring.PendingRefresh);
+
+        monitoring.Activate();
+
+        Assert.Equal(2, factory.CreateCount);
+        Assert.True(monitoring.PendingRefresh);
+        Assert.NotSame(first, factory.Current);
+    }
+
+    [Fact]
+    public void LocalFileMonitoringSession_NotificationDuringRefreshRemainsPending()
+    {
+        string path = Write("monitor-race.txt", "AAAA", new UTF8Encoding(false));
+        Assert.True(LocalFileMonitor.TryCaptureSnapshot(path, out LocalFileSnapshot snapshot));
+        var factory = new FakeLocalFileMonitorFactory();
+
+        using var monitoring = new LocalFileMonitoringSession(path, snapshot, factory);
+        monitoring.Activate();
+        monitoring.Commit(snapshot, monitoring.BeginRefresh());
+
+        factory.Current.MarkDirty();
+        monitoring.DetectChanges();
+        Assert.True(monitoring.PendingRefresh);
+
+        long refreshVersion = monitoring.BeginRefresh();
+        factory.Current.MarkDirty();
+        monitoring.Commit(snapshot, refreshVersion);
+
+        Assert.True(monitoring.PendingRefresh);
+
+        long secondRefreshVersion = monitoring.BeginRefresh();
+        monitoring.Commit(snapshot, secondRefreshVersion);
+
+        Assert.False(monitoring.PendingRefresh);
+    }
+
+    [Fact]
+    public void LocalFileMonitoringSession_PollingWorksWithoutNotifications()
+    {
+        string path = Write("monitor-polling-only.txt", "AAAA", new UTF8Encoding(false));
+        Assert.True(LocalFileMonitor.TryCaptureSnapshot(path, out LocalFileSnapshot snapshot));
+        var factory = new FakeLocalFileMonitorFactory(notificationsAvailable: false);
+
+        using var monitoring = new LocalFileMonitoringSession(path, snapshot, factory);
+        monitoring.Activate();
+        monitoring.Commit(snapshot, monitoring.BeginRefresh());
+
+        File.AppendAllText(path, "B", new UTF8Encoding(false));
+        monitoring.DetectChanges();
+
+        Assert.True(monitoring.IsActive);
+        Assert.False(monitoring.NotificationsAvailable);
+        Assert.True(monitoring.PendingRefresh);
+        Assert.Equal(1, factory.CreateCount);
+
+        monitoring.DetectChanges();
+        Assert.Equal(1, factory.CreateCount);
+    }
+
+    [Fact]
+    public void LocalFileMonitoringSession_NotificationBackendErrorRequestsResync()
+    {
+        string path = Write("monitor-error.txt", "AAAA", new UTF8Encoding(false));
+        Assert.True(LocalFileMonitor.TryCaptureSnapshot(path, out LocalFileSnapshot snapshot));
+        var factory = new FakeLocalFileMonitorFactory();
+
+        using var monitoring = new LocalFileMonitoringSession(path, snapshot, factory);
+        monitoring.Activate();
+        monitoring.Commit(snapshot, monitoring.BeginRefresh());
+
+        factory.Current.FailNotifications();
+        monitoring.DetectChanges();
+
+        Assert.True(monitoring.IsActive);
+        Assert.False(monitoring.NotificationsAvailable);
+        Assert.True(monitoring.PendingRefresh);
+        Assert.Equal(1, factory.CreateCount);
+    }
+
+    [Fact]
+    public async Task LineScanner_VeryLongPhysicalLineUsesRealEofAndBoundedCapture()
+    {
+        const int oldScanLimit = 4 * 1024 * 1024;
+        string path = WritePath("very-long-physical-line.txt");
+        byte[] content = Enumerable.Repeat((byte)'x', oldScanLimit + 4096).ToArray();
+        File.WriteAllBytes(path, content);
+
+        using var reader = new RandomAccessFileByteReader(path);
+        var cache = new BlockCache(reader);
+        var scanner = await LineScanner.CreateAsync(cache, reader);
+
+        ScannedLines scanned = await scanner.ReadLinesAsync(
+            scanner.ContentStartOffset,
+            lineCount: 2,
+            maxBytesPerLine: 256);
+
+        ScannedLine line = Assert.Single(scanned.Lines);
+        Assert.Equal(content.LongLength, line.NextOffset);
+        Assert.Equal(content.LongLength, scanned.NextOffset);
+        Assert.True(line.Text.Length <= 256);
     }
 
     [Fact]
@@ -799,6 +952,25 @@ public class FileViewerTests : IDisposable
     }
 
     [Fact]
+    public void Show_F6RefreshesEditedFileWhileLiveModeIsOff()
+    {
+        string path = Write("viewer-edit-refresh.txt", "AAAA", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 80, height: 8);
+        driver.EnqueueKey(Key(ConsoleKey.F6));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        FileViewerFor(new ScreenRenderer(driver)).Show(path, new LargeFileViewerOptions
+        {
+            EditFile = value => File.WriteAllText(value, "BBBB", new UTF8Encoding(false)),
+        });
+
+        string content = driver.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
+        Assert.Contains("BBBB", content);
+        Assert.DoesNotContain("WATCH", WrittenText(driver));
+        Assert.DoesNotContain("TAIL", WrittenText(driver));
+    }
+
+    [Fact]
     public void Show_F6InvokesEditorLauncher()
     {
         string path = Write("viewer-edit.txt", "edit me", new UTF8Encoding(false));
@@ -873,6 +1045,57 @@ public class FileViewerTests : IDisposable
         }
 
         return new string(row);
+    }
+
+    private sealed class FakeLocalFileMonitorFactory : ILocalFileMonitorFactory
+    {
+        private readonly bool _notificationsAvailable;
+
+        public FakeLocalFileMonitorFactory(bool notificationsAvailable = true)
+        {
+            _notificationsAvailable = notificationsAvailable;
+        }
+
+        public int CreateCount { get; private set; }
+
+        public List<FakeLocalFileMonitor> Monitors { get; } = [];
+
+        public FakeLocalFileMonitor Current => Monitors[^1];
+
+        public ILocalFileMonitor Create(string filePath)
+        {
+            _ = filePath;
+            CreateCount++;
+            var monitor = new FakeLocalFileMonitor(_notificationsAvailable);
+            Monitors.Add(monitor);
+            return monitor;
+        }
+    }
+
+    private sealed class FakeLocalFileMonitor : ILocalFileMonitor
+    {
+        private long _changeVersion;
+
+        public FakeLocalFileMonitor(bool notificationsAvailable)
+        {
+            NotificationsAvailable = notificationsAvailable;
+        }
+
+        public long ChangeVersion => _changeVersion;
+
+        public bool NotificationsAvailable { get; private set; }
+
+        public bool IsDisposed { get; private set; }
+
+        public void MarkDirty() => _changeVersion++;
+
+        public void FailNotifications()
+        {
+            NotificationsAvailable = false;
+            MarkDirty();
+        }
+
+        public void Dispose() => IsDisposed = true;
     }
 
     private sealed class FakeTextClipboard : ITextClipboard

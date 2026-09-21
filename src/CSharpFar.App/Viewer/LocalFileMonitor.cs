@@ -111,8 +111,8 @@ internal sealed class LocalFileMonitor : ILocalFileMonitor
     internal static bool ShouldRefresh(
         LocalFileSnapshot appliedSnapshot,
         LocalFileSnapshot currentSnapshot,
-        bool notificationDirty) =>
-        notificationDirty || currentSnapshot != appliedSnapshot;
+        bool watcherDirty) =>
+        watcherDirty || currentSnapshot != appliedSnapshot;
 
     public void Dispose() => DisableNotifications();
 
