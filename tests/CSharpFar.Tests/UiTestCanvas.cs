@@ -6,13 +6,16 @@ namespace CSharpFar.Tests;
 
 internal static class UiTestCanvas
 {
-    public static FileViewer FileViewerFor(ScreenRenderer screen)
+    public static FileViewer FileViewerFor(
+        ScreenRenderer screen,
+        ILocalFileMonitorFactory? localFileMonitorFactory = null)
     {
         UiTestHost host = UiTestHost.Create(screen);
         return new FileViewer(
             host.Surfaces,
             host.ModalDialogs,
             new DialogService(host.ModalDialogs, new FormFieldFactory(new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore()))),
-            new FormFieldFactory(new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore())));
+            new FormFieldFactory(new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore())),
+            localFileMonitorFactory: localFileMonitorFactory);
     }
 }

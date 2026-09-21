@@ -14,19 +14,22 @@ internal sealed class FileViewer
     private readonly DialogService _dialogs;
     private readonly CSharpFarPalette _palette;
     private readonly FormFieldFactory _fields;
+    private readonly ILocalFileMonitorFactory? _localFileMonitorFactory;
 
     public FileViewer(
         InteractiveSurfaceHost surfaces,
         ModalDialogHost modalDialogs,
         DialogService dialogs,
         FormFieldFactory fields,
-        CSharpFarPalette? palette = null)
+        CSharpFarPalette? palette = null,
+        ILocalFileMonitorFactory? localFileMonitorFactory = null)
     {
         _surfaces = surfaces;
         _modalDialogs = modalDialogs;
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _palette = palette ?? CSharpFarPaletteRegistry.Default;
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
+        _localFileMonitorFactory = localFileMonitorFactory;
     }
 
     public void Show(string filePath)
@@ -37,7 +40,7 @@ internal sealed class FileViewer
             return;
         }
 
-        new LargeFileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette).Show(filePath);
+        new LargeFileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette, _localFileMonitorFactory).Show(filePath);
     }
 
     internal void Show(string filePath, LargeFileViewerOptions options)
@@ -48,9 +51,9 @@ internal sealed class FileViewer
             return;
         }
 
-        new LargeFileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette).Show(filePath, options);
+        new LargeFileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette, _localFileMonitorFactory).Show(filePath, options);
     }
 
     internal void Show(string displayPath, IFileByteReader reader, LargeFileViewerOptions? options = null) =>
-        new LargeFileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette).ShowVirtual(displayPath, reader, options);
+        new LargeFileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette, _localFileMonitorFactory).ShowVirtual(displayPath, reader, options);
 }

@@ -81,6 +81,44 @@ internal sealed class LineScanner
         return new ScannedLines(lines, offset);
     }
 
+    internal async Task VisitLineTextChunksAsync(
+        ScannedLine line,
+        Action<string> visitor,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(visitor);
+
+        long contentEnd = await GetLineContentEndOffsetAsync(line, cancellationToken)
+            .ConfigureAwait(false);
+        if (contentEnd <= line.StartOffset)
+            return;
+
+        var decoder = Encoding.GetDecoder();
+        var byteBuffer = new byte[LineScanChunkBytes];
+        var charBuffer = new char[Encoding.GetMaxCharCount(LineScanChunkBytes)];
+        long offset = line.StartOffset;
+
+        while (offset < contentEnd)
+        {
+            int requested = (int)Math.Min(byteBuffer.Length, contentEnd - offset);
+            int read = await _cache
+                .ReadAsync(offset, byteBuffer.AsMemory(0, requested), cancellationToken)
+                .ConfigureAwait(false);
+            if (read == 0)
+                break;
+
+            bool flush = offset + read >= contentEnd;
+            int charCount = decoder.GetChars(
+                byteBuffer.AsSpan(0, read),
+                charBuffer.AsSpan(),
+                flush);
+            if (charCount > 0)
+                visitor(new string(charBuffer, 0, charCount));
+
+            offset += read;
+        }
+    }
+
     public async Task<long> FindLineStartAtOrBeforeAsync(
         long offset,
         CancellationToken cancellationToken = default)
@@ -236,6 +274,48 @@ internal sealed class LineScanner
             ? scanOffset
             : Math.Min(length, startOffset + NewLineWidth);
         return new ScannedLine(startOffset, finalNextOffset, finalText);
+    }
+
+    private async Task<long> GetLineContentEndOffsetAsync(
+        ScannedLine line,
+        CancellationToken cancellationToken)
+    {
+        long contentEnd = Math.Clamp(line.NextOffset, line.StartOffset, _reader.Length);
+        if (contentEnd <= line.StartOffset)
+            return contentEnd;
+
+        if (contentEnd - line.StartOffset >= NewLineWidth)
+        {
+            var delimiter = new byte[NewLineWidth];
+            int read = await _cache
+                .ReadAsync(contentEnd - NewLineWidth, delimiter, cancellationToken)
+                .ConfigureAwait(false);
+            if (read == NewLineWidth && IsNewLine(delimiter, 0))
+                contentEnd -= NewLineWidth;
+        }
+
+        int carriageReturnWidth = _isUtf16 ? 2 : 1;
+        if (contentEnd - line.StartOffset >= carriageReturnWidth)
+        {
+            var carriageReturn = new byte[carriageReturnWidth];
+            int read = await _cache
+                .ReadAsync(contentEnd - carriageReturnWidth, carriageReturn, cancellationToken)
+                .ConfigureAwait(false);
+            if (read == carriageReturnWidth && IsCarriageReturn(carriageReturn, 0))
+                contentEnd -= carriageReturnWidth;
+        }
+
+        return contentEnd;
+    }
+
+    private bool IsCarriageReturn(ReadOnlySpan<byte> bytes, int index)
+    {
+        if (!_isUtf16)
+            return bytes[index] == (byte)'\r';
+
+        return _isUtf16BigEndian
+            ? bytes[index] == 0x00 && bytes[index + 1] == 0x0D
+            : bytes[index] == 0x0D && bytes[index + 1] == 0x00;
     }
 
     private int GetLineScanChunkSize(long scanOffset, long length)

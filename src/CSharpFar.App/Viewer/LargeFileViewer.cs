@@ -12,9 +12,9 @@ namespace CSharpFar.App.Viewer;
 internal sealed class LargeFileViewer
 {
     private const int BinaryBytesPerRow = 16;
-    // Rendering capture is bounded independently from physical line scanning.
-    // Keep enough headroom to render pathological lines beyond the old 4 MiB scanner boundary.
-    private const int MaxWrappedLineCaptureBytes = 8 * 1024 * 1024;
+    // This bounds normal rendering materialization only. Physical line boundaries
+    // and pathological wrapped-line navigation use chunked scanning beyond it.
+    private const int MaxWrappedLineCaptureBytes = 4 * 1024 * 1024;
     private const int LivePollMs = 250;
     private const int FastHorizontalTextScrollCells = 20;
     private const int FastPageMultiplier = 5;
@@ -209,6 +209,24 @@ internal sealed class LargeFileViewer
                 .CreateAsync(candidateCache, reader, encodingSelection)
                 .GetAwaiter()
                 .GetResult();
+            var candidateState = new LargeFileViewerState(candidateCache, candidateScanner)
+            {
+                ViewMode = viewMode,
+                HorizontalOffset = horizontalOffset,
+                LiveMode = state.LiveMode,
+                WrapLines = state.WrapLines,
+                WordWrap = state.WordWrap,
+                PresentationMode = state.PresentationMode,
+                TopWrappedSegmentIndex = anchorWrappedSegment,
+            };
+            candidateState.TopByteOffset = candidateState.IsHexMode
+                ? Math.Max(0, anchorByteOffset)
+                : candidateScanner
+                    .FindLineStartAtOrBeforeAsync(anchorByteOffset)
+                    .GetAwaiter()
+                    .GetResult();
+
+            NormalizeViewport(filePath, reader, candidateState, contentHeight, width);
 
             if (reader.TransientFailureVersion != failureVersion)
                 return false;
@@ -223,15 +241,9 @@ internal sealed class LargeFileViewer
             state.ReplaceContent(candidateCache, candidateScanner, encodingSelection);
             state.ViewMode = viewMode;
             state.HorizontalOffset = horizontalOffset;
-            state.TopByteOffset = state.IsHexMode
-                ? Math.Max(0, anchorByteOffset)
-                : candidateScanner
-                    .FindLineStartAtOrBeforeAsync(anchorByteOffset)
-                    .GetAwaiter()
-                    .GetResult();
-            state.TopWrappedSegmentIndex = anchorWrappedSegment;
+            state.TopByteOffset = candidateState.TopByteOffset;
+            state.TopWrappedSegmentIndex = candidateState.TopWrappedSegmentIndex;
 
-            NormalizeViewport(filePath, reader, state, contentHeight, width);
             session.Commit(after, refreshVersion);
             return true;
         }
@@ -808,39 +820,60 @@ internal sealed class LargeFileViewer
             var line = scanned.Lines[0];
             lines.Add(line);
             nextOffset = line.NextOffset;
-            var presented = state.Presentation.Present(
-                state.PresentationMode,
-                sourcePath,
-                state.LineScanner,
-                [line],
-                width)[0];
-            presented = ResolvePresentationForSearch(presented, state.SearchMatch);
 
-            WrappedTextSegment[] segments = SplitWrappedLine(
-                    presented.Text,
-                    Math.Max(1, width),
-                    state.WordWrap)
-                .ToArray();
-            int firstSegment = firstPhysicalLine
-                ? Math.Clamp(state.TopWrappedSegmentIndex, 0, Math.Max(0, segments.Length - 1))
-                : 0;
-
-            for (int segmentIndex = firstSegment;
-                 segmentIndex < segments.Length && row < contentHeight;
-                 segmentIndex++)
+            if (RequiresStreamingWrappedLayout(line))
             {
-                WrappedTextSegment segment = segments[segmentIndex];
-                WriteTextLine(
-                    canvas,
-                    presented,
-                    segment.Text,
-                    row + 1,
-                    scrollLeft: 0,
+                int firstSegment = firstPhysicalLine
+                    ? Math.Max(0, state.TopWrappedSegmentIndex)
+                    : 0;
+                LongWrappedLineLayout streamed = GetStreamingWrappedLineLayout(
+                    state,
+                    line,
                     width,
-                    state.SearchMatch,
-                    segment.StartIndex,
-                    linkHits);
-                row++;
+                    firstSegment,
+                    Math.Max(0, contentHeight - row));
+                foreach (WrappedTextSegment segment in streamed.Segments)
+                {
+                    WriteRawWrappedTextLine(canvas, segment.Text, row + 1, width);
+                    row++;
+                }
+            }
+            else
+            {
+                var presented = state.Presentation.Present(
+                    state.PresentationMode,
+                    sourcePath,
+                    state.LineScanner,
+                    [line],
+                    width)[0];
+                presented = ResolvePresentationForSearch(presented, state.SearchMatch);
+
+                WrappedTextSegment[] segments = SplitWrappedLine(
+                        presented.Text,
+                        Math.Max(1, width),
+                        state.WordWrap)
+                    .ToArray();
+                int firstSegment = firstPhysicalLine
+                    ? Math.Clamp(state.TopWrappedSegmentIndex, 0, Math.Max(0, segments.Length - 1))
+                    : 0;
+
+                for (int segmentIndex = firstSegment;
+                     segmentIndex < segments.Length && row < contentHeight;
+                     segmentIndex++)
+                {
+                    WrappedTextSegment segment = segments[segmentIndex];
+                    WriteTextLine(
+                        canvas,
+                        presented,
+                        segment.Text,
+                        row + 1,
+                        scrollLeft: 0,
+                        width,
+                        state.SearchMatch,
+                        segment.StartIndex,
+                        linkHits);
+                    row++;
+                }
             }
 
             firstPhysicalLine = false;
@@ -1383,6 +1416,17 @@ internal sealed class LargeFileViewer
         ScannedLine line,
         int width)
     {
+        if (RequiresStreamingWrappedLayout(line))
+        {
+            return GetStreamingWrappedLineLayout(
+                    state,
+                    line,
+                    width,
+                    captureStartSegment: 0,
+                    captureSegmentCount: 0)
+                .SegmentCount;
+        }
+
         var presented = state.Presentation.Present(
             state.PresentationMode,
             sourcePath,
@@ -1399,6 +1443,42 @@ internal sealed class LargeFileViewer
                 .Count());
     }
 
+    private static bool RequiresStreamingWrappedLayout(ScannedLine line) =>
+        line.NextOffset - line.StartOffset > MaxWrappedLineCaptureBytes;
+
+    private LongWrappedLineLayout GetStreamingWrappedLineLayout(
+        LargeFileViewerState state,
+        ScannedLine line,
+        int width,
+        int captureStartSegment,
+        int captureSegmentCount)
+    {
+        var builder = new StreamingWrappedLineBuilder(
+            Math.Max(1, width),
+            state.WordWrap,
+            captureStartSegment,
+            captureSegmentCount);
+        state.LineScanner
+            .VisitLineTextChunksAsync(line, builder.Append)
+            .GetAwaiter()
+            .GetResult();
+        return builder.Complete();
+    }
+
+    private void WriteRawWrappedTextLine(
+        IUiCanvas canvas,
+        string text,
+        int y,
+        int width)
+    {
+        var layout = new ViewerTextLayout(text);
+        canvas.WriteForced(
+            0,
+            y,
+            layout.Slice(0, Math.Max(1, width)),
+            CSharpFarPaletteStyles.CommandLine(_palette));
+    }
+
     private void NormalizeViewport(
         string sourcePath,
         IFileByteReader reader,
@@ -1407,12 +1487,20 @@ internal sealed class LargeFileViewer
         int width,
         bool keepTail = true)
     {
+        var localReader = reader as RandomAccessFileByteReader;
+        int failureVersion = localReader?.TransientFailureVersion ?? 0;
+        var originalPosition = new ViewerViewportPosition(
+            state.TopByteOffset,
+            state.TopWrappedSegmentIndex);
+
         ViewerViewportPosition maximum =
             GetMaximumViewportPosition(sourcePath, reader, state, contentHeight, width);
 
         if (keepTail && state.LiveMode == ViewerLiveMode.Tail)
         {
             ApplyViewportPosition(state, maximum);
+            if (localReader is not null && localReader.TransientFailureVersion != failureVersion)
+                ApplyViewportPosition(state, originalPosition);
             return;
         }
 
@@ -1448,6 +1536,9 @@ internal sealed class LargeFileViewer
             state.TopWrappedSegmentIndex);
         if (CompareViewportPositions(current, maximum) > 0)
             ApplyViewportPosition(state, maximum);
+
+        if (localReader is not null && localReader.TransientFailureVersion != failureVersion)
+            ApplyViewportPosition(state, originalPosition);
     }
 
     private bool IsAtEnd(
@@ -2387,6 +2478,151 @@ internal sealed class LargeFileViewer
             state.SearchMatch = SearchMatch;
         }
     }
+
+    private sealed class StreamingWrappedLineBuilder
+    {
+        private const int MaxPendingSourceChars = 64 * 1024;
+
+        private readonly int _width;
+        private readonly bool _wordWrap;
+        private readonly int _captureStartSegment;
+        private readonly int _captureSegmentCount;
+        private readonly StringBuilder _pendingText = new();
+        private readonly List<PendingRune> _pendingRunes = [];
+        private readonly List<WrappedTextSegment> _captured = [];
+        private int _pendingCellWidth;
+        private int _nextSourceIndex;
+        private int _segmentCount;
+
+        public StreamingWrappedLineBuilder(
+            int width,
+            bool wordWrap,
+            int captureStartSegment,
+            int captureSegmentCount)
+        {
+            _width = Math.Max(1, width);
+            _wordWrap = wordWrap;
+            _captureStartSegment = Math.Max(0, captureStartSegment);
+            _captureSegmentCount = Math.Max(0, captureSegmentCount);
+        }
+
+        public void Append(string text)
+        {
+            foreach (Rune rune in text.EnumerateRunes())
+            {
+                int cellWidth = GetRenderedCellWidth(rune);
+                while (_pendingRunes.Count > 0 &&
+                       _pendingCellWidth + cellWidth > _width)
+                {
+                    EmitSegment(moreText: true);
+                }
+
+                AddRune(rune, cellWidth);
+
+                if ((_pendingRunes.Count == 1 && cellWidth > _width) ||
+                    _pendingText.Length >= MaxPendingSourceChars)
+                {
+                    EmitPrefix(_pendingRunes.Count);
+                }
+            }
+        }
+
+        public LongWrappedLineLayout Complete()
+        {
+            if (_pendingRunes.Count > 0)
+                EmitPrefix(_pendingRunes.Count);
+            else if (_segmentCount == 0)
+                CaptureSegment(0, string.Empty);
+
+            return new LongWrappedLineLayout(_segmentCount, _captured);
+        }
+
+        private void EmitSegment(bool moreText)
+        {
+            int breakCount = _pendingRunes.Count;
+            if (moreText && _wordWrap)
+            {
+                for (int i = _pendingRunes.Count - 1; i >= 0; i--)
+                {
+                    if (_pendingRunes[i].IsWhitespace)
+                    {
+                        breakCount = i + 1;
+                        break;
+                    }
+                }
+            }
+
+            EmitPrefix(Math.Max(1, breakCount));
+        }
+
+        private void EmitPrefix(int runeCount)
+        {
+            runeCount = Math.Clamp(runeCount, 1, _pendingRunes.Count);
+            int charCount = 0;
+            int cellWidth = 0;
+            for (int i = 0; i < runeCount; i++)
+            {
+                charCount += _pendingRunes[i].CharLength;
+                cellWidth += _pendingRunes[i].CellWidth;
+            }
+
+            PendingRune first = _pendingRunes[0];
+            string? capturedText = ShouldCaptureCurrentSegment()
+                ? _pendingText.ToString(0, charCount)
+                : null;
+
+            _pendingText.Remove(0, charCount);
+            _pendingRunes.RemoveRange(0, runeCount);
+            _pendingCellWidth -= cellWidth;
+
+            CaptureSegment(first.SourceStart, capturedText);
+        }
+
+        private bool ShouldCaptureCurrentSegment() =>
+            _captureSegmentCount > 0 &&
+            _segmentCount >= _captureStartSegment &&
+            _segmentCount < _captureStartSegment + _captureSegmentCount;
+
+        private void CaptureSegment(int sourceStart, string? text)
+        {
+            if (text is not null)
+                _captured.Add(new WrappedTextSegment(sourceStart, text));
+            _segmentCount++;
+        }
+
+        private void AddRune(Rune rune, int cellWidth)
+        {
+            Span<char> chars = stackalloc char[2];
+            int charLength = rune.EncodeToUtf16(chars);
+            _pendingText.Append(chars[..charLength]);
+            _pendingRunes.Add(new PendingRune(
+                _nextSourceIndex,
+                charLength,
+                cellWidth,
+                Rune.IsWhiteSpace(rune)));
+            _nextSourceIndex += charLength;
+            _pendingCellWidth += cellWidth;
+        }
+
+        private static int GetRenderedCellWidth(Rune rune)
+        {
+            if (rune.Value == '\t')
+                return 4;
+            if (Rune.GetUnicodeCategory(rune) == UnicodeCategory.Control)
+                return 1;
+            return ConsoleTextMetrics.GetCellWidth(rune);
+        }
+
+        private readonly record struct PendingRune(
+            int SourceStart,
+            int CharLength,
+            int CellWidth,
+            bool IsWhitespace);
+    }
+
+    private sealed record LongWrappedLineLayout(
+        int SegmentCount,
+        IReadOnlyList<WrappedTextSegment> Segments);
 
     private readonly record struct ViewerViewportPosition(
         long ByteOffset,

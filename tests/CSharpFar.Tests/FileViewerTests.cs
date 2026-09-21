@@ -392,6 +392,72 @@ public class FileViewerTests : IDisposable
     }
 
     [Fact]
+    public void Show_InitialOffDoesNotStartLiveMonitor()
+    {
+        string path = Write("live-off.txt", "content", new UTF8Encoding(false));
+        var factory = new FakeLocalFileMonitorFactory();
+        var driver = new FakeConsoleDriver(width: 80, height: 8);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        FileViewerFor(new ScreenRenderer(driver), factory).Show(path);
+
+        Assert.Equal(0, factory.CreateCount);
+    }
+
+    [Fact]
+    public void Show_OffToWatchForcesResyncWithoutPriorNotification()
+    {
+        string path = Write("live-initial-resync.txt", "AAAA", new UTF8Encoding(false));
+        DateTime originalWriteTime = File.GetLastWriteTimeUtc(path);
+        var factory = new FakeLocalFileMonitorFactory();
+        var driver = new FakeConsoleDriver(width: 80, height: 8);
+        int readCount = 0;
+        driver.BeforeReadInput = _ =>
+        {
+            if (readCount++ != 0)
+                return;
+
+            File.WriteAllText(path, "BBBB", new UTF8Encoding(false));
+            File.SetLastWriteTimeUtc(path, originalWriteTime);
+        };
+        driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        FileViewerFor(new ScreenRenderer(driver), factory).Show(path);
+
+        string content = driver.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
+        Assert.Contains("BBBB", content);
+        Assert.Equal(1, factory.CreateCount);
+    }
+
+    [Fact]
+    public void Show_WatchToTailRefreshesAppendWithoutTiming()
+    {
+        string path = Write("live-tail-append.txt", "first", new UTF8Encoding(false));
+        var factory = new FakeLocalFileMonitorFactory();
+        var driver = new FakeConsoleDriver(width: 80, height: 8);
+        int readCount = 0;
+        driver.BeforeReadInput = _ =>
+        {
+            if (readCount++ != 1)
+                return;
+
+            File.AppendAllText(path, "\nAPPENDED", new UTF8Encoding(false));
+            factory.Current.MarkDirty();
+        };
+        driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
+        driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        FileViewerFor(new ScreenRenderer(driver), factory).Show(path);
+
+        string content = driver.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
+        Assert.Contains("APPENDED", content);
+        Assert.Equal(1, factory.CreateCount);
+        Assert.True(factory.Current.IsDisposed);
+    }
+
+    [Fact]
     public void Show_FKeyCyclesWatchAndTailStatus()
     {
         string path = WriteLargeTextFile(
@@ -472,7 +538,26 @@ public class FileViewerTests : IDisposable
 
         string content = driver.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 20, 5));
         Assert.Contains("RAW-END", content);
-        Assert.Contains("TAIL", WrittenText(driver));
+    }
+
+    [Fact]
+    public void Show_WrappedEndShowsTrueTailPastFormerFourMiBLimit()
+    {
+        const int oldScanLimit = 4 * 1024 * 1024;
+        string path = WritePath("wrapped-tail-over-four-mib.txt");
+        File.WriteAllText(
+            path,
+            new string('x', oldScanLimit + 128) + "REAL-END",
+            new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 512, height: 7);
+        driver.EnqueueKey(Key(ConsoleKey.F2));
+        driver.EnqueueKey(Key(ConsoleKey.End));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        FileViewerFor(new ScreenRenderer(driver)).Show(path);
+
+        string content = driver.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 512, 5));
+        Assert.Contains("REAL-END", content);
     }
 
     [Fact]
@@ -708,6 +793,17 @@ public class FileViewerTests : IDisposable
         Assert.Equal(content.LongLength, line.NextOffset);
         Assert.Equal(content.LongLength, scanned.NextOffset);
         Assert.True(line.Text.Length <= 256);
+
+        long streamedCharacters = 0;
+        int largestChunk = 0;
+        await scanner.VisitLineTextChunksAsync(line, chunk =>
+        {
+            streamedCharacters += chunk.Length;
+            largestChunk = Math.Max(largestChunk, chunk.Length);
+        });
+
+        Assert.Equal(content.LongLength, streamedCharacters);
+        Assert.InRange(largestChunk, 1, 8192);
     }
 
     [Fact]
