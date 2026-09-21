@@ -412,7 +412,7 @@ public class FileViewerTests : IDisposable
         var factory = new FakeLocalFileMonitorFactory();
         var driver = new FakeConsoleDriver(width: 80, height: 8);
         int readCount = 0;
-        driver.BeforeReadInput = _ =>
+        driver.BeforeTryReadInput = _ =>
         {
             if (readCount++ != 0)
                 return;
@@ -437,14 +437,19 @@ public class FileViewerTests : IDisposable
         var factory = new FakeLocalFileMonitorFactory();
         var driver = new FakeConsoleDriver(width: 80, height: 8);
         int readCount = 0;
-        driver.BeforeReadInput = _ =>
+        Action<FakeConsoleDriver>? beforeInput = null;
+        beforeInput = current =>
         {
-            if (readCount++ != 1)
+            if (readCount++ == 0)
+            {
+                current.BeforeTryReadInput = beforeInput;
                 return;
+            }
 
             File.AppendAllText(path, "\nAPPENDED", new UTF8Encoding(false));
             factory.Current.MarkDirty();
         };
+        driver.BeforeTryReadInput = beforeInput;
         driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
         driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
         driver.EnqueueKey(Key(ConsoleKey.F10));
@@ -455,6 +460,37 @@ public class FileViewerTests : IDisposable
         Assert.Contains("APPENDED", content);
         Assert.Equal(1, factory.CreateCount);
         Assert.True(factory.Current.IsDisposed);
+    }
+
+    [Fact]
+    public void Show_WatchRefreshesSameLengthOverwriteFromDeterministicSignal()
+    {
+        string path = Write("live-same-length.txt", "AAAA", new UTF8Encoding(false));
+        var factory = new FakeLocalFileMonitorFactory();
+        var driver = new FakeConsoleDriver(width: 80, height: 8);
+        int readCount = 0;
+        Action<FakeConsoleDriver>? beforeInput = null;
+        beforeInput = current =>
+        {
+            if (readCount++ == 0)
+            {
+                current.BeforeTryReadInput = beforeInput;
+                return;
+            }
+
+            File.WriteAllText(path, "BBBB", new UTF8Encoding(false));
+            factory.Current.MarkDirty();
+        };
+        driver.BeforeTryReadInput = beforeInput;
+        driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
+        driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        FileViewerFor(new ScreenRenderer(driver), factory).Show(path);
+
+        string content = driver.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
+        Assert.Contains("BBBB", content);
+        Assert.Equal(1, factory.CreateCount);
     }
 
     [Fact]
@@ -749,6 +785,30 @@ public class FileViewerTests : IDisposable
         Assert.Equal(1, factory.CreateCount);
 
         monitoring.DetectChanges();
+        Assert.Equal(1, factory.CreateCount);
+    }
+
+    [Fact]
+    public void LocalFileMonitoringSession_DeleteRecreateKeepsRefreshPending()
+    {
+        string path = Write("monitor-delete-recreate.txt", "old", new UTF8Encoding(false));
+        Assert.True(LocalFileMonitor.TryCaptureSnapshot(path, out LocalFileSnapshot snapshot));
+        var factory = new FakeLocalFileMonitorFactory();
+
+        using var monitoring = new LocalFileMonitoringSession(path, snapshot, factory);
+        monitoring.Activate();
+        monitoring.Commit(snapshot, monitoring.BeginRefresh());
+
+        File.Delete(path);
+        factory.Current.MarkDirty();
+        monitoring.DetectChanges();
+
+        Assert.True(monitoring.PendingRefresh);
+
+        File.WriteAllText(path, "new", new UTF8Encoding(false));
+        monitoring.DetectChanges();
+
+        Assert.True(monitoring.PendingRefresh);
         Assert.Equal(1, factory.CreateCount);
     }
 
