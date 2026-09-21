@@ -201,6 +201,7 @@ public sealed class AboutAndUpdateTests
             LeftViewMode = PanelViewMode.Full,
             RightViewMode = PanelViewMode.Full,
             Settings = new AppSettings(),
+            CanSaveSettings = true,
         });
 
         Assert.Equal(
