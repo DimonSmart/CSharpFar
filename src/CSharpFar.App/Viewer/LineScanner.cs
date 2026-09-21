@@ -9,7 +9,6 @@ internal sealed record ScannedLines(IReadOnlyList<ScannedLine> Lines, long NextO
 
 internal sealed class LineScanner
 {
-    private const int MaxLineScanBytes = 4 * 1024 * 1024;
     private const int MaxEncodingSampleBytes = 64 * 1024;
     private const int LineScanChunkBytes = 8192;
 
@@ -189,13 +188,12 @@ internal sealed class LineScanner
         long offset = startOffset;
         long scanOffset = offset;
         long length = _reader.Length;
-        int scannedBytes = 0;
         int captureLimit = Math.Max(0, maxBytesPerLine);
         var captured = new List<byte>(Math.Min(captureLimit, 4096));
 
-        while (scanOffset < length && scannedBytes < MaxLineScanBytes)
+        while (scanOffset < length)
         {
-            int requestedBytes = GetLineScanChunkSize(scanOffset, length, MaxLineScanBytes - scannedBytes);
+            int requestedBytes = GetLineScanChunkSize(scanOffset, length);
             if (requestedBytes <= 0)
                 break;
 
@@ -230,7 +228,6 @@ internal sealed class LineScanner
             }
 
             scanOffset += scanSpan.Length;
-            scannedBytes += scanSpan.Length;
         }
 
         TrimTrailingCarriageReturn(captured);
@@ -241,10 +238,10 @@ internal sealed class LineScanner
         return new ScannedLine(startOffset, finalNextOffset, finalText);
     }
 
-    private int GetLineScanChunkSize(long scanOffset, long length, int remainingLimit)
+    private int GetLineScanChunkSize(long scanOffset, long length)
     {
-        int requestedBytes = (int)Math.Min(LineScanChunkBytes, Math.Min(length - scanOffset, remainingLimit));
-        if (_isUtf16 && requestedBytes == 1 && scanOffset + 1 < length && remainingLimit > 1)
+        int requestedBytes = (int)Math.Min(LineScanChunkBytes, length - scanOffset);
+        if (_isUtf16 && requestedBytes == 1 && scanOffset + 1 < length)
             return 2;
 
         return requestedBytes;

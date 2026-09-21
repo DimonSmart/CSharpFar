@@ -12,7 +12,9 @@ namespace CSharpFar.App.Viewer;
 internal sealed class LargeFileViewer
 {
     private const int BinaryBytesPerRow = 16;
-    private const int MaxWrappedLineCaptureBytes = 4 * 1024 * 1024;
+    // Rendering capture is bounded independently from physical line scanning.
+    // Keep enough headroom to render pathological lines beyond the old 4 MiB scanner boundary.
+    private const int MaxWrappedLineCaptureBytes = 8 * 1024 * 1024;
     private const int LivePollMs = 250;
     private const int FastHorizontalTextScrollCells = 20;
     private const int FastPageMultiplier = 5;
@@ -27,19 +29,22 @@ internal sealed class LargeFileViewer
     private readonly CSharpFarPalette _palette;
     private readonly InteractiveSurfaceHost _surfaces;
     private readonly FormFieldFactory _fields;
+    private readonly ILocalFileMonitorFactory _localFileMonitorFactory;
 
     public LargeFileViewer(
         InteractiveSurfaceHost surfaces,
         ModalDialogHost modalDialogs,
         DialogService dialogs,
         FormFieldFactory fields,
-        CSharpFarPalette? palette = null)
+        CSharpFarPalette? palette = null,
+        ILocalFileMonitorFactory? localFileMonitorFactory = null)
     {
         _surfaces = surfaces ?? throw new ArgumentNullException(nameof(surfaces));
         _modalDialogs = modalDialogs;
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _palette = palette ?? CSharpFarPaletteRegistry.Default;
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
+        _localFileMonitorFactory = localFileMonitorFactory ?? LocalFileMonitorFactory.Instance;
     }
 
     public void Show(string filePath) => Show(filePath, null);
@@ -133,13 +138,11 @@ internal sealed class LargeFileViewer
         }
     }
 
-    private static LocalViewerSession OpenViewerFile(string filePath)
+    private LocalViewerSession OpenViewerFile(string filePath)
     {
         var reader = new RandomAccessFileByteReader(filePath);
-        LocalFileMonitor? monitor = null;
         try
         {
-            monitor = new LocalFileMonitor(filePath);
             if (!LocalFileMonitor.TryCaptureSnapshot(filePath, out LocalFileSnapshot before) || !before.Exists)
                 throw new FileNotFoundException("File not found.", filePath);
 
@@ -150,22 +153,17 @@ internal sealed class LargeFileViewer
                 state.TopByteOffset = 0;
 
             LocalFileSnapshot applied = before;
-            bool pending = monitor.TakeDirty();
             if (LocalFileMonitor.TryCaptureSnapshot(filePath, out LocalFileSnapshot after) && after.Exists)
-            {
                 applied = after;
-                pending |= after != before;
-            }
-            else
-            {
-                pending = true;
-            }
 
-            return new LocalViewerSession(filePath, reader, state, monitor, applied, pending);
+            return new LocalViewerSession(
+                filePath,
+                reader,
+                state,
+                new LocalFileMonitoringSession(filePath, applied, _localFileMonitorFactory));
         }
         catch
         {
-            monitor?.Dispose();
             reader.Dispose();
             throw;
         }
@@ -201,8 +199,8 @@ internal sealed class LargeFileViewer
         int anchorWrappedSegment = state.TopWrappedSegmentIndex;
         var viewMode = state.ViewMode;
         int horizontalOffset = state.HorizontalOffset;
-        var liveMode = state.LiveMode;
         var encodingSelection = state.EncodingSelection;
+        long refreshVersion = session.BeginRefresh();
 
         try
         {
@@ -225,7 +223,6 @@ internal sealed class LargeFileViewer
             state.ReplaceContent(candidateCache, candidateScanner, encodingSelection);
             state.ViewMode = viewMode;
             state.HorizontalOffset = horizontalOffset;
-            state.LiveMode = liveMode;
             state.TopByteOffset = state.IsHexMode
                 ? Math.Max(0, anchorByteOffset)
                 : candidateScanner
@@ -235,7 +232,7 @@ internal sealed class LargeFileViewer
             state.TopWrappedSegmentIndex = anchorWrappedSegment;
 
             NormalizeViewport(filePath, reader, state, contentHeight, width);
-            session.Commit(after);
+            session.Commit(after, refreshVersion);
             return true;
         }
         catch (Exception ex) when (RandomAccessFileByteReader.IsTransientFileAccess(ex))
@@ -245,6 +242,70 @@ internal sealed class LargeFileViewer
     }
 
     private ModalDialogLoopResult<ViewerLoopAction> HandleViewerInput(
+        string filePath,
+        bool hasPhysicalSourcePath,
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        LargeFileViewerOptions options,
+        LargeFileViewerFrame frame,
+        ViewerInput input,
+        LocalViewerSession? localSession)
+    {
+        if (localSession is null ||
+            state.LiveMode != ViewerLiveMode.Off ||
+            !ShouldPreserveOffStateOnTransient(input))
+        {
+            return HandleViewerInputCore(
+                filePath,
+                hasPhysicalSourcePath,
+                reader,
+                state,
+                options,
+                frame,
+                input,
+                localSession);
+        }
+
+        int failureVersion = localSession.Reader.TransientFailureVersion;
+        ViewerInteractionCheckpoint checkpoint = ViewerInteractionCheckpoint.Capture(state);
+        var result = HandleViewerInputCore(
+            filePath,
+            hasPhysicalSourcePath,
+            reader,
+            state,
+            options,
+            frame,
+            input,
+            localSession);
+
+        if (localSession.Reader.TransientFailureVersion == failureVersion)
+            return result;
+
+        SetLiveMode(localSession, state, checkpoint.LiveMode);
+        checkpoint.Restore(state);
+        return ModalDialogLoopResult<ViewerLoopAction>.ContinueNoChange;
+    }
+
+    private static bool ShouldPreserveOffStateOnTransient(ViewerInput input)
+    {
+        if (input.ScrollLines is not null)
+            return true;
+
+        return input.Key?.Key is
+            ConsoleKey.UpArrow or
+            ConsoleKey.DownArrow or
+            ConsoleKey.PageUp or
+            ConsoleKey.PageDown or
+            ConsoleKey.Home or
+            ConsoleKey.End or
+            ConsoleKey.F2 or
+            ConsoleKey.F4 or
+            ConsoleKey.F5 or
+            ConsoleKey.H or
+            ConsoleKey.G;
+    }
+
+    private ModalDialogLoopResult<ViewerLoopAction> HandleViewerInputCore(
         string filePath,
         bool hasPhysicalSourcePath,
         IFileByteReader reader,
@@ -287,7 +348,7 @@ internal sealed class LargeFileViewer
         {
             case ConsoleKey.UpArrow:
                 MoveUp(filePath, reader, state, contentHeight, size.Width);
-                UpdateLiveModeAfterAwayNavigation(filePath, reader, state, contentHeight, size.Width);
+                UpdateLiveModeAfterAwayNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.DownArrow:
@@ -326,7 +387,7 @@ internal sealed class LargeFileViewer
 
             case ConsoleKey.PageUp when alt:
                 MovePageUp(filePath, reader, state, contentHeight, size.Width, FastPageMultiplier);
-                UpdateLiveModeAfterAwayNavigation(filePath, reader, state, contentHeight, size.Width);
+                UpdateLiveModeAfterAwayNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.PageDown when alt:
@@ -336,7 +397,7 @@ internal sealed class LargeFileViewer
 
             case ConsoleKey.PageUp:
                 MovePageUp(filePath, reader, state, contentHeight, size.Width, pages: 1);
-                UpdateLiveModeAfterAwayNavigation(filePath, reader, state, contentHeight, size.Width);
+                UpdateLiveModeAfterAwayNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.PageDown:
@@ -349,14 +410,14 @@ internal sealed class LargeFileViewer
                 state.TopWrappedSegmentIndex = 0;
                 state.HorizontalOffset = 0;
                 NormalizeViewport(filePath, reader, state, contentHeight, size.Width, keepTail: false);
-                UpdateLiveModeAfterAwayNavigation(filePath, reader, state, contentHeight, size.Width);
+                UpdateLiveModeAfterAwayNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.End:
                 MoveToEnd(filePath, reader, state, contentHeight, size.Width);
                 state.HorizontalOffset = 0;
                 if (localSession is not null)
-                    state.LiveMode = ViewerLiveMode.Tail;
+                    SetLiveMode(localSession, state, ViewerLiveMode.Tail);
                 break;
 
             case ConsoleKey.F1:
@@ -396,6 +457,7 @@ internal sealed class LargeFileViewer
                 state.PresentationMode = state.PresentationMode == ViewerPresentationMode.Auto
                     ? ViewerPresentationMode.Raw
                     : ViewerPresentationMode.Auto;
+                NormalizeViewport(filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.F6 when !shift && !alt && !control:
@@ -420,7 +482,7 @@ internal sealed class LargeFileViewer
 
             case ConsoleKey.F8 when alt:
                 JumpToPosition(filePath, reader, state, contentHeight, size.Width);
-                UpdateLiveModeAfterAwayNavigation(filePath, reader, state, contentHeight, size.Width);
+                UpdateLiveModeAfterAwayNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.F8 when control:
@@ -463,12 +525,13 @@ internal sealed class LargeFileViewer
                     break;
                 }
 
-                state.LiveMode = state.LiveMode switch
+                ViewerLiveMode nextLiveMode = state.LiveMode switch
                 {
                     ViewerLiveMode.Off => ViewerLiveMode.Watch,
                     ViewerLiveMode.Watch => ViewerLiveMode.Tail,
                     _ => ViewerLiveMode.Off,
                 };
+                SetLiveMode(localSession, state, nextLiveMode);
                 if (state.LiveMode != ViewerLiveMode.Off)
                 {
                     localSession.DetectChanges();
@@ -480,7 +543,7 @@ internal sealed class LargeFileViewer
 
             case ConsoleKey.G when !shift && !alt && !control:
                 JumpToPosition(filePath, reader, state, contentHeight, size.Width);
-                UpdateLiveModeAfterAwayNavigation(filePath, reader, state, contentHeight, size.Width);
+                UpdateLiveModeAfterAwayNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
                 break;
 
             case ConsoleKey.H when !shift && !alt && !control:
@@ -578,7 +641,7 @@ internal sealed class LargeFileViewer
             for (int i = 0; i < -lines; i++)
                 MoveUp(sourcePath, reader, state, contentHeight, width);
 
-            UpdateLiveModeAfterAwayNavigation(sourcePath, reader, state, contentHeight, width);
+            UpdateLiveModeAfterAwayNavigation(localSession, sourcePath, reader, state, contentHeight, width);
             return;
         }
 
@@ -1400,7 +1463,28 @@ internal sealed class LargeFileViewer
                state.TopWrappedSegmentIndex == maximum.WrappedSegmentIndex;
     }
 
+    private static void SetLiveMode(
+        LocalViewerSession? session,
+        LargeFileViewerState state,
+        ViewerLiveMode newMode)
+    {
+        ViewerLiveMode oldMode = state.LiveMode;
+        if (oldMode == newMode)
+            return;
+
+        if (newMode != ViewerLiveMode.Off && session is null)
+            return;
+
+        if (oldMode == ViewerLiveMode.Off && newMode != ViewerLiveMode.Off)
+            session!.StartMonitoring();
+        else if (oldMode != ViewerLiveMode.Off && newMode == ViewerLiveMode.Off)
+            session?.StopMonitoring();
+
+        state.LiveMode = newMode;
+    }
+
     private void UpdateLiveModeAfterAwayNavigation(
+        LocalViewerSession? localSession,
         string sourcePath,
         IFileByteReader reader,
         LargeFileViewerState state,
@@ -1410,7 +1494,7 @@ internal sealed class LargeFileViewer
         if (state.LiveMode == ViewerLiveMode.Tail &&
             !IsAtEnd(sourcePath, reader, state, contentHeight, width))
         {
-            state.LiveMode = ViewerLiveMode.Watch;
+            SetLiveMode(localSession, state, ViewerLiveMode.Watch);
         }
     }
 
@@ -1427,11 +1511,11 @@ internal sealed class LargeFileViewer
 
         if (IsAtEnd(sourcePath, reader, state, contentHeight, width))
         {
-            state.LiveMode = ViewerLiveMode.Tail;
+            SetLiveMode(localSession, state, ViewerLiveMode.Tail);
         }
         else if (state.LiveMode == ViewerLiveMode.Tail)
         {
-            state.LiveMode = ViewerLiveMode.Watch;
+            SetLiveMode(localSession, state, ViewerLiveMode.Watch);
         }
     }
 
@@ -2228,60 +2312,79 @@ internal sealed class LargeFileViewer
 
     private sealed class LocalViewerSession : IDisposable
     {
-        private readonly LocalFileMonitor _monitor;
+        private readonly LocalFileMonitoringSession _monitoring;
 
         public LocalViewerSession(
             string filePath,
             RandomAccessFileByteReader reader,
             LargeFileViewerState state,
-            LocalFileMonitor monitor,
-            LocalFileSnapshot appliedSnapshot,
-            bool pendingRefresh)
+            LocalFileMonitoringSession monitoring)
         {
             FilePath = filePath;
             Reader = reader;
             State = state;
-            _monitor = monitor;
-            AppliedSnapshot = appliedSnapshot;
-            PendingRefresh = pendingRefresh;
+            _monitoring = monitoring;
         }
 
         public string FilePath { get; }
         public RandomAccessFileByteReader Reader { get; }
         public LargeFileViewerState State { get; }
-        public LocalFileSnapshot AppliedSnapshot { get; private set; }
-        public bool PendingRefresh { get; private set; }
+        public bool PendingRefresh => _monitoring.PendingRefresh;
 
-        public void MarkDirty()
-        {
-            PendingRefresh = true;
-            _monitor.MarkDirty();
-        }
+        public void StartMonitoring() => _monitoring.Activate();
 
-        public void DetectChanges()
-        {
-            bool watcherDirty = _monitor.TakeDirty();
-            if (LocalFileMonitor.TryCaptureSnapshot(FilePath, out LocalFileSnapshot snapshot))
-            {
-                if (LocalFileMonitor.ShouldRefresh(AppliedSnapshot, snapshot, watcherDirty))
-                    PendingRefresh = true;
-                return;
-            }
+        public void StopMonitoring() => _monitoring.Deactivate();
 
-            if (watcherDirty)
-                PendingRefresh = true;
-        }
+        public void MarkDirty() => _monitoring.MarkDirty();
 
-        public void Commit(LocalFileSnapshot snapshot)
-        {
-            AppliedSnapshot = snapshot;
-            PendingRefresh = false;
-        }
+        public void DetectChanges() => _monitoring.DetectChanges();
+
+        public long BeginRefresh() => _monitoring.BeginRefresh();
+
+        public void Commit(LocalFileSnapshot snapshot, long refreshVersion) =>
+            _monitoring.Commit(snapshot, refreshVersion);
 
         public void Dispose()
         {
-            _monitor.Dispose();
+            _monitoring.Dispose();
             Reader.Dispose();
+        }
+    }
+
+    private readonly record struct ViewerInteractionCheckpoint(
+        long TopByteOffset,
+        int TopWrappedSegmentIndex,
+        int HorizontalOffset,
+        ViewerLiveMode LiveMode,
+        bool WrapLines,
+        bool WordWrap,
+        LargeFileViewMode ViewMode,
+        ViewerPresentationMode PresentationMode,
+        ViewerSearchMatch? SearchMatch)
+    {
+        public static ViewerInteractionCheckpoint Capture(LargeFileViewerState state) =>
+            new(
+                state.TopByteOffset,
+                state.TopWrappedSegmentIndex,
+                state.HorizontalOffset,
+                state.LiveMode,
+                state.WrapLines,
+                state.WordWrap,
+                state.ViewMode,
+                state.PresentationMode,
+                state.SearchMatch);
+
+        public void Restore(LargeFileViewerState state)
+        {
+            state.TopByteOffset = TopByteOffset;
+            state.TopWrappedSegmentIndex = TopWrappedSegmentIndex;
+            state.HorizontalOffset = HorizontalOffset;
+            state.LiveMode = LiveMode;
+            state.WrapLines = WrapLines;
+            state.WordWrap = WordWrap;
+            state.ViewMode = ViewMode;
+            state.PresentationMode = PresentationMode;
+            state.SearchMatch = SearchMatch;
         }
     }
 
