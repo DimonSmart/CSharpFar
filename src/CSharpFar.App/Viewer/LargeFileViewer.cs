@@ -348,7 +348,7 @@ internal sealed class LargeFileViewer
                 state.TopByteOffset = state.IsHexMode ? 0 : state.LineScanner.ContentStartOffset;
                 state.TopWrappedSegmentIndex = 0;
                 state.HorizontalOffset = 0;
-                NormalizeViewport(filePath, reader, state, contentHeight, size.Width);
+                NormalizeViewport(filePath, reader, state, contentHeight, size.Width, keepTail: false);
                 UpdateLiveModeAfterAwayNavigation(filePath, reader, state, contentHeight, size.Width);
                 break;
 
@@ -1035,7 +1035,7 @@ internal sealed class LargeFileViewer
                 .GetResult();
         }
 
-        NormalizeViewport(sourcePath, reader, state, contentHeight, width);
+        NormalizeViewport(sourcePath, reader, state, contentHeight, width, keepTail: false);
     }
 
     private void MoveDown(
@@ -1061,7 +1061,7 @@ internal sealed class LargeFileViewer
                 : view.NextOffset;
         }
 
-        NormalizeViewport(sourcePath, reader, state, contentHeight, width);
+        NormalizeViewport(sourcePath, reader, state, contentHeight, width, keepTail: false);
     }
 
     private void MovePageUp(
@@ -1104,7 +1104,7 @@ internal sealed class LargeFileViewer
             }
         }
 
-        NormalizeViewport(sourcePath, reader, state, contentHeight, width);
+        NormalizeViewport(sourcePath, reader, state, contentHeight, width, keepTail: false);
     }
 
     private void MovePageDown(
@@ -1131,7 +1131,7 @@ internal sealed class LargeFileViewer
             state.TopByteOffset = view.NextOffset;
         }
 
-        NormalizeViewport(sourcePath, reader, state, contentHeight, width);
+        NormalizeViewport(sourcePath, reader, state, contentHeight, width, keepTail: false);
     }
 
     private void MovePageDown(
@@ -1175,7 +1175,7 @@ internal sealed class LargeFileViewer
             }
         }
 
-        NormalizeViewport(sourcePath, reader, state, contentHeight, width);
+        NormalizeViewport(sourcePath, reader, state, contentHeight, width, keepTail: false);
     }
 
     private void MoveToEnd(
@@ -1341,12 +1341,13 @@ internal sealed class LargeFileViewer
         IFileByteReader reader,
         LargeFileViewerState state,
         int contentHeight,
-        int width)
+        int width,
+        bool keepTail = true)
     {
         ViewerViewportPosition maximum =
             GetMaximumViewportPosition(sourcePath, reader, state, contentHeight, width);
 
-        if (state.LiveMode == ViewerLiveMode.Tail)
+        if (keepTail && state.LiveMode == ViewerLiveMode.Tail)
         {
             ApplyViewportPosition(state, maximum);
             return;
@@ -1514,7 +1515,7 @@ internal sealed class LargeFileViewer
         }
 
         state.TopWrappedSegmentIndex = 0;
-        NormalizeViewport(sourcePath, reader, state, contentHeight, width);
+        NormalizeViewport(sourcePath, reader, state, contentHeight, width, keepTail: false);
     }
 
     private static void ToggleViewMode(LargeFileViewerState state)
