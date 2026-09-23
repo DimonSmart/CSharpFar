@@ -865,6 +865,168 @@ public class MoveOperationTests : IDisposable
         Assert.True(File.Exists(Path.Combine(destination, "old.txt")));
     }
 
+
+    [Fact]
+    public async Task MoveAsync_CrossVolumeReplaceUsesStaging()
+    {
+        string source = Write(_src, "dup.txt", "new");
+        string destination = Write(_dst, "dup.txt", "old");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            ForceMoveFallback = (from, _) => Path.GetFullPath(from) == Path.GetFullPath(source),
+        });
+
+        FileOperationResult result = await service.MoveAsync(
+            [source],
+            _dst,
+            onConflict: _ => ConflictChoice.Overwrite);
+
+        Assert.Empty(result.Errors);
+        Assert.False(File.Exists(source));
+        Assert.Equal("new", File.ReadAllText(destination));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_dst, "dup.txt.csharpfar-replace-*"));
+    }
+
+    [Fact]
+    public async Task MoveAsync_StagingCopyFailurePreservesOriginalDestination()
+    {
+        string source = Write(_src, "dup.txt", "new");
+        string destination = Write(_dst, "dup.txt", "old");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            ForceMoveFallback = (from, _) => Path.GetFullPath(from) == Path.GetFullPath(source),
+            OpenFileStream = (path, mode, access, share, bufferSize, options) =>
+            {
+                if (Path.GetFullPath(path) == Path.GetFullPath(source) && access == FileAccess.Read)
+                    throw new IOException("simulated staging read failure");
+                return new FileStream(path, mode, access, share, bufferSize, options);
+            },
+        });
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            service.MoveAsync([source], _dst, onConflict: _ => ConflictChoice.Overwrite));
+
+        Assert.Equal("new", File.ReadAllText(source));
+        Assert.Equal("old", File.ReadAllText(destination));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_dst, "dup.txt.csharpfar-replace-*"));
+    }
+
+    [Fact]
+    public async Task MoveAsync_SourceDeleteFailureAfterStagedCommitPreservesAllCopies()
+    {
+        string source = Write(_src, "dup.txt", "new");
+        string destination = Write(_dst, "dup.txt", "old");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            ForceMoveFallback = (from, _) => Path.GetFullPath(from) == Path.GetFullPath(source),
+            BeforeDeletePath = path =>
+            {
+                if (Path.GetFullPath(path) == Path.GetFullPath(source))
+                    throw new IOException("simulated source delete failure");
+            },
+        });
+
+        IOException error = await Assert.ThrowsAsync<IOException>(() =>
+            service.MoveAsync([source], _dst, onConflict: _ => ConflictChoice.Overwrite));
+
+        Assert.Equal("new", File.ReadAllText(source));
+        Assert.Equal("new", File.ReadAllText(destination));
+        string backup = Assert.Single(Directory.GetFiles(_dst, "dup.txt.csharpfar-replace-backup-*"));
+        Assert.Equal("old", File.ReadAllText(backup));
+        Assert.Contains(backup, error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MoveAsync_BackupCleanupFailurePreservesNewDestinationAndBackup()
+    {
+        string source = Write(_src, "dup.txt", "new");
+        string destination = Write(_dst, "dup.txt", "old");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            BeforeDeletePath = path =>
+            {
+                if (path.Contains(".csharpfar-replace-backup-", StringComparison.Ordinal))
+                    throw new IOException("simulated cleanup failure");
+            },
+        });
+
+        FileOperationResult result = await service.MoveAsync(
+            [source],
+            _dst,
+            onConflict: _ => ConflictChoice.Overwrite);
+
+        Assert.False(File.Exists(source));
+        Assert.Equal("new", File.ReadAllText(destination));
+        string backup = Assert.Single(Directory.GetFiles(_dst, "dup.txt.csharpfar-replace-backup-*"));
+        Assert.Equal("old", File.ReadAllText(backup));
+        FileOperationItemError cleanupError = Assert.Single(result.Errors);
+        Assert.Equal(backup, cleanupError.Path);
+        Assert.Contains("cleanup failed", cleanupError.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task MoveAsync_RollbackFailurePreservesBackupAndReportsPath()
+    {
+        string source = Write(_src, "dup.txt", "new");
+        string destination = Write(_dst, "dup.txt", "old");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            MoveFile = (from, to) =>
+            {
+                if (Path.GetFullPath(from) == Path.GetFullPath(source))
+                    throw new IOException("simulated commit failure");
+                if (from.Contains(".csharpfar-replace-backup-", StringComparison.Ordinal) &&
+                    Path.GetFullPath(to) == Path.GetFullPath(destination))
+                {
+                    throw new IOException("simulated rollback failure");
+                }
+
+                File.Move(from, to);
+            },
+        });
+
+        IOException error = await Assert.ThrowsAsync<IOException>(() =>
+            service.MoveAsync([source], _dst, onConflict: _ => ConflictChoice.Overwrite));
+
+        Assert.Equal("new", File.ReadAllText(source));
+        Assert.False(File.Exists(destination));
+        string backup = Assert.Single(Directory.GetFiles(_dst, "dup.txt.csharpfar-replace-backup-*"));
+        Assert.Equal("old", File.ReadAllText(backup));
+        Assert.Contains(backup, error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MoveAsync_CancellationAfterBackupPerformsRecovery()
+    {
+        string source = Write(_src, "dup.txt", "new");
+        string destination = Write(_dst, "dup.txt", "old");
+        using var cts = new CancellationTokenSource();
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            MoveFile = (from, to) =>
+            {
+                if (Path.GetFullPath(from) == Path.GetFullPath(source))
+                {
+                    cts.Cancel();
+                    throw new OperationCanceledException(cts.Token);
+                }
+
+                File.Move(from, to);
+            },
+        });
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            service.MoveAsync(
+                [source],
+                _dst,
+                onConflict: _ => ConflictChoice.Overwrite,
+                cancellationToken: cts.Token));
+
+        Assert.Equal("new", File.ReadAllText(source));
+        Assert.Equal("old", File.ReadAllText(destination));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_dst, "dup.txt.csharpfar-replace-*"));
+    }
+
     // ── CancellationToken ─────────────────────────────────────────────────────
 
     [Fact]
