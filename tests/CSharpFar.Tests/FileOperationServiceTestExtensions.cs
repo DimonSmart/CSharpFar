@@ -7,6 +7,8 @@ namespace CSharpFar.Tests;
 public enum ConflictChoice
 {
     Overwrite,
+    Merge,
+    Replace,
     Skip,
     Cancel,
 }
@@ -101,6 +103,8 @@ internal static class FileOperationServiceTestExtensions
             return (_onConflict?.Invoke(conflict.DestinationPath) ?? ConflictChoice.Overwrite) switch
             {
                 ConflictChoice.Overwrite => FileOperationConflictDecision.FromMode(ConflictDecisionMode.Overwrite),
+                ConflictChoice.Merge => FileOperationConflictDecision.FromMode(ConflictDecisionMode.Merge),
+                ConflictChoice.Replace => FileOperationConflictDecision.FromMode(ConflictDecisionMode.Replace),
                 ConflictChoice.Skip => FileOperationConflictDecision.FromMode(ConflictDecisionMode.Skip),
                 ConflictChoice.Cancel => FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel),
                 _ => FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel),

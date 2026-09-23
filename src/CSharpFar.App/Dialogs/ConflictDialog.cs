@@ -8,6 +8,8 @@ namespace CSharpFar.App.Dialogs;
 internal sealed class ConflictDialog
 {
     private const string OverwriteButton = "overwrite";
+    private const string MergeButton = "merge";
+    private const string ReplaceButton = "replace";
     private const string SkipButton = "skip";
     private const string RenameButton = "rename";
 
@@ -19,7 +21,8 @@ internal sealed class ConflictDialog
     public FileOperationConflictDecision Show(FileOperationConflict conflict)
     {
         var rememberChoice = FormControls.CheckBox("Remember choice");
-        var actions = FormControls.Buttons(CreateButtons());
+        bool directoryConflict = conflict.SourceIsDirectory && conflict.DestinationIsDirectory;
+        var actions = FormControls.Buttons(CreateButtons(directoryConflict));
         return _dialogs.Form(
             new FormDialogOptions("Warning", PreferredWidth: 78, PreferredHeight: 13)
             {
@@ -28,7 +31,7 @@ internal sealed class ConflictDialog
             },
             rows: () =>
             [
-                FormControls.Label("File already exists", TextAlignment.Center),
+                FormControls.Label(directoryConflict ? "Directory already exists" : "File already exists", TextAlignment.Center),
                 FormControls.Label(conflict.DestinationPath, TextAlignment.Center),
                 FormControls.Spacer(),
                 FormControls.Value("New", () => BuildInfo(conflict.SourceSize, conflict.SourceLastWriteTime)),
@@ -48,6 +51,8 @@ internal sealed class ConflictDialog
         buttonId switch
         {
             OverwriteButton => FileOperationConflictDecision.FromMode(rememberChoice ? ConflictDecisionMode.OverwriteAll : ConflictDecisionMode.Overwrite),
+            MergeButton => FileOperationConflictDecision.FromMode(ConflictDecisionMode.Merge),
+            ReplaceButton => FileOperationConflictDecision.FromMode(ConflictDecisionMode.Replace),
             SkipButton => FileOperationConflictDecision.FromMode(rememberChoice ? ConflictDecisionMode.SkipAll : ConflictDecisionMode.Skip),
             RenameButton => BuildRenameDecision(rememberChoice, conflict),
             _ => FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel),
@@ -64,13 +69,23 @@ internal sealed class ConflictDialog
             : new FileOperationConflictDecision { Mode = ConflictDecisionMode.Rename, NewDestinationPath = renamed };
     }
 
-    private static IReadOnlyList<DialogButton> CreateButtons() =>
-    [
-        DialogButton.Default(OverwriteButton, "Overwrite", 'O'),
-        DialogButton.Action(SkipButton, "Skip", 'S'),
-        DialogButton.Action(RenameButton, "Rename", 'R'),
-        DialogButton.Cancel("Cancel", 'C'),
-    ];
+    private static IReadOnlyList<DialogButton> CreateButtons(bool directoryConflict) =>
+        directoryConflict
+            ?
+            [
+                DialogButton.Default(MergeButton, "Merge", 'M'),
+                DialogButton.Action(ReplaceButton, "Replace", 'P'),
+                DialogButton.Action(RenameButton, "Rename", 'R'),
+                DialogButton.Action(SkipButton, "Skip", 'S'),
+                DialogButton.Cancel("Cancel", 'C'),
+            ]
+            :
+            [
+                DialogButton.Default(OverwriteButton, "Overwrite", 'O'),
+                DialogButton.Action(SkipButton, "Skip", 'S'),
+                DialogButton.Action(RenameButton, "Rename", 'R'),
+                DialogButton.Cancel("Cancel", 'C'),
+            ];
 
     private static string BuildInfo(long? size, DateTime? lastWriteTime) =>
         $"{FormatSize(size)} {FormatDate(lastWriteTime)}".TrimEnd();
