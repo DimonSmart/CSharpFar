@@ -102,6 +102,63 @@ public sealed class Spec029SftpProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task ProviderMove_FailedRenameDoesNotFallbackOrDeleteAnything()
+    {
+        var service = CreateProviderOperationService(out var remote);
+        remote.WriteFile("/source.txt", "new");
+        await remote.CreateDirectoryAsync("/Target");
+        remote.RenameFailure = (from, to) =>
+            from == "/source.txt" && to == "/Target/source.txt"
+                ? new IOException("simulated provider rename failure")
+                : null;
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            service.ExecuteAsync(
+                ProviderRequest(
+                    FileOperationKind.Move,
+                    remote.SourceId,
+                    ["/source.txt"],
+                    "/Target",
+                    new FileOperationOptions()),
+                null,
+                new NoOpConflictResolver()));
+
+        Assert.Equal("new", remote.ReadFile("/source.txt"));
+        Assert.Null(remote.GetItem("/Target/source.txt"));
+        Assert.Empty(remote.DeletedPaths);
+    }
+
+    [Fact]
+    public async Task ProviderMove_OverwriteFailureRestoresDestinationWithoutDeleteFirst()
+    {
+        var service = CreateProviderOperationService(out var remote);
+        remote.WriteFile("/source.txt", "new");
+        remote.WriteFile("/Target/source.txt", "old");
+        remote.RenameFailure = (from, to) =>
+            from == "/source.txt" && to == "/Target/source.txt"
+                ? new IOException("simulated provider commit failure")
+                : null;
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            service.ExecuteAsync(
+                ProviderRequest(
+                    FileOperationKind.Move,
+                    remote.SourceId,
+                    ["/source.txt"],
+                    "/Target",
+                    new FileOperationOptions { DefaultConflictDecision = ConflictDecisionMode.Overwrite }),
+                null,
+                new NoOpConflictResolver()));
+
+        Assert.Equal("new", remote.ReadFile("/source.txt"));
+        Assert.Equal("old", remote.ReadFile("/Target/source.txt"));
+        Assert.Empty(remote.DeletedPaths);
+        Assert.DoesNotContain(
+            remote.EnumerateDirectory("/Target"),
+            item => item.Name.Contains(".csharpfar-replace-backup-", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ProviderMove_FileMaskFiltersBeforeWildcardCollision()
     {
         var service = CreateProviderOperationService(out var remote);
@@ -1092,6 +1149,13 @@ public sealed class Spec029SftpProviderTests : IDisposable
             _files[path] = Encoding.UTF8.GetBytes(text);
         }
 
+        public string ReadFile(string sourcePath) =>
+            Encoding.UTF8.GetString(_files[NormalizePath(sourcePath)]);
+
+        public List<string> DeletedPaths { get; } = [];
+
+        public Func<string, string, Exception?>? RenameFailure { get; set; }
+
         public string NormalizePath(string sourcePath)
         {
             if (!sourcePath.StartsWith('/'))
@@ -1180,7 +1244,22 @@ public sealed class Spec029SftpProviderTests : IDisposable
             bool recursive,
             CancellationToken cancellationToken = default)
         {
-            _files.Remove(NormalizePath(sourcePath));
+            string path = NormalizePath(sourcePath);
+            DeletedPaths.Add(path);
+            _files.Remove(path);
+            if (recursive)
+            {
+                string prefix = path == "/" ? "/" : path + "/";
+                foreach (string file in _files.Keys.Where(item => item.StartsWith(prefix, StringComparison.Ordinal)).ToArray())
+                    _files.Remove(file);
+                foreach (string directory in _directories.Where(item => item == path || item.StartsWith(prefix, StringComparison.Ordinal)).ToArray())
+                    _directories.Remove(directory);
+            }
+            else
+            {
+                _directories.Remove(path);
+            }
+
             return Task.CompletedTask;
         }
 
@@ -1191,6 +1270,9 @@ public sealed class Spec029SftpProviderTests : IDisposable
         {
             string source = NormalizePath(sourcePath);
             string target = NormalizePath(newSourcePath);
+            if (RenameFailure?.Invoke(source, target) is { } failure)
+                throw failure;
+
             if (_files.TryGetValue(source, out var bytes))
             {
                 AddDirectoryAndParents(ParentPath(target));
