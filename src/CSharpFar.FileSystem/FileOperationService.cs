@@ -36,6 +36,8 @@ internal sealed record FileOperationServiceDependencies
 
     internal Action<string, string> MoveDirectory { get; init; } =
         static (source, destination) => Directory.Move(source, destination);
+
+    internal Action<string> BeforeDeletePath { get; init; } = static _ => { };
 }
 
 public sealed class FileOperationService : IFileOperationService, IFileOperationPlanBuilder
@@ -2053,6 +2055,8 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
 
     private void DeletePath(string path, bool useRecycleBin)
     {
+        _dependencies.BeforeDeletePath(path);
+
         if (File.Exists(path))
             _platformOperations.DeleteFile(path, useRecycleBin);
         else if (Directory.Exists(path))
