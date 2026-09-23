@@ -758,6 +758,30 @@ public sealed class Spec010FileOperationDialogTests
         Assert.Equal(ConflictDecisionMode.Overwrite, decision.Mode);
     }
 
+
+    [Fact]
+    public void ConflictDialog_DirectoryConflictReturnsMergeForM()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(new ConsoleKeyInfo('M', ConsoleKey.M, shift: true, alt: false, control: false));
+
+        var conflictModals = ModalTestHost.Create(screen);
+        var decision = new ConflictDialog(
+            new DialogService(conflictModals, new FormFieldFactory(TextFieldHistoryTestProvider.Create())))
+            .Show(new FileOperationConflict
+            {
+                SourcePath = @"C:\src\Folder",
+                DestinationPath = @"C:\dst\Folder",
+                SourceIsDirectory = true,
+                DestinationIsDirectory = true,
+            });
+
+        Assert.Equal(ConflictDecisionMode.Merge, decision.Mode);
+        Assert.Contains(driver.WriteRecords, record => record.Text.Contains("Replace", StringComparison.Ordinal));
+        Assert.DoesNotContain(driver.WriteRecords, record => record.Text.Contains("Overwrite", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void ConflictDialog_RememberChoiceTurnsOverwriteIntoOverwriteAll()
     {

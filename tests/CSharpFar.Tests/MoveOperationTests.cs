@@ -613,6 +613,256 @@ public class MoveOperationTests : IDisposable
             Svc().MoveAsync([srcFile], _dst, onConflict: _ => ConflictChoice.Cancel));
     }
 
+
+    [Fact]
+    public async Task MoveAsync_FailedPlainDirectoryRenameDoesNotFallback()
+    {
+        string source = Path.Combine(_src, "FolderA");
+        Directory.CreateDirectory(source);
+        Write(source, "locked.txt", "data");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            MoveDirectory = static (_, _) => throw new IOException("simulated rename failure"),
+        });
+
+        await Assert.ThrowsAsync<IOException>(() => service.MoveAsync([source], "FolderA_"));
+
+        Assert.True(Directory.Exists(source));
+        Assert.True(File.Exists(Path.Combine(source, "locked.txt")));
+        Assert.False(Directory.Exists(Path.Combine(_src, "FolderA_")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_FailedPlainFileRenameDoesNotFallback()
+    {
+        string source = Write(_src, "old.txt", "data");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            MoveFile = static (_, _) => throw new IOException("simulated rename failure"),
+        });
+
+        await Assert.ThrowsAsync<IOException>(() => service.MoveAsync([source], "new.txt"));
+
+        Assert.True(File.Exists(source));
+        Assert.False(File.Exists(Path.Combine(_src, "new.txt")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_FailedWildcardSameParentRenameDoesNotFallback()
+    {
+        string source = Write(_src, "old.txt", "data");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            MoveFile = static (_, _) => throw new IOException("simulated rename failure"),
+        });
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            service.MoveAsync([source], Path.Combine(_src, "*_old.txt")));
+
+        Assert.True(File.Exists(source));
+        Assert.False(File.Exists(Path.Combine(_src, "old_old.txt")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_ArbitraryIOExceptionDoesNotTriggerFallback()
+    {
+        string source = Write(_src, "locked.txt", "data");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            MoveFile = static (_, _) => throw new IOException("simulated sharing violation"),
+        });
+
+        await Assert.ThrowsAsync<IOException>(() => service.MoveAsync([source], _dst));
+
+        Assert.True(File.Exists(source));
+        Assert.False(File.Exists(Path.Combine(_dst, "locked.txt")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_ExplicitNotSupportedStillTriggersFallback()
+    {
+        string source = Write(_src, "fallback.txt", "data");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            ForceMoveFallback = static (_, _) => true,
+        });
+
+        await service.MoveAsync([source], _dst);
+
+        Assert.False(File.Exists(source));
+        Assert.Equal("data", File.ReadAllText(Path.Combine(_dst, "fallback.txt")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_FileOverwriteFailureRestoresOldDestination()
+    {
+        string source = Write(_src, "dup.txt", "new");
+        string destination = Write(_dst, "dup.txt", "old");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            MoveFile = (from, to) =>
+            {
+                if (Path.GetFullPath(from) == Path.GetFullPath(source))
+                    throw new IOException("simulated commit failure");
+                File.Move(from, to);
+            },
+        });
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            service.MoveAsync([source], _dst, onConflict: _ => ConflictChoice.Overwrite));
+
+        Assert.True(File.Exists(source));
+        Assert.Equal("new", File.ReadAllText(source));
+        Assert.Equal("old", File.ReadAllText(destination));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_dst, "dup.txt.csharpfar-replace-*"));
+    }
+
+    [Fact]
+    public async Task MoveAsync_MergePreservesExistingDirectoryAndMovesChildren()
+    {
+        string source = Path.Combine(_src, "Folder");
+        string destination = Path.Combine(_dst, "Folder");
+        Directory.CreateDirectory(source);
+        Directory.CreateDirectory(destination);
+        Write(source, "new.txt", "new");
+        Write(destination, "existing.txt", "existing");
+
+        await Svc().MoveAsync([source], _dst, onConflict: _ => ConflictChoice.Merge);
+
+        Assert.False(Directory.Exists(source));
+        Assert.Equal("new", File.ReadAllText(Path.Combine(destination, "new.txt")));
+        Assert.Equal("existing", File.ReadAllText(Path.Combine(destination, "existing.txt")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_MergeSkipKeepsSkippedSourceAndDestination()
+    {
+        string source = Path.Combine(_src, "Folder");
+        string destination = Path.Combine(_dst, "Folder");
+        Directory.CreateDirectory(source);
+        Directory.CreateDirectory(destination);
+        Write(source, "same.txt", "new");
+        Write(source, "move.txt", "move");
+        Write(destination, "same.txt", "old");
+
+        await Svc().MoveAsync([source], _dst, onConflict: path =>
+            Path.GetFileName(path) == "same.txt" ? ConflictChoice.Skip : ConflictChoice.Merge);
+
+        Assert.True(Directory.Exists(source));
+        Assert.Equal("new", File.ReadAllText(Path.Combine(source, "same.txt")));
+        Assert.Equal("old", File.ReadAllText(Path.Combine(destination, "same.txt")));
+        Assert.Equal("move", File.ReadAllText(Path.Combine(destination, "move.txt")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_MergeInterruptedByErrorPreservesBothTrees()
+    {
+        string source = Path.Combine(_src, "Folder");
+        string destination = Path.Combine(_dst, "Folder");
+        Directory.CreateDirectory(source);
+        Directory.CreateDirectory(destination);
+        string first = Write(source, "a.txt", "a");
+        string second = Write(source, "b.txt", "b");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            MoveFile = (from, to) =>
+            {
+                if (Path.GetFileName(from) == "b.txt")
+                    throw new IOException("simulated child failure");
+                File.Move(from, to);
+            },
+        });
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            service.MoveAsync([source], _dst, onConflict: _ => ConflictChoice.Merge));
+
+        Assert.False(File.Exists(first));
+        Assert.True(File.Exists(Path.Combine(destination, "a.txt")));
+        Assert.True(File.Exists(second));
+        Assert.False(File.Exists(Path.Combine(destination, "b.txt")));
+        Assert.True(Directory.Exists(source));
+        Assert.True(Directory.Exists(destination));
+    }
+
+    [Fact]
+    public async Task MoveAsync_RepeatedMergeContinuesPartialMove()
+    {
+        string source = Path.Combine(_src, "Folder");
+        string destination = Path.Combine(_dst, "Folder");
+        Directory.CreateDirectory(source);
+        Directory.CreateDirectory(destination);
+        Write(source, "remaining.txt", "remaining");
+        Write(destination, "already.txt", "already");
+
+        await Svc().MoveAsync([source], _dst, onConflict: _ => ConflictChoice.Merge);
+
+        Assert.False(Directory.Exists(source));
+        Assert.Equal("already", File.ReadAllText(Path.Combine(destination, "already.txt")));
+        Assert.Equal("remaining", File.ReadAllText(Path.Combine(destination, "remaining.txt")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_DirectoryReplaceUsesBackupAndRemovesOldTree()
+    {
+        string source = Path.Combine(_src, "Folder");
+        string destination = Path.Combine(_dst, "Folder");
+        Directory.CreateDirectory(source);
+        Directory.CreateDirectory(destination);
+        Write(source, "new.txt", "new");
+        Write(destination, "old.txt", "old");
+
+        await Svc().MoveAsync([source], _dst, onConflict: _ => ConflictChoice.Replace);
+
+        Assert.False(Directory.Exists(source));
+        Assert.True(File.Exists(Path.Combine(destination, "new.txt")));
+        Assert.False(File.Exists(Path.Combine(destination, "old.txt")));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_dst, "Folder.csharpfar-replace-*"));
+    }
+
+    [Fact]
+    public async Task MoveAsync_DirectoryReplaceFailureRestoresOldDestination()
+    {
+        string source = Path.Combine(_src, "Folder");
+        string destination = Path.Combine(_dst, "Folder");
+        Directory.CreateDirectory(source);
+        Directory.CreateDirectory(destination);
+        Write(source, "new.txt", "new");
+        Write(destination, "old.txt", "old");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            MoveDirectory = (from, to) =>
+            {
+                if (Path.GetFullPath(from) == Path.GetFullPath(source))
+                    throw new IOException("simulated commit failure");
+                Directory.Move(from, to);
+            },
+        });
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            service.MoveAsync([source], _dst, onConflict: _ => ConflictChoice.Replace));
+
+        Assert.True(File.Exists(Path.Combine(source, "new.txt")));
+        Assert.True(File.Exists(Path.Combine(destination, "old.txt")));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_dst, "Folder.csharpfar-replace-*"));
+    }
+
+    [Fact]
+    public async Task MoveAsync_DirectoryOverwriteIsNotImplicitReplace()
+    {
+        string source = Path.Combine(_src, "Folder");
+        string destination = Path.Combine(_dst, "Folder");
+        Directory.CreateDirectory(source);
+        Directory.CreateDirectory(destination);
+        Write(source, "new.txt", "new");
+        Write(destination, "old.txt", "old");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Svc().MoveAsync([source], _dst, onConflict: _ => ConflictChoice.Overwrite));
+
+        Assert.True(File.Exists(Path.Combine(source, "new.txt")));
+        Assert.True(File.Exists(Path.Combine(destination, "old.txt")));
+    }
+
     // ── CancellationToken ─────────────────────────────────────────────────────
 
     [Fact]
