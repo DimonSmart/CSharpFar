@@ -761,13 +761,14 @@ public class MoveOperationTests : IDisposable
         string destination = Path.Combine(_dst, "Folder");
         Directory.CreateDirectory(source);
         Directory.CreateDirectory(destination);
-        string first = Write(source, "a.txt", "a");
-        string second = Write(source, "b.txt", "b");
+        Write(source, "a.txt", "a");
+        Write(source, "b.txt", "b");
+        int moveCount = 0;
         var service = new FileOperationService(FileOperationServiceDependencies.Default with
         {
             MoveFile = (from, to) =>
             {
-                if (Path.GetFileName(from) == "b.txt")
+                if (++moveCount == 2)
                     throw new IOException("simulated child failure");
                 File.Move(from, to);
             },
@@ -776,10 +777,11 @@ public class MoveOperationTests : IDisposable
         await Assert.ThrowsAsync<IOException>(() =>
             service.MoveAsync([source], _dst, onConflict: _ => ConflictChoice.Merge));
 
-        Assert.False(File.Exists(first));
-        Assert.True(File.Exists(Path.Combine(destination, "a.txt")));
-        Assert.True(File.Exists(second));
-        Assert.False(File.Exists(Path.Combine(destination, "b.txt")));
+        string[] remaining = Directory.GetFiles(source);
+        string[] moved = Directory.GetFiles(destination);
+        Assert.Single(remaining);
+        Assert.Single(moved);
+        Assert.NotEqual(Path.GetFileName(remaining[0]), Path.GetFileName(moved[0]));
         Assert.True(Directory.Exists(source));
         Assert.True(Directory.Exists(destination));
     }
