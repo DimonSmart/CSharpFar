@@ -1217,3 +1217,11 @@ platform-specific filesystem operations
 ```
 
 That boundary removes the duplication that caused the recent explicit-target bug without sacrificing the richer capabilities of the local filesystem.
+
+## Move/rename safety boundary
+
+Local and provider move share the same safety contract: a failed direct rename/move is an error, not an implicit copy/delete signal. Fallback is entered only for an explicitly classified unsupported direct move.
+
+Existing destinations are never deleted before replacement. File overwrite and directory Replace preserve the old destination under a unique sibling backup until commit; cross-filesystem replacement stages the full new tree before moving the old destination aside. Directory Merge is recursive and non-destructive: skipped or not-yet-moved source items remain at the source.
+
+Provider implementations use rename-to-backup / rename-new / rollback semantics when safe replacement is available. Providers that cannot support the required rename/delete capabilities reject Replace rather than emulate it with delete-before-rename.
