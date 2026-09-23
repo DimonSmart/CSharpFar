@@ -6,6 +6,12 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.FileSystem;
 
+internal enum DirectMoveResult
+{
+    Moved,
+    NotSupported,
+}
+
 internal sealed record FileOperationServiceDependencies
 {
     private static readonly CopyResumeAnalyzer ResumeAnalyzer = new();
@@ -24,6 +30,12 @@ internal sealed record FileOperationServiceDependencies
             ResumeAnalyzer.Analyze(sourcePath, destinationPath, sourceSnapshot, cancellationToken);
 
     internal Func<string, string, bool> ForceMoveFallback { get; init; } = static (_, _) => false;
+
+    internal Action<string, string> MoveFile { get; init; } =
+        static (source, destination) => File.Move(source, destination);
+
+    internal Action<string, string> MoveDirectory { get; init; } =
+        static (source, destination) => Directory.Move(source, destination);
 }
 
 public sealed class FileOperationService : IFileOperationService, IFileOperationPlanBuilder
@@ -400,7 +412,13 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             throw new InvalidOperationException("Cross-provider move is not supported.");
 
         var source = _sources!.GetSource(sourceLocation.SourceId);
-        var plan = BuildProviderMovePlan(source, sources, destination.SourcePath, request.Options, request.UseDestinationTemplate, cancellationToken);
+        var plan = BuildProviderMovePlan(
+            source,
+            sources,
+            destination.SourcePath,
+            request.Options,
+            request.UseDestinationTemplate,
+            cancellationToken);
         state.SetTotals(CalculateProviderPlanSize(plan), plan.Count);
         state.StartProgressTimer();
 
@@ -414,20 +432,51 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                 continue;
             }
 
-            string targetPath = plannedItem.TargetPath;
-            if (ProviderPathRelations.PathsEqual(source, plannedItem.SourcePath, targetPath))
+            await MoveProviderItemAsync(
+                    source,
+                    plannedItem.SourcePath,
+                    plannedItem.TargetPath,
+                    plannedItem.Item,
+                    request.Options,
+                    conflictResolver,
+                    state,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private async Task MoveProviderItemAsync(
+        IFilePanelSource source,
+        string sourcePath,
+        string destinationPath,
+        FilePanelItem sourceItem,
+        FileOperationOptions options,
+        IFileOperationConflictResolver conflictResolver,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        string targetPath = destinationPath;
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (ProviderPathRelations.PathsEqual(source, sourcePath, targetPath))
             {
                 state.CompleteItem();
-                continue;
+                return;
             }
 
             FilePanelItem? destinationItem = source.GetItem(targetPath, cancellationToken);
             if (destinationItem is not null)
             {
-                EnsureMoveTypeCompatibility(plannedItem.Item!, destinationItem);
-                var decision = request.Options.DefaultConflictDecision == ConflictDecisionMode.Ask
-                    ? conflictResolver.Resolve(BuildProviderConflict(plannedItem.Item!, destinationItem, targetPath))
-                    : FileOperationConflictDecision.FromMode(request.Options.DefaultConflictDecision);
+                EnsureMoveTypeCompatibility(sourceItem, destinationItem);
+                FileOperationConflictDecision decision = ResolveProviderMoveConflict(
+                    sourceItem,
+                    destinationItem,
+                    targetPath,
+                    options,
+                    conflictResolver);
 
                 switch (decision.Mode)
                 {
@@ -435,32 +484,202 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                     case ConflictDecisionMode.SkipAll:
                         state.SkippedCount++;
                         state.CompleteItem();
-                        continue;
+                        return;
                     case ConflictDecisionMode.Rename:
                     case ConflictDecisionMode.RenameAll:
                         targetPath = string.IsNullOrWhiteSpace(decision.NewDestinationPath)
                             ? GenerateProviderName(source, targetPath, cancellationToken)
                             : decision.NewDestinationPath;
-                        ValidateProviderMoveTarget(source, plannedItem.SourcePath, targetPath, plannedItem.Item!.IsDirectory);
-                        break;
+                        ValidateProviderMoveTarget(source, sourcePath, targetPath, sourceItem.IsDirectory);
+                        continue;
                     case ConflictDecisionMode.Cancel:
                         throw new OperationCanceledException("File operation cancelled by user.");
+                    case ConflictDecisionMode.Merge:
+                        if (!sourceItem.IsDirectory || !destinationItem.IsDirectory)
+                            throw new InvalidOperationException("Merge is only supported for directory conflicts.");
+                        await MergeProviderDirectoriesAsync(
+                                source,
+                                sourcePath,
+                                targetPath,
+                                options,
+                                conflictResolver,
+                                state,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                        state.CompleteItem();
+                        return;
+                    case ConflictDecisionMode.Replace:
+                        await ReplaceProviderItemAsync(
+                                source,
+                                sourcePath,
+                                targetPath,
+                                destinationItem,
+                                state,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                        state.MovedCount++;
+                        state.AddBytes(sourceItem.Size ?? 0);
+                        state.CompleteItem();
+                        return;
                     case ConflictDecisionMode.Overwrite:
                     case ConflictDecisionMode.OverwriteAll:
-                        await source.DeleteAsync(targetPath, destinationItem.IsDirectory, cancellationToken).ConfigureAwait(false);
-                        break;
+                        if (sourceItem.IsDirectory)
+                            throw new InvalidOperationException("Directory conflicts require an explicit Merge or Replace decision.");
+                        await ReplaceProviderItemAsync(
+                                source,
+                                sourcePath,
+                                targetPath,
+                                destinationItem,
+                                state,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                        state.MovedCount++;
+                        state.AddBytes(sourceItem.Size ?? 0);
+                        state.CompleteItem();
+                        return;
                     case ConflictDecisionMode.OnlyNewer:
                         throw new InvalidOperationException("Only newer is only supported for copy operations.");
+                    default:
+                        throw new InvalidOperationException($"Unsupported move conflict decision: {decision.Mode}.");
                 }
             }
 
-            if (HasFileMask(request.Options) || request.UseDestinationTemplate)
-                await EnsureProviderDestinationDirectoryAsync(source, targetPath, cancellationToken).ConfigureAwait(false);
-
-            await source.RenameAsync(plannedItem.SourcePath, targetPath, cancellationToken).ConfigureAwait(false);
+            await EnsureProviderDestinationDirectoryAsync(source, targetPath, cancellationToken).ConfigureAwait(false);
+            await source.RenameAsync(sourcePath, targetPath, cancellationToken).ConfigureAwait(false);
             state.MovedCount++;
-            state.AddBytes(plannedItem.Item!.Size ?? 0);
+            state.AddBytes(sourceItem.Size ?? 0);
             state.CompleteItem();
+            return;
+        }
+    }
+
+    private static FileOperationConflictDecision ResolveProviderMoveConflict(
+        FilePanelItem sourceItem,
+        FilePanelItem destinationItem,
+        string destinationPath,
+        FileOperationOptions options,
+        IFileOperationConflictResolver conflictResolver)
+    {
+        ConflictDecisionMode configured = options.DefaultConflictDecision;
+        if (sourceItem.IsDirectory &&
+            destinationItem.IsDirectory &&
+            configured is ConflictDecisionMode.Overwrite or ConflictDecisionMode.OverwriteAll)
+        {
+            configured = ConflictDecisionMode.Ask;
+        }
+
+        return configured == ConflictDecisionMode.Ask
+            ? conflictResolver.Resolve(BuildProviderConflict(sourceItem, destinationItem, destinationPath))
+            : FileOperationConflictDecision.FromMode(configured);
+    }
+
+    private async Task MergeProviderDirectoriesAsync(
+        IFilePanelSource source,
+        string sourcePath,
+        string destinationPath,
+        FileOperationOptions options,
+        IFileOperationConflictResolver conflictResolver,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        PanelProviderCapabilities required =
+            PanelProviderCapabilities.Enumerate |
+            PanelProviderCapabilities.Rename |
+            PanelProviderCapabilities.Delete;
+        if ((source.Capabilities & required) != required)
+            throw new NotSupportedException("This provider cannot safely merge directories.");
+
+        FilePanelItem[] children = source
+            .EnumerateDirectory(sourcePath, cancellationToken)
+            .Where(item => !item.IsParentDirectory)
+            .ToArray();
+
+        foreach (FilePanelItem child in children)
+        {
+            string childTarget = CombineProviderPath(source.SourceId, destinationPath, child.Name);
+            await MoveProviderItemAsync(
+                    source,
+                    child.SourcePath,
+                    childTarget,
+                    child,
+                    options,
+                    conflictResolver,
+                    state,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (!source.EnumerateDirectory(sourcePath, cancellationToken).Any(item => !item.IsParentDirectory))
+            await source.DeleteAsync(sourcePath, recursive: false, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task ReplaceProviderItemAsync(
+        IFilePanelSource source,
+        string sourcePath,
+        string destinationPath,
+        FilePanelItem destinationItem,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        PanelProviderCapabilities required = PanelProviderCapabilities.Rename | PanelProviderCapabilities.Delete;
+        if ((source.Capabilities & required) != required)
+            throw new NotSupportedException("This provider cannot safely replace an existing destination.");
+
+        string backupPath = GenerateProviderTemporaryPath(source, destinationPath, "backup", cancellationToken);
+        await source.RenameAsync(destinationPath, backupPath, cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await source.RenameAsync(sourcePath, destinationPath, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception moveError)
+        {
+            try
+            {
+                if (source.GetItem(destinationPath, CancellationToken.None) is null)
+                {
+                    await source.RenameAsync(backupPath, destinationPath, CancellationToken.None).ConfigureAwait(false);
+                }
+                else
+                {
+                    throw new IOException(
+                        $"Replacement failed and destination is occupied. Original destination was preserved as: {backupPath}");
+                }
+            }
+            catch (Exception rollbackError)
+            {
+                throw new IOException(
+                    $"Replace failed and rollback failed. Original destination was preserved as: {backupPath}",
+                    new AggregateException(moveError, rollbackError));
+            }
+
+            throw;
+        }
+
+        try
+        {
+            await source.DeleteAsync(backupPath, destinationItem.IsDirectory, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception cleanupError)
+        {
+            state.AddError(backupPath, $"Replacement succeeded, but backup cleanup failed: {cleanupError.Message}");
+        }
+    }
+
+    private static string GenerateProviderTemporaryPath(
+        IFilePanelSource source,
+        string destinationPath,
+        string kind,
+        CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+            string candidate = destinationPath + $".csharpfar-replace-{kind}-{suffix}";
+            if (source.GetItem(candidate, cancellationToken) is null)
+                return candidate;
         }
     }
 
@@ -623,40 +842,469 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         string effectiveDestination = singleRename
             ? Path.Combine(Path.GetDirectoryName(request.Sources[0])!, destination)
             : destination;
-        var plan = BuildLocalMovePlan(request.Sources, effectiveDestination, singleRename, request.Options, request.UseDestinationTemplate, cancellationToken);
+        var plan = BuildLocalMovePlan(
+            request.Sources,
+            effectiveDestination,
+            singleRename,
+            request.Options,
+            request.UseDestinationTemplate,
+            cancellationToken);
+        bool wholeItemPureRename = IsWholeItemPureRename(plan, request);
         state.SetTotals(CalculateSourcesSize(request.Sources), request.Sources.Count);
         state.StartProgressTimer();
 
         foreach (var item in plan)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            string finalTarget = item.TargetPath;
-            if (!HasFileMask(request.Options) && TryMoveDirect(item.SourcePath, item.TargetPath, request.Options, conflictResolver, state, out finalTarget))
-                continue;
-
-            CopyOutcome outcome = await CopyAsync(
-                request with { Kind = FileOperationKind.Copy, Sources = [item.SourcePath], Destination = Path.GetDirectoryName(finalTarget)!, UseDestinationTemplate = false },
-                conflictResolver,
-                state,
-                cancellationToken,
-                finalTarget).ConfigureAwait(false);
 
             if (HasFileMask(request.Options))
             {
-                foreach (string sourcePath in outcome.SuccessfullyCopiedSources)
+                CopyOutcome outcome = await CopyAsync(
+                    request with
+                    {
+                        Kind = FileOperationKind.Copy,
+                        Sources = [item.SourcePath],
+                        Destination = Path.GetDirectoryName(item.TargetPath)!,
+                        UseDestinationTemplate = false,
+                    },
+                    conflictResolver,
+                    state,
+                    cancellationToken,
+                    item.TargetPath).ConfigureAwait(false);
+
+                foreach (string copiedSource in outcome.SuccessfullyCopiedSources)
                 {
-                    File.Delete(sourcePath);
+                    File.Delete(copiedSource);
                     state.MovedCount++;
                 }
+
                 continue;
             }
 
-            if (!outcome.CopiedSomething || !outcome.Completed)
-                continue;
-
-            DeletePath(item.SourcePath, useRecycleBin: false);
-            state.MovedCount++;
+            await MoveLocalItemAsync(
+                    item.SourcePath,
+                    item.TargetPath,
+                    request.Options,
+                    conflictResolver,
+                    state,
+                    cancellationToken,
+                    allowFallback: !wholeItemPureRename)
+                .ConfigureAwait(false);
         }
+    }
+
+    private static bool IsWholeItemPureRename(
+        IReadOnlyList<LocalMovePlanItem> plan,
+        FileOperationRequest request)
+    {
+        if (request.Sources.Count != 1 || plan.Count != 1 || HasFileMask(request.Options))
+            return false;
+
+        string? sourceParent = Path.GetDirectoryName(Path.GetFullPath(plan[0].SourcePath));
+        string? targetParent = Path.GetDirectoryName(Path.GetFullPath(plan[0].TargetPath));
+        return sourceParent is not null &&
+               targetParent is not null &&
+               PathsEqual(sourceParent, targetParent);
+    }
+
+    private async Task MoveLocalItemAsync(
+        string source,
+        string destination,
+        FileOperationOptions options,
+        IFileOperationConflictResolver conflictResolver,
+        OperationState state,
+        CancellationToken cancellationToken,
+        bool allowFallback)
+    {
+        string target = destination;
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (PathsEqual(source, target))
+            {
+                state.SkippedCount++;
+                state.CompleteItem();
+                return;
+            }
+
+            bool sourceIsFile = File.Exists(source);
+            bool sourceIsDirectory = Directory.Exists(source);
+            if (!sourceIsFile && !sourceIsDirectory)
+            {
+                state.SkippedCount++;
+                state.CompleteItem();
+                return;
+            }
+
+            if (sourceIsDirectory && IsPathInside(target, source))
+                throw new IOException("Cannot move a directory into itself.");
+
+            bool destinationIsFile = File.Exists(target);
+            bool destinationIsDirectory = Directory.Exists(target);
+            if (destinationIsFile || destinationIsDirectory)
+            {
+                if ((sourceIsFile && destinationIsDirectory) || (sourceIsDirectory && destinationIsFile))
+                    throw new IOException("Cannot overwrite a file with a directory or a directory with a file.");
+
+                FileOperationConflictDecision decision = ResolveLocalMoveConflict(
+                    source,
+                    target,
+                    sourceIsDirectory,
+                    destinationIsDirectory,
+                    options,
+                    conflictResolver);
+
+                switch (decision.Mode)
+                {
+                    case ConflictDecisionMode.Skip:
+                    case ConflictDecisionMode.SkipAll:
+                        state.SkippedCount++;
+                        state.CompleteItem();
+                        return;
+                    case ConflictDecisionMode.Cancel:
+                        throw new OperationCanceledException("Move cancelled by user.");
+                    case ConflictDecisionMode.Rename:
+                    case ConflictDecisionMode.RenameAll:
+                        target = string.IsNullOrWhiteSpace(decision.NewDestinationPath)
+                            ? GenerateName(target)
+                            : decision.NewDestinationPath;
+                        continue;
+                    case ConflictDecisionMode.Merge:
+                        if (!sourceIsDirectory || !destinationIsDirectory)
+                            throw new InvalidOperationException("Merge is only supported for directory conflicts.");
+                        await MergeLocalDirectoriesAsync(
+                                source,
+                                target,
+                                options,
+                                conflictResolver,
+                                state,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                        state.CompleteItem();
+                        return;
+                    case ConflictDecisionMode.Replace:
+                        await ReplaceLocalAsync(
+                                source,
+                                target,
+                                sourceIsFile,
+                                options,
+                                conflictResolver,
+                                state,
+                                cancellationToken,
+                                allowFallback)
+                            .ConfigureAwait(false);
+                        CompleteLocalMove(source, target, sourceIsFile, state);
+                        return;
+                    case ConflictDecisionMode.Overwrite:
+                    case ConflictDecisionMode.OverwriteAll:
+                        if (sourceIsDirectory)
+                            throw new InvalidOperationException("Directory conflicts require an explicit Merge or Replace decision.");
+                        await ReplaceLocalAsync(
+                                source,
+                                target,
+                                sourceIsFile,
+                                options,
+                                conflictResolver,
+                                state,
+                                cancellationToken,
+                                allowFallback)
+                            .ConfigureAwait(false);
+                        CompleteLocalMove(source, target, sourceIsFile, state);
+                        return;
+                    case ConflictDecisionMode.OnlyNewer:
+                        throw new InvalidOperationException("Only newer is only supported for copy operations.");
+                    default:
+                        throw new InvalidOperationException($"Unsupported move conflict decision: {decision.Mode}.");
+                }
+            }
+
+            DirectMoveResult directResult = TryMoveDirect(source, target, sourceIsFile);
+            if (directResult == DirectMoveResult.Moved)
+            {
+                CompleteLocalMove(source, target, sourceIsFile, state);
+                return;
+            }
+
+            if (!allowFallback)
+                throw new IOException("Direct rename is not supported for this source and destination.");
+
+            CopyOutcome outcome = await CopyAsync(
+                new FileOperationRequest
+                {
+                    Kind = FileOperationKind.Copy,
+                    Sources = [source],
+                    Destination = Path.GetDirectoryName(target)!,
+                    Options = options,
+                    UseDestinationTemplate = false,
+                },
+                conflictResolver,
+                state,
+                cancellationToken,
+                target).ConfigureAwait(false);
+
+            if (!outcome.CopiedSomething || !outcome.Completed)
+                return;
+
+            DeletePath(source, useRecycleBin: false);
+            state.MovedCount++;
+            return;
+        }
+    }
+
+    private static FileOperationConflictDecision ResolveLocalMoveConflict(
+        string source,
+        string destination,
+        bool sourceIsDirectory,
+        bool destinationIsDirectory,
+        FileOperationOptions options,
+        IFileOperationConflictResolver conflictResolver)
+    {
+        ConflictDecisionMode configured = options.DefaultConflictDecision;
+        if (sourceIsDirectory &&
+            destinationIsDirectory &&
+            configured is ConflictDecisionMode.Overwrite or ConflictDecisionMode.OverwriteAll)
+        {
+            configured = ConflictDecisionMode.Ask;
+        }
+
+        return configured == ConflictDecisionMode.Ask
+            ? conflictResolver.Resolve(BuildConflict(source, destination))
+            : FileOperationConflictDecision.FromMode(configured);
+    }
+
+    private async Task MergeLocalDirectoriesAsync(
+        string source,
+        string destination,
+        FileOperationOptions options,
+        IFileOperationConflictResolver conflictResolver,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        string[] children = Directory.EnumerateFileSystemEntries(source).ToArray();
+        foreach (string child in children)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string childTarget = Path.Combine(destination, Path.GetFileName(child));
+            await MoveLocalItemAsync(
+                    child,
+                    childTarget,
+                    options,
+                    conflictResolver,
+                    state,
+                    cancellationToken,
+                    allowFallback: true)
+                .ConfigureAwait(false);
+        }
+
+        if (!Directory.EnumerateFileSystemEntries(source).Any())
+            Directory.Delete(source, recursive: false);
+    }
+
+    private async Task ReplaceLocalAsync(
+        string source,
+        string destination,
+        bool sourceIsFile,
+        FileOperationOptions options,
+        IFileOperationConflictResolver conflictResolver,
+        OperationState state,
+        CancellationToken cancellationToken,
+        bool allowFallback)
+    {
+        string backup = GenerateReplaceTemporaryPath(destination, "backup");
+        MoveOwnedPath(destination, backup);
+
+        DirectMoveResult result;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            result = TryMoveDirect(source, destination, sourceIsFile);
+        }
+        catch (Exception moveError)
+        {
+            RestoreLocalBackupOrThrow(destination, backup, moveError);
+            throw;
+        }
+
+        if (result == DirectMoveResult.NotSupported)
+        {
+            RestoreLocalBackupOrThrow(destination, backup, null);
+            if (!allowFallback)
+                throw new IOException("Direct rename is not supported; copy/delete fallback is disabled for a pure rename.");
+
+            await ReplaceLocalViaStagingAsync(
+                    source,
+                    destination,
+                    options,
+                    conflictResolver,
+                    state,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        CleanupOwnedLocalPath(backup, state, "Replacement succeeded, but backup cleanup failed");
+    }
+
+    private async Task ReplaceLocalViaStagingAsync(
+        string source,
+        string destination,
+        FileOperationOptions options,
+        IFileOperationConflictResolver conflictResolver,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        string staging = GenerateReplaceTemporaryPath(destination, "new");
+        string backup = GenerateReplaceTemporaryPath(destination, "backup");
+
+        CopyOutcome copyOutcome = await CopyAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Copy,
+                Sources = [source],
+                Destination = Path.GetDirectoryName(staging)!,
+                Options = options,
+                UseDestinationTemplate = false,
+            },
+            conflictResolver,
+            state,
+            cancellationToken,
+            staging).ConfigureAwait(false);
+
+        if (!copyOutcome.CopiedSomething || !copyOutcome.Completed)
+        {
+            CleanupOwnedLocalPath(staging, state, "Staging copy failed and staging cleanup also failed");
+            throw new IOException("Replacement staging copy failed; the original destination was not changed.");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        MoveOwnedPath(destination, backup);
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            MoveOwnedPath(staging, destination);
+        }
+        catch (Exception commitError)
+        {
+            RestoreLocalBackupOrThrow(destination, backup, commitError);
+            CleanupOwnedLocalPath(staging, state, "Rollback succeeded, but staging cleanup failed");
+            throw;
+        }
+
+        try
+        {
+            DeletePath(source, useRecycleBin: false);
+        }
+        catch (Exception deleteError)
+        {
+            throw new IOException(
+                $"Replacement was committed, but the source could not be removed. New destination: {destination}. Original destination backup: {backup}",
+                deleteError);
+        }
+
+        CleanupOwnedLocalPath(backup, state, "Replacement succeeded, but backup cleanup failed");
+    }
+
+    private DirectMoveResult TryMoveDirect(string source, string destination, bool sourceIsFile)
+    {
+        if (_dependencies.ForceMoveFallback(source, destination))
+            return DirectMoveResult.NotSupported;
+
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+
+        try
+        {
+            if (sourceIsFile)
+                _dependencies.MoveFile(source, destination);
+            else
+                _dependencies.MoveDirectory(source, destination);
+            return DirectMoveResult.Moved;
+        }
+        catch (IOException ex) when (IsCrossDeviceMoveException(ex))
+        {
+            return DirectMoveResult.NotSupported;
+        }
+    }
+
+    private static bool IsCrossDeviceMoveException(IOException exception)
+    {
+        int nativeCode = exception.HResult & 0xFFFF;
+        return OperatingSystem.IsWindows()
+            ? nativeCode == 17
+            : nativeCode == 18 || exception.HResult == 18;
+    }
+
+    private void MoveOwnedPath(string source, string destination)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        if (File.Exists(source))
+            _dependencies.MoveFile(source, destination);
+        else if (Directory.Exists(source))
+            _dependencies.MoveDirectory(source, destination);
+        else
+            throw new IOException($"Path does not exist: {source}");
+    }
+
+    private void RestoreLocalBackupOrThrow(string destination, string backup, Exception? originalError)
+    {
+        if (File.Exists(destination) || Directory.Exists(destination))
+        {
+            throw new IOException(
+                $"Replace failed. Original destination was preserved as: {backup}. The destination path is occupied and was not deleted.",
+                originalError);
+        }
+
+        try
+        {
+            MoveOwnedPath(backup, destination);
+        }
+        catch (Exception rollbackError)
+        {
+            throw new IOException(
+                $"Replace failed and rollback failed. Original destination was preserved as: {backup}",
+                originalError is null ? rollbackError : new AggregateException(originalError, rollbackError));
+        }
+    }
+
+    private void CleanupOwnedLocalPath(string path, OperationState state, string message)
+    {
+        if (!File.Exists(path) && !Directory.Exists(path))
+            return;
+
+        try
+        {
+            DeletePath(path, useRecycleBin: false);
+        }
+        catch (Exception cleanupError)
+        {
+            state.AddError(path, $"{message}: {cleanupError.Message}. Preserved at: {path}");
+        }
+    }
+
+    private static string GenerateReplaceTemporaryPath(string destination, string kind)
+    {
+        while (true)
+        {
+            string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+            string candidate = destination + $".csharpfar-replace-{kind}-{suffix}";
+            if (!File.Exists(candidate) && !Directory.Exists(candidate))
+                return candidate;
+        }
+    }
+
+    private static void CompleteLocalMove(
+        string source,
+        string destination,
+        bool sourceWasFile,
+        OperationState state)
+    {
+        long bytes = sourceWasFile && File.Exists(destination) ? GetFileSize(destination) : 0;
+        state.MovedCount++;
+        state.AddBytes(bytes);
+        state.CompleteItem();
+        state.Report(source, destination, bytes, bytes);
     }
 
     private static bool HasFileMask(FileOperationOptions options) => !string.IsNullOrWhiteSpace(options.FileMask);
@@ -1382,91 +2030,6 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             cancellationToken.ThrowIfCancellationRequested();
             var directory = directories[i];
             _platformOperations.PreserveFileMetadata(directory.SourcePath, directory.DestinationPath, options, state);
-        }
-    }
-
-    private bool TryMoveDirect(
-        string source,
-        string destination,
-        FileOperationOptions options,
-        IFileOperationConflictResolver conflictResolver,
-        OperationState state,
-        out string finalTarget)
-    {
-        finalTarget = destination;
-        if (PathsEqual(source, destination))
-        {
-            state.SkippedCount++;
-            state.CompleteItem();
-            return true;
-        }
-
-        bool sourceIsFile = File.Exists(source);
-        bool sourceIsDirectory = Directory.Exists(source);
-        if (!sourceIsFile && !sourceIsDirectory)
-        {
-            state.SkippedCount++;
-            state.CompleteItem();
-            return true;
-        }
-
-        if (sourceIsDirectory && IsPathInside(destination, source))
-            throw new IOException("Cannot move a directory into itself.");
-
-        if (File.Exists(destination) || Directory.Exists(destination))
-        {
-            if ((sourceIsFile && Directory.Exists(destination)) || (sourceIsDirectory && File.Exists(destination)))
-                throw new IOException("Cannot overwrite a file with a directory or a directory with a file.");
-
-            var decision = options.DefaultConflictDecision == ConflictDecisionMode.Ask
-                ? conflictResolver.Resolve(BuildConflict(source, destination))
-                : FileOperationConflictDecision.FromMode(options.DefaultConflictDecision);
-
-            switch (decision.Mode)
-            {
-                case ConflictDecisionMode.Skip:
-                case ConflictDecisionMode.SkipAll:
-                    state.SkippedCount++;
-                    state.CompleteItem();
-                    return true;
-                case ConflictDecisionMode.Cancel:
-                    throw new OperationCanceledException("Move cancelled by user.");
-                case ConflictDecisionMode.Rename:
-                case ConflictDecisionMode.RenameAll:
-                    destination = string.IsNullOrWhiteSpace(decision.NewDestinationPath)
-                        ? GenerateName(destination)
-                        : decision.NewDestinationPath;
-                    finalTarget = destination;
-                    break;
-                case ConflictDecisionMode.OnlyNewer:
-                    throw new InvalidOperationException("Only newer is only supported for copy operations.");
-            }
-
-            if (File.Exists(destination))
-                DeleteFileTarget(destination);
-            else if (Directory.Exists(destination))
-                Directory.Delete(destination, recursive: true);
-        }
-
-        try
-        {
-            if (_dependencies.ForceMoveFallback(source, destination))
-                return false;
-            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            if (sourceIsFile)
-                File.Move(source, destination);
-            else
-                Directory.Move(source, destination);
-
-            state.MovedCount++;
-            state.AddBytes(sourceIsFile ? GetFileSize(destination) : 0);
-            state.CompleteItem();
-            state.Report(source, destination, sourceIsFile ? GetFileSize(destination) : 0, sourceIsFile ? GetFileSize(destination) : 0);
-            return true;
-        }
-        catch (IOException)
-        {
-            return false;
         }
     }
 
