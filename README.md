@@ -44,21 +44,24 @@ This makes the project useful in two different ways: as a practical cross-platfo
 
 ## Quick start
 
-### macOS — Homebrew
+### macOS
 
-CSharpFar uses this repository as a Homebrew tap. Add it once:
+Install or update the standard Finder/Applications version with the same command:
+
+```bash
+curl -fsSL https://dimonsmart.github.io/CSharpFar/install-macos.sh | bash
+```
+
+The recommended installer uses the existing Homebrew Cask, adds the CSharpFar tap when needed, refreshes Homebrew metadata, and installs or upgrades only `dimonsmart/csharpfar/csharpfar-app` in `/Applications`. It does not install Homebrew and does not run a global `brew upgrade`. While the app is unsigned and not notarized, the installer also removes `com.apple.quarantine` only from `CSharpFar.app`.
+
+Manual Homebrew installation remains available:
 
 ```bash
 brew tap dimonsmart/csharpfar https://github.com/DimonSmart/CSharpFar.git
-```
-
-For a normal macOS application in Applications/Finder, install the Cask:
-
-```bash
 brew install --cask dimonsmart/csharpfar/csharpfar-app
 ```
 
-Opening `CSharpFar.app` launches the terminal UI in Terminal. The Cask is generated from releases that contain the macOS app bundle assets.
+A direct manual Cask install does not apply the installer quarantine workaround, so macOS may require the normal Gatekeeper **Open Anyway** workflow on first launch.
 
 For command-line-only installation, install the Formula instead:
 
@@ -69,7 +72,7 @@ csharpfar
 
 Both packages are self-contained and automatically select Apple Silicon (`arm64`) or Intel (`x64`); a separately installed .NET runtime is not required.
 
-The macOS application is currently unsigned and not notarized, so the first launch may require choosing **Open** from the Finder context menu.
+When a newer GitHub release is available, **About → Update now** is offered only when the running process is the standard Homebrew-managed `/Applications/CSharpFar.app`. Manual, CLI, development, copied, or custom-`--appdir` installations keep the **Open release page** action instead.
 
 ### Ubuntu / Debian
 
