@@ -14,10 +14,19 @@ fi
 
 BREW=""
 if command -v brew >/dev/null 2>&1; then
-  BREW="$(command -v brew)"
-elif [[ -x "/opt/homebrew/bin/brew" ]]; then
+  BREW_CANDIDATE="$(command -v brew)"
+  if [[ -f "$BREW_CANDIDATE" && -x "$BREW_CANDIDATE" ]]; then
+    if [[ "$BREW_CANDIDATE" = /* ]]; then
+      BREW="$BREW_CANDIDATE"
+    else
+      BREW="$(cd "$(dirname "$BREW_CANDIDATE")" && pwd -P)/$(basename "$BREW_CANDIDATE")"
+    fi
+  fi
+fi
+if [[ -z "$BREW" && -x "/opt/homebrew/bin/brew" ]]; then
   BREW="/opt/homebrew/bin/brew"
-elif [[ -x "/usr/local/bin/brew" ]]; then
+fi
+if [[ -z "$BREW" && -x "/usr/local/bin/brew" ]]; then
   BREW="/usr/local/bin/brew"
 fi
 

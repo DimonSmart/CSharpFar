@@ -38,6 +38,15 @@ internal sealed class ApplicationUpdateDialogModel
         }
     }
 
+    public bool IsCompleted
+    {
+        get
+        {
+            lock (_sync)
+                return _result is not null;
+        }
+    }
+
     public OperationDialogState<string> Snapshot()
     {
         lock (_sync)
@@ -121,9 +130,11 @@ internal sealed class ApplicationUpdateDialog
                     ? OperationDialogOutcome<bool>.Complete(false)
                     : OperationDialogOutcome<bool>.ContinueNoChange,
             HandleCancel = () =>
-                model.CanCancel
-                    ? OperationDialogOutcome<bool>.RequestCancellation
-                    : OperationDialogOutcome<bool>.ContinueNoChange,
+                model.IsCompleted
+                    ? OperationDialogOutcome<bool>.Complete(false)
+                    : model.CanCancel
+                        ? OperationDialogOutcome<bool>.RequestCancellation
+                        : OperationDialogOutcome<bool>.ContinueNoChange,
             Complete = result => result.ShouldExitCurrentProcess,
         });
     }

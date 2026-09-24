@@ -79,6 +79,7 @@ internal sealed class MacOsHomebrewUpdateInstaller : IApplicationUpdateInstaller
         if (string.Equals(currentProcess, standardProcess, StringComparison.Ordinal))
         {
             Log("Current process path classification: standard Homebrew application bundle");
+            Log("Updater availability=Available");
             return ApplicationUpdateAvailability.Available(brew);
         }
 

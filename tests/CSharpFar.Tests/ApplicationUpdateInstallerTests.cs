@@ -103,6 +103,24 @@ public sealed class ApplicationUpdateInstallerTests
     }
 
     [Fact]
+    public async Task Install_ReportsBrewUpdateFailure()
+    {
+        var executor = StandardExecutor(
+            brewUpdate: Result(1, stderr: "update failed"));
+        var installer = Create(executor);
+
+        ApplicationUpdateInstallResult result = await installer.InstallAsync(
+            new ReleaseVersion(1, 0, 71),
+            progress: null,
+            CancellationToken.None);
+
+        Assert.Equal(ApplicationUpdateInstallStatus.HomebrewFailure, result.Status);
+        Assert.DoesNotContain(
+            executor.Calls,
+            call => call.Arguments.Count > 0 && call.Arguments[0] == "info");
+    }
+
+    [Fact]
     public async Task Install_StopsWhenHomebrewMetadataLagsRelease()
     {
         var executor = StandardExecutor(caskVersion: "1.0.70");
@@ -146,6 +164,40 @@ public sealed class ApplicationUpdateInstallerTests
     }
 
     [Fact]
+    public async Task Install_AcceptsNewerCaskAndInstalledVersion()
+    {
+        var executor = StandardExecutor(
+            caskVersion: "1.0.72",
+            installedVersion: "1.0.72");
+        var installer = Create(executor);
+
+        ApplicationUpdateInstallResult result = await installer.InstallAsync(
+            new ReleaseVersion(1, 0, 71),
+            progress: null,
+            CancellationToken.None);
+
+        Assert.Equal(ApplicationUpdateInstallStatus.Success, result.Status);
+    }
+
+    [Fact]
+    public async Task Install_ReportsUpgradeFailure()
+    {
+        var executor = StandardExecutor(
+            upgrade: Result(1, stderr: "upgrade failed"));
+        var installer = Create(executor);
+
+        ApplicationUpdateInstallResult result = await installer.InstallAsync(
+            new ReleaseVersion(1, 0, 71),
+            progress: null,
+            CancellationToken.None);
+
+        Assert.Equal(ApplicationUpdateInstallStatus.HomebrewFailure, result.Status);
+        Assert.DoesNotContain(
+            executor.Calls,
+            call => call.Executable == MacOsHomebrewUpdateInstaller.ApplicationExecutablePath);
+    }
+
+    [Fact]
     public async Task Install_AcceptsAlreadyUpToDateUpgradeMessage()
     {
         var executor = StandardExecutor(
@@ -175,6 +227,21 @@ public sealed class ApplicationUpdateInstallerTests
         Assert.DoesNotContain(
             executor.Calls,
             call => call.Executable == MacOsHomebrewUpdateInstaller.XattrExecutable);
+    }
+
+    [Fact]
+    public async Task Install_FailsWhenInstalledBinaryIsMissing()
+    {
+        var executor = StandardExecutor(
+            verification: Result(127, stderr: "missing"));
+        var installer = Create(executor);
+
+        ApplicationUpdateInstallResult result = await installer.InstallAsync(
+            new ReleaseVersion(1, 0, 71),
+            progress: null,
+            CancellationToken.None);
+
+        Assert.Equal(ApplicationUpdateInstallStatus.VerificationFailed, result.Status);
     }
 
     [Fact]
@@ -255,7 +322,9 @@ public sealed class ApplicationUpdateInstallerTests
         string caskVersion = "1.0.71",
         string installedVersion = "1.0.71",
         string? infoJson = null,
+        ProcessExecutionResult? brewUpdate = null,
         ProcessExecutionResult? upgrade = null,
+        ProcessExecutionResult? verification = null,
         ProcessExecutionResult? removeQuarantine = null,
         ProcessExecutionResult? quarantineCheck = null,
         ProcessExecutionResult? relaunch = null) =>
@@ -266,7 +335,7 @@ public sealed class ApplicationUpdateInstallerTests
                 return Result(0, "csharpfar-app 1.0.70");
 
             if (executable == Brew && arguments.SequenceEqual(["update"]))
-                return Result(0);
+                return brewUpdate ?? Result(0);
 
             if (executable == Brew && arguments.Count > 0 && arguments[0] == "info")
                 return Result(0, infoJson ?? $"{{\"casks\":[{{\"version\":\"{caskVersion}\"}}]}}");
@@ -275,7 +344,7 @@ public sealed class ApplicationUpdateInstallerTests
                 return upgrade ?? Result(0);
 
             if (executable == MacOsHomebrewUpdateInstaller.ApplicationExecutablePath)
-                return Result(0, $"CSharpFar {installedVersion}");
+                return verification ?? Result(0, $"CSharpFar {installedVersion}");
 
             if (executable == MacOsHomebrewUpdateInstaller.XattrExecutable &&
                 arguments.Count > 0 && arguments[0] == "-dr")
