@@ -4,6 +4,7 @@ internal enum DiagnosticCategory
 {
     Application,
     UpdateCheck,
+    ApplicationUpdate,
     Terminal,
     FileSystem,
 }
