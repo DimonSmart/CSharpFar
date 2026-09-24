@@ -1,3 +1,4 @@
+using CSharpFar.App.UserMenu;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
@@ -45,7 +46,7 @@ internal sealed class UserMenuItemEditDialog
                 FormControls.Label("Title"),
                 titleRow,
                 FormControls.Spacer(),
-                FormControls.Label("Command"),
+                FormControls.Label("Command (optional; empty = Title)"),
                 commandRow,
                 FormControls.Spacer(),
                 platformRow,
@@ -65,13 +66,12 @@ internal sealed class UserMenuItemEditDialog
     {
         if (string.IsNullOrWhiteSpace(title.Text))
             return FormSubmit.Invalid<UserMenuItem>("Title is required.", title);
-        if (string.IsNullOrWhiteSpace(command.Text))
-            return FormSubmit.Invalid<UserMenuItem>("Command is required.", command);
 
+        string normalizedTitle = title.Text.Trim();
         return FormSubmit.Success(new UserMenuItem
         {
-            Title = title.Text.Trim(),
-            Command = command.Text,
+            Title = normalizedTitle,
+            Command = UserMenuItemRules.NormalizeCommand(normalizedTitle, command.Text),
             Platform = platform.Value,
         });
     }

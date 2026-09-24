@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CSharpFar.App.UserMenu;
 using CSharpFar.Core.Models;
 
@@ -47,6 +48,60 @@ public class UserMenuStoreTests : IDisposable
         Assert.Equal(2, store.Items.Count);
         Assert.Equal("Run tests", store.Items[0].Title);
         Assert.Equal("dotnet test", store.Items[0].Command);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void MissingOrBlankCommandFallsBackToTitle(string? command)
+    {
+        var item = new UserMenuItem { Title = "git pull", Command = command };
+
+        Assert.Equal("git pull", UserMenuItemRules.EffectiveCommand(item));
+    }
+
+    [Fact]
+    public void ExplicitCommandOverridesTitle()
+    {
+        var item = new UserMenuItem { Title = "Pull current branch", Command = "git pull" };
+
+        Assert.Equal("git pull", UserMenuItemRules.EffectiveCommand(item));
+        Assert.Equal("Pull current branch  →  git pull", UserMenuItemRules.DisplayText(item));
+    }
+
+    [Fact]
+    public void ImplicitCommandDisplayDoesNotRepeatTitle()
+    {
+        var item = new UserMenuItem { Title = "git pull" };
+
+        Assert.Equal("git pull", UserMenuItemRules.DisplayText(item));
+    }
+
+    [Fact]
+    public void SaveOmitsMissingBlankAndRedundantCommands()
+    {
+        var store = new UserMenuStore(_tempDir);
+        store.Save(
+        [
+            new UserMenuItem { Title = "git pull" },
+            new UserMenuItem { Title = "git status", Command = "   " },
+            new UserMenuItem { Title = "git fetch", Command = "git fetch" },
+            new UserMenuItem { Title = "Fetch all", Command = "git fetch --all" },
+        ]);
+
+        Assert.Null(store.Items[0].Command);
+        Assert.Null(store.Items[1].Command);
+        Assert.Null(store.Items[2].Command);
+        Assert.Equal("git fetch --all", store.Items[3].Command);
+
+        using JsonDocument document = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(_tempDir, "user-menu.json")));
+        JsonElement[] elements = document.RootElement.EnumerateArray().ToArray();
+        Assert.False(elements[0].TryGetProperty("command", out _));
+        Assert.False(elements[1].TryGetProperty("command", out _));
+        Assert.False(elements[2].TryGetProperty("command", out _));
+        Assert.Equal("git fetch --all", elements[3].GetProperty("command").GetString());
     }
 
     [Fact]

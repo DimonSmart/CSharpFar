@@ -28,7 +28,7 @@ public sealed class UserMenuStore
     public void Save(IReadOnlyList<UserMenuItem> items)
     {
         ArgumentNullException.ThrowIfNull(items);
-        UserMenuItem[] snapshot = CloneItems(items);
+        UserMenuItem[] snapshot = UserMenuItemRules.NormalizeItems(items);
         WriteFileSafely(snapshot);
         Items = snapshot;
     }
@@ -47,7 +47,7 @@ public sealed class UserMenuStore
             string json = File.ReadAllText(_filePath);
             List<UserMenuItem> items = JsonSerializer.Deserialize<List<UserMenuItem>>(json, JsonOptions)
                 ?? throw new InvalidDataException("User menu file does not contain a JSON array: " + _filePath);
-            return CloneItems(items);
+            return UserMenuItemRules.CloneItems(items);
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException)
         {
@@ -107,18 +107,12 @@ public sealed class UserMenuStore
         {
             WriteIndented = true,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         };
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
         return options;
     }
 
-    private static UserMenuItem[] CloneItems(IEnumerable<UserMenuItem> items) =>
-        items.Select(item => new UserMenuItem
-        {
-            Title = item.Title,
-            Command = item.Command,
-            Platform = item.Platform,
-        }).ToArray();
 
     private static List<UserMenuItem> CreateDefaults() =>
     [

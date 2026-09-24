@@ -1,3 +1,4 @@
+using CSharpFar.App.UserMenu;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
@@ -27,7 +28,7 @@ internal sealed class UserMenuEditorDialog
         {
             Title = "User menu",
             Items = () => items,
-            ItemText = static item => $"{item.Title}  {item.Command}",
+            ItemText = UserMenuItemRules.DisplayText,
             Actions =
             [
                 DialogButton.Action("add", "Add", 'A'),
@@ -137,10 +138,5 @@ internal sealed class UserMenuEditorDialog
         left.Platform == right.Platform;
 
     internal static UserMenuItem[] CloneItems(IEnumerable<UserMenuItem> items) =>
-        items.Select(item => new UserMenuItem
-        {
-            Title = item.Title,
-            Command = item.Command,
-            Platform = item.Platform,
-        }).ToArray();
+        UserMenuItemRules.CloneItems(items);
 }

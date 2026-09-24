@@ -36,11 +36,11 @@ internal sealed class UserMenuCommand : IApplicationCommand
             Appearance = DialogAppearance.Standard,
             DoubleBorder = true,
         });
-        string? command = result.IsConfirmed ? result.SelectedItem?.Command : null;
-        if (command is null)
+        UserMenuItem? item = result.IsConfirmed ? result.SelectedItem : null;
+        if (item is null)
             return ApplicationCommandResult.Rendered();
 
-        string expanded = operands.Expand(command);
+        string expanded = operands.Expand(UserMenuItemRules.EffectiveCommand(item));
 
         context.ExecuteCommand(expanded);
         return ApplicationCommandResult.Rendered();

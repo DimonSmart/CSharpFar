@@ -1,5 +1,6 @@
 using System.Security;
 using CSharpFar.App.Dialogs;
+using CSharpFar.App.UserMenu;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 
@@ -13,7 +14,7 @@ internal sealed class OpenUserMenuEditorCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        UserMenuItem[] workingCopy = CloneItems(context.UserMenu.Items);
+        UserMenuItem[] workingCopy = UserMenuItemRules.CloneItems(context.UserMenu.Items);
         bool pendingChanges = false;
 
         while (true)
@@ -23,7 +24,7 @@ internal sealed class OpenUserMenuEditorCommand : IApplicationCommand
             if (!result.Changed && !pendingChanges)
                 return ApplicationCommandResult.Rendered();
 
-            workingCopy = CloneItems(result.Items);
+            workingCopy = UserMenuItemRules.CloneItems(result.Items);
             pendingChanges = true;
 
             try
@@ -43,10 +44,4 @@ internal sealed class OpenUserMenuEditorCommand : IApplicationCommand
         }
     }
 
-    private static UserMenuItem[] CloneItems(IEnumerable<UserMenuItem> items) =>
-        items.Select(item => new UserMenuItem
-        {
-            Title = item.Title,
-            Command = item.Command,
-        }).ToArray();
 }
