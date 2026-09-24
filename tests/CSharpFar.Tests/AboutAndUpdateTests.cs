@@ -261,6 +261,21 @@ public sealed class AboutAndUpdateTests
         Assert.Contains(
             model.Snapshot().Buttons,
             button => button.Id == "open-release");
+        Assert.DoesNotContain(
+            model.Snapshot().Buttons,
+            button => button.Id == "update-now");
+
+        model.Apply(
+            new UpdateCheckResult(
+                UpdateCheckStatus.UpdateAvailable,
+                new ReleaseVersion(1, 0, 68),
+                new ReleaseVersion(1, 0, 69),
+                releaseUri),
+            ApplicationUpdateAvailability.Available("/opt/homebrew/bin/brew"));
+        DialogButton updateNow = Assert.Single(
+            model.Snapshot().Buttons,
+            button => button.Id == "update-now");
+        Assert.True(updateNow.IsDefault);
 
         model.Apply(UpdateCheckResult.Unavailable(new ReleaseVersion(1, 0, 68)));
         Assert.Equal(AboutUpdateState.Unavailable, model.State);
