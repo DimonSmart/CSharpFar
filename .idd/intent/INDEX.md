@@ -70,3 +70,4 @@ Git history is the source for deleted or previous document versions.
 | 0079.spec-search-results-delete-referenced-items.md | spec | Search result item deletion | `F8` deletes referenced items and reconciles the virtual result list without re-running search | 0012 Delete restriction; 0013 F8 availability restriction; 0078 Delete restriction |
 | 0080.spec-file-usage-panel.md | spec | File Usage panel | Local-file usage and lock diagnostics with safe owner release |  |
 | 0081.spec-runtime-diagnostics.md | spec | Runtime diagnostics | Opt-in in-memory tracing and safe copyable diagnostic report |  |
+| 0082.spec-macos-homebrew-install-self-update.md | spec | macOS install and self-update | Recommended Homebrew Cask installer and guarded About self-update | 0076/0077 distribution workflow clarification |
