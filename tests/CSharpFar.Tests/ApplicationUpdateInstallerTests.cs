@@ -25,21 +25,36 @@ public sealed class ApplicationUpdateInstallerTests
             Assert.Single(executor.Calls).Arguments);
     }
 
-    [Theory]
-    [InlineData("/tmp/csharpfar", ApplicationUpdateAvailabilityStatus.CurrentProcessNotManagedBundle)]
-    [InlineData("/Users/test/CSharpFar.app/Contents/Resources/csharpfar", ApplicationUpdateAvailabilityStatus.NonStandardAppLocation)]
-    public async Task Availability_RejectsOtherRunningCopies(
-        string processPath,
-        ApplicationUpdateAvailabilityStatus expected)
+    [Fact]
+    public async Task Availability_RejectsBuildOutput()
     {
         var executor = new StubProcessExecutor((_, _, _) =>
             Result(0, "csharpfar-app 1.0.70"));
-        var installer = Create(executor, processPath: processPath);
+        var installer = Create(executor, processPath: "/tmp/csharpfar");
 
         ApplicationUpdateAvailability availability =
             await installer.GetAvailabilityAsync(CancellationToken.None);
 
-        Assert.Equal(expected, availability.Status);
+        Assert.Equal(
+            ApplicationUpdateAvailabilityStatus.CurrentProcessNotManagedBundle,
+            availability.Status);
+    }
+
+    [Fact]
+    public async Task Availability_RejectsNonStandardApplicationLocation()
+    {
+        var executor = new StubProcessExecutor((_, _, _) =>
+            Result(0, "csharpfar-app 1.0.70"));
+        var installer = Create(
+            executor,
+            processPath: "/Users/test/CSharpFar.app/Contents/Resources/csharpfar");
+
+        ApplicationUpdateAvailability availability =
+            await installer.GetAvailabilityAsync(CancellationToken.None);
+
+        Assert.Equal(
+            ApplicationUpdateAvailabilityStatus.NonStandardAppLocation,
+            availability.Status);
     }
 
     [Fact]
