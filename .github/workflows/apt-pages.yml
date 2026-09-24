@@ -100,12 +100,14 @@ jobs:
             -DebsDir $env:DEBS_DIR `
             -SiteDir (Join-Path $env:RUNNER_TEMP "site")
 
-      - name: Add installer to Pages site
+      - name: Add installers to Pages site
         shell: pwsh
         run: |
           $site = Join-Path $env:RUNNER_TEMP "site"
           Copy-Item -LiteralPath "docs/install.sh" -Destination (Join-Path $site "install.sh")
+          Copy-Item -LiteralPath "docs/install-macos.sh" -Destination (Join-Path $site "install-macos.sh")
           chmod 0644 (Join-Path $site "install.sh")
+          chmod 0644 (Join-Path $site "install-macos.sh")
 
       - name: Verify generated repository
         shell: pwsh
@@ -113,6 +115,7 @@ jobs:
           $site = Join-Path $env:RUNNER_TEMP "site"
           $required = @(
             "install.sh",
+            "install-macos.sh",
             "apt/dists/stable/InRelease",
             "apt/dists/stable/Release",
             "apt/dists/stable/Release.gpg",

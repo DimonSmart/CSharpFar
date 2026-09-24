@@ -35,6 +35,10 @@ jobs:
       - name: Build
         run: dotnet build CSharpFar.slnx --configuration Release --no-restore
 
+      - name: Validate macOS installer script
+        if: runner.os == 'Linux'
+        run: bash -n docs/install-macos.sh
+
       - name: Test
         run: dotnet test CSharpFar.slnx --configuration Release --no-build --verbosity minimal
 
