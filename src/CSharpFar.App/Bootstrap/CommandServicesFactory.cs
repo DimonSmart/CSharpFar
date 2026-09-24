@@ -75,7 +75,8 @@ internal static class CommandServicesFactory
         Func<IFileAttributesDialog> fileAttributesDialogFactory,
         IFileHighlightService? highlightService,
         IDiagnosticLog diagnosticLog,
-        UpdateCheckService updateCheckService)
+        UpdateCheckService updateCheckService,
+        IApplicationUpdateInstaller applicationUpdateInstaller)
     {
         var changeDirectoryCommandExecutor = new ChangeDirectoryCommandExecutor(
             panelController,
@@ -147,7 +148,8 @@ internal static class CommandServicesFactory
             fileAttributesDialogFactory,
             highlightService,
             diagnosticLog,
-            updateCheckService);
+            updateCheckService,
+            applicationUpdateInstaller);
 
         return new CommandServices(
             commandRegistry,

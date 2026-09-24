@@ -70,6 +70,7 @@ internal sealed class ApplicationCommandContext
     private readonly FilePanelSourceRegistry _sourceRegistry;
     private readonly IDiagnosticLog _diagnosticLog;
     private readonly UpdateCheckService _updateCheckService;
+    private readonly IApplicationUpdateInstaller _applicationUpdateInstaller;
     private IFileHighlightService? _highlightService;
 
     public ApplicationCommandContext(
@@ -113,7 +114,8 @@ internal sealed class ApplicationCommandContext
         Func<IFileAttributesDialog> fileAttributesDialogFactory,
         IFileHighlightService? highlightService,
         IDiagnosticLog diagnosticLog,
-        UpdateCheckService updateCheckService)
+        UpdateCheckService updateCheckService,
+        IApplicationUpdateInstaller? applicationUpdateInstaller = null)
     {
         _interactiveSurfaces = interactiveSurfaces;
         ModalDialogs = modalDialogs;
@@ -156,6 +158,7 @@ internal sealed class ApplicationCommandContext
         _highlightService = highlightService;
         _diagnosticLog = diagnosticLog ?? throw new ArgumentNullException(nameof(diagnosticLog));
         _updateCheckService = updateCheckService ?? throw new ArgumentNullException(nameof(updateCheckService));
+        _applicationUpdateInstaller = applicationUpdateInstaller ?? UnsupportedApplicationUpdateInstaller.Instance;
     }
 
     public ModalDialogHost ModalDialogs { get; }
@@ -269,7 +272,9 @@ internal sealed class ApplicationCommandContext
             Dialogs,
             UriLauncher,
             _updateCheckService,
-            ApplicationVersionProvider.GetVersionInfo()).Show();
+            _applicationUpdateInstaller,
+            ApplicationVersionProvider.GetVersionInfo(),
+            () => _session.App.Running = false).Show();
 
     public void ShowDiagnostics() =>
         new DiagnosticsDialog(

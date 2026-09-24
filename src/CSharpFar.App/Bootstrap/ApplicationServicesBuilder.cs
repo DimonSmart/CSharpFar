@@ -65,7 +65,8 @@ internal static class ApplicationServicesBuilder
         ApplicationRunOptions? runOptions = null,
         IProcessesAndPortsPlatformService? processesAndPorts = null,
         IFileUsagePlatformService? fileUsage = null,
-        IUriLauncher? uriLauncher = null)
+        IUriLauncher? uriLauncher = null,
+        IApplicationUpdateInstaller? applicationUpdateInstaller = null)
     {
         var effectiveRunOptions = runOptions ?? ApplicationRunOptions.Normal;
         IDiagnosticLog diagnosticLog = effectiveRunOptions.DiagnosticsEnabled
@@ -79,6 +80,9 @@ internal static class ApplicationServicesBuilder
         }
 
         var updateCheckService = new UpdateCheckService(diagnostics: diagnosticLog);
+        IApplicationUpdateInstaller effectiveApplicationUpdateInstaller =
+            applicationUpdateInstaller ??
+            new MacOsHomebrewUpdateInstaller(new SystemProcessExecutor(), diagnosticLog);
 
         var core = CoreServicesFactory.Create(
             fs,
@@ -458,7 +462,8 @@ internal static class ApplicationServicesBuilder
                     System.Runtime.InteropServices.OSPlatform.Windows))),
             highlightService,
             diagnosticLog,
-            updateCheckService);
+            updateCheckService,
+            effectiveApplicationUpdateInstaller);
         var runtime = ApplicationRuntimeBuilder.Create(
             composition,
             screen,
