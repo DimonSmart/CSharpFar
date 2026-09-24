@@ -271,7 +271,22 @@ public sealed class EditorSession
         string oldText;
         string line = Document.Buffer.GetLine(Cursor.Line);
         if (Cursor.Column > line.Length)
-            return false;
+        {
+            if (Cursor.Line >= Document.Buffer.LineCount - 1)
+                return false;
+
+            int virtualPaddingLength = Cursor.Column - line.Length;
+            var lineEnd = new EditorPosition(Cursor.Line, line.Length);
+            var nextLineStart = new EditorPosition(Cursor.Line + 1, 0);
+            ApplyChange(
+                "Delete",
+                lineEnd,
+                nextLineStart,
+                "\n",
+                new string(' ', virtualPaddingLength),
+                Cursor);
+            return true;
+        }
 
         if (Cursor.Column < line.Length)
         {

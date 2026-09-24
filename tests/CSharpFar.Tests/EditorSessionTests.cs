@@ -122,6 +122,37 @@ public sealed class EditorSessionTests
     }
 
     [Fact]
+    public void DeleteForward_InVirtualSpace_JoinsNextLineAtCursorAndIsUndoable()
+    {
+        var session = CreateSession("abc\nnext");
+        session.MoveTo(new EditorPosition(0, 7));
+
+        Assert.True(session.DeleteForward());
+
+        Assert.Equal("abc    next", session.FlattenText());
+        Assert.Equal(new EditorPosition(0, 7), session.Cursor);
+
+        Assert.True(session.Undo());
+        Assert.Equal("abc\nnext", session.FlattenText());
+        Assert.Equal(new EditorPosition(0, 7), session.Cursor);
+
+        Assert.True(session.Redo());
+        Assert.Equal("abc    next", session.FlattenText());
+        Assert.Equal(new EditorPosition(0, 7), session.Cursor);
+    }
+
+    [Fact]
+    public void DeleteForward_InVirtualSpaceOnLastLine_IsNoOp()
+    {
+        var session = CreateSession("abc");
+        session.MoveTo(new EditorPosition(0, 7));
+
+        Assert.False(session.DeleteForward());
+
+        Assert.Equal("abc", session.FlattenText());
+        Assert.Equal(new EditorPosition(0, 7), session.Cursor);
+    }
+    [Fact]
     public void Cursor_MovesAcrossUtf8FourByteCharactersAsSingleCharacters()
     {
         string smile = char.ConvertFromUtf32(0x1F642);
