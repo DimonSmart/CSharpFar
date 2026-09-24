@@ -194,6 +194,49 @@ public sealed class OperationDialogTests
     }
 
     [Fact]
+    public void InitialSynchronizeFailure_CancelsAndWaitsForBackgroundOperation()
+    {
+        var driver = new FakeConsoleDriver();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool cancellationObserved = false;
+        bool cleanupCompleted = false;
+        var failure = new InvalidOperationException("initial synchronize failed");
+
+        InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(() =>
+            Create(driver).Operation(new OperationDialogDefinition<string, int, int>
+            {
+                Title = "Initial synchronize failure",
+                Operation = async cancellationToken =>
+                {
+                    started.TrySetResult();
+                    using var registration = cancellationToken.Register(() =>
+                    {
+                        cancellationObserved = true;
+                        release.TrySetResult();
+                    });
+
+                    await release.Task;
+                    cleanupCompleted = true;
+                    return 0;
+                },
+                Synchronize = () =>
+                {
+                    Assert.True(started.Task.Wait(TimeSpan.FromSeconds(2)));
+                    throw failure;
+                },
+                Complete = value => value,
+            }));
+
+        bool cleanupCompletedBeforeReturn = cleanupCompleted;
+        release.TrySetResult();
+
+        Assert.Same(failure, thrown);
+        Assert.True(cancellationObserved);
+        Assert.True(cleanupCompletedBeforeReturn);
+    }
+
+    [Fact]
     public void FailedOperation_PropagatesException()
     {
         var driver = new FakeConsoleDriver();

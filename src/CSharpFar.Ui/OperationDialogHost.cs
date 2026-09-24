@@ -137,7 +137,6 @@ public sealed class OperationDialogHost
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
 
-        _ = synchronize?.Invoke();
         bool cancellationNotified = false;
         bool cancellationPending = false;
         bool operationCompletionHandled = false;
@@ -162,6 +161,8 @@ public sealed class OperationDialogHost
 
         try
         {
+            _ = synchronize?.Invoke();
+
             return _composite.RunTimed(
                 options.Dialog,
                 form,
