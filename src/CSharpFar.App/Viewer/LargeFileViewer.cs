@@ -18,6 +18,7 @@ internal sealed class LargeFileViewer
     private const int LivePollMs = 250;
     private const int FastHorizontalTextScrollCells = 20;
     private const int FastPageMultiplier = 5;
+    private const int MaxWrappedLayoutCacheEntries = 256;
 
     private static readonly UiTargetScope Targets = new("viewer");
 
@@ -31,6 +32,11 @@ internal sealed class LargeFileViewer
     private readonly FormFieldFactory _fields;
     private readonly ILocalFileMonitorFactory _localFileMonitorFactory;
     private readonly ILocalFileByteReaderFactory _localFileByteReaderFactory;
+    private readonly Dictionary<WrappedLayoutCacheKey, LinkedListNode<WrappedLayoutCacheEntry>> _wrappedLayoutCache = new();
+    private readonly LinkedList<WrappedLayoutCacheEntry> _wrappedLayoutCacheMru = new();
+    private LargeFileViewerState? _layoutCacheState;
+    private LineScanner? _layoutCacheScanner;
+    private MaximumViewportCacheEntry? _maximumViewportCache;
 
     public LargeFileViewer(
         InteractiveSurfaceHost surfaces,
@@ -804,23 +810,25 @@ internal sealed class LargeFileViewer
         int contentHeight,
         int width)
     {
+        List<ScannedLine> candidates = ReadWrappedCandidateLines(reader, state, contentHeight);
+        WrappedLineLayout?[] preparedLayouts = PrepareWrappedLineLayouts(
+            sourcePath,
+            state,
+            candidates,
+            width);
+
         var lines = new List<ScannedLine>();
         var linkHits = new List<ViewerLinkHit>();
         int row = 0;
-        long offset = Math.Clamp(state.TopByteOffset, state.LineScanner.ContentStartOffset, reader.Length);
-        long nextOffset = offset;
+        long nextOffset = Math.Clamp(
+            state.TopByteOffset,
+            state.LineScanner.ContentStartOffset,
+            reader.Length);
         bool firstPhysicalLine = true;
 
-        while (row < contentHeight && offset < reader.Length)
+        for (int lineIndex = 0; lineIndex < candidates.Count && row < contentHeight; lineIndex++)
         {
-            var scanned = state.LineScanner
-                .ReadLinesAsync(offset, 1, MaxWrappedLineCaptureBytes)
-                .GetAwaiter()
-                .GetResult();
-            if (scanned.Lines.Count == 0)
-                break;
-
-            var line = scanned.Lines[0];
+            ScannedLine line = candidates[lineIndex];
             lines.Add(line);
             nextOffset = line.NextOffset;
 
@@ -843,25 +851,16 @@ internal sealed class LargeFileViewer
             }
             else
             {
-                var presented = state.Presentation.Present(
-                    state.PresentationMode,
-                    sourcePath,
-                    state.LineScanner,
-                    [line],
-                    width)[0];
-                presented = ResolvePresentationForSearch(presented, state.SearchMatch);
-
-                WrappedTextSegment[] segments = SplitWrappedLine(
-                        presented.Text,
-                        Math.Max(1, width),
-                        state.WordWrap)
-                    .ToArray();
+                WrappedLineLayout layout = preparedLayouts[lineIndex]
+                    ?? throw new InvalidOperationException("Wrapped line layout was not prepared.");
+                PresentedLine presented = layout.PresentedLine;
+                IReadOnlyList<WrappedTextSegment> segments = layout.Segments;
                 int firstSegment = firstPhysicalLine
-                    ? Math.Clamp(state.TopWrappedSegmentIndex, 0, Math.Max(0, segments.Length - 1))
+                    ? Math.Clamp(state.TopWrappedSegmentIndex, 0, Math.Max(0, segments.Count - 1))
                     : 0;
 
                 for (int segmentIndex = firstSegment;
-                     segmentIndex < segments.Length && row < contentHeight;
+                     segmentIndex < segments.Count && row < contentHeight;
                      segmentIndex++)
                 {
                     WrappedTextSegment segment = segments[segmentIndex];
@@ -880,10 +879,6 @@ internal sealed class LargeFileViewer
             }
 
             firstPhysicalLine = false;
-            if (line.NextOffset <= offset)
-                break;
-
-            offset = line.NextOffset;
         }
 
         while (row < contentHeight)
@@ -893,6 +888,110 @@ internal sealed class LargeFileViewer
         }
 
         return new LargeFileRenderView(lines, nextOffset, linkHits);
+    }
+
+    private List<ScannedLine> ReadWrappedCandidateLines(
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        int contentHeight)
+    {
+        int maxLines = Math.Max(1, contentHeight);
+        var result = new List<ScannedLine>(maxLines);
+        long offset = Math.Clamp(
+            state.TopByteOffset,
+            state.LineScanner.ContentStartOffset,
+            reader.Length);
+
+        while (result.Count < maxLines && offset < reader.Length)
+        {
+            var scanned = state.LineScanner
+                .ReadLinesAsync(offset, 1, MaxWrappedLineCaptureBytes)
+                .GetAwaiter()
+                .GetResult();
+            if (scanned.Lines.Count == 0)
+                break;
+
+            ScannedLine line = scanned.Lines[0];
+            result.Add(line);
+            if (line.NextOffset <= offset)
+                break;
+
+            offset = line.NextOffset;
+        }
+
+        return result;
+    }
+
+    private WrappedLineLayout?[] PrepareWrappedLineLayouts(
+        string sourcePath,
+        LargeFileViewerState state,
+        IReadOnlyList<ScannedLine> lines,
+        int width)
+    {
+        var result = new WrappedLineLayout?[lines.Count];
+        int index = 0;
+
+        while (index < lines.Count)
+        {
+            if (RequiresStreamingWrappedLayout(lines[index]))
+            {
+                index++;
+                continue;
+            }
+
+            int groupStart = index;
+            while (index < lines.Count && !RequiresStreamingWrappedLayout(lines[index]))
+                index++;
+
+            int groupEnd = index;
+            bool allCached = true;
+            for (int i = groupStart; i < groupEnd; i++)
+            {
+                if (TryGetWrappedLineLayout(sourcePath, state, lines[i], width, out var cached))
+                    result[i] = cached;
+                else
+                    allCached = false;
+            }
+
+            if (allCached)
+                continue;
+
+            ScannedLine[] groupLines = lines
+                .Skip(groupStart)
+                .Take(groupEnd - groupStart)
+                .ToArray();
+            IReadOnlyList<PresentedLine> presented = state.Presentation.Present(
+                state.PresentationMode,
+                sourcePath,
+                state.LineScanner,
+                groupLines,
+                Math.Max(1, width));
+            var resolved = presented
+                .Select(line => ResolvePresentationForSearch(line, state.SearchMatch))
+                .ToArray();
+
+            if (resolved.Any(line => line.PreserveLineLayout))
+                ClearWrappedLayoutCache();
+
+            for (int i = 0; i < resolved.Length; i++)
+            {
+                WrappedLineLayout layout = CreateWrappedLineLayout(
+                    resolved[i],
+                    state.WordWrap,
+                    width);
+                int resultIndex = groupStart + i;
+                result[resultIndex] = layout;
+                StoreWrappedLineLayout(
+                    CreateWrappedLayoutCacheKey(
+                        sourcePath,
+                        state,
+                        lines[resultIndex],
+                        width),
+                    layout);
+            }
+        }
+
+        return result;
     }
 
     private LargeFileRenderView DrawBinaryContent(
@@ -1080,7 +1179,10 @@ internal sealed class LargeFileViewer
 
         return presented.TryMapSourceRange(match.CharacterIndex, match.CharacterLength, out _, out _)
             ? presented
-            : PresentedLine.Raw(presented.Source);
+            : PresentedLine.Raw(presented.Source) with
+            {
+                PreserveLineLayout = presented.PreserveLineLayout,
+            };
     }
 
     private void DrawFooter(IUiCanvas canvas, ConsoleSize size, LargeFileViewerState state)
@@ -1348,8 +1450,41 @@ internal sealed class LargeFileViewer
         int contentHeight,
         int width)
     {
-        int visibleRows = Math.Max(1, contentHeight);
+        EnsureLayoutCacheContext(state);
+        var localReader = reader as ILocalFileByteReader;
+        int failureVersion = localReader?.TransientFailureVersion ?? 0;
         long length = reader.Length;
+        MaximumViewportCacheKey key = CreateMaximumViewportCacheKey(
+            sourcePath,
+            state,
+            length,
+            contentHeight,
+            width);
+
+        if (_maximumViewportCache is { } cached && cached.Key == key)
+            return cached.Position;
+
+        ViewerViewportPosition result = ComputeMaximumViewportPosition(
+            sourcePath,
+            state,
+            length,
+            contentHeight,
+            width);
+
+        if (localReader is null || localReader.TransientFailureVersion == failureVersion)
+            _maximumViewportCache = new MaximumViewportCacheEntry(key, result);
+
+        return result;
+    }
+
+    private ViewerViewportPosition ComputeMaximumViewportPosition(
+        string sourcePath,
+        LargeFileViewerState state,
+        long length,
+        int contentHeight,
+        int width)
+    {
+        int visibleRows = Math.Max(1, contentHeight);
 
         if (state.IsHexMode)
         {
@@ -1430,20 +1565,162 @@ internal sealed class LargeFileViewer
                 .SegmentCount;
         }
 
-        var presented = state.Presentation.Present(
+        return GetOrCreateWrappedLineLayout(sourcePath, state, line, width).Segments.Count;
+    }
+
+    private WrappedLineLayout GetOrCreateWrappedLineLayout(
+        string sourcePath,
+        LargeFileViewerState state,
+        ScannedLine line,
+        int width)
+    {
+        if (TryGetWrappedLineLayout(sourcePath, state, line, width, out var cached))
+            return cached;
+
+        PresentedLine presented = state.Presentation.Present(
             state.PresentationMode,
             sourcePath,
             state.LineScanner,
             [line],
             Math.Max(1, width))[0];
         presented = ResolvePresentationForSearch(presented, state.SearchMatch);
-        return Math.Max(
-            1,
-            SplitWrappedLine(
-                    presented.Text,
-                    Math.Max(1, width),
-                    state.WordWrap)
-                .Count());
+
+        if (presented.PreserveLineLayout)
+            ClearWrappedLayoutCache();
+
+        WrappedLineLayout layout = CreateWrappedLineLayout(presented, state.WordWrap, width);
+        StoreWrappedLineLayout(
+            CreateWrappedLayoutCacheKey(sourcePath, state, line, width),
+            layout);
+        return layout;
+    }
+
+    private static WrappedLineLayout CreateWrappedLineLayout(
+        PresentedLine presented,
+        bool wordWrap,
+        int width)
+    {
+        WrappedTextSegment[] segments = presented.PreserveLineLayout
+            ? [new WrappedTextSegment(0, presented.Text)]
+            : SplitWrappedLine(presented.Text, Math.Max(1, width), wordWrap).ToArray();
+        return new WrappedLineLayout(presented, segments);
+    }
+
+    private bool TryGetWrappedLineLayout(
+        string sourcePath,
+        LargeFileViewerState state,
+        ScannedLine line,
+        int width,
+        out WrappedLineLayout layout)
+    {
+        EnsureLayoutCacheContext(state);
+        WrappedLayoutCacheKey key = CreateWrappedLayoutCacheKey(
+            sourcePath,
+            state,
+            line,
+            width);
+        if (!_wrappedLayoutCache.TryGetValue(key, out var node))
+        {
+            layout = null!;
+            return false;
+        }
+
+        _wrappedLayoutCacheMru.Remove(node);
+        _wrappedLayoutCacheMru.AddFirst(node);
+        layout = node.Value.Layout;
+        return true;
+    }
+
+    private void StoreWrappedLineLayout(
+        WrappedLayoutCacheKey key,
+        WrappedLineLayout layout)
+    {
+        if (_wrappedLayoutCache.TryGetValue(key, out var existing))
+        {
+            _wrappedLayoutCacheMru.Remove(existing);
+            _wrappedLayoutCache.Remove(key);
+        }
+
+        var entry = new WrappedLayoutCacheEntry(key, layout);
+        var node = _wrappedLayoutCacheMru.AddFirst(entry);
+        _wrappedLayoutCache[key] = node;
+
+        while (_wrappedLayoutCache.Count > MaxWrappedLayoutCacheEntries)
+        {
+            LinkedListNode<WrappedLayoutCacheEntry>? last = _wrappedLayoutCacheMru.Last;
+            if (last is null)
+                break;
+
+            _wrappedLayoutCacheMru.RemoveLast();
+            _wrappedLayoutCache.Remove(last.Value.Key);
+        }
+    }
+
+    private WrappedLayoutCacheKey CreateWrappedLayoutCacheKey(
+        string sourcePath,
+        LargeFileViewerState state,
+        ScannedLine line,
+        int width)
+    {
+        ViewerSearchMatch? match = state.SearchMatch is { IsHex: false } candidate &&
+                                   candidate.LineStartOffset == line.StartOffset
+            ? candidate
+            : null;
+        return new WrappedLayoutCacheKey(
+            state.LineScanner,
+            sourcePath,
+            line.StartOffset,
+            line.NextOffset,
+            Math.Max(1, width),
+            state.WordWrap,
+            state.PresentationMode,
+            match?.CharacterIndex ?? -1,
+            match?.CharacterLength ?? 0);
+    }
+
+    private MaximumViewportCacheKey CreateMaximumViewportCacheKey(
+        string sourcePath,
+        LargeFileViewerState state,
+        long sourceLength,
+        int contentHeight,
+        int width)
+    {
+        ViewerSearchMatch? match = state.SearchMatch is { IsHex: false } candidate
+            ? candidate
+            : null;
+        return new MaximumViewportCacheKey(
+            state.LineScanner,
+            sourcePath,
+            sourceLength,
+            Math.Max(1, contentHeight),
+            Math.Max(1, width),
+            state.ViewMode,
+            state.WrapLines,
+            state.WordWrap,
+            state.PresentationMode,
+            match?.LineStartOffset ?? -1,
+            match?.CharacterIndex ?? -1,
+            match?.CharacterLength ?? 0);
+    }
+
+    private void EnsureLayoutCacheContext(LargeFileViewerState state)
+    {
+        if (ReferenceEquals(_layoutCacheState, state) &&
+            ReferenceEquals(_layoutCacheScanner, state.LineScanner))
+        {
+            return;
+        }
+
+        _layoutCacheState = state;
+        _layoutCacheScanner = state.LineScanner;
+        ClearWrappedLayoutCache();
+        _maximumViewportCache = null;
+    }
+
+    private void ClearWrappedLayoutCache()
+    {
+        _wrappedLayoutCache.Clear();
+        _wrappedLayoutCacheMru.Clear();
     }
 
     private static bool RequiresStreamingWrappedLayout(ScannedLine line) =>
@@ -2622,6 +2899,43 @@ internal sealed class LargeFileViewer
             int CellWidth,
             bool IsWhitespace);
     }
+
+    private sealed record WrappedLineLayout(
+        PresentedLine PresentedLine,
+        IReadOnlyList<WrappedTextSegment> Segments);
+
+    private sealed record WrappedLayoutCacheKey(
+        LineScanner Scanner,
+        string SourcePath,
+        long StartOffset,
+        long NextOffset,
+        int Width,
+        bool WordWrap,
+        ViewerPresentationMode PresentationMode,
+        int SearchCharacterIndex,
+        int SearchCharacterLength);
+
+    private sealed record WrappedLayoutCacheEntry(
+        WrappedLayoutCacheKey Key,
+        WrappedLineLayout Layout);
+
+    private sealed record MaximumViewportCacheKey(
+        LineScanner Scanner,
+        string SourcePath,
+        long SourceLength,
+        int ContentHeight,
+        int Width,
+        LargeFileViewMode ViewMode,
+        bool WrapLines,
+        bool WordWrap,
+        ViewerPresentationMode PresentationMode,
+        long SearchLineStartOffset,
+        int SearchCharacterIndex,
+        int SearchCharacterLength);
+
+    private sealed record MaximumViewportCacheEntry(
+        MaximumViewportCacheKey Key,
+        ViewerViewportPosition Position);
 
     private sealed record LongWrappedLineLayout(
         int SegmentCount,

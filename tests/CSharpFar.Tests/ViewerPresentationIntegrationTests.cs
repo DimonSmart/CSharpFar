@@ -132,20 +132,112 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void Show_WrappingRemainsFunctionalWithPresentationEnabled()
+    public void Show_WrapKeepsPresentedMarkdownTableRowsAtomic()
     {
         string path = Write(
             "wrapped.md",
-            "| Column | Value |\n| --- | --- |\n| very-long-value-for-wrapping | data |\n");
-        var driver = ViewerDriver(width: 30);
+            "| Column | Value |\n| --- | --- |\n| very-long-value-for-wrapping | data |\nafter table\n");
+        var driver = ViewerDriver(width: 20);
         driver.EnqueueKey(Key(ConsoleKey.F2));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
-        string screen = driver.GetRegionText(new Rect(0, 0, 30, 9));
-        Assert.Contains("WRAP-W", screen);
-        Assert.Contains("│", Content(driver, width: 30));
+        Assert.Contains("WRAP-W", driver.GetRegionText(new Rect(0, 0, 20, 9)));
+        Assert.StartsWith("│ Column", driver.GetRegionText(new Rect(0, 1, 20, 1)));
+        Assert.StartsWith("├", driver.GetRegionText(new Rect(0, 2, 20, 1)));
+        Assert.StartsWith("│ very-long", driver.GetRegionText(new Rect(0, 3, 20, 1)));
+        Assert.StartsWith("after table", driver.GetRegionText(new Rect(0, 4, 20, 1)));
+    }
+
+    [Fact]
+    public async Task WrappedRenderer_BatchesPresentationForViewport()
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(
+            string.Join('\n', Enumerable.Range(0, 12).Select(i => $"line {i} with **markdown** content")) + "\n");
+        var reader = new MemoryFileByteReader(bytes);
+        var cache = new BlockCache(reader, blockSize: 64, capacity: 32);
+        var scanner = await LineScanner.CreateAsync(cache, reader);
+        var state = new LargeFileViewerState(cache, scanner)
+        {
+            WrapLines = true,
+        };
+        var provider = new CountingProvider();
+        SetPrivate(state.Presentation, "_sourcePath", "virtual://batch.md");
+        SetPrivate(state.Presentation, "_provider", provider);
+        var viewer = CreateLargeFileViewer();
+        MethodInfo draw = typeof(LargeFileViewer).GetMethod(
+            "DrawWrappedTextContent",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("DrawWrappedTextContent not found.");
+
+        draw.Invoke(
+            viewer,
+            [new NullCanvas(40, 12), "virtual://batch.md", reader, state, 8, 40]);
+
+        Assert.Equal(1, provider.Calls);
+        Assert.Equal(8, provider.LastVisibleLineCount);
+    }
+
+    [Fact]
+    public async Task WrappedLayout_ReusesPresentationForRepeatedSegmentCount()
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(new string('x', 200) + "\n");
+        var reader = new MemoryFileByteReader(bytes);
+        var cache = new BlockCache(reader, blockSize: 64, capacity: 8);
+        var scanner = await LineScanner.CreateAsync(cache, reader);
+        ScannedLine line = (await scanner.ReadLinesAsync(0, 1, 1024)).Lines.Single();
+        var state = new LargeFileViewerState(cache, scanner)
+        {
+            WrapLines = true,
+        };
+        var provider = new CountingProvider();
+        SetPrivate(state.Presentation, "_sourcePath", "virtual://long.md");
+        SetPrivate(state.Presentation, "_provider", provider);
+        var viewer = CreateLargeFileViewer();
+        MethodInfo count = typeof(LargeFileViewer).GetMethod(
+            "GetWrappedSegmentCount",
+            BindingFlags.Instance | BindingFlags.NonPublic,
+            binder: null,
+            types: [typeof(string), typeof(LargeFileViewerState), typeof(ScannedLine), typeof(int)],
+            modifiers: null)
+            ?? throw new InvalidOperationException("GetWrappedSegmentCount not found.");
+
+        int first = (int)(count.Invoke(viewer, ["virtual://long.md", state, line, 20]) ?? 0);
+        int second = (int)(count.Invoke(viewer, ["virtual://long.md", state, line, 20]) ?? 0);
+
+        Assert.True(first > 1);
+        Assert.Equal(first, second);
+        Assert.Equal(1, provider.Calls);
+    }
+
+    [Fact]
+    public async Task MaximumWrappedViewport_IsCachedAcrossRepeatedQueries()
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(
+            string.Join('\n', Enumerable.Range(0, 30).Select(i => $"line {i} with markdown")) + "\n");
+        var reader = new MemoryFileByteReader(bytes);
+        var cache = new BlockCache(reader, blockSize: 64, capacity: 32);
+        var scanner = await LineScanner.CreateAsync(cache, reader);
+        var state = new LargeFileViewerState(cache, scanner)
+        {
+            WrapLines = true,
+        };
+        var provider = new CountingProvider();
+        SetPrivate(state.Presentation, "_sourcePath", "virtual://maximum.md");
+        SetPrivate(state.Presentation, "_provider", provider);
+        var viewer = CreateLargeFileViewer();
+        MethodInfo maximum = typeof(LargeFileViewer).GetMethod(
+            "GetMaximumViewportPosition",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("GetMaximumViewportPosition not found.");
+
+        _ = maximum.Invoke(viewer, ["virtual://maximum.md", reader, state, 8, 40]);
+        int firstCallCount = provider.Calls;
+        _ = maximum.Invoke(viewer, ["virtual://maximum.md", reader, state, 8, 40]);
+
+        Assert.True(firstCallCount > 0);
+        Assert.Equal(firstCallCount, provider.Calls);
     }
 
     [Fact]
@@ -426,11 +518,55 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
             driver.EnqueueKey(Key((ConsoleKey)char.ToUpperInvariant(ch), ch));
     }
 
+    private static LargeFileViewer CreateLargeFileViewer()
+    {
+        var driver = ViewerDriver(width: 80, height: 12);
+        UiTestHost host = UiTestHost.Create(new ScreenRenderer(driver));
+        var fields = new FormFieldFactory(
+            new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore()));
+        return new LargeFileViewer(
+            host.Surfaces,
+            host.ModalDialogs,
+            new DialogService(host.ModalDialogs, fields),
+            fields);
+    }
+
     private static void SetPrivate(object target, string fieldName, object? value)
     {
         FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException($"Field {fieldName} not found.");
         field.SetValue(target, value);
+    }
+
+    private sealed class CountingProvider : IViewerPresentationProvider
+    {
+        public int Calls { get; private set; }
+        public int LastVisibleLineCount { get; private set; }
+
+        public IReadOnlyList<PresentedLine> Present(ViewerPresentationContext context)
+        {
+            Calls++;
+            LastVisibleLineCount = context.VisibleLines.Count;
+            return context.VisibleLines.Select(PresentedLine.Raw).ToArray();
+        }
+
+        public void Reset()
+        {
+        }
+    }
+
+    private sealed class NullCanvas(int width, int height) : IUiCanvas
+    {
+        public ConsoleSize Size => new(width, height);
+
+        public void Write(int x, int y, string text, CellStyle style) { }
+        public void Write(int x, int y, ReadOnlySpan<char> text, CellStyle style) { }
+        public void WriteForced(int x, int y, string text, CellStyle style) { }
+        public void WriteForced(int x, int y, ReadOnlySpan<char> text, CellStyle style) { }
+        public void WriteChar(int x, int y, char ch, CellStyle style) { }
+        public void FillRegion(Rect region, CellStyle style) { }
+        public void DrawBox(Rect rect, CellStyle style) { }
+        public void DrawDoubleBox(Rect rect, CellStyle style) { }
     }
 
     private sealed class ThrowingProvider : IViewerPresentationProvider

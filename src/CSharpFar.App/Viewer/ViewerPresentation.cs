@@ -51,7 +51,8 @@ internal sealed record PresentedLine(
     string Text,
     IReadOnlyList<PresentedSourceSpan> SourceSpans,
     IReadOnlyList<PresentedStyleSpan> StyleSpans,
-    IReadOnlyList<PresentedLinkSpan> LinkSpans)
+    IReadOnlyList<PresentedLinkSpan> LinkSpans,
+    bool PreserveLineLayout = false)
 {
     public PresentedLine(
         ScannedLine source,
@@ -159,6 +160,10 @@ internal sealed class ViewerPresentationSession
     internal const int MaxLookAheadLines = 8;
     internal const int MaxLookAheadBytes = 64 * 1024;
 
+    private const int MaxCachedPresentedLines = 128;
+
+    private readonly Dictionary<PresentationCacheKey, LinkedListNode<PresentationCacheEntry>> _lineCache = new();
+    private readonly LinkedList<PresentationCacheEntry> _lineCacheMru = new();
     private string? _sourcePath;
     private IViewerPresentationProvider? _provider;
     private bool _providerFailed;
@@ -177,13 +182,20 @@ internal sealed class ViewerPresentationSession
         if (_provider is null || _providerFailed)
             return Raw(visibleLines);
 
+        if (TryGetCachedLines(mode, sourcePath, scanner, visibleLines, viewportWidth, out var cached))
+            return cached;
+
         try
         {
             IReadOnlyList<ScannedLine> before = ReadBoundedContextBefore(scanner, visibleLines[0].StartOffset);
             IReadOnlyList<ScannedLine> after = ReadBoundedContextAfter(scanner, visibleLines[^1].NextOffset);
             var context = new ViewerPresentationContext(visibleLines, before, after, viewportWidth);
             var presented = _provider.Present(context);
-            return presented.Count == visibleLines.Count ? presented : Raw(visibleLines);
+            if (presented.Count != visibleLines.Count)
+                return Raw(visibleLines);
+
+            CachePresentedLines(mode, sourcePath, scanner, presented, viewportWidth);
+            return presented;
         }
         catch
         {
@@ -196,6 +208,7 @@ internal sealed class ViewerPresentationSession
     {
         _provider?.Reset();
         _providerFailed = false;
+        ClearLineCache();
     }
 
     private void EnsureProvider(string sourcePath)
@@ -206,7 +219,114 @@ internal sealed class ViewerPresentationSession
         _sourcePath = sourcePath;
         _provider = ViewerPresentationRegistry.Create(sourcePath);
         _providerFailed = false;
+        ClearLineCache();
     }
+
+    private bool TryGetCachedLines(
+        ViewerPresentationMode mode,
+        string sourcePath,
+        LineScanner scanner,
+        IReadOnlyList<ScannedLine> visibleLines,
+        int viewportWidth,
+        out IReadOnlyList<PresentedLine> presented)
+    {
+        var result = new PresentedLine[visibleLines.Count];
+        for (int i = 0; i < visibleLines.Count; i++)
+        {
+            PresentationCacheKey key = CreateCacheKey(
+                mode,
+                sourcePath,
+                scanner,
+                visibleLines[i],
+                viewportWidth);
+            if (!_lineCache.TryGetValue(key, out var node))
+            {
+                presented = [];
+                return false;
+            }
+
+            _lineCacheMru.Remove(node);
+            _lineCacheMru.AddFirst(node);
+            result[i] = node.Value.Line;
+        }
+
+        presented = result;
+        return true;
+    }
+
+    private void CachePresentedLines(
+        ViewerPresentationMode mode,
+        string sourcePath,
+        LineScanner scanner,
+        IReadOnlyList<PresentedLine> presented,
+        int viewportWidth)
+    {
+        foreach (PresentedLine line in presented)
+        {
+            // Table presentation can widen as more rows are discovered. Keep those
+            // rows out of the line cache so their formatted width can stay current.
+            if (line.PreserveLineLayout)
+                continue;
+
+            PresentationCacheKey key = CreateCacheKey(
+                mode,
+                sourcePath,
+                scanner,
+                line.Source,
+                viewportWidth);
+            if (_lineCache.TryGetValue(key, out var existing))
+            {
+                _lineCacheMru.Remove(existing);
+                _lineCache.Remove(key);
+            }
+
+            var entry = new PresentationCacheEntry(key, line);
+            var node = _lineCacheMru.AddFirst(entry);
+            _lineCache[key] = node;
+        }
+
+        while (_lineCache.Count > MaxCachedPresentedLines)
+        {
+            LinkedListNode<PresentationCacheEntry>? last = _lineCacheMru.Last;
+            if (last is null)
+                break;
+
+            _lineCacheMru.RemoveLast();
+            _lineCache.Remove(last.Value.Key);
+        }
+    }
+
+    private static PresentationCacheKey CreateCacheKey(
+        ViewerPresentationMode mode,
+        string sourcePath,
+        LineScanner scanner,
+        ScannedLine line,
+        int viewportWidth) =>
+        new(
+            scanner,
+            sourcePath,
+            line.StartOffset,
+            line.NextOffset,
+            mode,
+            Math.Max(1, viewportWidth));
+
+    private void ClearLineCache()
+    {
+        _lineCache.Clear();
+        _lineCacheMru.Clear();
+    }
+
+    private sealed record PresentationCacheKey(
+        LineScanner Scanner,
+        string SourcePath,
+        long StartOffset,
+        long NextOffset,
+        ViewerPresentationMode Mode,
+        int ViewportWidth);
+
+    private sealed record PresentationCacheEntry(
+        PresentationCacheKey Key,
+        PresentedLine Line);
 
     private static IReadOnlyList<ScannedLine> ReadBoundedContextBefore(LineScanner scanner, long firstVisibleOffset)
     {
@@ -396,7 +516,10 @@ internal sealed class MarkdownViewerPresentationProvider : IViewerPresentationPr
             if (separator.Length > MaxPresentedLineChars)
                 return false;
 
-            presented = new PresentedLine(source, separator, []);
+            presented = new PresentedLine(source, separator, [])
+            {
+                PreserveLineLayout = true,
+            };
             return true;
         }
 
@@ -552,7 +675,10 @@ internal sealed class MarkdownViewerPresentationProvider : IViewerPresentationPr
             }
         }
 
-        presented = new PresentedLine(source, text.ToString(), sourceSpans, styleSpans, linkSpans);
+        presented = new PresentedLine(source, text.ToString(), sourceSpans, styleSpans, linkSpans)
+        {
+            PreserveLineLayout = true,
+        };
         return true;
     }
 
