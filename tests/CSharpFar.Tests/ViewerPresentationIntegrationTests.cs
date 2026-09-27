@@ -137,17 +137,17 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         string path = Write(
             "wrapped.md",
             "| Column | Value |\n| --- | --- |\n| very-long-value-for-wrapping | data |\nafter table\n");
-        var driver = ViewerDriver(width: 20);
+        var driver = ViewerDriver(width: 30);
         driver.EnqueueKey(Key(ConsoleKey.F2));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
-        Assert.Contains("WRAP-W", driver.GetRegionText(new Rect(0, 0, 20, 9)));
-        Assert.StartsWith("│ Column", driver.GetRegionText(new Rect(0, 1, 20, 1)));
-        Assert.StartsWith("├", driver.GetRegionText(new Rect(0, 2, 20, 1)));
-        Assert.StartsWith("│ very-long", driver.GetRegionText(new Rect(0, 3, 20, 1)));
-        Assert.StartsWith("after table", driver.GetRegionText(new Rect(0, 4, 20, 1)));
+        Assert.Contains("WRAP-W", driver.GetRegionText(new Rect(0, 0, 30, 9)));
+        Assert.StartsWith("│ Column", driver.GetRegionText(new Rect(0, 1, 30, 1)));
+        Assert.StartsWith("├", driver.GetRegionText(new Rect(0, 2, 30, 1)));
+        Assert.StartsWith("│ very-long", driver.GetRegionText(new Rect(0, 3, 30, 1)));
+        Assert.StartsWith("after table", driver.GetRegionText(new Rect(0, 4, 30, 1)));
     }
 
     [Fact]
