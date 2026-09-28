@@ -31,7 +31,8 @@ internal sealed partial class FileEditor
     private readonly FormFieldFactory _fields;
     private readonly FileEditorPerformanceOptions? _performanceOptions;
     private readonly FunctionKeyBarController<ConsoleKeyInfo> _functionKeyBar = new();
-    private EditorFindDialogResult? _lastFind;
+    private EditorSearchOptions? _lastSearch;
+    private string _lastReplacement = string.Empty;
     private bool _markMode;
     private bool _persistentSelection;
     private IFilePanelSource? _activeSource;
@@ -614,37 +615,40 @@ internal sealed partial class FileEditor
 
     private void ShowFindDialog(EditorSession session)
     {
-        var result = new EditorFindDialog(_dialogs).Show(_lastFind);
+        var result = new EditorFindDialog(_dialogs).Show(_lastSearch);
         if (result is null)
             return;
 
-        _lastFind = result;
-        FindAndSelect(session, result, searchBackward: false);
+        _lastSearch = result;
+        FindAndSelect(session, result);
     }
 
     private void RepeatFind(EditorSession session, bool searchBackward)
     {
-        if (_lastFind is null)
+        if (_lastSearch is null)
         {
             ShowFindDialog(session);
             return;
         }
 
-        FindAndSelect(session, _lastFind, searchBackward);
+        FindAndSelect(session, _lastSearch with { SearchBackward = searchBackward });
     }
 
-    private void FindAndSelect(
-        EditorSession session,
-        EditorFindDialogResult request,
-        bool searchBackward)
+    private void FindAndSelect(EditorSession session, EditorSearchOptions request)
     {
-        MoveToFindStart(session, searchBackward);
-        var match = session.Find(new EditorSearchOptions(
-            request.Pattern,
-            SearchBackward: searchBackward,
-            CaseSensitive: request.CaseSensitive,
-            WholeWords: request.WholeWords,
-            UseRegex: false));
+        MoveToFindStart(session, request.SearchBackward);
+
+        EditorSearchMatch? match;
+        try
+        {
+            match = session.Find(request);
+        }
+        catch (ArgumentException ex)
+        {
+            _dialogs.Message("Find", ex.Message);
+            return;
+        }
+
         if (match is null)
         {
             _dialogs.Message("Find", "Text not found.");
@@ -669,37 +673,36 @@ internal sealed partial class FileEditor
 
     private void ShowReplaceDialog(EditorSession session)
     {
-        string? pattern = _dialogs.Input(new SingleLineInputDialogOptions
+        if (session.ReadOnly)
         {
-            Title = "Replace",
-            Prompt = "Find",
-            AllowEmpty = false,
-        });
-        if (pattern is null)
+            _dialogs.Message("Replace", "Editor is read-only.");
+            return;
+        }
+
+        var result = new EditorReplaceDialog(_dialogs, _fields).Show(_lastSearch, _lastReplacement);
+        if (result is null)
             return;
 
-        string? replacement = _dialogs.Input(new SingleLineInputDialogOptions
-        {
-            Title = "Replace",
-            Prompt = "With",
-            AllowEmpty = true,
-        });
-        if (replacement is null)
-            return;
+        _lastSearch = result.Search;
+        _lastReplacement = result.Replacement;
 
-        int count;
         try
         {
-            count = session.ReplaceAll(new EditorSearchOptions(pattern), replacement);
+            if (result.Action == EditorReplaceAction.Replace)
+            {
+                MoveToFindStart(session, result.Search.SearchBackward);
+                if (!session.Replace(result.Search, result.Replacement))
+                    _dialogs.Message("Replace", "Text not found.");
+                return;
+            }
+
+            if (session.ReplaceAll(result.Search, result.Replacement) == 0)
+                _dialogs.Message("Replace", "Text not found.");
         }
         catch (ArgumentException ex)
         {
             _dialogs.Message("Replace", ex.Message);
-            return;
         }
-
-        if (count == 0)
-            _dialogs.Message("Replace", "Text not found.");
     }
 
     private void ShowSyntaxLanguageDialog(EditorSession session)
