@@ -54,6 +54,7 @@ internal sealed class EditorSyntaxDialog
                         Title = "Custom TextMate scope",
                         Prompt = "Scope",
                         AllowEmpty = false,
+                        CancelOnF10 = true,
                         InitialText = customInitialText,
                         Validate = ValidateCustomScope,
                     });

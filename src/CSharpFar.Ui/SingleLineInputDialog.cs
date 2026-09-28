@@ -8,6 +8,7 @@ public sealed class SingleLineInputDialogOptions
     public string InitialText { get; init; } = string.Empty;
     public bool AllowEmpty { get; init; }
     public bool MaskInput { get; init; }
+    public bool CancelOnF10 { get; init; }
     public TextHistoryId? History { get; init; }
     public Func<string, string?>? Validate { get; init; }
 }
@@ -37,7 +38,7 @@ internal sealed class SingleLineInputDialog
             SubmitOnEnter: true));
         var actions = FormControls.OkCancel();
 
-        return _forms.Show(
+        return _forms.ShowWithCancellation(
             new FormDialogOptions(
                 options.Title,
                 PreferredWidth: DialogWidth,
@@ -61,6 +62,8 @@ internal sealed class SingleLineInputDialog
                 return error is null
                     ? FormSubmit.Success(text)
                     : FormSubmit.Invalid<string>(error, field);
-            });
+            },
+            cancelWhen: formEvent =>
+                options.CancelOnF10 && formEvent.Key == ConsoleKey.F10);
     }
 }

@@ -60,6 +60,18 @@ public sealed class TextMateThemeMapper
         out string resolvedThemeName,
         out string? fallbackReason)
     {
+        foreach (ThemeName themeName in Enum.GetValues<ThemeName>())
+        {
+            string displayName = DisplayName(themeName);
+            if (string.Equals(themeName.ToString(), requestedTheme, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(displayName, requestedTheme, StringComparison.OrdinalIgnoreCase))
+            {
+                resolvedThemeName = displayName;
+                fallbackReason = null;
+                return themeName;
+            }
+        }
+
         string normalized = NormalizeThemeName(requestedTheme);
         foreach (ThemeName themeName in Enum.GetValues<ThemeName>())
         {

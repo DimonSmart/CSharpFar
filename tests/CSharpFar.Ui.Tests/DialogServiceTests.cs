@@ -214,6 +214,23 @@ public sealed class DialogServiceTests
     }
 
     [Fact]
+    public void Input_CancelOnF10ReturnsNullInsteadOfSubmitting()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        string? result = Create(driver).Input(new SingleLineInputDialogOptions
+        {
+            Title = "Input",
+            Prompt = "Value",
+            InitialText = "unchanged",
+            CancelOnF10 = true,
+        });
+
+        Assert.Null(result);
+    }
+
+    [Fact]
     public void Form_DelegatesToTheOrdinaryFormFacade()
     {
         var driver = new FakeConsoleDriver();

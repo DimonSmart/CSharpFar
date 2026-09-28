@@ -186,7 +186,7 @@ internal sealed class FormDialogs
         Func<FormSubmitResult<TResult>> submit,
         Func<FormDialogEvent, bool>? auxiliary,
         CancellationToken cancellationToken = default) =>
-        ShowStandard(options, rows, footer, submit, valueChanged: null, auxiliary, cancellationToken);
+        ShowStandard(options, rows, footer, submit, valueChanged: null, auxiliary, cancelWhen: null, cancellationToken);
 
     internal TResult? Show<TResult>(
         FormDialogOptions options,
@@ -197,7 +197,27 @@ internal sealed class FormDialogs
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(valueChanged);
-        return ShowStandard(options, rows, footer, submit, valueChanged, auxiliary: null, cancellationToken);
+        return ShowStandard(options, rows, footer, submit, valueChanged, auxiliary: null, cancelWhen: null, cancellationToken);
+    }
+
+    internal TResult? ShowWithCancellation<TResult>(
+        FormDialogOptions options,
+        Func<IReadOnlyList<FormRow>> rows,
+        Func<IReadOnlyList<FormRow>>? footer,
+        Func<FormSubmitResult<TResult>> submit,
+        Func<FormDialogEvent, bool> cancelWhen,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(cancelWhen);
+        return ShowStandard(
+            options,
+            rows,
+            footer,
+            submit,
+            valueChanged: null,
+            auxiliary: null,
+            cancelWhen,
+            cancellationToken);
     }
 
     public TResult? Show<TResult>(
@@ -222,6 +242,7 @@ internal sealed class FormDialogs
         Func<FormSubmitResult<TResult>> submit,
         Action<FormDialogEvent>? valueChanged,
         Func<FormDialogEvent, bool>? auxiliary,
+        Func<FormDialogEvent, bool>? cancelWhen,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(submit);
@@ -249,7 +270,7 @@ internal sealed class FormDialogs
             },
             handle: formEvent =>
             {
-                if (formEvent.IsCancelled)
+                if (formEvent.IsCancelled || cancelWhen?.Invoke(formEvent) == true)
                     return FormDialogOutcome<TResult?>.Complete(default);
 
                 if (auxiliary?.Invoke(formEvent) == true)

@@ -1519,6 +1519,8 @@ CSharpFar.Ui.SeparatorRow
 CSharpFar.Ui.SingleLineInputDialogOptions
 CSharpFar.Ui.SingleLineInputDialogOptions.AllowEmpty.get -> bool
 CSharpFar.Ui.SingleLineInputDialogOptions.AllowEmpty.init -> void
+CSharpFar.Ui.SingleLineInputDialogOptions.CancelOnF10.get -> bool
+CSharpFar.Ui.SingleLineInputDialogOptions.CancelOnF10.init -> void
 CSharpFar.Ui.SingleLineInputDialogOptions.History.get -> CSharpFar.Ui.TextHistoryId?
 CSharpFar.Ui.SingleLineInputDialogOptions.History.init -> void
 CSharpFar.Ui.SingleLineInputDialogOptions.InitialText.get -> string!
