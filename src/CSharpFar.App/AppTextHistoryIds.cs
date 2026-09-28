@@ -10,6 +10,7 @@ internal static class AppTextHistoryIds
     public static readonly TextHistoryId CreateFolderName = new("CreateFolderDialog.FolderName");
     public static readonly TextHistoryId ViewerFindPattern = new("Viewer.Find.Pattern");
     public static readonly TextHistoryId EditorFindPattern = new("Editor.Find.Pattern");
+    public static readonly TextHistoryId EditorReplaceText = new("Editor.Replace.Text");
     public static readonly TextHistoryId CompareInclude = new("Compare.Include");
     public static readonly TextHistoryId CompareExclude = new("Compare.Exclude");
     public static readonly TextHistoryId CompareDepth = new("Compare.Depth");
