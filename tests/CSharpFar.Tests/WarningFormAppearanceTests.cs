@@ -14,10 +14,10 @@ public sealed class WarningFormAppearanceTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
+        var fields = new FormFieldFactory(TextFieldHistoryTestProvider.Create());
         FileOperationConflictDecision decision = new ConflictDialog(
-            new DialogService(
-                ModalTestHost.Create(driver),
-                new FormFieldFactory(TextFieldHistoryTestProvider.Create())))
+            new DialogService(ModalTestHost.Create(driver), fields),
+            fields)
             .Show(new FileOperationConflict
             {
                 SourcePath = @"C:\src\a.txt",
