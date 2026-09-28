@@ -697,10 +697,7 @@ CSharpFar.Ui.ITextClipboard.TrySetText(string! text) -> bool
 CSharpFar.Ui.ITextFieldHistoryDiagnostics
 CSharpFar.Ui.ITextFieldHistoryDiagnostics.ReportPersistenceFailure(CSharpFar.Ui.TextHistoryPersistenceOperation operation, System.Exception! exception) -> void
 CSharpFar.Ui.ITextFieldHistoryProvider
-CSharpFar.Ui.ITextFieldHistoryProvider.Get(CSharpFar.Ui.TextHistoryValueMode
-CSharpFar.Ui.TextHistoryValueMode.PreserveWhitespace = 1 -> CSharpFar.Ui.TextHistoryValueMode
-CSharpFar.Ui.TextHistoryValueMode.Trimmed = 0 -> CSharpFar.Ui.TextHistoryValueMode
-CSharpFar.Ui.TextHistoryId id) -> CSharpFar.Ui.TextHistory!
+CSharpFar.Ui.ITextFieldHistoryProvider.Get(CSharpFar.Ui.TextHistoryId id) -> CSharpFar.Ui.TextHistory!
 CSharpFar.Ui.IUiCanvas
 CSharpFar.Ui.IUiCanvas.DrawBox(CSharpFar.Console.Models.Rect rect, CSharpFar.Console.Models.CellStyle style) -> void
 CSharpFar.Ui.IUiCanvas.DrawDoubleBox(CSharpFar.Console.Models.Rect rect, CSharpFar.Console.Models.CellStyle style) -> void
@@ -1693,6 +1690,9 @@ CSharpFar.Ui.TextHistory.Add(string! text) -> void
 CSharpFar.Ui.TextHistory.AddPreservingWhitespace(string! text) -> void
 CSharpFar.Ui.TextHistory.HasItems.get -> bool
 CSharpFar.Ui.TextHistory.Items.get -> System.Collections.Generic.IReadOnlyList<string!>!
+CSharpFar.Ui.TextHistoryValueMode
+CSharpFar.Ui.TextHistoryValueMode.PreserveWhitespace = 1 -> CSharpFar.Ui.TextHistoryValueMode
+CSharpFar.Ui.TextHistoryValueMode.Trimmed = 0 -> CSharpFar.Ui.TextHistoryValueMode
 CSharpFar.Ui.TextHistoryId
 CSharpFar.Ui.TextHistoryId.Equals(CSharpFar.Ui.TextHistoryId other) -> bool
 CSharpFar.Ui.TextHistoryId.TextHistoryId() -> void
