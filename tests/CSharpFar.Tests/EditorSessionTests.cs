@@ -383,6 +383,101 @@ public sealed class EditorSessionTests
     }
 
     [Fact]
+    public void Replace_ForwardLeavesCursorAfterReplacement()
+    {
+        var session = CreateSession("foo foo");
+
+        Assert.True(session.Replace(new EditorSearchOptions("foo"), "longer"));
+
+        Assert.Equal("longer foo", session.FlattenText());
+        Assert.Equal(new EditorPosition(0, 6), session.Cursor);
+        Assert.Null(session.Selection);
+    }
+
+    [Fact]
+    public void Replace_BackwardContinuesBeforeReplacedMatch()
+    {
+        var session = CreateSession("foo foo");
+        session.MoveTo(new EditorPosition(0, 7));
+        var options = new EditorSearchOptions("foo", SearchBackward: true);
+
+        Assert.True(session.Replace(options, "foo"));
+        Assert.Equal(new EditorPosition(0, 4), session.Cursor);
+
+        Assert.True(session.Replace(options, "foo"));
+        Assert.Equal(new EditorPosition(0, 0), session.Cursor);
+    }
+
+    [Fact]
+    public void Replace_ReadOnlySessionDoesNotChangeDocument()
+    {
+        var session = CreateSession("foo", readOnly: true);
+
+        Assert.False(session.Replace(new EditorSearchOptions("foo"), "bar"));
+        Assert.Equal("foo", session.FlattenText());
+        Assert.False(session.Document.IsDirty);
+    }
+
+    [Fact]
+    public void ReplaceAll_ReadOnlySessionDoesNotChangeDocument()
+    {
+        var session = CreateSession("foo foo", readOnly: true);
+
+        Assert.Equal(0, session.ReplaceAll(new EditorSearchOptions("foo"), "bar"));
+        Assert.Equal("foo foo", session.FlattenText());
+        Assert.False(session.Document.IsDirty);
+    }
+
+    [Fact]
+    public void ReplaceAll_IsSingleUndoTransaction()
+    {
+        var session = CreateSession("foo foo");
+
+        Assert.Equal(2, session.ReplaceAll(new EditorSearchOptions("foo"), "bar"));
+        Assert.Equal("bar bar", session.FlattenText());
+
+        Assert.True(session.Undo());
+        Assert.Equal("foo foo", session.FlattenText());
+        Assert.False(session.Undo());
+    }
+
+    [Fact]
+    public void ReplaceAll_SearchDirectionDoesNotChangeResult()
+    {
+        var forward = CreateSession("foo x foo");
+        var backward = CreateSession("foo x foo");
+
+        Assert.Equal(2, forward.ReplaceAll(new EditorSearchOptions("foo"), "bar"));
+        Assert.Equal(2, backward.ReplaceAll(
+            new EditorSearchOptions("foo", SearchBackward: true),
+            "bar"));
+
+        Assert.Equal(forward.FlattenText(), backward.FlattenText());
+    }
+
+    [Fact]
+    public void Replace_RegexReplacementIsLiteral()
+    {
+        var session = CreateSession("foo");
+
+        Assert.True(session.Replace(
+            new EditorSearchOptions("(foo)", UseRegex: true),
+            "$1"));
+
+        Assert.Equal("$1", session.FlattenText());
+    }
+
+    [Fact]
+    public void ReplaceAll_EmptyReplacementDeletesMatches()
+    {
+        var session = CreateSession("foo x foo");
+
+        Assert.Equal(2, session.ReplaceAll(new EditorSearchOptions("foo"), string.Empty));
+
+        Assert.Equal(" x ", session.FlattenText());
+    }
+
+    [Fact]
     public void CommandBindings_MapFindRepeatDirections()
     {
         var shift = EditorCommandBindings.ForModifiers(ConsoleModifiers.Shift).Single(item => item.KeyNumber == 7);
@@ -607,13 +702,14 @@ public sealed class EditorSessionTests
 
     private static EditorSession CreateSession(
         string text,
-        AppSettings.EditorSettings? settings = null)
+        AppSettings.EditorSettings? settings = null,
+        bool readOnly = false)
     {
         settings ??= new AppSettings.EditorSettings();
         var format = new EditorDocumentFormat(Encoding.UTF8, false, EditorLineEnding.Lf, "UTF-8");
         var document = new EditorDocument(EditorTextBuffer.FromText(text), format);
         document.MarkClean();
-        return new EditorSession("test.txt", document, settings, readOnly: false);
+        return new EditorSession("test.txt", document, settings, readOnly);
     }
 
     private static void AssertSameDestination(Action<EditorSession> ordinaryMove, Action<EditorSession> extendedMove)
