@@ -143,7 +143,7 @@ internal sealed class SelectionListDialog<T>
                     int previousIndex = SelectedIndex;
                     string before = _filter.Text;
                     string? error = null;
-                    _ = SingleLineTextInput.HandleKey(_filter, filterKey, ref error);
+                    SingleLineTextInput.HandleKey(_filter, filterKey, ref error);
                     if (string.Equals(before, _filter.Text, StringComparison.Ordinal))
                         return ModalDialogLoopResult<SelectionListDialogResult<T>>.ContinueNoChange;
 
