@@ -887,10 +887,14 @@ public sealed class Spec010FileOperationDialogTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
         bool errorObserved = false;
-        driver.BeforeReadInput = currentDriver =>
+        Action<FakeConsoleDriver>? continueAfterError = null;
+        continueAfterError = currentDriver =>
         {
-            if (errorObserved || currentDriver.PendingInputCount != 0)
+            if (currentDriver.PendingInputCount != 0)
+            {
+                currentDriver.BeforeReadInput = continueAfterError;
                 return;
+            }
 
             string text = currentDriver.GetRegionText(new Rect(0, 0, 100, 30));
             Assert.Contains("Destination must not be empty.", text, StringComparison.Ordinal);
@@ -899,6 +903,7 @@ public sealed class Spec010FileOperationDialogTests
             EnqueueText(currentDriver, @"C:\dst\b.txt");
             currentDriver.EnqueueKey(Key(ConsoleKey.Enter));
         };
+        driver.BeforeReadInput = continueAfterError;
         driver.EnqueueKey(new ConsoleKeyInfo('R', ConsoleKey.R, shift: true, alt: false, control: false));
         driver.EnqueueKey(Ctrl(ConsoleKey.A));
         EnqueueText(driver, "   ");
@@ -921,10 +926,14 @@ public sealed class Spec010FileOperationDialogTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
         bool errorObserved = false;
-        driver.BeforeReadInput = currentDriver =>
+        Action<FakeConsoleDriver>? continueAfterError = null;
+        continueAfterError = currentDriver =>
         {
-            if (errorObserved || currentDriver.PendingInputCount != 0)
+            if (currentDriver.PendingInputCount != 0)
+            {
+                currentDriver.BeforeReadInput = continueAfterError;
                 return;
+            }
 
             string text = currentDriver.GetRegionText(new Rect(0, 0, 100, 30));
             Assert.Contains("New destination must be different from the existing destination.", text, StringComparison.Ordinal);
@@ -932,6 +941,7 @@ public sealed class Spec010FileOperationDialogTests
             currentDriver.EnqueueKey(Key(ConsoleKey.Escape));
             currentDriver.EnqueueKey(new ConsoleKeyInfo('O', ConsoleKey.O, shift: true, alt: false, control: false));
         };
+        driver.BeforeReadInput = continueAfterError;
         driver.EnqueueKey(new ConsoleKeyInfo('R', ConsoleKey.R, shift: true, alt: false, control: false));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
