@@ -697,7 +697,10 @@ CSharpFar.Ui.ITextClipboard.TrySetText(string! text) -> bool
 CSharpFar.Ui.ITextFieldHistoryDiagnostics
 CSharpFar.Ui.ITextFieldHistoryDiagnostics.ReportPersistenceFailure(CSharpFar.Ui.TextHistoryPersistenceOperation operation, System.Exception! exception) -> void
 CSharpFar.Ui.ITextFieldHistoryProvider
-CSharpFar.Ui.ITextFieldHistoryProvider.Get(CSharpFar.Ui.TextHistoryId id) -> CSharpFar.Ui.TextHistory!
+CSharpFar.Ui.ITextFieldHistoryProvider.Get(CSharpFar.Ui.TextHistoryValueMode
+CSharpFar.Ui.TextHistoryValueMode.PreserveWhitespace = 1 -> CSharpFar.Ui.TextHistoryValueMode
+CSharpFar.Ui.TextHistoryValueMode.Trimmed = 0 -> CSharpFar.Ui.TextHistoryValueMode
+CSharpFar.Ui.TextHistoryId id) -> CSharpFar.Ui.TextHistory!
 CSharpFar.Ui.IUiCanvas
 CSharpFar.Ui.IUiCanvas.DrawBox(CSharpFar.Console.Models.Rect rect, CSharpFar.Console.Models.CellStyle style) -> void
 CSharpFar.Ui.IUiCanvas.DrawDoubleBox(CSharpFar.Console.Models.Rect rect, CSharpFar.Console.Models.CellStyle style) -> void
@@ -1670,21 +1673,24 @@ CSharpFar.Ui.TextFieldDefaults.Width.get -> int?
 CSharpFar.Ui.TextFieldDefaults.Width.init -> void
 CSharpFar.Ui.TextFieldOptions
 CSharpFar.Ui.TextFieldOptions.<Clone>$() -> CSharpFar.Ui.TextFieldOptions!
-CSharpFar.Ui.TextFieldOptions.Deconstruct(out string! InitialText, out CSharpFar.Ui.TextHistoryId? HistoryId, out bool MaskInput, out int? Width, out bool? SubmitOnEnter) -> void
+CSharpFar.Ui.TextFieldOptions.Deconstruct(out string! InitialText, out CSharpFar.Ui.TextHistoryId? HistoryId, out bool MaskInput, out int? Width, out bool? SubmitOnEnter, out CSharpFar.Ui.TextHistoryValueMode HistoryValueMode) -> void
 CSharpFar.Ui.TextFieldOptions.Equals(CSharpFar.Ui.TextFieldOptions? other) -> bool
 CSharpFar.Ui.TextFieldOptions.HistoryId.get -> CSharpFar.Ui.TextHistoryId?
 CSharpFar.Ui.TextFieldOptions.HistoryId.init -> void
+CSharpFar.Ui.TextFieldOptions.HistoryValueMode.get -> CSharpFar.Ui.TextHistoryValueMode
+CSharpFar.Ui.TextFieldOptions.HistoryValueMode.init -> void
 CSharpFar.Ui.TextFieldOptions.InitialText.get -> string!
 CSharpFar.Ui.TextFieldOptions.InitialText.init -> void
 CSharpFar.Ui.TextFieldOptions.MaskInput.get -> bool
 CSharpFar.Ui.TextFieldOptions.MaskInput.init -> void
 CSharpFar.Ui.TextFieldOptions.SubmitOnEnter.get -> bool?
 CSharpFar.Ui.TextFieldOptions.SubmitOnEnter.init -> void
-CSharpFar.Ui.TextFieldOptions.TextFieldOptions(string! InitialText = "", CSharpFar.Ui.TextHistoryId? HistoryId = null, bool MaskInput = false, int? Width = null, bool? SubmitOnEnter = null) -> void
+CSharpFar.Ui.TextFieldOptions.TextFieldOptions(string! InitialText = "", CSharpFar.Ui.TextHistoryId? HistoryId = null, bool MaskInput = false, int? Width = null, bool? SubmitOnEnter = null, CSharpFar.Ui.TextHistoryValueMode HistoryValueMode = CSharpFar.Ui.TextHistoryValueMode.Trimmed) -> void
 CSharpFar.Ui.TextFieldOptions.Width.get -> int?
 CSharpFar.Ui.TextFieldOptions.Width.init -> void
 CSharpFar.Ui.TextHistory
 CSharpFar.Ui.TextHistory.Add(string! text) -> void
+CSharpFar.Ui.TextHistory.AddPreservingWhitespace(string! text) -> void
 CSharpFar.Ui.TextHistory.HasItems.get -> bool
 CSharpFar.Ui.TextHistory.Items.get -> System.Collections.Generic.IReadOnlyList<string!>!
 CSharpFar.Ui.TextHistoryId
