@@ -691,13 +691,18 @@ public sealed class EditorSession
 
     public bool Replace(EditorSearchOptions options, string replacement)
     {
+        if (ReadOnly)
+            return false;
+
         var match = Find(options);
         if (match is null)
             return false;
 
         string oldText = Document.Buffer.GetTextInRange(match.Value.Start, match.Value.End);
-        ApplyChange("Replace", match.Value.Start, match.Value.End, oldText, replacement,
-            EditorTextBuffer.Advance(match.Value.Start, replacement));
+        EditorPosition continuation = options.SearchBackward
+            ? match.Value.Start
+            : EditorTextBuffer.Advance(match.Value.Start, replacement);
+        ApplyChange("Replace", match.Value.Start, match.Value.End, oldText, replacement, continuation);
         return true;
     }
 
