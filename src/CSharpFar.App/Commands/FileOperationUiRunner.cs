@@ -23,7 +23,7 @@ internal sealed class FileOperationUiRunner
 
     public FileOperationResult Execute(FileOperationRequest request)
     {
-        var resolver = new DialogConflictResolver(new ConflictDialog(_dialogs));
+        var resolver = new DialogConflictResolver(new ConflictDialog(_dialogs, fields));
         var pauseController = new FileOperationPauseController();
         request = request with { PauseController = pauseController };
         var syncRoot = new object();
