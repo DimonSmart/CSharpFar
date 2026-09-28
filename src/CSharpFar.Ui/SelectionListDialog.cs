@@ -14,12 +14,18 @@ internal sealed class SelectionListDialog<T>
     private const int DefaultMaxVisibleRows = 15;
     private const int DefaultMinWidth = 20;
     private const int BorderChrome = 2;
-    private readonly ListView<T> _list;
+    private const string FilterLabel = "Filter: ";
+
+    private readonly IReadOnlyList<SelectionEntry> _allItems;
+    private readonly ListView<SelectionEntry> _list;
     private readonly Func<T, string> _itemText;
+    private readonly CommandLineState _filter = new();
     private readonly string _title;
     private readonly DialogAppearance _appearance;
     private readonly DialogFrameRenderer _frameRenderer = new();
     private Action<T, int>? _selectionChanged;
+    private Func<T, string>? _searchText;
+    private string _emptyText = "No items";
 
     public SelectionListDialog(
         IReadOnlyList<T> items,
@@ -27,20 +33,33 @@ internal sealed class SelectionListDialog<T>
         string title,
         DialogAppearance appearance = DialogAppearance.Popup)
     {
-        _appearance = appearance;
-        _list = new ListView<T>(
-            items,
-            itemText,
-            behavior: ListViewBehavior.Selection,
-            appearance: appearance == DialogAppearance.Popup ? ListAppearance.Menu : ListAppearance.Dialog);
+        ArgumentNullException.ThrowIfNull(items);
         _itemText = itemText ?? throw new ArgumentNullException(nameof(itemText));
         _title = title ?? throw new ArgumentNullException(nameof(title));
+        _appearance = appearance;
+        _allItems = items
+            .Select((item, index) => new SelectionEntry(item, index))
+            .ToArray();
+        _list = new ListView<SelectionEntry>(
+            _allItems,
+            entry => _itemText(entry.Item),
+            behavior: ListViewBehavior.Selection,
+            appearance: appearance == DialogAppearance.Popup ? ListAppearance.Menu : ListAppearance.Dialog);
     }
 
     public int SelectedIndex
     {
-        get => _list.SelectedIndex;
-        set => _list.SetSelectedIndex(value);
+        get => _list.TryGetSelectedItem(out var entry) ? entry.OriginalIndex : -1;
+        set
+        {
+            if (_allItems.Count == 0)
+                return;
+
+            int originalIndex = Math.Clamp(value, 0, _allItems.Count - 1);
+            int filteredIndex = FindFilteredIndex(originalIndex);
+            if (filteredIndex >= 0)
+                _list.SetSelectedIndex(filteredIndex);
+        }
     }
 
     public int ScrollTop
@@ -57,11 +76,23 @@ internal sealed class SelectionListDialog<T>
 
     public string? EmptyText
     {
-        get => _list.EmptyText;
-        set => _list.EmptyText = value ?? string.Empty;
+        get => _emptyText;
+        set
+        {
+            _emptyText = value ?? string.Empty;
+            UpdateEmptyText();
+        }
     }
 
     public bool DoubleBorder { get; set; }
+
+    public bool EnableFilter { get; set; }
+
+    public Func<T, string>? SearchText
+    {
+        get => _searchText;
+        set => _searchText = value;
+    }
 
     public Action<T, int>? SelectionChanged
     {
@@ -72,12 +103,13 @@ internal sealed class SelectionListDialog<T>
     public SelectionListDialogResult<T> Show(ModalDialogHost modalDialogs)
     {
         ArgumentNullException.ThrowIfNull(modalDialogs);
+        UpdateEmptyText();
         bool initialSelectionNotified = false;
         return modalDialogs.RunInteractive<SelectionListFrame, SelectionListInput, SelectionListDialogResult<T>>(
             (context, _) =>
             {
                 var frameLayout = CalculateLayout(context.Size);
-                var list = _list.CalculateFrame(frameLayout.ContentBounds);
+                var list = _list.CalculateFrame(frameLayout.ListBounds);
                 var frame = new SelectionListFrame(frameLayout, list);
                 RenderLayer(context.Canvas, frame);
                 return frame;
@@ -88,27 +120,57 @@ internal sealed class SelectionListDialog<T>
             (input, frame, route) =>
             {
                 if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape or ConsoleKey.F10 })
-                    return (new SelectionListInput(input, ScrollableListInputResult.NotHandled), UiInputResult.HandledResult);
+                    return (new SelectionListInput(input, ScrollableListInputResult.NotHandled, IsFilterInput: false), UiInputResult.HandledResult);
+
+                if (EnableFilter &&
+                    input is KeyConsoleInputEvent { Key: var key } &&
+                    IsFilterInputKey(key))
+                {
+                    return (new SelectionListInput(input, ScrollableListInputResult.NotHandled, IsFilterInput: true), UiInputResult.HandledResult);
+                }
 
                 var routed = _list.RouteInput(
                     input,
                     frame.List,
                     route);
-                return (new SelectionListInput(input, routed.Semantic), routed.UiResult);
+                return (new SelectionListInput(input, routed.Semantic, IsFilterInput: false), routed.UiResult);
             },
             (_, semantic) =>
             {
+                if (semantic.IsFilterInput &&
+                    semantic.Input is KeyConsoleInputEvent { Key: var filterKey })
+                {
+                    int previousIndex = SelectedIndex;
+                    string before = _filter.Text;
+                    string? error = null;
+                    _ = SingleLineTextInput.HandleKey(_filter, filterKey, ref error);
+                    if (string.Equals(before, _filter.Text, StringComparison.Ordinal))
+                        return ModalDialogLoopResult<SelectionListDialogResult<T>>.ContinueNoChange;
+
+                    ApplyFilter(previousIndex);
+                    if (_list.HasItems && SelectedIndex != previousIndex)
+                        NotifySelectionChanged();
+                    return ModalDialogLoopResult<SelectionListDialogResult<T>>.ContinueChanged;
+                }
+
                 if (semantic.ListResult.Kind == ScrollableListInputResultKind.SelectionChanged)
                     NotifySelectionChanged();
 
-                if (semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape or ConsoleKey.F10 } ||
-                    semantic.ListResult.Kind == ScrollableListInputResultKind.Confirmed && _list.HasItems ||
-                    semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter } && !_list.HasItems)
+                if (semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape or ConsoleKey.F10 })
                 {
-                    return ModalDialogLoopResult<SelectionListDialogResult<T>>.Complete(
-                        _list.HasItems && semantic.ListResult.Kind == ScrollableListInputResultKind.Confirmed
-                            ? Confirmed()
-                            : Cancelled());
+                    return ModalDialogLoopResult<SelectionListDialogResult<T>>.Complete(Cancelled());
+                }
+
+                if (semantic.ListResult.Kind == ScrollableListInputResultKind.Confirmed && _list.HasItems)
+                {
+                    return ModalDialogLoopResult<SelectionListDialogResult<T>>.Complete(Confirmed());
+                }
+
+                if (semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter } && !_list.HasItems)
+                {
+                    return EnableFilter
+                        ? ModalDialogLoopResult<SelectionListDialogResult<T>>.ContinueNoChange
+                        : ModalDialogLoopResult<SelectionListDialogResult<T>>.Complete(Cancelled());
                 }
 
                 return ModalDialogLoopResult<SelectionListDialogResult<T>>.ContinueNoChange;
@@ -124,14 +186,66 @@ internal sealed class SelectionListDialog<T>
             });
     }
 
-    private SelectionListDialogResult<T> Confirmed() =>
-        new(true, _list.Items[SelectedIndex], SelectedIndex);
+    private SelectionListDialogResult<T> Confirmed()
+    {
+        var entry = _list.Items[_list.SelectedIndex];
+        return new SelectionListDialogResult<T>(true, entry.Item, entry.OriginalIndex);
+    }
 
     private static SelectionListDialogResult<T> Cancelled() =>
         new(false, default, -1);
 
-    private void NotifySelectionChanged() =>
-        _selectionChanged?.Invoke(_list.Items[_list.SelectedIndex], _list.SelectedIndex);
+    private void NotifySelectionChanged()
+    {
+        if (_list.TryGetSelectedItem(out var entry))
+            _selectionChanged?.Invoke(entry.Item, entry.OriginalIndex);
+    }
+
+    private void ApplyFilter(int previousOriginalIndex)
+    {
+        IReadOnlyList<SelectionEntry> filteredItems;
+        if (!EnableFilter || _filter.Text.Length == 0)
+        {
+            filteredItems = _allItems;
+        }
+        else
+        {
+            string filter = _filter.Text;
+            filteredItems = _allItems
+                .Where(entry => SearchTextFor(entry.Item).Contains(filter, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+        }
+
+        _list.ReplaceItems(filteredItems);
+        if (filteredItems.Count > 0)
+        {
+            int preservedIndex = previousOriginalIndex >= 0
+                ? FindFilteredIndex(previousOriginalIndex)
+                : -1;
+            _list.SetSelectedIndex(preservedIndex >= 0 ? preservedIndex : 0);
+        }
+
+        UpdateEmptyText();
+    }
+
+    private int FindFilteredIndex(int originalIndex)
+    {
+        for (int index = 0; index < _list.Items.Count; index++)
+        {
+            if (_list.Items[index].OriginalIndex == originalIndex)
+                return index;
+        }
+
+        return -1;
+    }
+
+    private string SearchTextFor(T item) =>
+        (_searchText ?? _itemText)(item) ?? string.Empty;
+
+    private void UpdateEmptyText() =>
+        _list.EmptyText = EnableFilter && _filter.Text.Length > 0
+            ? "No matches"
+            : _emptyText;
 
     private void RenderLayer(IUiCanvas screen, SelectionListFrame frame)
     {
@@ -147,7 +261,37 @@ internal sealed class SelectionListDialog<T>
             _title,
             DoubleBorder,
             renderOptions,
-            (_, _) => _list.Render(screen, frame.List));
+            (_, _) =>
+            {
+                if (layout.FilterBounds is { } filterBounds)
+                    RenderFilter(screen, filterBounds);
+                _list.Render(screen, frame.List);
+            });
+    }
+
+    private void RenderFilter(IUiCanvas screen, Rect bounds)
+    {
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+            return;
+
+        int labelWidth = Math.Min(bounds.Width, ConsoleTextMetrics.GetCellWidth(FilterLabel));
+        screen.Write(
+            bounds.X,
+            bounds.Y,
+            ConsoleTextMetrics.FitToCells(FilterLabel, labelWidth),
+            DialogStyles.Fill);
+        int inputWidth = Math.Max(0, bounds.Width - labelWidth);
+        if (inputWidth > 0)
+        {
+            SingleLineTextInput.Render(
+                screen,
+                bounds.X + labelWidth,
+                bounds.Y,
+                inputWidth,
+                _filter,
+                DialogStyles.FocusedInput,
+                DialogStyles.FocusedInput);
+        }
     }
 
     private SelectionListLayout CalculateLayout(ConsoleSize size)
@@ -155,7 +299,8 @@ internal sealed class SelectionListDialog<T>
         int desiredRows = Math.Min(
             Math.Max(1, MaxVisibleRows),
             Math.Max(1, _list.Count == 0 ? 1 : _list.Count));
-        int verticalChrome = BorderChrome + ListDialogLayoutMetrics.VerticalContentChrome;
+        int filterRows = EnableFilter ? 1 : 0;
+        int verticalChrome = BorderChrome + ListDialogLayoutMetrics.VerticalContentChrome + filterRows;
         int maxOuterHeight = MaxHeight.HasValue
             ? Math.Min(Math.Max(0, MaxHeight.Value), size.Height)
             : size.Height;
@@ -163,12 +308,15 @@ internal sealed class SelectionListDialog<T>
         int visibleRows = Math.Min(desiredRows, availableRows);
         int height = Math.Min(maxOuterHeight, desiredRows + verticalChrome);
 
-        int itemWidth = _list.Count == 0
+        int itemWidth = _allItems.Count == 0
             ? ConsoleTextMetrics.GetCellWidth(EmptyText ?? string.Empty)
-            : _list.Items.Max(item => ConsoleTextMetrics.GetCellWidth(_itemText(item)));
+            : _allItems.Max(entry => ConsoleTextMetrics.GetCellWidth(_itemText(entry.Item)));
+        int filterWidth = EnableFilter ? ConsoleTextMetrics.GetCellWidth(FilterLabel) + DefaultMinWidth : 0;
         int textViewportWidth = Math.Max(
             DefaultMinWidth,
-            Math.Max(itemWidth, ConsoleTextMetrics.GetCellWidth(_title)) + 2);
+            Math.Max(
+                Math.Max(itemWidth, ConsoleTextMetrics.GetCellWidth(_title)) + 2,
+                filterWidth));
         bool needsScrollbar = visibleRows > 0 && _list.Count > visibleRows;
         int horizontalChrome = BorderChrome + ListDialogLayoutMetrics.HorizontalContentChrome;
         int naturalWidth = textViewportWidth + horizontalChrome + (needsScrollbar ? 1 : 0);
@@ -192,13 +340,35 @@ internal sealed class SelectionListDialog<T>
 
         Rect bounds = UiLayout.Center(size, width, height);
         Rect frameContentBounds = UiLayout.Inset(bounds, 1, 1);
-        Rect contentBounds = ListDialogLayoutMetrics.InsetContent(frameContentBounds);
-        return new SelectionListLayout(bounds, contentBounds);
+        Rect paddedBounds = ListDialogLayoutMetrics.InsetContent(frameContentBounds);
+        Rect? filterBounds = null;
+        Rect listBounds = paddedBounds;
+        if (EnableFilter && paddedBounds.Height > 0)
+        {
+            filterBounds = new Rect(paddedBounds.X, paddedBounds.Y, paddedBounds.Width, 1);
+            listBounds = new Rect(
+                paddedBounds.X,
+                paddedBounds.Y + 1,
+                paddedBounds.Width,
+                Math.Max(0, paddedBounds.Height - 1));
+        }
+
+        return new SelectionListLayout(bounds, filterBounds, listBounds);
     }
+
+    private static bool IsFilterInputKey(ConsoleKeyInfo key)
+    {
+        bool printable = key.KeyChar >= ' ' &&
+            (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
+        return printable || key.Key == ConsoleKey.Backspace;
+    }
+
+    private readonly record struct SelectionEntry(T Item, int OriginalIndex);
 
     private readonly record struct SelectionListLayout(
         Rect Bounds,
-        Rect ContentBounds);
+        Rect? FilterBounds,
+        Rect ListBounds);
 
     private static PopupRenderOptions MenuPopupOptions()
     {
@@ -212,5 +382,6 @@ internal sealed class SelectionListDialog<T>
 
     private readonly record struct SelectionListInput(
         ConsoleInputEvent Input,
-        ScrollableListInputResult ListResult);
+        ScrollableListInputResult ListResult,
+        bool IsFilterInput);
 }

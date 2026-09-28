@@ -15,10 +15,7 @@ public sealed class TextMateGrammarRegistry
             out string resolvedThemeName,
             out string? themeFallbackReason);
 
-        Options = new RegistryOptions(themeName);
-        LoadCustomDirectory(settings.SyntaxUserGrammarsPath);
-        LoadCustomDirectory(settings.SyntaxUserThemesPath);
-
+        Options = CreateOptions(settings, themeName, _loadDiagnostics);
         Registry = new Registry(Options);
         ResolvedThemeName = resolvedThemeName;
         ThemeFallbackReason = themeFallbackReason;
@@ -31,6 +28,19 @@ public sealed class TextMateGrammarRegistry
     public IReadOnlyList<string> LoadDiagnostics => _loadDiagnostics;
 
     private readonly List<string> _loadDiagnostics = [];
+
+    internal static RegistryOptions CreateOptions(
+        AppSettings.EditorSettings settings,
+        ThemeName themeName,
+        ICollection<string>? diagnostics = null)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var options = new RegistryOptions(themeName);
+        LoadCustomDirectory(options, settings.SyntaxUserGrammarsPath, diagnostics);
+        LoadCustomDirectory(options, settings.SyntaxUserThemesPath, diagnostics);
+        return options;
+    }
 
     public bool TryLoadGrammar(
         EditorSyntaxLanguage language,
@@ -64,18 +74,21 @@ public sealed class TextMateGrammarRegistry
         }
     }
 
-    private void LoadCustomDirectory(string? path)
+    private static void LoadCustomDirectory(
+        RegistryOptions options,
+        string? path,
+        ICollection<string>? diagnostics)
     {
         if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
             return;
 
         try
         {
-            Options.LoadFromLocalDir(path, true);
+            options.LoadFromLocalDir(path, true);
         }
         catch (Exception ex)
         {
-            _loadDiagnostics.Add($"{path}: {ex.Message}");
+            diagnostics?.Add($"{path}: {ex.Message}");
         }
     }
 }

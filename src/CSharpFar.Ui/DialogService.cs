@@ -44,6 +44,8 @@ public sealed class DialogService
             MaxVisibleRows = options.Presentation?.MaxVisibleRows ?? options.MaxVisibleRows,
             MaxWidth = options.Presentation?.MaxWidth ?? options.MaxWidth,
             DoubleBorder = options.DoubleBorder,
+            EnableFilter = options.EnableFilter,
+            SearchText = options.SearchText,
             SelectionChanged = options.SelectionChanged,
         };
         if (options.Items.Count > 0)

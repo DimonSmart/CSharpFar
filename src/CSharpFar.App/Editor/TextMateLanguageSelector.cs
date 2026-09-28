@@ -8,6 +8,8 @@ public sealed class TextMateLanguageSelector
     private readonly Dictionary<string, Language> _languageByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Language> _languageByScope = new(StringComparer.Ordinal);
     private readonly List<(string Extension, Language Language)> _extensionLanguages = [];
+    private readonly List<EditorSyntaxLanguage> _availableLanguages = [];
+    private readonly Dictionary<string, IReadOnlyList<string>> _aliasesByScope = new(StringComparer.Ordinal);
 
     public TextMateLanguageSelector(RegistryOptions options)
     {
@@ -27,9 +29,38 @@ public sealed class TextMateLanguageSelector
                 if (!string.IsNullOrWhiteSpace(extension))
                     _extensionLanguages.Add((extension, language));
             }
+
+            var editorLanguage = ToEditorLanguage(language);
+            if (editorLanguage is not null &&
+                !_availableLanguages.Any(candidate =>
+                    string.Equals(candidate.ScopeName, editorLanguage.ScopeName, StringComparison.Ordinal)))
+            {
+                _availableLanguages.Add(editorLanguage);
+                _aliasesByScope[editorLanguage.ScopeName] = (language.Aliases ?? [])
+                    .Where(alias => !string.IsNullOrWhiteSpace(alias))
+                    .ToArray();
+            }
         }
 
         _extensionLanguages.Sort((left, right) => right.Extension.Length.CompareTo(left.Extension.Length));
+    }
+
+    internal IReadOnlyList<EditorSyntaxLanguage> AvailableLanguages => _availableLanguages;
+
+    internal IReadOnlyList<string> GetAliases(EditorSyntaxLanguage language) =>
+        _aliasesByScope.TryGetValue(language.ScopeName, out var aliases)
+            ? aliases
+            : [];
+
+    internal EditorSyntaxLanguage? ResolveLanguage(string requestedLanguage)
+    {
+        if (string.IsNullOrWhiteSpace(requestedLanguage))
+            return null;
+
+        string language = requestedLanguage.Trim();
+        return string.Equals(language, "auto", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : SelectExplicitLanguage(language);
     }
 
     public EditorSyntaxLanguage? SelectLanguage(string filePath, string requestedLanguage)

@@ -1474,6 +1474,8 @@ CSharpFar.Ui.SearchOptionsDialogState.SetOption(string! id, bool value) -> void
 CSharpFar.Ui.SelectionDialogOptions<T>
 CSharpFar.Ui.SelectionDialogOptions<T>.DoubleBorder.get -> bool
 CSharpFar.Ui.SelectionDialogOptions<T>.DoubleBorder.init -> void
+CSharpFar.Ui.SelectionDialogOptions<T>.EnableFilter.get -> bool
+CSharpFar.Ui.SelectionDialogOptions<T>.EnableFilter.init -> void
 CSharpFar.Ui.SelectionDialogOptions<T>.Items.get -> System.Collections.Generic.IReadOnlyList<T>!
 CSharpFar.Ui.SelectionDialogOptions<T>.Items.init -> void
 CSharpFar.Ui.SelectionDialogOptions<T>.ItemText.get -> System.Func<T, string!>!
@@ -1486,6 +1488,8 @@ CSharpFar.Ui.SelectionDialogOptions<T>.Presentation.get -> CSharpFar.Ui.Selectio
 CSharpFar.Ui.SelectionDialogOptions<T>.Presentation.init -> void
 CSharpFar.Ui.SelectionDialogOptions<T>.SelectedIndex.get -> int
 CSharpFar.Ui.SelectionDialogOptions<T>.SelectedIndex.init -> void
+CSharpFar.Ui.SelectionDialogOptions<T>.SearchText.get -> System.Func<T, string!>?
+CSharpFar.Ui.SelectionDialogOptions<T>.SearchText.init -> void
 CSharpFar.Ui.SelectionDialogOptions<T>.SelectionChanged.get -> System.Action<T, int>?
 CSharpFar.Ui.SelectionDialogOptions<T>.SelectionChanged.init -> void
 CSharpFar.Ui.SelectionDialogOptions<T>.SelectionDialogOptions() -> void

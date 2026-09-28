@@ -126,6 +126,94 @@ public sealed class DialogServiceTests
     }
 
     [Fact]
+    public void Select_FilterReturnsOriginalIndexAndSelectionChangedUsesOriginalIndex()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(TextKey('g'));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        var selectedIndexes = new List<int>();
+
+        var result = Create(driver).Select(new SelectionDialogOptions<string>
+        {
+            Title = "Pick",
+            Items = ["Alpha", "Beta", "Gamma"],
+            ItemText = static item => item,
+            EnableFilter = true,
+            SelectionChanged = (_, index) => selectedIndexes.Add(index),
+        });
+
+        Assert.True(result.IsConfirmed);
+        Assert.Equal("Gamma", result.SelectedItem);
+        Assert.Equal(2, result.SelectedIndex);
+        Assert.Equal(2, selectedIndexes[^1]);
+    }
+
+    [Fact]
+    public void Select_FilterUsesSearchTextInsteadOfDisplayText()
+    {
+        var driver = new FakeConsoleDriver();
+        foreach (char ch in "sharp")
+            driver.EnqueueKey(TextKey(ch));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        var result = Create(driver).Select(new SelectionDialogOptions<string>
+        {
+            Title = "Pick",
+            Items = ["C#", "JavaScript"],
+            ItemText = static item => item,
+            EnableFilter = true,
+            SearchText = static item => item == "C#" ? "csharp source.cs" : "javascript source.js",
+        });
+
+        Assert.True(result.IsConfirmed);
+        Assert.Equal("C#", result.SelectedItem);
+        Assert.Equal(0, result.SelectedIndex);
+    }
+
+    [Fact]
+    public void Select_FilterSelectsFirstMatchWhenCurrentSelectionDisappears()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(TextKey('o'));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        var result = Create(driver).Select(new SelectionDialogOptions<string>
+        {
+            Title = "Pick",
+            Items = ["one", "two", "three"],
+            ItemText = static item => item,
+            SelectedIndex = 2,
+            EnableFilter = true,
+        });
+
+        Assert.True(result.IsConfirmed);
+        Assert.Equal("one", result.SelectedItem);
+        Assert.Equal(0, result.SelectedIndex);
+    }
+
+    [Fact]
+    public void Select_FilterZeroMatchesEnterKeepsDialogOpenAndBackspaceRestoresItems()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(TextKey('z'));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.Backspace));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        var result = Create(driver).Select(new SelectionDialogOptions<string>
+        {
+            Title = "Pick",
+            Items = ["one"],
+            ItemText = static item => item,
+            EnableFilter = true,
+        });
+
+        Assert.True(result.IsConfirmed);
+        Assert.Equal("one", result.SelectedItem);
+        Assert.Equal(0, result.SelectedIndex);
+    }
+
+    [Fact]
     public void Form_DelegatesToTheOrdinaryFormFacade()
     {
         var driver = new FakeConsoleDriver();
@@ -149,4 +237,13 @@ public sealed class DialogServiceTests
         new FormFieldFactory(TextFieldHistoryTestProvider.Create()));
 
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
+
+    private static ConsoleKeyInfo TextKey(char value) =>
+        new(
+            value,
+            (ConsoleKey)((int)ConsoleKey.A + char.ToUpperInvariant(value) - 'A'),
+            shift: false,
+            alt: false,
+            control: false);
 }
+

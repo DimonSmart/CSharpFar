@@ -27,6 +27,7 @@ internal sealed partial class FileEditor
     private readonly ITextClipboard _clipboard;
     private readonly EditorFileNameInsertionContext? _fileNameInsertionContext;
     private readonly IEditorSyntaxHighlighter _syntaxHighlighter;
+    private readonly EditorSyntaxDialog _syntaxDialog;
     private readonly FilePanelSourceRegistry? _sourceRegistry;
     private readonly FormFieldFactory _fields;
     private readonly FileEditorPerformanceOptions? _performanceOptions;
@@ -60,6 +61,7 @@ internal sealed partial class FileEditor
         _clipboard = clipboard ?? TextCopyTextClipboard.Instance;
         _fileNameInsertionContext = fileNameInsertionContext;
         _syntaxHighlighter = syntaxHighlighter ?? new TextMateEditorSyntaxHighlighter();
+        _syntaxDialog = new EditorSyntaxDialog(_dialogs, new TextMateEditorSyntaxCatalog(_settings));
         _sourceRegistry = sourceRegistry;
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
         _performanceOptions = performanceOptions;
@@ -707,26 +709,14 @@ internal sealed partial class FileEditor
 
     private void ShowSyntaxLanguageDialog(EditorSession session)
     {
-        string? language = _dialogs.Input(new SingleLineInputDialogOptions
-        {
-            Title = "Syntax",
-            Prompt = "Language",
-            AllowEmpty = false,
-            InitialText = session.SyntaxLanguage,
-        });
+        string? language = _syntaxDialog.ShowLanguage(session.SyntaxLanguage);
         if (language is not null)
             session.SetSyntaxLanguage(language);
     }
 
     private void ShowSyntaxThemeDialog(EditorSession session)
     {
-        string? theme = _dialogs.Input(new SingleLineInputDialogOptions
-        {
-            Title = "Syntax",
-            Prompt = "Theme",
-            AllowEmpty = false,
-            InitialText = session.SyntaxTheme,
-        });
+        string? theme = _syntaxDialog.ShowTheme(session.SyntaxTheme);
         if (theme is not null)
             session.SetSyntaxTheme(theme);
     }

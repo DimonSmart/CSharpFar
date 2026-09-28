@@ -29,5 +29,11 @@ public sealed class SelectionDialogOptions<T>
 
     public bool DoubleBorder { get; init; }
 
+    /// <summary>Enables the reusable inline filter for the selection list.</summary>
+    public bool EnableFilter { get; init; }
+
+    /// <summary>Text used for filtering. When omitted, <see cref="ItemText"/> is used.</summary>
+    public Func<T, string>? SearchText { get; init; }
+
     public Action<T, int>? SelectionChanged { get; init; }
 }
