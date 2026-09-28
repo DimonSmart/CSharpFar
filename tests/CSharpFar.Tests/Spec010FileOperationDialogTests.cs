@@ -887,7 +887,6 @@ public sealed class Spec010FileOperationDialogTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(new ConsoleKeyInfo('R', ConsoleKey.R, shift: true, alt: false, control: false));
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
         driver.EnqueueKey(Ctrl(ConsoleKey.A));
         EnqueueText(driver, "   ");
         driver.EnqueueKey(Key(ConsoleKey.Enter));
@@ -903,8 +902,26 @@ public sealed class Spec010FileOperationDialogTests
 
         Assert.Equal(ConflictDecisionMode.Rename, decision.Mode);
         Assert.Equal(@"C:\dst\b.txt", decision.NewDestinationPath);
-        Assert.Contains(driver.WriteRecords, record => record.Text.Contains("New destination must be different", StringComparison.Ordinal));
         Assert.Contains(driver.WriteRecords, record => record.Text.Contains("Destination must not be empty.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ConflictDialog_UnchangedRenameDestinationIsRejected()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(new ConsoleKeyInfo('R', ConsoleKey.R, shift: true, alt: false, control: false));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        driver.EnqueueKey(new ConsoleKeyInfo('O', ConsoleKey.O, shift: true, alt: false, control: false));
+
+        var decision = CreateConflictDialog(screen).Show(new FileOperationConflict
+        {
+            SourcePath = @"C:\src\a.txt",
+            DestinationPath = @"C:\dst\a.txt",
+        });
+
+        Assert.Equal(ConflictDecisionMode.Overwrite, decision.Mode);
     }
 
     [Fact]
