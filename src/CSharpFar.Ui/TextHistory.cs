@@ -17,9 +17,13 @@ public sealed class TextHistory
     public IReadOnlyList<string> Items => _items;
     public bool HasItems => _items.Count > 0;
 
-    public void Add(string text)
+    public void Add(string text) => AddCore(text, allowWhitespaceOnly: false);
+
+    public void AddPreservingWhitespace(string text) => AddCore(text, allowWhitespaceOnly: true);
+
+    private void AddCore(string text, bool allowWhitespaceOnly)
     {
-        if (string.IsNullOrWhiteSpace(text))
+        if (string.IsNullOrEmpty(text) || !allowWhitespaceOnly && string.IsNullOrWhiteSpace(text))
             return;
 
         if (_items.Count > 0 && string.Equals(_items[0], text, StringComparison.Ordinal))
@@ -41,7 +45,7 @@ public sealed class TextHistory
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (string item in items)
         {
-            if (!string.IsNullOrWhiteSpace(item) && seen.Add(item))
+            if (!string.IsNullOrEmpty(item) && seen.Add(item))
                 result.Add(item);
             if (result.Count == MaxItemsPerField)
                 break;
