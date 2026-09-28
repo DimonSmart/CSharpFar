@@ -30,20 +30,20 @@ public sealed class FormFieldFactory
 
     internal TextField Text(string id, string initialText = "", TextHistoryId? historyId = null,
         bool maskInput = false, int? width = null, bool? submitOnEnter = null)
-        => CreateText(id, initialText, historyId, maskInput, width, submitOnEnter);
+        => CreateText(id, initialText, historyId, maskInput, width, submitOnEnter, TextHistoryValueMode.Trimmed);
 
     /// <summary>Creates an ordinary text field without an application-owned row ID.</summary>
-    public TextField Text() => CreateText(null, string.Empty, null, false, null, null);
+    public TextField Text() => CreateText(null, string.Empty, null, false, null, null, TextHistoryValueMode.Trimmed);
 
     /// <summary>Creates an ordinary text field without an application-owned row ID.</summary>
     public TextField Text(TextFieldOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        return CreateText(null, options.InitialText, options.HistoryId, options.MaskInput, options.Width, options.SubmitOnEnter);
+        return CreateText(null, options.InitialText, options.HistoryId, options.MaskInput, options.Width, options.SubmitOnEnter, options.HistoryValueMode);
     }
 
     private TextField CreateText(string? id, string initialText, TextHistoryId? historyId,
-        bool maskInput, int? width, bool? submitOnEnter)
+        bool maskInput, int? width, bool? submitOnEnter, TextHistoryValueMode historyValueMode)
     {
         var field = new TextField(
             id,
@@ -51,7 +51,8 @@ public sealed class FormFieldFactory
             maskInput ? null : historyId is { } key ? _history.Get(key) : null,
             width ?? _defaults.Width,
             maskInput,
-            submitOnEnter ?? _defaults.SubmitOnEnter);
+            submitOnEnter ?? _defaults.SubmitOnEnter,
+            historyValueMode);
         return field;
     }
 }
@@ -59,23 +60,32 @@ public sealed class FormFieldFactory
 /// <summary>Form-scoped defaults for standard text fields.</summary>
 public sealed record TextFieldDefaults(int? Width = null, bool SubmitOnEnter = false);
 
+public enum TextHistoryValueMode
+{
+    Trimmed,
+    PreserveWhitespace,
+}
+
 /// <summary>Semantic options for an ID-less standard text field.</summary>
 public sealed record TextFieldOptions(
     string InitialText = "",
     TextHistoryId? HistoryId = null,
     bool MaskInput = false,
     int? Width = null,
-    bool? SubmitOnEnter = null);
+    bool? SubmitOnEnter = null,
+    TextHistoryValueMode HistoryValueMode = TextHistoryValueMode.Trimmed);
 
 public sealed class TextField : IFormFocusTarget
 {
     private readonly CommandLineState _buffer = new();
     private readonly TextHistory? _history;
+    private readonly TextHistoryValueMode _historyValueMode;
 
-    internal TextField(string? id, string initialText, TextHistory? history, int? width, bool maskInput, bool submitOnEnter)
+    internal TextField(string? id, string initialText, TextHistory? history, int? width, bool maskInput, bool submitOnEnter, TextHistoryValueMode historyValueMode)
     {
         Id = id;
         _history = history;
+        _historyValueMode = historyValueMode;
         IsMasked = maskInput;
         Width = width;
         PreferredWidth = Math.Max(20, ConsoleTextMetrics.GetCellWidth(initialText));
@@ -108,5 +118,14 @@ public sealed class TextField : IFormFocusTarget
     internal CommandLineState Buffer => _buffer;
     internal TextHistory? History => _history;
     internal FormTextInputField Input { get; }
-    public void AcceptHistory() => _history?.Add(TrimmedText);
+    public void AcceptHistory()
+    {
+        if (_history is null)
+            return;
+
+        if (_historyValueMode == TextHistoryValueMode.PreserveWhitespace)
+            _history.AddPreservingWhitespace(Text);
+        else
+            _history.Add(TrimmedText);
+    }
 }
