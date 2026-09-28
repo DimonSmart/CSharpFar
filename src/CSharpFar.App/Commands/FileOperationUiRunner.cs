@@ -13,17 +13,19 @@ internal sealed class FileOperationUiRunner
     private readonly DialogService _dialogs;
     private readonly IFileOperationService _fileOperations;
     private readonly Func<bool> _showTotalProgress;
+    private readonly FormFieldFactory _fields;
 
     public FileOperationUiRunner(ModalDialogHost _, DialogService dialogs, Func<CSharpFarPalette> palette, IFileOperationService fileOperations, Func<bool> showTotalProgress, FormFieldFactory fields)
     {
         _dialogs = dialogs;
         _fileOperations = fileOperations;
         _showTotalProgress = showTotalProgress;
+        _fields = fields;
     }
 
     public FileOperationResult Execute(FileOperationRequest request)
     {
-        var resolver = new DialogConflictResolver(new ConflictDialog(_dialogs, fields));
+        var resolver = new DialogConflictResolver(new ConflictDialog(_dialogs, _fields));
         var pauseController = new FileOperationPauseController();
         request = request with { PauseController = pauseController };
         var syncRoot = new object();
