@@ -169,7 +169,7 @@ internal sealed class ConflictDialog
             ];
 
     private static string BuildInfo(long? size, DateTime? lastWriteTime) =>
-        `${FormatSize(size)} ${FormatDate(lastWriteTime)}`.TrimEnd();
+        $"{FormatSize(size)} {FormatDate(lastWriteTime)}".TrimEnd();
 
     private static string FormatSize(long? size) => size is null ? "n/a" : size.Value.ToString("N0", CultureInfo.InvariantCulture).Replace(',', ' ');
     private static string FormatDate(DateTime? time) => time is null ? string.Empty : time.Value.ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture);
