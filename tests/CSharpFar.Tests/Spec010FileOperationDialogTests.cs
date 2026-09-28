@@ -886,12 +886,20 @@ public sealed class Spec010FileOperationDialogTests
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
+        bool correctionQueued = false;
+        driver.Wrote += record =>
+        {
+            if (correctionQueued || !record.Text.Contains("Destination must not be empty.", StringComparison.Ordinal))
+                return;
+
+            correctionQueued = true;
+            driver.EnqueueKey(Ctrl(ConsoleKey.A));
+            EnqueueText(driver, @"C:\dst\b.txt");
+            driver.EnqueueKey(Key(ConsoleKey.Enter));
+        };
         driver.EnqueueKey(new ConsoleKeyInfo('R', ConsoleKey.R, shift: true, alt: false, control: false));
         driver.EnqueueKey(Ctrl(ConsoleKey.A));
         EnqueueText(driver, "   ");
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Ctrl(ConsoleKey.A));
-        EnqueueText(driver, @"C:\dst\b.txt");
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
         var decision = CreateConflictDialog(screen).Show(new FileOperationConflict
@@ -900,6 +908,7 @@ public sealed class Spec010FileOperationDialogTests
             DestinationPath = @"C:\dst\a.txt",
         });
 
+        Assert.True(correctionQueued);
         Assert.Equal(ConflictDecisionMode.Rename, decision.Mode);
         Assert.Equal(@"C:\dst\b.txt", decision.NewDestinationPath);
         Assert.Contains(driver.WriteRecords, record => record.Text.Contains("Destination must not be empty.", StringComparison.Ordinal));
@@ -910,10 +919,18 @@ public sealed class Spec010FileOperationDialogTests
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
+        bool errorRendered = false;
+        driver.Wrote += record =>
+        {
+            if (errorRendered || !record.Text.Contains("New destination must be different from the existing destination.", StringComparison.Ordinal))
+                return;
+
+            errorRendered = true;
+            driver.EnqueueKey(Key(ConsoleKey.Escape));
+            driver.EnqueueKey(new ConsoleKeyInfo('O', ConsoleKey.O, shift: true, alt: false, control: false));
+        };
         driver.EnqueueKey(new ConsoleKeyInfo('R', ConsoleKey.R, shift: true, alt: false, control: false));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.Escape));
-        driver.EnqueueKey(new ConsoleKeyInfo('O', ConsoleKey.O, shift: true, alt: false, control: false));
 
         var decision = CreateConflictDialog(screen).Show(new FileOperationConflict
         {
@@ -921,6 +938,7 @@ public sealed class Spec010FileOperationDialogTests
             DestinationPath = @"C:\dst\a.txt",
         });
 
+        Assert.True(errorRendered);
         Assert.Equal(ConflictDecisionMode.Overwrite, decision.Mode);
     }
 
