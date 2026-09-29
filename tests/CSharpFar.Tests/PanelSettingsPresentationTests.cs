@@ -37,6 +37,9 @@ public sealed class PanelSettingsPresentationTests
         string? firstFrame = null;
         void PrepareNextInput(FakeConsoleDriver current)
         {
+            current.BeforeReadInput = PrepareNextInput;
+            current.BeforeTryReadInput = PrepareNextInput;
+
             if (current.PendingInputCount > 0)
                 return;
 
