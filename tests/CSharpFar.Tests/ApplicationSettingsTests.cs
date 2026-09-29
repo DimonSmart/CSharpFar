@@ -77,6 +77,54 @@ public sealed class ApplicationSettingsTests : IDisposable
     }
 
     [Fact]
+    public void Run_SettingsSave_NormalizesAndPersistsSyntaxTheme()
+    {
+        var driver = new FakeConsoleDriver();
+        var settings = new AppSettings();
+        settings.Editor.SyntaxTheme = "DarkPlus";
+        int saveCount = 0;
+
+        driver.EnqueueKey(new ConsoleKeyInfo('\u0013', ConsoleKey.NoName, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        var app = CreateApp(
+            "Name",
+            driver,
+            settings,
+            saveSettings: () => saveCount++);
+
+        app.Run();
+
+        Assert.Equal("Dark+", settings.Editor.SyntaxTheme);
+        Assert.Equal(1, saveCount);
+    }
+
+    [Fact]
+    public void Run_SettingsCancel_DoesNotNormalizeOrPersistSyntaxTheme()
+    {
+        var driver = new FakeConsoleDriver();
+        var settings = new AppSettings();
+        settings.Editor.SyntaxTheme = "DarkPlus";
+        int saveCount = 0;
+
+        driver.EnqueueKey(new ConsoleKeyInfo('\u0013', ConsoleKey.NoName, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        var app = CreateApp(
+            "Name",
+            driver,
+            settings,
+            saveSettings: () => saveCount++);
+
+        app.Run();
+
+        Assert.Equal("DarkPlus", settings.Editor.SyntaxTheme);
+        Assert.Equal(0, saveCount);
+    }
+
+    [Fact]
     public void Run_F9_OpensTopMenuInsteadOfSettingsDialog()
     {
         var driver = new FakeConsoleDriver();
@@ -259,12 +307,19 @@ public sealed class ApplicationSettingsTests : IDisposable
         string sortMode,
         FakeConsoleDriver driver,
         Action? saveSettings = null,
+        params FilePanelItem[] items) =>
+        CreateApp(sortMode, driver, new AppSettings(), saveSettings, items);
+
+    private Application CreateApp(
+        string sortMode,
+        FakeConsoleDriver driver,
+        AppSettings settings,
+        Action? saveSettings = null,
         params FilePanelItem[] items)
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir, items);
 
-        var settings = new AppSettings();
         settings.Panels.LeftStartDirectory = _tempDir;
         settings.Panels.RightStartDirectory = _tempDir;
         settings.Panels.DefaultSortMode = sortMode;

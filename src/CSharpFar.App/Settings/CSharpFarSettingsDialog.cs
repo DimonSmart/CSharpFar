@@ -1,3 +1,4 @@
+using CSharpFar.App.Editor;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
@@ -21,7 +22,8 @@ internal sealed record CSharpFarPanelSettings(
 internal sealed record CSharpFarSettingsDialogResult(
     CSharpFarPanelSettings Panels,
     string PaletteName,
-    bool EditorSyntaxHighlightingEnabled);
+    bool EditorSyntaxHighlightingEnabled,
+    string EditorSyntaxTheme);
 
 internal sealed class CSharpFarSettingsDialog
 {
@@ -36,9 +38,24 @@ internal sealed class CSharpFarSettingsDialog
     public CSharpFarSettingsDialogResult? Show(
         CSharpFarPanelSettings panels,
         string paletteName,
-        bool editorSyntaxHighlightingEnabled)
+        bool editorSyntaxHighlightingEnabled,
+        string editorSyntaxTheme,
+        IEditorSyntaxCatalog syntaxCatalog)
     {
         ArgumentNullException.ThrowIfNull(panels);
+        ArgumentNullException.ThrowIfNull(syntaxCatalog);
+
+        var syntaxThemes = syntaxCatalog.Themes
+            .OrderBy(theme => theme.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(theme => theme.Name, StringComparer.Ordinal)
+            .ToArray();
+        if (syntaxThemes.Length == 0)
+            throw new InvalidOperationException("Syntax theme catalog must contain at least one theme.");
+
+        var resolvedSyntaxTheme = syntaxCatalog.ResolveTheme(editorSyntaxTheme);
+        var selectedSyntaxTheme = syntaxThemes.FirstOrDefault(theme =>
+            string.Equals(theme.Name, resolvedSyntaxTheme.Name, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException("Resolved syntax theme is not present in the syntax catalog.");
 
         var leftViewMode = FormControls.CompactChoice(
             "panels.left-view-mode",
@@ -107,6 +124,12 @@ internal sealed class CSharpFarSettingsDialog
             "editor.syntax-highlighting",
             "Syntax highlighting",
             editorSyntaxHighlightingEnabled);
+        var syntaxTheme = FormControls.Dropdown(
+            "editor.syntax-theme",
+            "Syntax theme",
+            syntaxThemes,
+            static theme => theme.Name,
+            selectedSyntaxTheme);
 
         SettingsPage[] pages =
         [
@@ -140,7 +163,7 @@ internal sealed class CSharpFarSettingsDialog
             new SettingsPage(
                 "editor",
                 "Editor",
-                [syntaxHighlighting]),
+                [syntaxHighlighting, syntaxTheme]),
         ];
 
         SettingsDialogResult lifecycle = _dialogs.Settings(
@@ -169,7 +192,8 @@ internal sealed class CSharpFarSettingsDialog
                 showSortModeLetter.Value,
                 showParentDirectoryInRootFolders.Value),
             palette.Value,
-            syntaxHighlighting.Value);
+            syntaxHighlighting.Value,
+            syntaxTheme.Value.Name);
     }
 
     private static string ViewModeLabel(PanelViewMode mode) =>

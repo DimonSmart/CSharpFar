@@ -1,3 +1,4 @@
+using CSharpFar.App.Editor;
 using CSharpFar.App.Settings;
 using CSharpFar.Console.Input;
 using CSharpFar.Core.Models;
@@ -31,12 +32,15 @@ public sealed class SettingsDialogTests
             new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
                 panels,
                 "FarClassic",
-                editorSyntaxHighlightingEnabled: true);
+                editorSyntaxHighlightingEnabled: true,
+                editorSyntaxTheme: "DarkPlus",
+                syntaxCatalog: SyntaxCatalog());
 
         Assert.NotNull(result);
         Assert.Equal(panels, result.Panels);
         Assert.Equal("FarClassic", result.PaletteName);
         Assert.True(result.EditorSyntaxHighlightingEnabled);
+        Assert.Equal("Dark+", result.EditorSyntaxTheme);
     }
 
     [Fact]
@@ -53,10 +57,60 @@ public sealed class SettingsDialogTests
             new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
                 DefaultPanels(),
                 "Default",
-                editorSyntaxHighlightingEnabled: true);
+                editorSyntaxHighlightingEnabled: true,
+                editorSyntaxTheme: "DarkPlus",
+                syntaxCatalog: SyntaxCatalog());
 
         Assert.Null(result);
         Assert.Same(PaletteRegistry.Default, UiTheme.Current);
+    }
+
+    [Theory]
+    [InlineData("Dark+", "Dark+")]
+    [InlineData("DarkPlus", "Dark+")]
+    [InlineData("dark plus", "Dark+")]
+    [InlineData("MissingLegacyTheme", "Dark+")]
+    [InlineData("Monokai", "Monokai")]
+    public void Show_F10ResolvesInitialThemeToCanonicalCatalogItem(string configuredTheme, string expectedTheme)
+    {
+        var driver = Driver(Key(ConsoleKey.F10));
+
+        var result = new CSharpFarSettingsDialog(
+            new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
+                DefaultPanels(),
+                "Default",
+                editorSyntaxHighlightingEnabled: true,
+                editorSyntaxTheme: configuredTheme,
+                syntaxCatalog: SyntaxCatalog());
+
+        Assert.NotNull(result);
+        Assert.Equal(expectedTheme, result.EditorSyntaxTheme);
+    }
+
+    [Fact]
+    public void Show_ThemeDropdownRemainsEditableWhenSyntaxHighlightingIsDisabled()
+    {
+        var driver = Driver(
+            Key(ConsoleKey.DownArrow),
+            Key(ConsoleKey.DownArrow),
+            Key(ConsoleKey.RightArrow),
+            Key(ConsoleKey.Tab),
+            Key(ConsoleKey.F4),
+            Key(ConsoleKey.DownArrow),
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.F10));
+
+        var result = new CSharpFarSettingsDialog(
+            new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
+                DefaultPanels(),
+                "Default",
+                editorSyntaxHighlightingEnabled: false,
+                editorSyntaxTheme: "DarkPlus",
+                syntaxCatalog: SyntaxCatalog());
+
+        Assert.NotNull(result);
+        Assert.False(result.EditorSyntaxHighlightingEnabled);
+        Assert.Equal("Monokai", result.EditorSyntaxTheme);
     }
 
     private static CSharpFarPanelSettings DefaultPanels() =>
@@ -74,6 +128,49 @@ public sealed class SettingsDialogTests
             ShowFreeSize: false,
             ShowSortModeLetter: true,
             ShowParentDirectoryInRootFolders: false);
+
+    private static IEditorSyntaxCatalog SyntaxCatalog() =>
+        new FakeEditorSyntaxCatalog(
+            ["Monokai", "Dark+", "Solarized Dark"],
+            "Dark+",
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["DarkPlus"] = "Dark+",
+                ["dark plus"] = "Dark+",
+            });
+
+    private sealed class FakeEditorSyntaxCatalog : IEditorSyntaxCatalog
+    {
+        private readonly string _fallbackTheme;
+        private readonly IReadOnlyDictionary<string, string> _aliases;
+
+        public FakeEditorSyntaxCatalog(
+            IReadOnlyList<string> themes,
+            string fallbackTheme,
+            IReadOnlyDictionary<string, string> aliases)
+        {
+            Themes = themes.Select(name => new EditorSyntaxTheme(name)).ToArray();
+            _fallbackTheme = fallbackTheme;
+            _aliases = aliases;
+        }
+
+        public IReadOnlyList<EditorSyntaxLanguageCatalogEntry> Languages => [];
+
+        public EditorSyntaxLanguage? ResolveLanguage(string requestedLanguage) => null;
+
+        public IReadOnlyList<EditorSyntaxTheme> Themes { get; }
+
+        public EditorSyntaxTheme ResolveTheme(string requestedTheme)
+        {
+            var canonicalTheme = Themes.FirstOrDefault(theme =>
+                string.Equals(theme.Name, requestedTheme, StringComparison.OrdinalIgnoreCase))?.Name;
+
+            if (canonicalTheme is null)
+                _aliases.TryGetValue(requestedTheme, out canonicalTheme);
+
+            return new EditorSyntaxTheme(canonicalTheme ?? _fallbackTheme);
+        }
+    }
 
     private static FakeConsoleDriver Driver(params ConsoleInputEvent[] inputs)
     {

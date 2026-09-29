@@ -1,3 +1,4 @@
+using CSharpFar.App.Editor;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.Settings;
 using CSharpFar.Core.Menu;
@@ -29,10 +30,13 @@ internal sealed class OpenSettingsCommand : IApplicationCommand
             options.ShowSortModeLetter,
             options.ShowParentDirectoryInRootFolders);
 
+        var syntaxCatalog = new TextMateEditorSyntaxCatalog(context.Settings.Editor);
         var result = new CSharpFarSettingsDialog(context.Dialogs).Show(
             panelSettings,
             context.Settings.Ui.Palette,
-            context.Settings.Editor.SyntaxHighlightingEnabled);
+            context.Settings.Editor.SyntaxHighlightingEnabled,
+            context.Settings.Editor.SyntaxTheme,
+            syntaxCatalog);
 
         if (result is null)
             return ApplicationCommandResult.Rendered();
@@ -55,6 +59,7 @@ internal sealed class OpenSettingsCommand : IApplicationCommand
         options.ShowParentDirectoryInRootFolders = panels.ShowParentDirectoryInRootFolders;
         context.Settings.Ui.Palette = result.PaletteName;
         context.Settings.Editor.SyntaxHighlightingEnabled = result.EditorSyntaxHighlightingEnabled;
+        context.Settings.Editor.SyntaxTheme = result.EditorSyntaxTheme;
 
         context.CommandPalette = CSharpFarPaletteRegistry.Resolve(result.PaletteName);
         context.HighlightService = context.CreateHighlightService();

@@ -16,6 +16,19 @@ public sealed class EditorSessionTests
     }
 
     [Fact]
+    public void Constructor_SnapshotsSyntaxThemeFromSettings()
+    {
+        var settings = new AppSettings.EditorSettings { SyntaxTheme = "Dark+" };
+
+        var session1 = CreateSession("one", settings);
+        settings.SyntaxTheme = "Monokai";
+        var session2 = CreateSession("two", settings);
+
+        Assert.Equal("Dark+", session1.SyntaxTheme);
+        Assert.Equal("Monokai", session2.SyntaxTheme);
+    }
+
+    [Fact]
     public void Session_InsertDeleteAndUndoRedo_UpdateDirtyState()
     {
         var session = CreateSession("AB");
