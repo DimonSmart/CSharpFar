@@ -15,31 +15,27 @@ internal sealed class MacOsHomebrewUpdateInstaller : IApplicationUpdateInstaller
 
     private readonly IProcessExecutor _processExecutor;
     private readonly IDiagnosticLog _diagnostics;
-    private readonly Func<bool> _isMacOs;
-    private readonly Func<string?> _homebrewLocator;
-    private readonly Func<string?> _processPath;
+    private readonly IApplicationUpdateEnvironment _environment;
 
     public MacOsHomebrewUpdateInstaller(
         IProcessExecutor processExecutor,
         IDiagnosticLog? diagnostics = null,
-        Func<bool>? isMacOs = null,
-        Func<string?>? homebrewLocator = null,
-        Func<string?>? processPath = null)
+        IApplicationUpdateEnvironment? environment = null)
     {
         _processExecutor = processExecutor ?? throw new ArgumentNullException(nameof(processExecutor));
         _diagnostics = diagnostics ?? DisabledDiagnosticLog.Instance;
-        _isMacOs = isMacOs ?? OperatingSystem.IsMacOS;
-        _homebrewLocator = homebrewLocator ?? FindHomebrewExecutable;
-        _processPath = processPath ?? (() => Environment.ProcessPath);
+        _environment = environment ?? DefaultApplicationUpdateEnvironment.Instance;
     }
 
     public async Task<ApplicationUpdateAvailability> GetAvailabilityAsync(
         CancellationToken cancellationToken)
     {
-        if (!_isMacOs())
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!_environment.IsMacOS)
             return Availability(ApplicationUpdateAvailabilityStatus.UnsupportedPlatform);
 
-        string? brew = _homebrewLocator();
+        string? brew = FindHomebrewExecutable();
         if (string.IsNullOrWhiteSpace(brew))
             return Availability(ApplicationUpdateAvailabilityStatus.HomebrewUnavailable);
 
@@ -74,7 +70,7 @@ internal sealed class MacOsHomebrewUpdateInstaller : IApplicationUpdateInstaller
 
         Log("Detected installation method: Homebrew Cask");
 
-        string currentProcess = NormalizePath(_processPath());
+        string currentProcess = NormalizePath(_environment.ProcessPath);
         string standardProcess = NormalizePath(ApplicationExecutablePath);
         if (string.Equals(currentProcess, standardProcess, StringComparison.Ordinal))
         {
@@ -101,6 +97,7 @@ internal sealed class MacOsHomebrewUpdateInstaller : IApplicationUpdateInstaller
         CancellationToken cancellationToken)
     {
         Log($"Update install requested. Expected version={expectedVersion}");
+        bool nonCancellablePhase = false;
 
         try
         {
@@ -121,7 +118,7 @@ internal sealed class MacOsHomebrewUpdateInstaller : IApplicationUpdateInstaller
             ProcessExecutionResult update = await _processExecutor.ExecuteAsync(
                 brew,
                 ["update"],
-                CancellationToken.None);
+                cancellationToken);
             LogProcessResult("brew update completed", update);
             if (update.ExitCode != 0)
                 return HomebrewFailure("brew update", update);
@@ -131,7 +128,7 @@ internal sealed class MacOsHomebrewUpdateInstaller : IApplicationUpdateInstaller
             ProcessExecutionResult info = await _processExecutor.ExecuteAsync(
                 brew,
                 ["info", "--cask", "--json=v2", CaskName],
-                CancellationToken.None);
+                cancellationToken);
             LogProcessResult("brew info completed", info);
             if (info.ExitCode != 0)
                 return HomebrewFailure("brew info", info);
@@ -153,6 +150,7 @@ internal sealed class MacOsHomebrewUpdateInstaller : IApplicationUpdateInstaller
             }
 
             cancellationToken.ThrowIfCancellationRequested();
+            nonCancellablePhase = true;
             Report(progress, $"Installing CSharpFar {expectedVersion}...", canCancel: false);
             Log("brew upgrade started");
             ProcessExecutionResult upgrade = await _processExecutor.ExecuteAsync(
@@ -205,7 +203,7 @@ internal sealed class MacOsHomebrewUpdateInstaller : IApplicationUpdateInstaller
                 return new ApplicationUpdateInstallResult(
                     ApplicationUpdateInstallStatus.QuarantineFailed,
                     "CSharpFar was updated, but macOS quarantine could not be removed. Please remove it manually and start CSharpFar again.",
-                    $"xattr -dr {QuarantineAttribute} {ApplicationPath}");
+                    $"{XattrExecutable} -dr {QuarantineAttribute} {ApplicationPath}");
             }
 
             Log("Quarantine removal result: success");
@@ -227,7 +225,8 @@ internal sealed class MacOsHomebrewUpdateInstaller : IApplicationUpdateInstaller
                 ApplicationUpdateInstallStatus.Success,
                 $"CSharpFar {installedVersion} was updated successfully.");
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (
+            !nonCancellablePhase && cancellationToken.IsCancellationRequested)
         {
             Log("Update cancelled before package modification");
             return new ApplicationUpdateInstallResult(
@@ -316,26 +315,63 @@ internal sealed class MacOsHomebrewUpdateInstaller : IApplicationUpdateInstaller
                text.Contains("already installed and up-to-date", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string? FindHomebrewExecutable()
+    private string? FindHomebrewExecutable()
     {
-        string? path = Environment.GetEnvironmentVariable("PATH");
+        string? path = _environment.PathValue;
         if (!string.IsNullOrWhiteSpace(path))
         {
             foreach (string directory in path.Split(
-                         Path.PathSeparator,
+                         _environment.PathSeparator,
                          StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
                 string candidate = Path.Combine(directory, "brew");
-                if (File.Exists(candidate))
-                    return Path.GetFullPath(candidate);
+                string? absoluteCandidate = TryGetFullPath(candidate);
+                if (absoluteCandidate is not null && IsExecutableCandidate(absoluteCandidate))
+                    return absoluteCandidate;
             }
         }
 
-        if (File.Exists("/opt/homebrew/bin/brew"))
-            return "/opt/homebrew/bin/brew";
-        if (File.Exists("/usr/local/bin/brew"))
-            return "/usr/local/bin/brew";
+        foreach (string candidate in new[]
+                 {
+                     "/opt/homebrew/bin/brew",
+                     "/usr/local/bin/brew",
+                 })
+        {
+            if (IsExecutableCandidate(candidate))
+                return candidate;
+        }
+
         return null;
+    }
+
+    private bool IsExecutableCandidate(string candidate)
+    {
+        try
+        {
+            return _environment.FileExists(candidate) && _environment.IsExecutableFile(candidate);
+        }
+        catch (Exception exception) when (
+            exception is IOException
+                or UnauthorizedAccessException
+                or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    private static string? TryGetFullPath(string path)
+    {
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException
+                or NotSupportedException
+                or PathTooLongException)
+        {
+            return null;
+        }
     }
 
     private static string NormalizePath(string? value) =>

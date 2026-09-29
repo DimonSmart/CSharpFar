@@ -24,6 +24,7 @@ internal sealed class SystemProcessExecutor : IProcessExecutor
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(executable);
         ArgumentNullException.ThrowIfNull(arguments);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var startInfo = new ProcessStartInfo
         {
