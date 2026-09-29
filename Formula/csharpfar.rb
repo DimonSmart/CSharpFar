@@ -1,16 +1,16 @@
 class Csharpfar < Formula
   desc "Cross-platform, Far-inspired file manager built with C# and .NET"
   homepage "https://github.com/DimonSmart/CSharpFar"
-  version "1.0.77"
+  version "1.0.78"
 
   on_arm do
-    url "https://github.com/DimonSmart/CSharpFar/releases/download/v1.0.77/CSharpFar-v1.0.77-osx-arm64.tar.gz"
-    sha256 "7d7ca15aa01cd3012c68ee0f66d52be91340be2e2bf18e6878de25f4f64f303a"
+    url "https://github.com/DimonSmart/CSharpFar/releases/download/v1.0.78/CSharpFar-v1.0.78-osx-arm64.tar.gz"
+    sha256 "c782a831354db957a12355adba82d79f81a63138ca353a0fe2423c9176e6f682"
   end
 
   on_intel do
-    url "https://github.com/DimonSmart/CSharpFar/releases/download/v1.0.77/CSharpFar-v1.0.77-osx-x64.tar.gz"
-    sha256 "605e61ce698ae2fb0522b164fa6b7e064432a77d3eff488f2be80d0e61ebf38d"
+    url "https://github.com/DimonSmart/CSharpFar/releases/download/v1.0.78/CSharpFar-v1.0.78-osx-x64.tar.gz"
+    sha256 "099a1ef49e15729dd312c2c0049402cb3c848b929c910ed45fa13a9a7aa71191"
   end
 
   depends_on :macos
