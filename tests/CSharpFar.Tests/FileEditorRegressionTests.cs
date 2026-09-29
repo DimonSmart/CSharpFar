@@ -96,7 +96,10 @@ public sealed class FileEditorRegressionTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
-        ShowFileEditor(new ScreenRenderer(driver), filePath);
+        ShowFileEditor(
+            new ScreenRenderer(driver),
+            filePath,
+            new AppSettings.EditorSettings { F7StartsAtNextCharacter = false });
 
         Assert.Equal("foo X foo", File.ReadAllText(filePath));
     }
@@ -125,7 +128,10 @@ public sealed class FileEditorRegressionTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
-        ShowFileEditor(new ScreenRenderer(driver), filePath);
+        ShowFileEditor(
+            new ScreenRenderer(driver),
+            filePath,
+            new AppSettings.EditorSettings { F7StartsAtNextCharacter = false });
 
         Assert.Equal("bar foo", File.ReadAllText(filePath));
     }
