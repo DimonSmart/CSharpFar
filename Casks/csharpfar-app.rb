@@ -1,9 +1,9 @@
 cask "csharpfar-app" do
   arch arm: "arm64", intel: "x64"
 
-  version "1.0.78"
-  sha256 arm: "6bd63585fab38ee609b393e221ffcf1eaea8c975544943c8543fbdb3a14ab337",
-         intel: "670f78ee6a461393ae9c93e756e6604ab2618f1466d11ca0344a0077aee4c996"
+  version "1.0.79"
+  sha256 arm: "7ab8af6d39b5ef46aedd65d2d0ed68095d49355b0c76c22b24da976b9e732b68",
+         intel: "328a2cf01adbf3d5756e9c4c97957725bd55c0fafb6881318fbc4dc13553390e"
 
   url "https://github.com/DimonSmart/CSharpFar/releases/download/v#{version}/CSharpFar-v#{version}-osx-#{arch}-app.zip"
   name "CSharpFar"
