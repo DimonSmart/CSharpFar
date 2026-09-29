@@ -300,6 +300,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
     private Application CreateApp(FakeFileSystemService fs, FakeConsoleDriver driver)
     {
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Panels.LeftStartDirectory = _root;
         settings.Panels.RightStartDirectory = _root;
 

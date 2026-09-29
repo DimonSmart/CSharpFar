@@ -390,6 +390,7 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
         IFileLauncher launcher)
     {
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Panels.LeftStartDirectory = _root;
         settings.Panels.RightStartDirectory = _root;
 

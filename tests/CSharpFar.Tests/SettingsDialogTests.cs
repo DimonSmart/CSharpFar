@@ -123,6 +123,7 @@ public sealed class SettingsDialogTests
         var driver = Driver(
             Key(ConsoleKey.DownArrow),
             Key(ConsoleKey.DownArrow),
+            Key(ConsoleKey.DownArrow),
             Key(ConsoleKey.RightArrow),
             Key(ConsoleKey.Tab),
             Key(ConsoleKey.F4),

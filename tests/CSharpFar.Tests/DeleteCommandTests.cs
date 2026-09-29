@@ -36,6 +36,7 @@ public sealed class DeleteCommandTests : IDisposable
         var fileOperations = new RecordingFileOperationService(supportsRecycleBin);
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Panels.LeftStartDirectory = _root;
         settings.Panels.RightStartDirectory = _root;
         settings.FileOperations.UseRecycleBinForDelete = settingEnabled;

@@ -626,6 +626,7 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
 
     private Application CreateApp(AppSettings settings, Action? saveSettings)
     {
+        settings.Application.ConfirmExit = false;
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
         settings.Panels.LeftStartDirectory = _tempDir;
@@ -649,6 +650,7 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
         IFileAttributesDialog dialog,
         FakeConsoleDriver driver)
     {
+        settings.Application.ConfirmExit = false;
         settings.Panels.LeftStartDirectory = _tempDir;
         settings.Panels.RightStartDirectory = _tempDir;
 

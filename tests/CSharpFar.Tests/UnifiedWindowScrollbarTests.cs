@@ -114,6 +114,7 @@ public sealed class UnifiedWindowScrollbarTests
         fs.AddDirectory(root, items);
 
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Panels.LeftStartDirectory = root;
         settings.Panels.RightStartDirectory = root;
         var driver = new FakeConsoleDriver(width: 80, height: 25);

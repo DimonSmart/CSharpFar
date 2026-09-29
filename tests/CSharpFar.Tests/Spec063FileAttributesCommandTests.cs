@@ -98,6 +98,7 @@ public sealed class Spec063FileAttributesCommandTests : IDisposable
         FakeConsoleDriver driver)
     {
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Panels.LeftStartDirectory = _root;
         settings.Panels.RightStartDirectory = _root;
 

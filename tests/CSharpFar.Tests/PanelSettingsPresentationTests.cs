@@ -34,6 +34,7 @@ public sealed class PanelSettingsPresentationTests
             80,
             25,
             Key(ConsoleKey.DownArrow),
+            Key(ConsoleKey.RightArrow),
             Key(ConsoleKey.F10));
         string? firstFrame = null;
         driver.BeforeReadInput = current =>

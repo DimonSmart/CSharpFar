@@ -90,6 +90,7 @@ public sealed class Spec060RenameCommandTests : IDisposable
         FakeConsoleDriver driver)
     {
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Panels.LeftStartDirectory = _root;
         settings.Panels.RightStartDirectory = _root;
 
