@@ -2,16 +2,11 @@ using CSharpFar.Ui;
 
 namespace CSharpFar.App.Editor;
 
-internal enum EditorReplaceAction
+internal readonly record struct EditorReplaceCommandResult(bool IsSuccess, string? ErrorMessage = null)
 {
-    Replace,
-    ReplaceAll,
+    public static EditorReplaceCommandResult Success() => new(true);
+    public static EditorReplaceCommandResult Failure(string errorMessage) => new(false, errorMessage);
 }
-
-internal sealed record EditorReplaceDialogResult(
-    EditorSearchOptions Search,
-    string Replacement,
-    EditorReplaceAction Action);
 
 internal sealed class EditorReplaceDialog
 {
@@ -27,8 +22,19 @@ internal sealed class EditorReplaceDialog
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
-    public EditorReplaceDialogResult? Show(EditorSearchOptions? previousSearch, string previousReplacement)
+    public void Show(
+        EditorSearchOptions? previousSearch,
+        string previousReplacement,
+        Func<EditorSearchOptions, EditorReplaceCommandResult> find,
+        Func<EditorSearchOptions, string, EditorReplaceCommandResult> replace,
+        Func<EditorSearchOptions, string, EditorReplaceCommandResult> replaceAll,
+        Action invalidatePreview)
     {
+        ArgumentNullException.ThrowIfNull(find);
+        ArgumentNullException.ThrowIfNull(replace);
+        ArgumentNullException.ThrowIfNull(replaceAll);
+        ArgumentNullException.ThrowIfNull(invalidatePreview);
+
         TextField pattern = _fields.Text(new TextFieldOptions(
             previousSearch?.Pattern ?? string.Empty,
             AppTextHistoryIds.EditorFindPattern,
@@ -43,14 +49,20 @@ internal sealed class EditorReplaceDialog
             .Select(option => FormControls.CheckBox(option.Label, option.IsChecked))
             .ToArray();
 
-        ButtonRow buttons = FormControls.Buttons(
-            DialogButton.Default("replace", "Replace", 'R'),
-            DialogButton.Action("replace-all", "Replace all", 'A'),
-            DialogButton.Cancel());
-
+        bool replaceEnabled = false;
+        ButtonRow buttons = FormControls.Buttons(CreateButtons(replaceEnabled));
         string? error = null;
 
-        return _dialogs.Form<EditorReplaceDialogResult?>(
+        void SetReplaceEnabled(bool enabled)
+        {
+            if (replaceEnabled == enabled)
+                return;
+
+            replaceEnabled = enabled;
+            buttons.SetButtons(CreateButtons(replaceEnabled));
+        }
+
+        _ = _dialogs.Form<bool>(
             new FormDialogOptions(
                 "Replace",
                 PreferredWidth: Width,
@@ -71,16 +83,22 @@ internal sealed class EditorReplaceDialog
             handle: formEvent =>
             {
                 if (formEvent.IsCancelled)
-                    return FormDialogOutcome<EditorReplaceDialogResult?>.Complete(null);
+                    return FormDialogOutcome<bool>.Complete(false);
 
                 if (formEvent.IsValueChanged)
                 {
                     error = null;
-                    return FormDialogOutcome<EditorReplaceDialogResult?>.Continue();
+                    if (!formEvent.IsValueChangedFrom(replacement))
+                    {
+                        SetReplaceEnabled(false);
+                        invalidatePreview();
+                    }
+
+                    return FormDialogOutcome<bool>.Continue();
                 }
 
                 if (!formEvent.IsSubmitted)
-                    return FormDialogOutcome<EditorReplaceDialogResult?>.Continue();
+                    return FormDialogOutcome<bool>.Continue();
 
                 bool GetOption(string id)
                 {
@@ -96,17 +114,59 @@ internal sealed class EditorReplaceDialog
                 EditorSearchOptions search = EditorSearchDialogSupport.CreateOptions(pattern.Text, GetOption);
                 error = EditorSearchDialogSupport.Validate(search);
                 if (error is not null)
-                    return FormDialogOutcome<EditorReplaceDialogResult?>.ContinueWithFocus(pattern);
+                {
+                    SetReplaceEnabled(false);
+                    invalidatePreview();
+                    return FormDialogOutcome<bool>.ContinueWithFocus(pattern);
+                }
+
+                string command = formEvent.Command ?? "find";
+                if (string.Equals(command, "replace", StringComparison.Ordinal))
+                {
+                    if (!replaceEnabled)
+                        return FormDialogOutcome<bool>.Continue();
+
+                    replacement.AcceptHistory();
+                    EditorReplaceCommandResult result = replace(search, replacement.Text);
+                    SetReplaceEnabled(false);
+                    invalidatePreview();
+                    error = result.IsSuccess
+                        ? null
+                        : result.ErrorMessage ?? "Replace failed.";
+                    return FormDialogOutcome<bool>.Continue();
+                }
+
+                if (string.Equals(command, "replace-all", StringComparison.Ordinal))
+                {
+                    pattern.AcceptHistory();
+                    replacement.AcceptHistory();
+                    EditorReplaceCommandResult result = replaceAll(search, replacement.Text);
+                    SetReplaceEnabled(false);
+                    invalidatePreview();
+                    if (result.IsSuccess)
+                        return FormDialogOutcome<bool>.Complete(true);
+
+                    error = result.ErrorMessage ?? "Text not found.";
+                    return FormDialogOutcome<bool>.Continue();
+                }
 
                 pattern.AcceptHistory();
-                replacement.AcceptHistory();
-
-                var action = string.Equals(formEvent.Command, "replace-all", StringComparison.Ordinal)
-                    ? EditorReplaceAction.ReplaceAll
-                    : EditorReplaceAction.Replace;
-
-                return FormDialogOutcome<EditorReplaceDialogResult?>.Complete(
-                    new EditorReplaceDialogResult(search, replacement.Text, action));
+                EditorReplaceCommandResult findResult = find(search);
+                SetReplaceEnabled(findResult.IsSuccess);
+                if (!findResult.IsSuccess)
+                    invalidatePreview();
+                error = findResult.IsSuccess
+                    ? null
+                    : findResult.ErrorMessage ?? "Text not found.";
+                return FormDialogOutcome<bool>.Continue();
             });
     }
+
+    private static IReadOnlyList<DialogButton> CreateButtons(bool replaceEnabled) =>
+    [
+        DialogButton.Default("find", "Find", 'F'),
+        new DialogButton("replace", "Replace", 'R', IsEnabled: replaceEnabled),
+        DialogButton.Action("replace-all", "Replace all", 'A'),
+        DialogButton.Cancel(),
+    ];
 }

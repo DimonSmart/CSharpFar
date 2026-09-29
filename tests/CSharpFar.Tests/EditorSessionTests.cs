@@ -396,6 +396,96 @@ public sealed class EditorSessionTests
     }
 
     [Fact]
+    public void ReplaceMatch_ReplacesExactRangeWithoutFindingAgain()
+    {
+        var session = CreateSession("foo foo");
+        var match = new EditorSearchMatch(
+            new EditorPosition(0, 4),
+            new EditorPosition(0, 7));
+
+        Assert.True(session.ReplaceMatch(match, "bar", searchBackward: false));
+
+        Assert.Equal("foo bar", session.FlattenText());
+        Assert.Equal(new EditorPosition(0, 7), session.Cursor);
+        Assert.Null(session.Selection);
+    }
+
+    [Fact]
+    public void ReplaceMatch_ForwardLeavesCursorAfterReplacement()
+    {
+        var session = CreateSession("foo foo");
+        var match = new EditorSearchMatch(
+            new EditorPosition(0, 0),
+            new EditorPosition(0, 3));
+
+        Assert.True(session.ReplaceMatch(match, "longer", searchBackward: false));
+
+        Assert.Equal("longer foo", session.FlattenText());
+        Assert.Equal(new EditorPosition(0, 6), session.Cursor);
+    }
+
+    [Fact]
+    public void ReplaceMatch_BackwardContinuesBeforeReplacedMatch()
+    {
+        var session = CreateSession("foo foo");
+        var match = new EditorSearchMatch(
+            new EditorPosition(0, 4),
+            new EditorPosition(0, 7));
+
+        Assert.True(session.ReplaceMatch(match, "bar", searchBackward: true));
+
+        Assert.Equal("foo bar", session.FlattenText());
+        Assert.Equal(new EditorPosition(0, 4), session.Cursor);
+    }
+
+    [Fact]
+    public void ReplaceMatch_ClearsSelectionAndCreatesOneUndoTransaction()
+    {
+        var session = CreateSession("foo foo");
+        session.SelectRange(new EditorPosition(0, 0), new EditorPosition(0, 3));
+        var match = new EditorSearchMatch(
+            new EditorPosition(0, 4),
+            new EditorPosition(0, 7));
+
+        Assert.True(session.ReplaceMatch(match, "bar", searchBackward: false));
+
+        Assert.Null(session.Selection);
+        Assert.Equal("foo bar", session.FlattenText());
+        Assert.True(session.Undo());
+        Assert.Equal("foo foo", session.FlattenText());
+        Assert.False(session.Undo());
+    }
+
+    [Fact]
+    public void ReplaceMatch_ReadOnlySessionDoesNotChangeDocument()
+    {
+        var session = CreateSession("foo", readOnly: true);
+        var match = new EditorSearchMatch(
+            new EditorPosition(0, 0),
+            new EditorPosition(0, 3));
+
+        Assert.False(session.ReplaceMatch(match, "bar", searchBackward: false));
+
+        Assert.Equal("foo", session.FlattenText());
+        Assert.False(session.Document.IsDirty);
+    }
+
+    [Fact]
+    public void ReplaceMatch_ForwardContinuationStartsAtAdjacentMatch()
+    {
+        var session = CreateSession("foofoofoo");
+        var first = new EditorSearchMatch(
+            new EditorPosition(0, 0),
+            new EditorPosition(0, 3));
+
+        Assert.True(session.ReplaceMatch(first, "foo", searchBackward: false));
+        EditorSearchMatch? next = session.Find(new EditorSearchOptions("foo"));
+
+        Assert.Equal(new EditorPosition(0, 3), session.Cursor);
+        Assert.Equal(new EditorPosition(0, 3), next!.Value.Start);
+    }
+
+    [Fact]
     public void Replace_ForwardLeavesCursorAfterReplacement()
     {
         var session = CreateSession("foo foo");

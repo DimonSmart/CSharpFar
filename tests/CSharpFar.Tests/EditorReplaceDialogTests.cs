@@ -10,7 +10,7 @@ namespace CSharpFar.Tests;
 public sealed class EditorReplaceDialogTests
 {
     [Fact]
-    public void Show_RendersUnifiedReplaceDialog()
+    public void Show_RendersInteractiveReplaceDialog()
     {
         var driver = new FakeConsoleDriver(100, 30);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
@@ -30,29 +30,185 @@ public sealed class EditorReplaceDialogTests
 
         var (dialog, _) = CreateDialog(driver);
 
-        Assert.Null(dialog.Show(new EditorSearchOptions("foo"), "bar"));
+        dialog.Show(
+            new EditorSearchOptions("foo"),
+            "bar",
+            _ => EditorReplaceCommandResult.Success(),
+            (_, _) => EditorReplaceCommandResult.Success(),
+            (_, _) => EditorReplaceCommandResult.Success(),
+            () => { });
     }
 
     [Fact]
-    public void Show_EnterUsesReplaceActionAndAllowsEmptyReplacement()
+    public void Show_EnterFromFindExecutesFindAndKeepsDialogOpen()
     {
         var driver = new FakeConsoleDriver(100, 30);
         driver.EnqueueKey(Key(ConsoleKey.Enter));
-        var (dialog, _) = CreateDialog(driver);
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        var (dialog, history) = CreateDialog(driver);
+        int findCalls = 0;
 
-        var result = dialog.Show(
-            new EditorSearchOptions("foo", SearchBackward: true, UseRegex: true),
-            string.Empty);
+        dialog.Show(
+            new EditorSearchOptions("foo"),
+            "bar",
+            _ =>
+            {
+                findCalls++;
+                return EditorReplaceCommandResult.Success();
+            },
+            (_, _) => EditorReplaceCommandResult.Success(),
+            (_, _) => EditorReplaceCommandResult.Success(),
+            () => { });
 
-        Assert.NotNull(result);
-        Assert.Equal(EditorReplaceAction.Replace, result.Action);
-        Assert.True(result.Search.SearchBackward);
-        Assert.True(result.Search.UseRegex);
-        Assert.Equal(string.Empty, result.Replacement);
+        Assert.Equal(1, findCalls);
+        Assert.Equal(["foo"], history.Get(AppTextHistoryIds.EditorFindPattern).Items);
+        Assert.Empty(history.Get(AppTextHistoryIds.EditorReplaceText).Items);
     }
 
     [Fact]
-    public void Show_ReplaceAllButtonReturnsReplaceAllAction()
+    public void Show_InitialReplaceIsDisabled()
+    {
+        var driver = new FakeConsoleDriver(100, 30);
+        bool queued = false;
+        int replaceCalls = 0;
+        driver.BeforeReadInput = currentDriver =>
+        {
+            if (queued)
+                return;
+
+            EnqueueButtonClick(currentDriver, "Replace");
+            currentDriver.EnqueueKey(Key(ConsoleKey.Escape));
+            queued = true;
+        };
+        var (dialog, _) = CreateDialog(driver);
+
+        dialog.Show(
+            new EditorSearchOptions("foo"),
+            "bar",
+            _ => EditorReplaceCommandResult.Success(),
+            (_, _) =>
+            {
+                replaceCalls++;
+                return EditorReplaceCommandResult.Success();
+            },
+            (_, _) => EditorReplaceCommandResult.Success(),
+            () => { });
+
+        Assert.Equal(0, replaceCalls);
+    }
+
+    [Fact]
+    public void Show_SuccessfulFindEnablesReplaceAndReplaceKeepsDialogOpen()
+    {
+        var driver = new FakeConsoleDriver(100, 30);
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        int findCalls = 0;
+        int replaceCalls = 0;
+        bool queued = false;
+        driver.BeforeReadInput = currentDriver =>
+        {
+            if (findCalls != 1 || queued)
+                return;
+
+            EnqueueButtonClick(currentDriver, "Replace");
+            currentDriver.EnqueueKey(Key(ConsoleKey.Escape));
+            queued = true;
+        };
+        var (dialog, history) = CreateDialog(driver);
+
+        dialog.Show(
+            new EditorSearchOptions("foo"),
+            "  bar  ",
+            _ =>
+            {
+                findCalls++;
+                return EditorReplaceCommandResult.Success();
+            },
+            (_, replacement) =>
+            {
+                replaceCalls++;
+                Assert.Equal("  bar  ", replacement);
+                return EditorReplaceCommandResult.Success();
+            },
+            (_, _) => EditorReplaceCommandResult.Success(),
+            () => { });
+
+        Assert.Equal(1, findCalls);
+        Assert.Equal(1, replaceCalls);
+        Assert.Equal(["  bar  "], history.Get(AppTextHistoryIds.EditorReplaceText).Items);
+    }
+
+    [Fact]
+    public void Show_SearchCriteriaChangeInvalidatesPreview()
+    {
+        var driver = new FakeConsoleDriver(100, 30);
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, shift: false, alt: false, control: false));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        var (dialog, _) = CreateDialog(driver);
+        int invalidations = 0;
+
+        dialog.Show(
+            new EditorSearchOptions("foo"),
+            "bar",
+            _ => EditorReplaceCommandResult.Success(),
+            (_, _) => EditorReplaceCommandResult.Success(),
+            (_, _) => EditorReplaceCommandResult.Success(),
+            () => invalidations++);
+
+        Assert.Equal(1, invalidations);
+    }
+
+    [Fact]
+    public void Show_ReplacementChangeDoesNotInvalidatePreview()
+    {
+        var driver = new FakeConsoleDriver(100, 30);
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, shift: false, alt: false, control: false));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        var (dialog, _) = CreateDialog(driver);
+        int invalidations = 0;
+
+        dialog.Show(
+            new EditorSearchOptions("foo"),
+            "bar",
+            _ => EditorReplaceCommandResult.Success(),
+            (_, _) => EditorReplaceCommandResult.Success(),
+            (_, _) => EditorReplaceCommandResult.Success(),
+            () => invalidations++);
+
+        Assert.Equal(0, invalidations);
+    }
+
+    [Fact]
+    public void Show_InvalidRegexDoesNotCallFindOrCommitHistory()
+    {
+        var driver = new FakeConsoleDriver(100, 30);
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        var (dialog, history) = CreateDialog(driver);
+        int findCalls = 0;
+
+        dialog.Show(
+            new EditorSearchOptions("[", UseRegex: true),
+            "bar",
+            _ =>
+            {
+                findCalls++;
+                return EditorReplaceCommandResult.Success();
+            },
+            (_, _) => EditorReplaceCommandResult.Success(),
+            (_, _) => EditorReplaceCommandResult.Success(),
+            () => { });
+
+        Assert.Equal(0, findCalls);
+        Assert.Empty(history.Get(AppTextHistoryIds.EditorFindPattern).Items);
+        Assert.Empty(history.Get(AppTextHistoryIds.EditorReplaceText).Items);
+    }
+
+    [Fact]
+    public void Show_ReplaceAllDoesNotRequireFindAndCommitsHistories()
     {
         var driver = new FakeConsoleDriver(100, 30);
         bool queued = false;
@@ -61,63 +217,35 @@ public sealed class EditorReplaceDialogTests
             if (queued)
                 return;
 
-            var row = currentDriver.WriteRecords.Last(record =>
-                record.Text.Contains("Replace all", StringComparison.Ordinal));
-            int x = row.X + row.Text.IndexOf("Replace all", StringComparison.Ordinal);
-            currentDriver.EnqueueInput(new MouseConsoleInputEvent(
-                x,
-                row.Y,
-                MouseButton.Left,
-                MouseEventKind.Down,
-                MouseKeyModifiers.None));
-            currentDriver.EnqueueInput(new MouseConsoleInputEvent(
-                x,
-                row.Y,
-                MouseButton.Left,
-                MouseEventKind.Up,
-                MouseKeyModifiers.None));
+            EnqueueButtonClick(currentDriver, "Replace all");
             queued = true;
         };
-        var (dialog, _) = CreateDialog(driver);
-
-        var result = dialog.Show(new EditorSearchOptions("foo"), "bar");
-
-        Assert.NotNull(result);
-        Assert.Equal(EditorReplaceAction.ReplaceAll, result.Action);
-    }
-
-    [Fact]
-    public void Show_WhitespaceReplacementIsNotTrimmedAndIsStoredVerbatim()
-    {
-        var driver = new FakeConsoleDriver(100, 30);
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
         var (dialog, history) = CreateDialog(driver);
+        int findCalls = 0;
+        int replaceAllCalls = 0;
 
-        var result = dialog.Show(new EditorSearchOptions("foo"), "  bar  ");
+        dialog.Show(
+            new EditorSearchOptions("foo"),
+            "  ",
+            _ =>
+            {
+                findCalls++;
+                return EditorReplaceCommandResult.Success();
+            },
+            (_, _) => EditorReplaceCommandResult.Success(),
+            (search, replacement) =>
+            {
+                replaceAllCalls++;
+                Assert.Equal("foo", search.Pattern);
+                Assert.Equal("  ", replacement);
+                return EditorReplaceCommandResult.Success();
+            },
+            () => { });
 
-        Assert.NotNull(result);
-        Assert.Equal("  bar  ", result.Replacement);
-        Assert.Equal(
-            ["  bar  "],
-            history.Get(AppTextHistoryIds.EditorReplaceText).Items);
-    }
-
-    [Fact]
-    public void Show_WhitespaceOnlyReplacementIsStoredAndReloadable()
-    {
-        var store = new InMemorySingleLineTextHistoryStore();
-        var history = new SingleLineTextHistoryRegistry(store);
-        var firstDriver = new FakeConsoleDriver(100, 30);
-        firstDriver.EnqueueKey(Key(ConsoleKey.Enter));
-        var first = CreateDialog(firstDriver, history);
-
-        var result = first.Show(new EditorSearchOptions("foo"), "  ");
-
-        Assert.NotNull(result);
-        Assert.Equal("  ", Assert.Single(history.Get(AppTextHistoryIds.EditorReplaceText).Items));
-
-        var reloaded = new SingleLineTextHistoryRegistry(store);
-        Assert.Equal("  ", Assert.Single(reloaded.Get(AppTextHistoryIds.EditorReplaceText).Items));
+        Assert.Equal(0, findCalls);
+        Assert.Equal(1, replaceAllCalls);
+        Assert.Equal(["foo"], history.Get(AppTextHistoryIds.EditorFindPattern).Items);
+        Assert.Equal(["  "], history.Get(AppTextHistoryIds.EditorReplaceText).Items);
     }
 
     [Fact]
@@ -127,22 +255,14 @@ public sealed class EditorReplaceDialogTests
         driver.EnqueueKey(Key(ConsoleKey.Escape));
         var (dialog, history) = CreateDialog(driver);
 
-        Assert.Null(dialog.Show(new EditorSearchOptions("foo"), "bar"));
-        Assert.Empty(history.Get(AppTextHistoryIds.EditorFindPattern).Items);
-        Assert.Empty(history.Get(AppTextHistoryIds.EditorReplaceText).Items);
-    }
+        dialog.Show(
+            new EditorSearchOptions("foo"),
+            "bar",
+            _ => EditorReplaceCommandResult.Success(),
+            (_, _) => EditorReplaceCommandResult.Success(),
+            (_, _) => EditorReplaceCommandResult.Success(),
+            () => { });
 
-    [Fact]
-    public void Show_InvalidRegexDoesNotCloseOrCommitHistory()
-    {
-        var driver = new FakeConsoleDriver(100, 30);
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.Escape));
-        var (dialog, history) = CreateDialog(driver);
-
-        var result = dialog.Show(new EditorSearchOptions("[", UseRegex: true), "bar");
-
-        Assert.Null(result);
         Assert.Empty(history.Get(AppTextHistoryIds.EditorFindPattern).Items);
         Assert.Empty(history.Get(AppTextHistoryIds.EditorReplaceText).Items);
     }
@@ -162,6 +282,25 @@ public sealed class EditorReplaceDialogTests
         return new EditorReplaceDialog(
             new DialogService(ModalTestHost.Create(driver), fields),
             fields);
+    }
+
+    private static void EnqueueButtonClick(FakeConsoleDriver driver, string text)
+    {
+        var row = driver.WriteRecords.Last(record =>
+            record.Text.Contains(text, StringComparison.Ordinal));
+        int x = row.X + row.Text.IndexOf(text, StringComparison.Ordinal);
+        driver.EnqueueInput(new MouseConsoleInputEvent(
+            x,
+            row.Y,
+            MouseButton.Left,
+            MouseEventKind.Down,
+            MouseKeyModifiers.None));
+        driver.EnqueueInput(new MouseConsoleInputEvent(
+            x,
+            row.Y,
+            MouseButton.Left,
+            MouseEventKind.Up,
+            MouseKeyModifiers.None));
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>

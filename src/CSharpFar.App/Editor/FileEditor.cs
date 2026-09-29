@@ -681,30 +681,107 @@ internal sealed partial class FileEditor
             return;
         }
 
-        var result = new EditorReplaceDialog(_dialogs, _fields).Show(_lastSearch, _lastReplacement);
-        if (result is null)
-            return;
+        EditorSearchMatch? currentMatch = null;
+        long? previewRevision = null;
+        bool continueFromReplacement = false;
 
-        _lastSearch = result.Search;
-        _lastReplacement = result.Replacement;
-
-        try
+        void InvalidatePreview()
         {
-            if (result.Action == EditorReplaceAction.Replace)
+            currentMatch = null;
+            previewRevision = null;
+        }
+
+        EditorReplaceCommandResult FindPreview(EditorSearchOptions search)
+        {
+            _lastSearch = search;
+
+            if (!continueFromReplacement)
+                MoveToFindStart(session, search.SearchBackward);
+            continueFromReplacement = false;
+
+            try
             {
-                MoveToFindStart(session, result.Search.SearchBackward);
-                if (!session.Replace(result.Search, result.Replacement))
-                    _dialogs.Message("Replace", "Text not found.");
-                return;
+                currentMatch = session.Find(search);
+            }
+            catch (ArgumentException ex)
+            {
+                InvalidatePreview();
+                session.ClearSelection();
+                return EditorReplaceCommandResult.Failure(ex.Message);
             }
 
-            if (session.ReplaceAll(result.Search, result.Replacement) == 0)
-                _dialogs.Message("Replace", "Text not found.");
+            if (currentMatch is null)
+            {
+                InvalidatePreview();
+                session.ClearSelection();
+                return EditorReplaceCommandResult.Failure("Text not found.");
+            }
+
+            session.SelectRange(currentMatch.Value.Start, currentMatch.Value.End);
+            previewRevision = session.Document.Revision;
+            return EditorReplaceCommandResult.Success();
         }
-        catch (ArgumentException ex)
+
+        EditorReplaceCommandResult ReplacePreview(EditorSearchOptions search, string replacement)
         {
-            _dialogs.Message("Replace", ex.Message);
+            _lastReplacement = replacement;
+
+            if (currentMatch is null || previewRevision != session.Document.Revision)
+            {
+                InvalidatePreview();
+                continueFromReplacement = false;
+                session.ClearSelection();
+                return EditorReplaceCommandResult.Failure("Document changed. Find again.");
+            }
+
+            try
+            {
+                if (!session.ReplaceMatch(currentMatch.Value, replacement, search.SearchBackward))
+                {
+                    InvalidatePreview();
+                    continueFromReplacement = false;
+                    return EditorReplaceCommandResult.Failure("Replace failed.");
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                InvalidatePreview();
+                continueFromReplacement = false;
+                session.ClearSelection();
+                return EditorReplaceCommandResult.Failure(ex.Message);
+            }
+
+            InvalidatePreview();
+            continueFromReplacement = true;
+            return EditorReplaceCommandResult.Success();
         }
+
+        EditorReplaceCommandResult ReplaceAll(EditorSearchOptions search, string replacement)
+        {
+            _lastSearch = search;
+            _lastReplacement = replacement;
+            InvalidatePreview();
+            continueFromReplacement = false;
+
+            try
+            {
+                return session.ReplaceAll(search, replacement) > 0
+                    ? EditorReplaceCommandResult.Success()
+                    : EditorReplaceCommandResult.Failure("Text not found.");
+            }
+            catch (ArgumentException ex)
+            {
+                return EditorReplaceCommandResult.Failure(ex.Message);
+            }
+        }
+
+        new EditorReplaceDialog(_dialogs, _fields).Show(
+            _lastSearch,
+            _lastReplacement,
+            FindPreview,
+            ReplacePreview,
+            ReplaceAll,
+            InvalidatePreview);
     }
 
     private void ShowSyntaxLanguageDialog(EditorSession session)

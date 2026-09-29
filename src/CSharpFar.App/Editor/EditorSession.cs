@@ -695,14 +695,19 @@ public sealed class EditorSession
             return false;
 
         var match = Find(options);
-        if (match is null)
+        return match is not null && ReplaceMatch(match.Value, replacement, options.SearchBackward);
+    }
+
+    public bool ReplaceMatch(EditorSearchMatch match, string replacement, bool searchBackward)
+    {
+        if (ReadOnly)
             return false;
 
-        string oldText = Document.Buffer.GetTextInRange(match.Value.Start, match.Value.End);
-        EditorPosition continuation = options.SearchBackward
-            ? match.Value.Start
-            : EditorTextBuffer.Advance(match.Value.Start, replacement);
-        ApplyChange("Replace", match.Value.Start, match.Value.End, oldText, replacement, continuation);
+        string oldText = Document.Buffer.GetTextInRange(match.Start, match.End);
+        EditorPosition continuation = searchBackward
+            ? match.Start
+            : EditorTextBuffer.Advance(match.Start, replacement);
+        ApplyChange("Replace", match.Start, match.End, oldText, replacement, continuation);
         return true;
     }
 
