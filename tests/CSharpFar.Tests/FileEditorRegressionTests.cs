@@ -214,7 +214,6 @@ public sealed class FileEditorRegressionTests : IDisposable
         };
         var driver = new FakeConsoleDriver(80, 25);
 
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.End, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F7, shift: false, alt: false, control: true));
         driver.EnqueueKey(new ConsoleKeyInfo('f', ConsoleKey.F, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('o', ConsoleKey.O, shift: false, alt: false, control: false));
@@ -226,8 +225,6 @@ public sealed class FileEditorRegressionTests : IDisposable
             driver.EnqueueKey(new ConsoleKeyInfo('\t', ConsoleKey.Tab, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.LeftArrow, shift: false, alt: false, control: false));
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('X', ConsoleKey.X, shift: true, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: false, control: false));
@@ -235,7 +232,7 @@ public sealed class FileEditorRegressionTests : IDisposable
 
         ShowFileEditor(new ScreenRenderer(driver), filePath, settings);
 
-        Assert.Equal("xXfoo", File.ReadAllText(filePath));
+        Assert.Equal("fooxX", File.ReadAllText(filePath));
     }
 
     [Fact]

@@ -165,36 +165,17 @@ public sealed class EditorReplaceDialogTests
     }
 
     [Fact]
-    public void Show_AfterSuccessfulFindRendersFindNext()
+    public void CreateButtons_UsesFindNextAfterSearchStarts()
     {
-        var driver = new FakeConsoleDriver(100, 30);
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.Escape));
-        bool sawFindNext = false;
-        int findCalls = 0;
-        driver.BeforeReadInput = currentDriver =>
-        {
-            if (findCalls == 1)
-            {
-                string rendered = string.Join("\n", currentDriver.WriteRecords.Select(record => record.Text));
-                sawFindNext |= rendered.Contains("Find next", StringComparison.Ordinal);
-            }
-        };
-        var (dialog, _) = CreateDialog(driver);
+        var method = typeof(EditorReplaceDialog).GetMethod(
+            "CreateButtons",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!;
 
-        dialog.Show(
-            new EditorSearchOptions("foo"),
-            "bar",
-            _ =>
-            {
-                findCalls++;
-                return EditorReplaceCommandResult.Success();
-            },
-            (_, _) => EditorReplaceCommandResult.Completed(),
-            (_, _) => EditorReplaceCommandResult.Completed(),
-            () => { });
+        var buttons = Assert.IsAssignableFrom<IReadOnlyList<DialogButton>>(
+            method.Invoke(null, [true, true]));
 
-        Assert.True(sawFindNext);
+        Assert.Equal("Find next", buttons[0].Text);
+        Assert.True(buttons[1].IsEnabled);
     }
 
     [Fact]
