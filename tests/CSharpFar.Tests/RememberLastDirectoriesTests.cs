@@ -149,6 +149,7 @@ public sealed class RememberLastDirectoriesTests : IDisposable
     public void SettingsDialog_CanEnableRememberLastDirectories()
     {
         var driver = new FakeConsoleDriver(width: 80, height: 25);
+        driver.EnqueueInput(Key(ConsoleKey.DownArrow));
         driver.EnqueueInput(Key(ConsoleKey.RightArrow));
         driver.EnqueueInput(Key(ConsoleKey.End));
         driver.EnqueueInput(Key(ConsoleKey.Spacebar));
@@ -159,6 +160,7 @@ public sealed class RememberLastDirectoriesTests : IDisposable
                 ModalTestHost.Create(driver),
                 new FormFieldFactory(TextFieldHistoryTestProvider.Create())))
             .Show(
+                true,
                 DefaultPanelSettings(),
                 "Default",
                 editorSyntaxHighlightingEnabled: true,

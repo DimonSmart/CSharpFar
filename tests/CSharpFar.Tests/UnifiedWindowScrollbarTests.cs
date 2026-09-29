@@ -273,6 +273,7 @@ public sealed class UnifiedWindowScrollbarTests
         settingsDriver.EnqueueKey(Key(ConsoleKey.F10));
         var settingsScreen = new ScreenRenderer(settingsDriver);
         var settingsResult = new SettingsDialog(new DialogService(ModalTestHost.Create(settingsScreen), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
+            true,
             DefaultPanelSettings(),
             "Default",
             editorSyntaxHighlightingEnabled: true,
