@@ -33,22 +33,32 @@ public sealed class PanelSettingsPresentationTests
         var driver = Driver(
             80,
             25,
-            Key(ConsoleKey.DownArrow),
-            Key(ConsoleKey.RightArrow),
-            Key(ConsoleKey.F10));
+            Key(ConsoleKey.DownArrow));
         string? firstFrame = null;
-        void CapturePanelsFrame(FakeConsoleDriver current)
+        void PrepareNextInput(FakeConsoleDriver current)
         {
-            if (firstFrame is not null)
+            if (current.PendingInputCount > 0)
                 return;
 
             string frame = ScreenText(current);
             if (frame.Contains("Left panel view", StringComparison.Ordinal))
-                firstFrame = frame;
+            {
+                firstFrame ??= frame;
+                current.EnqueueInput(Key(ConsoleKey.F10));
+                return;
+            }
+
+            if (current.LastDequeuedInput is KeyConsoleInputEvent { Key.Key: ConsoleKey.DownArrow })
+            {
+                current.EnqueueInput(Key(ConsoleKey.RightArrow));
+                return;
+            }
+
+            current.EnqueueInput(Key(ConsoleKey.F10));
         }
 
-        driver.BeforeReadInput = CapturePanelsFrame;
-        driver.BeforeTryReadInput = CapturePanelsFrame;
+        driver.BeforeReadInput = PrepareNextInput;
+        driver.BeforeTryReadInput = PrepareNextInput;
 
         CSharpFarSettingsDialogResult? result = Show(driver, DefaultPanels());
 
