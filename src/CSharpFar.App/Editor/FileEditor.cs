@@ -683,25 +683,25 @@ internal sealed partial class FileEditor
 
         EditorSearchMatch? currentMatch = null;
         long? previewRevision = null;
-        bool continueFromReplacement = false;
+        bool replaceSessionStarted = false;
 
-        void InvalidatePreview()
+        void ClearCurrentMatch()
         {
             currentMatch = null;
             previewRevision = null;
         }
 
-        EditorReplaceCommandResult FindPreview(EditorSearchOptions search)
+        void InvalidatePreview()
         {
-            _lastSearch = search;
+            ClearCurrentMatch();
+            replaceSessionStarted = false;
+        }
 
-            if (!continueFromReplacement)
-                MoveToFindStart(session, search.SearchBackward);
-            continueFromReplacement = false;
-
+        EditorReplaceCommandResult FindFromCurrentPosition(EditorSearchOptions search)
+        {
             try
             {
-                currentMatch = session.Find(search);
+                currentMatch = session.FindNoWrap(search);
             }
             catch (ArgumentException ex)
             {
@@ -712,14 +712,24 @@ internal sealed partial class FileEditor
 
             if (currentMatch is null)
             {
-                InvalidatePreview();
+                ClearCurrentMatch();
                 session.ClearSelection();
-                return EditorReplaceCommandResult.Failure("Text not found.");
+                return replaceSessionStarted
+                    ? EditorReplaceCommandResult.Completed("No more matches.")
+                    : EditorReplaceCommandResult.Failure("Text not found.");
             }
 
+            replaceSessionStarted = true;
             session.SelectRange(currentMatch.Value.Start, currentMatch.Value.End);
             previewRevision = session.Document.Revision;
             return EditorReplaceCommandResult.Success();
+        }
+
+        EditorReplaceCommandResult FindPreview(EditorSearchOptions search)
+        {
+            _lastSearch = search;
+            MoveToFindStart(session, search.SearchBackward);
+            return FindFromCurrentPosition(search);
         }
 
         EditorReplaceCommandResult ReplacePreview(EditorSearchOptions search, string replacement)
@@ -729,7 +739,6 @@ internal sealed partial class FileEditor
             if (currentMatch is null || previewRevision != session.Document.Revision)
             {
                 InvalidatePreview();
-                continueFromReplacement = false;
                 session.ClearSelection();
                 return EditorReplaceCommandResult.Failure("Document changed. Find again.");
             }
@@ -739,21 +748,18 @@ internal sealed partial class FileEditor
                 if (!session.ReplaceMatch(currentMatch.Value, replacement, search.SearchBackward))
                 {
                     InvalidatePreview();
-                    continueFromReplacement = false;
                     return EditorReplaceCommandResult.Failure("Replace failed.");
                 }
             }
             catch (ArgumentException ex)
             {
                 InvalidatePreview();
-                continueFromReplacement = false;
                 session.ClearSelection();
                 return EditorReplaceCommandResult.Failure(ex.Message);
             }
 
-            InvalidatePreview();
-            continueFromReplacement = true;
-            return EditorReplaceCommandResult.Success();
+            ClearCurrentMatch();
+            return FindFromCurrentPosition(search);
         }
 
         EditorReplaceCommandResult ReplaceAll(EditorSearchOptions search, string replacement)
@@ -761,12 +767,11 @@ internal sealed partial class FileEditor
             _lastSearch = search;
             _lastReplacement = replacement;
             InvalidatePreview();
-            continueFromReplacement = false;
 
             try
             {
                 return session.ReplaceAll(search, replacement) > 0
-                    ? EditorReplaceCommandResult.Success()
+                    ? EditorReplaceCommandResult.Completed()
                     : EditorReplaceCommandResult.Failure("Text not found.");
             }
             catch (ArgumentException ex)

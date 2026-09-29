@@ -689,6 +689,12 @@ public sealed class EditorSession
         return service.Find(this, options);
     }
 
+    public EditorSearchMatch? FindNoWrap(EditorSearchOptions options)
+    {
+        var service = new EditorSearchService(_settings.WordDiv);
+        return service.FindNoWrap(this, options);
+    }
+
     public bool Replace(EditorSearchOptions options, string replacement)
     {
         if (ReadOnly)

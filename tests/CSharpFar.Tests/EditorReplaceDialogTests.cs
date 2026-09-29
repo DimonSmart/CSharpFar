@@ -123,7 +123,7 @@ public sealed class EditorReplaceDialogTests
             {
                 replaceCalls++;
                 Assert.Equal("  bar  ", replacement);
-                return EditorReplaceCommandResult.Success();
+                return EditorReplaceCommandResult.Completed("No more matches.");
             },
             (_, _) => EditorReplaceCommandResult.Success(),
             () => { });
@@ -131,6 +131,70 @@ public sealed class EditorReplaceDialogTests
         Assert.Equal(1, findCalls);
         Assert.Equal(1, replaceCalls);
         Assert.Equal(["  bar  "], history.Get(AppTextHistoryIds.EditorReplaceText).Items);
+    }
+
+    [Fact]
+    public void Show_ReplaceCanImmediatelyEnableNextPreview()
+    {
+        var driver = new FakeConsoleDriver(100, 30);
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        for (int i = 0; i < 6; i++)
+            driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.RightArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        var (dialog, _) = CreateDialog(driver);
+        int replaceCalls = 0;
+
+        dialog.Show(
+            new EditorSearchOptions("foo"),
+            "bar",
+            _ => EditorReplaceCommandResult.Success(),
+            (_, _) =>
+            {
+                replaceCalls++;
+                return replaceCalls == 1
+                    ? EditorReplaceCommandResult.Success()
+                    : EditorReplaceCommandResult.Completed("No more matches.");
+            },
+            (_, _) => EditorReplaceCommandResult.Completed(),
+            () => { });
+
+        Assert.Equal(2, replaceCalls);
+    }
+
+    [Fact]
+    public void Show_AfterSuccessfulFindRendersFindNext()
+    {
+        var driver = new FakeConsoleDriver(100, 30);
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        bool sawFindNext = false;
+        int findCalls = 0;
+        driver.BeforeReadInput = currentDriver =>
+        {
+            if (findCalls == 1)
+            {
+                string rendered = string.Join("\n", currentDriver.WriteRecords.Select(record => record.Text));
+                sawFindNext |= rendered.Contains("Find next", StringComparison.Ordinal);
+            }
+        };
+        var (dialog, _) = CreateDialog(driver);
+
+        dialog.Show(
+            new EditorSearchOptions("foo"),
+            "bar",
+            _ =>
+            {
+                findCalls++;
+                return EditorReplaceCommandResult.Success();
+            },
+            (_, _) => EditorReplaceCommandResult.Completed(),
+            (_, _) => EditorReplaceCommandResult.Completed(),
+            () => { });
+
+        Assert.True(sawFindNext);
     }
 
     [Fact]

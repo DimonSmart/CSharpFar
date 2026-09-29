@@ -396,6 +396,27 @@ public sealed class EditorSessionTests
     }
 
     [Fact]
+    public void FindNoWrap_ForwardStopsAtDocumentEnd()
+    {
+        var session = CreateSession("foo foo");
+        session.MoveToDocumentEnd();
+
+        Assert.Null(session.FindNoWrap(new EditorSearchOptions("foo")));
+        Assert.Equal(new EditorPosition(0, 0), session.Find(new EditorSearchOptions("foo"))!.Value.Start);
+    }
+
+    [Fact]
+    public void FindNoWrap_BackwardStopsAtDocumentStart()
+    {
+        var session = CreateSession("foo foo");
+
+        Assert.Null(session.FindNoWrap(new EditorSearchOptions("foo", SearchBackward: true)));
+        Assert.Equal(
+            new EditorPosition(0, 4),
+            session.Find(new EditorSearchOptions("foo", SearchBackward: true))!.Value.Start);
+    }
+
+    [Fact]
     public void ReplaceMatch_ReplacesExactRangeWithoutFindingAgain()
     {
         var session = CreateSession("foo foo");

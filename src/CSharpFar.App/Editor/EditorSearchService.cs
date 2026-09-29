@@ -30,6 +30,33 @@ public sealed class EditorSearchService
             .FirstOrDefault(match => session.PositionToOffset(match.Start) >= cursorOffset, matches[0]);
     }
 
+    public EditorSearchMatch? FindNoWrap(EditorSession session, EditorSearchOptions options)
+    {
+        IReadOnlyList<EditorSearchMatch> matches = FindAll(session, options);
+        if (matches.Count == 0)
+            return null;
+
+        int cursorOffset = session.PositionToOffset(session.Cursor);
+        if (options.SearchBackward)
+        {
+            for (int index = matches.Count - 1; index >= 0; index--)
+            {
+                if (session.PositionToOffset(matches[index].Start) < cursorOffset)
+                    return matches[index];
+            }
+
+            return null;
+        }
+
+        foreach (var match in matches)
+        {
+            if (session.PositionToOffset(match.Start) >= cursorOffset)
+                return match;
+        }
+
+        return null;
+    }
+
     public IReadOnlyList<EditorSearchMatch> FindAll(EditorSession session, EditorSearchOptions options)
     {
         if (options.Pattern.Length == 0)

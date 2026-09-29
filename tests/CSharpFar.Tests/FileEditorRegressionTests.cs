@@ -137,6 +137,73 @@ public sealed class FileEditorRegressionTests : IDisposable
     }
 
     [Fact]
+    public void Show_ReplaceAutomaticallyPreviewsNextMatch()
+    {
+        string filePath = Path.Combine(_tempDir, "replace-auto-next.txt");
+        File.WriteAllText(filePath, "foo foo");
+        var driver = new FakeConsoleDriver(80, 25);
+
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F7, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('f', ConsoleKey.F, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('o', ConsoleKey.O, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('o', ConsoleKey.O, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\t', ConsoleKey.Tab, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('b', ConsoleKey.B, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('a', ConsoleKey.A, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('r', ConsoleKey.R, shift: false, alt: false, control: false));
+        for (int i = 0; i < 5; i++)
+            driver.EnqueueKey(new ConsoleKeyInfo('\t', ConsoleKey.Tab, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('X', ConsoleKey.X, shift: true, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(
+            new ScreenRenderer(driver),
+            filePath,
+            new AppSettings.EditorSettings { F7StartsAtNextCharacter = false });
+
+        Assert.Equal("bar X", File.ReadAllText(filePath));
+    }
+
+    [Fact]
+    public void Show_ReplaceStopsAtLastMatchWithoutWrapping()
+    {
+        string filePath = Path.Combine(_tempDir, "replace-no-wrap.txt");
+        File.WriteAllText(filePath, "foo foo");
+        var driver = new FakeConsoleDriver(80, 25);
+
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F7, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('f', ConsoleKey.F, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('o', ConsoleKey.O, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('o', ConsoleKey.O, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\t', ConsoleKey.Tab, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('f', ConsoleKey.F, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('o', ConsoleKey.O, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('o', ConsoleKey.O, shift: false, alt: false, control: false));
+        for (int i = 0; i < 5; i++)
+            driver.EnqueueKey(new ConsoleKeyInfo('\t', ConsoleKey.Tab, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('X', ConsoleKey.X, shift: true, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(
+            new ScreenRenderer(driver),
+            filePath,
+            new AppSettings.EditorSettings { F7StartsAtNextCharacter = false });
+
+        Assert.Equal("foo fooX", File.ReadAllText(filePath));
+    }
+
+    [Fact]
     public void Show_ReplaceContinuationDoesNotApplyF7NextCharacterTwice()
     {
         string filePath = Path.Combine(_tempDir, "replace-adjacent.txt");

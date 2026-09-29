@@ -2,10 +2,11 @@ using CSharpFar.Ui;
 
 namespace CSharpFar.App.Editor;
 
-internal readonly record struct EditorReplaceCommandResult(bool IsSuccess, string? ErrorMessage = null)
+internal readonly record struct EditorReplaceCommandResult(bool IsSuccess, bool HasMatch, string? ErrorMessage = null)
 {
-    public static EditorReplaceCommandResult Success() => new(true);
-    public static EditorReplaceCommandResult Failure(string errorMessage) => new(false, errorMessage);
+    public static EditorReplaceCommandResult Success() => new(true, true);
+    public static EditorReplaceCommandResult Completed(string? message = null) => new(true, false, message);
+    public static EditorReplaceCommandResult Failure(string errorMessage) => new(false, false, errorMessage);
 }
 
 internal sealed class EditorReplaceDialog
@@ -50,16 +51,18 @@ internal sealed class EditorReplaceDialog
             .ToArray();
 
         bool replaceEnabled = false;
-        ButtonRow buttons = FormControls.Buttons(CreateButtons(replaceEnabled));
+        bool findNext = false;
+        ButtonRow buttons = FormControls.Buttons(CreateButtons(replaceEnabled, findNext));
         string? error = null;
 
-        void SetReplaceEnabled(bool enabled)
+        void SetButtonState(bool canReplace, bool showFindNext)
         {
-            if (replaceEnabled == enabled)
+            if (replaceEnabled == canReplace && findNext == showFindNext)
                 return;
 
-            replaceEnabled = enabled;
-            buttons.SetButtons(CreateButtons(replaceEnabled));
+            replaceEnabled = canReplace;
+            findNext = showFindNext;
+            buttons.SetButtons(CreateButtons(replaceEnabled, findNext));
         }
 
         _ = _dialogs.Form<bool>(
@@ -90,7 +93,7 @@ internal sealed class EditorReplaceDialog
                     error = null;
                     if (!formEvent.IsValueChangedFrom(replacement))
                     {
-                        SetReplaceEnabled(false);
+                        SetButtonState(canReplace: false, showFindNext: false);
                         invalidatePreview();
                     }
 
@@ -115,7 +118,7 @@ internal sealed class EditorReplaceDialog
                 error = EditorSearchDialogSupport.Validate(search);
                 if (error is not null)
                 {
-                    SetReplaceEnabled(false);
+                    SetButtonState(canReplace: false, showFindNext: false);
                     invalidatePreview();
                     return FormDialogOutcome<bool>.ContinueWithFocus(pattern);
                 }
@@ -128,11 +131,10 @@ internal sealed class EditorReplaceDialog
 
                     replacement.AcceptHistory();
                     EditorReplaceCommandResult result = replace(search, replacement.Text);
-                    SetReplaceEnabled(false);
-                    invalidatePreview();
-                    error = result.IsSuccess
-                        ? null
-                        : result.ErrorMessage ?? "Replace failed.";
+                    SetButtonState(
+                        canReplace: result.HasMatch,
+                        showFindNext: result.IsSuccess || findNext);
+                    error = result.ErrorMessage;
                     return FormDialogOutcome<bool>.Continue();
                 }
 
@@ -141,7 +143,7 @@ internal sealed class EditorReplaceDialog
                     pattern.AcceptHistory();
                     replacement.AcceptHistory();
                     EditorReplaceCommandResult result = replaceAll(search, replacement.Text);
-                    SetReplaceEnabled(false);
+                    SetButtonState(canReplace: false, showFindNext: false);
                     invalidatePreview();
                     if (result.IsSuccess)
                         return FormDialogOutcome<bool>.Complete(true);
@@ -152,19 +154,18 @@ internal sealed class EditorReplaceDialog
 
                 pattern.AcceptHistory();
                 EditorReplaceCommandResult findResult = find(search);
-                SetReplaceEnabled(findResult.IsSuccess);
+                bool showFindNext = findResult.HasMatch || findNext && findResult.IsSuccess;
+                SetButtonState(findResult.HasMatch, showFindNext);
                 if (!findResult.IsSuccess)
                     invalidatePreview();
-                error = findResult.IsSuccess
-                    ? null
-                    : findResult.ErrorMessage ?? "Text not found.";
+                error = findResult.ErrorMessage;
                 return FormDialogOutcome<bool>.Continue();
             });
     }
 
-    private static IReadOnlyList<DialogButton> CreateButtons(bool replaceEnabled) =>
+    private static IReadOnlyList<DialogButton> CreateButtons(bool replaceEnabled, bool findNext) =>
     [
-        DialogButton.Default("find", "Find", 'F'),
+        DialogButton.Default("find", findNext ? "Find next" : "Find", 'F'),
         new DialogButton("replace", "Replace", 'R', IsEnabled: replaceEnabled),
         DialogButton.Action("replace-all", "Replace all", 'A'),
         DialogButton.Cancel(),
