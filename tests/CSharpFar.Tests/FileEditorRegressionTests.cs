@@ -79,6 +79,93 @@ public sealed class FileEditorRegressionTests : IDisposable
     }
 
     [Fact]
+    public void Show_ReplaceFindTwiceSkipsFirstPreview()
+    {
+        string filePath = Path.Combine(_tempDir, "replace-skip.txt");
+        File.WriteAllText(filePath, "foo foo foo");
+        var driver = new FakeConsoleDriver(80, 25);
+
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F7, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('f', ConsoleKey.F, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('o', ConsoleKey.O, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('o', ConsoleKey.O, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('X', ConsoleKey.X, shift: true, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath);
+
+        Assert.Equal("foo X foo", File.ReadAllText(filePath));
+    }
+
+    [Fact]
+    public void Show_ReplaceChangesOnlyPreviewedMatch()
+    {
+        string filePath = Path.Combine(_tempDir, "replace-preview.txt");
+        File.WriteAllText(filePath, "foo foo");
+        var driver = new FakeConsoleDriver(80, 25);
+
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F7, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('f', ConsoleKey.F, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('o', ConsoleKey.O, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('o', ConsoleKey.O, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\t', ConsoleKey.Tab, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('b', ConsoleKey.B, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('a', ConsoleKey.A, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('r', ConsoleKey.R, shift: false, alt: false, control: false));
+        for (int i = 0; i < 5; i++)
+            driver.EnqueueKey(new ConsoleKeyInfo('\t', ConsoleKey.Tab, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath);
+
+        Assert.Equal("bar foo", File.ReadAllText(filePath));
+    }
+
+    [Fact]
+    public void Show_ReplaceContinuationDoesNotApplyF7NextCharacterTwice()
+    {
+        string filePath = Path.Combine(_tempDir, "replace-adjacent.txt");
+        File.WriteAllText(filePath, "foofoofoo");
+        var settings = new AppSettings.EditorSettings
+        {
+            F7StartsAtNextCharacter = true,
+        };
+        var driver = new FakeConsoleDriver(80, 25);
+
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.End, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F7, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('f', ConsoleKey.F, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('o', ConsoleKey.O, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('o', ConsoleKey.O, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\t', ConsoleKey.Tab, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, shift: false, alt: false, control: false));
+        for (int i = 0; i < 5; i++)
+            driver.EnqueueKey(new ConsoleKeyInfo('\t', ConsoleKey.Tab, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.LeftArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('X', ConsoleKey.X, shift: true, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath, settings);
+
+        Assert.Equal("xXfoo", File.ReadAllText(filePath));
+    }
+
+    [Fact]
     public void Show_TwoRowTerminalDoesNotRenderContentOverFunctionKeyBar()
     {
         string filePath = Path.Combine(_tempDir, "tiny-two-rows.txt");

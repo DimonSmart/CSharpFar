@@ -102,19 +102,14 @@ public sealed class EditorReplaceDialogTests
     {
         var driver = new FakeConsoleDriver(100, 30);
         driver.EnqueueKey(Key(ConsoleKey.Enter));
+        for (int i = 0; i < 6; i++)
+            driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.RightArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        var (dialog, history) = CreateDialog(driver);
         int findCalls = 0;
         int replaceCalls = 0;
-        bool queued = false;
-        driver.BeforeReadInput = currentDriver =>
-        {
-            if (findCalls != 1 || queued)
-                return;
-
-            EnqueueButtonClick(currentDriver, "Replace");
-            currentDriver.EnqueueKey(Key(ConsoleKey.Escape));
-            queued = true;
-        };
-        var (dialog, history) = CreateDialog(driver);
 
         dialog.Show(
             new EditorSearchOptions("foo"),
