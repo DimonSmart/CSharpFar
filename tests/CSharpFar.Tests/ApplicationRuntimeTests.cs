@@ -23,6 +23,7 @@ public sealed class ApplicationRuntimeTests
         const string root = @"C:\Root";
         fileSystem.AddDirectory(root);
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Panels.LeftStartDirectory = root;
         settings.Panels.RightStartDirectory = root;
 
@@ -522,6 +523,7 @@ public sealed class ApplicationRuntimeTests
             const string root = @"C:\Root";
             fs.AddDirectory(root);
             var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
             settings.Panels.LeftStartDirectory = root;
             settings.Panels.RightStartDirectory = root;
             return ApplicationServicesBuilder.Create(

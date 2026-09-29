@@ -4,6 +4,7 @@ namespace CSharpFar.Core.Models;
 
 public sealed class AppSettings
 {
+    public ApplicationSettings Application { get; set; } = new();
     public UiSettings Ui { get; set; } = new();
     public ShellSettings Shell { get; set; } = new();
     public PanelsSettings Panels { get; set; } = new();
@@ -12,6 +13,11 @@ public sealed class AppSettings
     public HistorySettings History { get; set; } = new();
     public EditorSettings Editor { get; set; } = new();
     public DirectoryShortcutSettings DirectoryShortcuts { get; set; } = new();
+
+    public sealed class ApplicationSettings
+    {
+        public bool ConfirmExit { get; set; } = true;
+    }
 
     public sealed class UiSettings
     {

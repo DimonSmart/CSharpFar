@@ -81,6 +81,7 @@ public sealed class ApplicationSettingsTests : IDisposable
     {
         var driver = new FakeConsoleDriver();
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Editor.SyntaxTheme = "DarkPlus";
         int saveCount = 0;
 
@@ -105,6 +106,7 @@ public sealed class ApplicationSettingsTests : IDisposable
     {
         var driver = new FakeConsoleDriver();
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Editor.SyntaxTheme = "DarkPlus";
         int saveCount = 0;
 
@@ -170,6 +172,103 @@ public sealed class ApplicationSettingsTests : IDisposable
         app.Run();
 
         Assert.Equal(string.Empty, app.Session.CommandLine.State.Text);
+    }
+
+    [Fact]
+    public void Run_SettingsSave_AppliesConfirmExit()
+    {
+        var driver = new FakeConsoleDriver();
+        var settings = new AppSettings();
+        int saveCount = 0;
+
+        driver.EnqueueKey(new ConsoleKeyInfo('\u0013', ConsoleKey.NoName, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Spacebar, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        var app = CreateApp("Name", driver, settings, saveSettings: () => saveCount++);
+
+        app.Run();
+
+        Assert.False(settings.Application.ConfirmExit);
+        Assert.Equal(1, saveCount);
+        Assert.Equal(0, driver.PendingInputCount);
+    }
+
+    [Fact]
+    public void Run_SettingsCancel_DoesNotApplyConfirmExit()
+    {
+        var driver = new FakeConsoleDriver();
+        var settings = new AppSettings();
+        int saveCount = 0;
+
+        driver.EnqueueKey(new ConsoleKeyInfo('\u0013', ConsoleKey.NoName, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Spacebar, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('E', ConsoleKey.E, shift: false, alt: false, control: false));
+
+        var app = CreateApp("Name", driver, settings, saveSettings: () => saveCount++);
+
+        app.Run();
+
+        Assert.True(settings.Application.ConfirmExit);
+        Assert.Equal(0, saveCount);
+        Assert.Equal(0, driver.PendingInputCount);
+    }
+
+    [Fact]
+    public void Run_QuitConfirmation_EnterUsesSafeCancelDefault()
+    {
+        var driver = new FakeConsoleDriver();
+        var settings = new AppSettings();
+
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('E', ConsoleKey.E, shift: false, alt: false, control: false));
+
+        var app = CreateApp("Name", driver, settings);
+
+        app.Run();
+
+        Assert.Equal(0, driver.PendingInputCount);
+    }
+
+    [Fact]
+    public void Run_QuitConfirmation_EscapeCancels()
+    {
+        var driver = new FakeConsoleDriver();
+        var settings = new AppSettings();
+
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('E', ConsoleKey.E, shift: false, alt: false, control: false));
+
+        var app = CreateApp("Name", driver, settings);
+
+        app.Run();
+
+        Assert.Equal(0, driver.PendingInputCount);
+    }
+
+    [Fact]
+    public void Run_QuitConfirmation_ExitHotKeyQuits()
+    {
+        var driver = new FakeConsoleDriver();
+        var settings = new AppSettings();
+
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('E', ConsoleKey.E, shift: false, alt: false, control: false));
+
+        var app = CreateApp("Name", driver, settings);
+
+        app.Run();
+
+        Assert.Equal(0, driver.PendingInputCount);
     }
 
     [Fact]
@@ -307,8 +406,12 @@ public sealed class ApplicationSettingsTests : IDisposable
         string sortMode,
         FakeConsoleDriver driver,
         Action? saveSettings = null,
-        params FilePanelItem[] items) =>
-        CreateApp(sortMode, driver, new AppSettings(), saveSettings, items);
+        params FilePanelItem[] items)
+    {
+        var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
+        return CreateApp(sortMode, driver, settings, saveSettings, items);
+    }
 
     private Application CreateApp(
         string sortMode,

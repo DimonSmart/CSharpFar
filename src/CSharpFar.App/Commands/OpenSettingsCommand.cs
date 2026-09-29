@@ -32,6 +32,7 @@ internal sealed class OpenSettingsCommand : IApplicationCommand
 
         var syntaxCatalog = new TextMateEditorSyntaxCatalog(context.Settings.Editor);
         var result = new CSharpFarSettingsDialog(context.Dialogs).Show(
+            context.Settings.Application.ConfirmExit,
             panelSettings,
             context.Settings.Ui.Palette,
             context.Settings.Editor.SyntaxHighlightingEnabled,
@@ -40,6 +41,8 @@ internal sealed class OpenSettingsCommand : IApplicationCommand
 
         if (result is null)
             return ApplicationCommandResult.Rendered();
+
+        context.Settings.Application.ConfirmExit = result.ApplicationConfirmExit;
 
         CSharpFarPanelSettings panels = result.Panels;
         context.LeftViewMode = panels.LeftViewMode;

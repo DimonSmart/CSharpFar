@@ -29,6 +29,7 @@ public sealed class PanelSettingsSaveCancelTests : IDisposable
     {
         var driver = new FakeConsoleDriver();
         driver.EnqueueKey(new ConsoleKeyInfo('\u0013', ConsoleKey.NoName, shift: false, alt: false, control: true));
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
         driver.EnqueueKey(Key(ConsoleKey.RightArrow));
         driver.EnqueueKey(Key(ConsoleKey.RightArrow));
         driver.EnqueueKey(Key(ConsoleKey.End));
@@ -41,6 +42,7 @@ public sealed class PanelSettingsSaveCancelTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Panels.LeftStartDirectory = _tempDir;
         settings.Panels.RightStartDirectory = _tempDir;
         settings.Panels.LeftViewMode = PanelViewMode.Full.ToString();

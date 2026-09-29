@@ -65,6 +65,7 @@ public sealed class Spec036NavigateToRootTests : IDisposable
     private Application CreateApp(FakeFileSystemService fs, FakeConsoleDriver driver, string startDirectory)
     {
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Panels.LeftStartDirectory = startDirectory;
         settings.Panels.RightStartDirectory = startDirectory;
 

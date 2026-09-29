@@ -99,6 +99,7 @@ public sealed class RememberLastDirectoriesTests : IDisposable
     public void CaptureLastPanelDirectories_WhenEnabled_CopiesTransientStateToSettings()
     {
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Panels.Options.RememberLastDirectories = true;
         var left = new FilePanelState { LastLocalDirectory = "left-local" };
         var right = new FilePanelState { LastLocalDirectory = "right-local" };
@@ -114,6 +115,7 @@ public sealed class RememberLastDirectoriesTests : IDisposable
     public void CaptureLastPanelDirectories_WhenDisabled_LeavesPersistedValuesUnchanged()
     {
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Panels.LastLeftDirectory = "old-left";
         settings.Panels.LastRightDirectory = "old-right";
         var left = new FilePanelState { LastLocalDirectory = "new-left" };
@@ -177,6 +179,7 @@ public sealed class RememberLastDirectoriesTests : IDisposable
     private static AppSettings CreateSettings(string leftStart, string rightStart)
     {
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Panels.LeftStartDirectory = leftStart;
         settings.Panels.RightStartDirectory = rightStart;
         return settings;

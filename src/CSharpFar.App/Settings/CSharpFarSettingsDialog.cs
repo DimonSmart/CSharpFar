@@ -20,6 +20,7 @@ internal sealed record CSharpFarPanelSettings(
     bool ShowParentDirectoryInRootFolders);
 
 internal sealed record CSharpFarSettingsDialogResult(
+    bool ApplicationConfirmExit,
     CSharpFarPanelSettings Panels,
     string PaletteName,
     bool EditorSyntaxHighlightingEnabled,
@@ -36,6 +37,7 @@ internal sealed class CSharpFarSettingsDialog
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
 
     public CSharpFarSettingsDialogResult? Show(
+        bool applicationConfirmExit,
         CSharpFarPanelSettings panels,
         string paletteName,
         bool editorSyntaxHighlightingEnabled,
@@ -57,6 +59,10 @@ internal sealed class CSharpFarSettingsDialog
             string.Equals(theme.Name, resolvedSyntaxTheme.Name, StringComparison.Ordinal))
             ?? throw new InvalidOperationException("Resolved syntax theme is not present in the syntax catalog.");
 
+        var confirmExit = FormControls.CheckBox(
+            "application.confirm-exit",
+            "Confirm before exit",
+            applicationConfirmExit);
         var leftViewMode = FormControls.CompactChoice(
             "panels.left-view-mode",
             "Left panel view",
@@ -134,6 +140,10 @@ internal sealed class CSharpFarSettingsDialog
         SettingsPage[] pages =
         [
             new SettingsPage(
+                "application",
+                "Application",
+                [confirmExit]),
+            new SettingsPage(
                 "panels",
                 "Panels",
                 [
@@ -177,6 +187,7 @@ internal sealed class CSharpFarSettingsDialog
             return null;
 
         return new CSharpFarSettingsDialogResult(
+            confirmExit.Value,
             new CSharpFarPanelSettings(
                 leftViewMode.Value,
                 rightViewMode.Value,

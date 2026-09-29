@@ -30,6 +30,7 @@ public class JsonSettingsStoreTests : IDisposable
         var store = new JsonSettingsStore(configDir);
 
         Assert.True(File.Exists(Path.Combine(configDir, "settings.json")));
+        Assert.True(store.Settings.Application.ConfirmExit);
         Assert.True(store.Settings.Ui.ConfirmDelete);
         Assert.Equal("cmd.exe", store.Settings.Shell.Executable);
         Assert.True(store.Settings.FileOperations.ShowTotalProgress);
@@ -56,6 +57,7 @@ public class JsonSettingsStoreTests : IDisposable
 
         var store = new JsonSettingsStore(configDir);
 
+        Assert.True(store.Settings.Application.ConfirmExit);
         Assert.False(store.Settings.Ui.ConfirmDelete);
         Assert.False(store.Settings.Panels.Options.ShowHiddenAndSystemFiles);
         Assert.False(store.Settings.FileOperations.UseRecycleBinForDelete);
@@ -71,12 +73,14 @@ public class JsonSettingsStoreTests : IDisposable
         string configDir = Path.Combine(_tempDir, "config3");
         var store = new JsonSettingsStore(configDir);
 
+        store.Settings.Application.ConfirmExit = false;
         store.Settings.Panels.Options.ShowHiddenAndSystemFiles = false;
         store.Settings.Panels.LeftStartDirectory = @"C:\Projects";
         store.Settings.FileOperations.PreserveAttributes = false;
         store.Save();
 
         var store2 = new JsonSettingsStore(configDir);
+        Assert.False(store2.Settings.Application.ConfirmExit);
         Assert.False(store2.Settings.Panels.Options.ShowHiddenAndSystemFiles);
         Assert.Equal(@"C:\Projects", store2.Settings.Panels.LeftStartDirectory);
         Assert.False(store2.Settings.FileOperations.PreserveAttributes);

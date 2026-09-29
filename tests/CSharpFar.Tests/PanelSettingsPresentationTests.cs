@@ -30,9 +30,21 @@ public sealed class PanelSettingsPresentationTests
     [Fact]
     public void Show_PanelsPageRendersRequiredGroupsAndLabelsOnceInOrder()
     {
-        var driver = Driver(80, 25, Key(ConsoleKey.F10));
+        var driver = Driver(
+            80,
+            25,
+            Key(ConsoleKey.DownArrow),
+            Key(ConsoleKey.F10));
         string? firstFrame = null;
-        driver.BeforeReadInput = current => firstFrame ??= ScreenText(current);
+        driver.BeforeReadInput = current =>
+        {
+            if (firstFrame is not null)
+                return;
+
+            string frame = ScreenText(current);
+            if (frame.Contains("Left panel view", StringComparison.Ordinal))
+                firstFrame = frame;
+        };
 
         CSharpFarSettingsDialogResult? result = Show(driver, DefaultPanels());
 
@@ -68,6 +80,7 @@ public sealed class PanelSettingsPresentationTests
         var driver = Driver(
             width: 80,
             height: 10,
+            Key(ConsoleKey.DownArrow),
             Key(ConsoleKey.RightArrow),
             Key(ConsoleKey.End),
             Key(ConsoleKey.Spacebar),
@@ -85,6 +98,7 @@ public sealed class PanelSettingsPresentationTests
         var driver = Driver(
             80,
             25,
+            Key(ConsoleKey.DownArrow),
             Key(ConsoleKey.RightArrow),
             Key(ConsoleKey.End),
             Key(ConsoleKey.UpArrow),
@@ -109,7 +123,7 @@ public sealed class PanelSettingsPresentationTests
             new DialogService(
                 ModalTestHost.Create(driver),
                 new FormFieldFactory(TextFieldHistoryTestProvider.Create())))
-            .Show(panels, "Default", editorSyntaxHighlightingEnabled: true,
+            .Show(true, panels, "Default", editorSyntaxHighlightingEnabled: true,
                 editorSyntaxTheme: "Dark+",
                 syntaxCatalog: new TextMateEditorSyntaxCatalog(new AppSettings.EditorSettings()));
 

@@ -30,6 +30,7 @@ public sealed class SettingsDialogTests
 
         CSharpFarSettingsDialogResult? result = new CSharpFarSettingsDialog(
             new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
+                false,
                 panels,
                 "FarClassic",
                 editorSyntaxHighlightingEnabled: true,
@@ -37,10 +38,37 @@ public sealed class SettingsDialogTests
                 syntaxCatalog: SyntaxCatalog());
 
         Assert.NotNull(result);
+        Assert.False(result.ApplicationConfirmExit);
         Assert.Equal(panels, result.Panels);
         Assert.Equal("FarClassic", result.PaletteName);
         Assert.True(result.EditorSyntaxHighlightingEnabled);
         Assert.Equal("Dark+", result.EditorSyntaxTheme);
+    }
+
+    [Fact]
+    public void Show_ApplicationPageIsFirstAndSavesConfirmExit()
+    {
+        var driver = Driver(
+            Key(ConsoleKey.RightArrow),
+            Key(ConsoleKey.Spacebar),
+            Key(ConsoleKey.F10));
+        string? firstFrame = null;
+        driver.BeforeReadInput = current => firstFrame ??= ScreenText(current);
+
+        var result = new CSharpFarSettingsDialog(
+            new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
+                true,
+                DefaultPanels(),
+                "Default",
+                editorSyntaxHighlightingEnabled: true,
+                editorSyntaxTheme: "DarkPlus",
+                syntaxCatalog: SyntaxCatalog());
+
+        Assert.NotNull(result);
+        Assert.NotNull(firstFrame);
+        Assert.Contains("Application", firstFrame, StringComparison.Ordinal);
+        Assert.Contains("Confirm before exit", firstFrame, StringComparison.Ordinal);
+        Assert.False(result.ApplicationConfirmExit);
     }
 
     [Fact]
@@ -55,6 +83,7 @@ public sealed class SettingsDialogTests
 
         CSharpFarSettingsDialogResult? result = new CSharpFarSettingsDialog(
             new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
+                true,
                 DefaultPanels(),
                 "Default",
                 editorSyntaxHighlightingEnabled: true,
@@ -77,6 +106,7 @@ public sealed class SettingsDialogTests
 
         var result = new CSharpFarSettingsDialog(
             new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
+                true,
                 DefaultPanels(),
                 "Default",
                 editorSyntaxHighlightingEnabled: true,
@@ -102,6 +132,7 @@ public sealed class SettingsDialogTests
 
         var result = new CSharpFarSettingsDialog(
             new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
+                true,
                 DefaultPanels(),
                 "Default",
                 editorSyntaxHighlightingEnabled: false,
@@ -171,6 +202,11 @@ public sealed class SettingsDialogTests
             return new EditorSyntaxTheme(canonicalTheme ?? _fallbackTheme);
         }
     }
+
+    private static string ScreenText(FakeConsoleDriver driver) =>
+        string.Join(
+            '\n',
+            Enumerable.Range(0, driver.GetSize().Height).Select(driver.GetRow));
 
     private static FakeConsoleDriver Driver(params ConsoleInputEvent[] inputs)
     {

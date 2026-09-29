@@ -1365,6 +1365,7 @@ public sealed class ApplicationNavigationTests : IDisposable
         ITerminalScreenMode? terminalScreenMode = null)
     {
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Panels.LeftStartDirectory = startDirectory;
         settings.Panels.RightStartDirectory = startDirectory;
 

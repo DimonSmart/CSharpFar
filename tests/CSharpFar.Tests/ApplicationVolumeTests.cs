@@ -150,6 +150,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         fs.AddDirectory(volPath);
         fs.AddDirectory(rightSubDirectory);
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Panels.LeftStartDirectory = _tempDir;
         settings.Panels.RightStartDirectory = rightSubDirectory;
         var driver = new FakeConsoleDriver();
@@ -374,6 +375,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         fs.AddDirectory(cPath);
 
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Panels.LeftStartDirectory = dSub;  // left panel is inside D:
         settings.Panels.RightStartDirectory = _tempDir;
 
@@ -923,6 +925,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         fs.AddDirectory(_tempDir);
 
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Panels.LeftStartDirectory = _tempDir;
         settings.Panels.RightStartDirectory = _tempDir;
 

@@ -288,6 +288,7 @@ public sealed class Spec027FarCommandLineShortcutTests : IDisposable
         ITextClipboard? clipboard = null)
     {
         var settings = new AppSettings();
+        settings.Application.ConfirmExit = false;
         settings.Panels.LeftStartDirectory = _leftRoot;
         settings.Panels.RightStartDirectory = _rightRoot;
 

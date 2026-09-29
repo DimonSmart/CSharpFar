@@ -1,4 +1,7 @@
 {
+  "application": {
+    "confirmExit": true
+  },
   "ui": {
     "confirmDelete": true,
     "palette": "Default"
