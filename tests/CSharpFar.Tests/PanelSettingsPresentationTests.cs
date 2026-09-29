@@ -37,7 +37,7 @@ public sealed class PanelSettingsPresentationTests
             Key(ConsoleKey.RightArrow),
             Key(ConsoleKey.F10));
         string? firstFrame = null;
-        driver.BeforeReadInput = current =>
+        void CapturePanelsFrame(FakeConsoleDriver current)
         {
             if (firstFrame is not null)
                 return;
@@ -45,7 +45,10 @@ public sealed class PanelSettingsPresentationTests
             string frame = ScreenText(current);
             if (frame.Contains("Left panel view", StringComparison.Ordinal))
                 firstFrame = frame;
-        };
+        }
+
+        driver.BeforeReadInput = CapturePanelsFrame;
+        driver.BeforeTryReadInput = CapturePanelsFrame;
 
         CSharpFarSettingsDialogResult? result = Show(driver, DefaultPanels());
 
