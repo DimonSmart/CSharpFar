@@ -1,5 +1,6 @@
 using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Dialogs;
+using CSharpFar.App.Editor;
 using CSharpFar.App.Settings;
 using CSharpFar.App.State;
 using CSharpFar.Console.Input;
@@ -158,7 +159,9 @@ public sealed class RememberLastDirectoriesTests : IDisposable
             .Show(
                 DefaultPanelSettings(),
                 "Default",
-                editorSyntaxHighlightingEnabled: true);
+                editorSyntaxHighlightingEnabled: true,
+                editorSyntaxTheme: "Dark+",
+                syntaxCatalog: new TextMateEditorSyntaxCatalog(new AppSettings.EditorSettings()));
 
         Assert.NotNull(result);
         Assert.True(result.Panels.RememberLastDirectories);

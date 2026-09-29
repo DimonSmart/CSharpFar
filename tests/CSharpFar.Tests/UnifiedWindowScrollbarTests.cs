@@ -1,5 +1,6 @@
 using CSharpFar.App;
 using CSharpFar.App.Dialogs;
+using CSharpFar.App.Editor;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.Settings;
@@ -274,7 +275,9 @@ public sealed class UnifiedWindowScrollbarTests
         var settingsResult = new SettingsDialog(new DialogService(ModalTestHost.Create(settingsScreen), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
             DefaultPanelSettings(),
             "Default",
-            editorSyntaxHighlightingEnabled: true);
+            editorSyntaxHighlightingEnabled: true,
+                editorSyntaxTheme: "Dark+",
+                syntaxCatalog: new TextMateEditorSyntaxCatalog(new AppSettings.EditorSettings()));
 
         Assert.NotNull(searchResult);
         Assert.NotNull(operationResult);

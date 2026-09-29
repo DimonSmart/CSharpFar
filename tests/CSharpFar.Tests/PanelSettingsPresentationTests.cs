@@ -1,3 +1,4 @@
+using CSharpFar.App.Editor;
 using CSharpFar.App.Settings;
 using CSharpFar.Console.Input;
 using CSharpFar.Core.Models;
@@ -108,7 +109,9 @@ public sealed class PanelSettingsPresentationTests
             new DialogService(
                 ModalTestHost.Create(driver),
                 new FormFieldFactory(TextFieldHistoryTestProvider.Create())))
-            .Show(panels, "Default", editorSyntaxHighlightingEnabled: true);
+            .Show(panels, "Default", editorSyntaxHighlightingEnabled: true,
+                editorSyntaxTheme: "Dark+",
+                syntaxCatalog: new TextMateEditorSyntaxCatalog(new AppSettings.EditorSettings()));
 
     private static CSharpFarPanelSettings DefaultPanels() =>
         new(
