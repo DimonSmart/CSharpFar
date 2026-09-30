@@ -26,6 +26,7 @@ internal sealed class AboutDialogModel
     public ReleaseVersion? LatestVersion { get; private set; }
     public Uri? ReleaseUri { get; private set; }
     public bool CanSelfUpdate { get; private set; }
+    public string? SelfUpdateStatusText { get; private set; }
 
     public void Apply(
         UpdateCheckResult result,
@@ -42,7 +43,31 @@ internal sealed class AboutDialogModel
         CanSelfUpdate =
             State == AboutUpdateState.UpdateAvailable &&
             installerAvailability?.IsAvailable == true;
+        SelfUpdateStatusText =
+            State == AboutUpdateState.UpdateAvailable && installerAvailability is not null
+                ? GetSelfUpdateStatusText(installerAvailability.Status)
+                : null;
     }
+
+    private static string GetSelfUpdateStatusText(ApplicationUpdateAvailabilityStatus status) =>
+        status switch
+        {
+            ApplicationUpdateAvailabilityStatus.Available =>
+                "Automatic update: available via Homebrew.",
+            ApplicationUpdateAvailabilityStatus.UnsupportedPlatform =>
+                "Automatic update is not available on this platform.",
+            ApplicationUpdateAvailabilityStatus.HomebrewUnavailable =>
+                "Automatic update requires Homebrew.",
+            ApplicationUpdateAvailabilityStatus.CaskNotInstalled =>
+                "Automatic update requires the Homebrew Cask.",
+            ApplicationUpdateAvailabilityStatus.CurrentProcessNotManagedBundle =>
+                "This CSharpFar copy is not managed by Homebrew.",
+            ApplicationUpdateAvailabilityStatus.NonStandardAppLocation =>
+                "Automatic update requires /Applications/CSharpFar.app.",
+            ApplicationUpdateAvailabilityStatus.PackageQueryFailed =>
+                "Unable to verify the Homebrew installation.",
+            _ => "Automatic update is unavailable.",
+        };
 
     public OperationDialogState<string> Snapshot()
     {
@@ -66,6 +91,11 @@ internal sealed class AboutDialogModel
                 break;
             case AboutUpdateState.UpdateAvailable:
                 rows.Add(FormControls.Label($"New version {LatestVersion} is available."));
+                if (SelfUpdateStatusText is not null)
+                {
+                    rows.Add(FormControls.Label(string.Empty));
+                    rows.Add(FormControls.Label(SelfUpdateStatusText));
+                }
                 break;
             default:
                 rows.Add(FormControls.Label("Unable to check for updates."));

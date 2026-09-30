@@ -284,6 +284,54 @@ public sealed class AboutAndUpdateTests
             button => button.Id == "open-release");
     }
 
+    [Theory]
+    [InlineData(
+        ApplicationUpdateAvailabilityStatus.Available,
+        "Automatic update: available via Homebrew.")]
+    [InlineData(
+        ApplicationUpdateAvailabilityStatus.UnsupportedPlatform,
+        "Automatic update is not available on this platform.")]
+    [InlineData(
+        ApplicationUpdateAvailabilityStatus.HomebrewUnavailable,
+        "Automatic update requires Homebrew.")]
+    [InlineData(
+        ApplicationUpdateAvailabilityStatus.CaskNotInstalled,
+        "Automatic update requires the Homebrew Cask.")]
+    [InlineData(
+        ApplicationUpdateAvailabilityStatus.CurrentProcessNotManagedBundle,
+        "This CSharpFar copy is not managed by Homebrew.")]
+    [InlineData(
+        ApplicationUpdateAvailabilityStatus.NonStandardAppLocation,
+        "Automatic update requires /Applications/CSharpFar.app.")]
+    [InlineData(
+        ApplicationUpdateAvailabilityStatus.PackageQueryFailed,
+        "Unable to verify the Homebrew installation.")]
+    public void AboutModel_ExplainsAutomaticUpdateAvailability(
+        ApplicationUpdateAvailabilityStatus status,
+        string expectedText)
+    {
+        var model = new AboutDialogModel("1.0.68");
+        var releaseUri =
+            new Uri("https://github.com/DimonSmart/CSharpFar/releases/tag/v1.0.69");
+        ApplicationUpdateAvailability availability =
+            status == ApplicationUpdateAvailabilityStatus.Available
+                ? ApplicationUpdateAvailability.Available("/opt/homebrew/bin/brew")
+                : new ApplicationUpdateAvailability(status);
+
+        model.Apply(
+            new UpdateCheckResult(
+                UpdateCheckStatus.UpdateAvailable,
+                new ReleaseVersion(1, 0, 68),
+                new ReleaseVersion(1, 0, 69),
+                releaseUri),
+            availability);
+
+        Assert.Equal(expectedText, model.SelfUpdateStatusText);
+        Assert.Equal(
+            status == ApplicationUpdateAvailabilityStatus.Available,
+            model.CanSelfUpdate);
+    }
+
     private static HttpResponseMessage JsonResponse(string json) =>
         new(HttpStatusCode.OK)
         {
