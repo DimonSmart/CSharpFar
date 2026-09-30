@@ -286,30 +286,31 @@ public sealed class AboutAndUpdateTests
 
     [Theory]
     [InlineData(
-        ApplicationUpdateAvailabilityStatus.Available,
+        (int)ApplicationUpdateAvailabilityStatus.Available,
         "Automatic update: available via Homebrew.")]
     [InlineData(
-        ApplicationUpdateAvailabilityStatus.UnsupportedPlatform,
+        (int)ApplicationUpdateAvailabilityStatus.UnsupportedPlatform,
         "Automatic update is not available on this platform.")]
     [InlineData(
-        ApplicationUpdateAvailabilityStatus.HomebrewUnavailable,
+        (int)ApplicationUpdateAvailabilityStatus.HomebrewUnavailable,
         "Automatic update requires Homebrew.")]
     [InlineData(
-        ApplicationUpdateAvailabilityStatus.CaskNotInstalled,
+        (int)ApplicationUpdateAvailabilityStatus.CaskNotInstalled,
         "Automatic update requires the Homebrew Cask.")]
     [InlineData(
-        ApplicationUpdateAvailabilityStatus.CurrentProcessNotManagedBundle,
+        (int)ApplicationUpdateAvailabilityStatus.CurrentProcessNotManagedBundle,
         "This CSharpFar copy is not managed by Homebrew.")]
     [InlineData(
-        ApplicationUpdateAvailabilityStatus.NonStandardAppLocation,
+        (int)ApplicationUpdateAvailabilityStatus.NonStandardAppLocation,
         "Automatic update requires /Applications/CSharpFar.app.")]
     [InlineData(
-        ApplicationUpdateAvailabilityStatus.PackageQueryFailed,
+        (int)ApplicationUpdateAvailabilityStatus.PackageQueryFailed,
         "Unable to verify the Homebrew installation.")]
     public void AboutModel_ExplainsAutomaticUpdateAvailability(
-        ApplicationUpdateAvailabilityStatus status,
+        int statusValue,
         string expectedText)
     {
+        var status = (ApplicationUpdateAvailabilityStatus)statusValue;
         var model = new AboutDialogModel("1.0.68");
         var releaseUri =
             new Uri("https://github.com/DimonSmart/CSharpFar/releases/tag/v1.0.69");
