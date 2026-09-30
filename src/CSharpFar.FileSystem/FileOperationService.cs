@@ -1022,7 +1022,9 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                 }
             }
 
-            DirectMoveResult directResult = TryMoveDirect(source, target, sourceIsFile);
+            DirectMoveResult directResult = RequiresCopyDeleteFallback(source, target)
+                ? DirectMoveResult.NotSupported
+                : TryMoveDirect(source, target, sourceIsFile);
             if (directResult == DirectMoveResult.Moved)
             {
                 CompleteLocalMove(source, target, sourceIsFile, state);
@@ -1114,6 +1116,22 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         CancellationToken cancellationToken,
         bool allowFallback)
     {
+        if (RequiresCopyDeleteFallback(source, destination))
+        {
+            if (!allowFallback)
+                throw new IOException("Direct rename is not supported; copy/delete fallback is disabled for a pure rename.");
+
+            await ReplaceLocalViaStagingAsync(
+                    source,
+                    destination,
+                    options,
+                    conflictResolver,
+                    state,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
         string backup = GenerateReplaceTemporaryPath(destination, "backup");
         MoveOwnedPath(destination, backup);
 
@@ -1207,6 +1225,23 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         }
 
         CleanupOwnedLocalPath(backup, state, "Replacement succeeded, but backup cleanup failed");
+    }
+
+    private bool RequiresCopyDeleteFallback(string source, string destination) =>
+        _dependencies.ForceMoveFallback(source, destination) ||
+        IsKnownCrossFileSystemMove(source, destination);
+
+    internal static bool IsKnownCrossFileSystemMove(string source, string destination)
+    {
+        if (!OperatingSystem.IsWindows())
+            return false;
+
+        string? sourceRoot = Path.GetPathRoot(Path.GetFullPath(source));
+        string? destinationRoot = Path.GetPathRoot(Path.GetFullPath(destination));
+
+        return !string.IsNullOrEmpty(sourceRoot) &&
+               !string.IsNullOrEmpty(destinationRoot) &&
+               !string.Equals(sourceRoot, destinationRoot, StringComparison.OrdinalIgnoreCase);
     }
 
     private DirectMoveResult TryMoveDirect(string source, string destination, bool sourceIsFile)
