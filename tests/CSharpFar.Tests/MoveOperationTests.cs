@@ -871,9 +871,23 @@ public class MoveOperationTests : IDisposable
     {
         string source = Write(_src, "dup.txt", "new");
         string destination = Write(_dst, "dup.txt", "old");
+        bool stagingCopyStarted = false;
+        bool destinationMovedBeforeStaging = false;
         var service = new FileOperationService(FileOperationServiceDependencies.Default with
         {
             ForceMoveFallback = (from, _) => Path.GetFullPath(from) == Path.GetFullPath(source),
+            OpenFileStream = (path, mode, access, share, bufferSize, options) =>
+            {
+                if (Path.GetFullPath(path) == Path.GetFullPath(source) && access == FileAccess.Read)
+                    stagingCopyStarted = true;
+                return new FileStream(path, mode, access, share, bufferSize, options);
+            },
+            MoveFile = (from, to) =>
+            {
+                if (Path.GetFullPath(from) == Path.GetFullPath(destination) && !stagingCopyStarted)
+                    destinationMovedBeforeStaging = true;
+                File.Move(from, to);
+            },
         });
 
         FileOperationResult result = await service.MoveAsync(
@@ -882,6 +896,8 @@ public class MoveOperationTests : IDisposable
             onConflict: _ => ConflictChoice.Overwrite);
 
         Assert.Empty(result.Errors);
+        Assert.True(stagingCopyStarted);
+        Assert.False(destinationMovedBeforeStaging);
         Assert.False(File.Exists(source));
         Assert.Equal("new", File.ReadAllText(destination));
         Assert.Empty(Directory.EnumerateFileSystemEntries(_dst, "dup.txt.csharpfar-replace-*"));
@@ -1027,6 +1043,116 @@ public class MoveOperationTests : IDisposable
         Assert.Empty(Directory.EnumerateFileSystemEntries(_dst, "dup.txt.csharpfar-replace-*"));
     }
 
+
+    [Fact]
+    public void IsKnownCrossFileSystemMove_ClassifiesWindowsRoots()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        Assert.True(FileOperationService.IsKnownCrossFileSystemMove(@"C:\A", @"D:\B"));
+        Assert.False(FileOperationService.IsKnownCrossFileSystemMove(@"C:\A", @"c:\B"));
+        Assert.True(FileOperationService.IsKnownCrossFileSystemMove(@"\\server\share1\a", @"\\server\share2\b"));
+        Assert.False(FileOperationService.IsKnownCrossFileSystemMove(@"\\server\share1\a", @"\\SERVER\SHARE1\b"));
+    }
+
+    [Fact]
+    public async Task MoveAsync_KnownFallbackSkipsDirectMove()
+    {
+        string source = Write(_src, "fallback.txt", "data");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            ForceMoveFallback = static (_, _) => true,
+            MoveFile = static (_, _) => throw new InvalidOperationException("Direct move must not run for known fallback."),
+        });
+
+        await service.MoveAsync([source], _dst);
+
+        Assert.False(File.Exists(source));
+        Assert.Equal("data", File.ReadAllText(Path.Combine(_dst, "fallback.txt")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_NativeCrossDeviceErrorTriggersFallback()
+    {
+        string source = Write(_src, "native-fallback.txt", "data");
+        int nativeCode = OperatingSystem.IsWindows() ? 17 : 18;
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            MoveFile = (_, _) => throw new NativeMoveIOException(nativeCode),
+        });
+
+        await service.MoveAsync([source], _dst);
+
+        Assert.False(File.Exists(source));
+        Assert.Equal("data", File.ReadAllText(Path.Combine(_dst, "native-fallback.txt")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_FallbackCopyFailurePreservesSource()
+    {
+        string source = Write(_src, "copy-failure.txt", "data");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            ForceMoveFallback = static (_, _) => true,
+            OpenFileStream = (path, mode, access, share, bufferSize, options) =>
+            {
+                if (Path.GetFullPath(path) == Path.GetFullPath(source) && access == FileAccess.Read)
+                    throw new IOException("simulated copy failure");
+                return new FileStream(path, mode, access, share, bufferSize, options);
+            },
+        });
+
+        await Assert.ThrowsAsync<IOException>(() => service.MoveAsync([source], _dst));
+
+        Assert.Equal("data", File.ReadAllText(source));
+        Assert.False(File.Exists(Path.Combine(_dst, "copy-failure.txt")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_CrossVolumeDirectoryReplaceUsesStaging()
+    {
+        string source = Path.Combine(_src, "Folder");
+        string destination = Path.Combine(_dst, "Folder");
+        Directory.CreateDirectory(source);
+        Directory.CreateDirectory(destination);
+        Write(source, "new.txt", "new");
+        Write(destination, "old.txt", "old");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            ForceMoveFallback = (from, _) => Path.GetFullPath(from) == Path.GetFullPath(source),
+        });
+
+        await service.MoveAsync([source], _dst, onConflict: _ => ConflictChoice.Replace);
+
+        Assert.False(Directory.Exists(source));
+        Assert.Equal("new", File.ReadAllText(Path.Combine(destination, "new.txt")));
+        Assert.False(File.Exists(Path.Combine(destination, "old.txt")));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_dst, "Folder.csharpfar-replace-*"));
+    }
+
+    [Fact]
+    public async Task MoveAsync_CrossVolumeMergeUsesFallbackForChildren()
+    {
+        string source = Path.Combine(_src, "Folder");
+        string destination = Path.Combine(_dst, "Folder");
+        Directory.CreateDirectory(source);
+        Directory.CreateDirectory(destination);
+        Write(source, "new.txt", "new");
+        Write(destination, "existing.txt", "existing");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with
+        {
+            ForceMoveFallback = static (_, _) => true,
+            MoveFile = static (_, _) => throw new InvalidOperationException("Direct move must not run for fallback merge children."),
+        });
+
+        await service.MoveAsync([source], _dst, onConflict: _ => ConflictChoice.Merge);
+
+        Assert.False(Directory.Exists(source));
+        Assert.Equal("new", File.ReadAllText(Path.Combine(destination, "new.txt")));
+        Assert.Equal("existing", File.ReadAllText(Path.Combine(destination, "existing.txt")));
+    }
+
     // ── CancellationToken ─────────────────────────────────────────────────────
 
     [Fact]
@@ -1048,6 +1174,15 @@ public class MoveOperationTests : IDisposable
         string path = Path.Combine(dir, name);
         File.WriteAllText(path, content);
         return path;
+    }
+
+
+    private sealed class NativeMoveIOException : IOException
+    {
+        public NativeMoveIOException(int hResult)
+        {
+            HResult = hResult;
+        }
     }
 
     private sealed class OverwriteResolver : IFileOperationConflictResolver
