@@ -90,6 +90,22 @@ public sealed class TextComparisonTests : IDisposable
     }
 
     [Fact]
+    public void TextComparer_Utf8SplitAtDetectionBoundaryStillUsesUtf8()
+    {
+        FileEntry left = WriteBytes("utf8-boundary.txt", Encoding.UTF8.GetBytes("aaaяZ"));
+        FileEntry right = WriteBytes(
+            "utf16-boundary.txt",
+            WithBom(new UnicodeEncoding(false, true), "aaaяZ"));
+        var comparer = new TextFileComparer(
+            new ComparisonOptions { Method = CompareMethod.Text },
+            new LocalComparisonFileSystem(),
+            byteBufferSize: 1,
+            detectionPrefixSize: 4);
+
+        Assert.True(comparer.Compare(left, right).Equal);
+    }
+
+    [Fact]
     public void TextComparer_BinaryFallsBackToStrictBytes()
     {
         FileEntry left = WriteBytes("left.bin", [0, 1, 2, 3]);

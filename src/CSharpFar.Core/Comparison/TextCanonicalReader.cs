@@ -41,11 +41,11 @@ internal sealed class TextCanonicalReader : IDisposable
 
         _stream = stream;
         _options = options;
-        _prefix = new byte[detectionPrefixSize];
+        _prefix = new byte[checked(detectionPrefixSize + 3)];
         _prefixCount = ReadPrefix(_stream, _prefix, cancellationToken);
         SourceBytesRead = _prefixCount;
 
-        Detection = TextEncodingDetector.Detect(_prefix.AsSpan(0, _prefixCount));
+        Detection = DetectPrefix(_prefix.AsSpan(0, _prefixCount), detectionPrefixSize);
         _prefixOffset = Math.Min(Detection.ContentStartLength, _prefixCount);
 
         _byteBuffer = new byte[byteBufferSize];
@@ -224,6 +224,33 @@ internal sealed class TextCanonicalReader : IDisposable
         if (_canonicalCount >= _canonicalBuffer.Length)
             throw new InvalidOperationException("Canonical text buffer overflow.");
         _canonicalBuffer[_canonicalCount++] = value;
+    }
+
+    private static EncodingDetectionResult DetectPrefix(
+        ReadOnlySpan<byte> prefix,
+        int detectionPrefixSize)
+    {
+        int initialLength = Math.Min(prefix.Length, detectionPrefixSize);
+        EncodingDetectionResult initial = TextEncodingDetector.Detect(prefix[..initialLength]);
+
+        if (prefix.Length <= initialLength ||
+            initial.IsBinary ||
+            initial.IsUtf16 ||
+            initial.HasByteOrderMark ||
+            initial.Encoding.CodePage == Encoding.UTF8.CodePage)
+        {
+            return initial;
+        }
+
+        int maxLength = Math.Min(prefix.Length, initialLength + 3);
+        for (int length = initialLength + 1; length <= maxLength; length++)
+        {
+            EncodingDetectionResult candidate = TextEncodingDetector.Detect(prefix[..length]);
+            if (!candidate.IsBinary && candidate.Encoding.CodePage == Encoding.UTF8.CodePage)
+                return candidate;
+        }
+
+        return initial;
     }
 
     private static int ReadPrefix(Stream stream, byte[] buffer, CancellationToken cancellationToken)
