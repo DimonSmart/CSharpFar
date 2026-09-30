@@ -13,6 +13,25 @@ public enum CompareMethod
     Text,
 }
 
+public enum TextLineEndingComparison
+{
+    Exact,
+    Normalize,
+}
+
+public enum TextWhitespaceMode
+{
+    Exact,
+    Normalize,
+    IgnoreAll,
+}
+
+public enum TextBomComparison
+{
+    Exact,
+    Ignore,
+}
+
 public enum FileSetMatchMode
 {
     FileName,

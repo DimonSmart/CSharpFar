@@ -96,6 +96,9 @@ public sealed class AppSettings
         public string IncludeMasks { get; set; } = "*";
         public string ExcludeMasks { get; set; } = "";
         public string Method { get; set; } = "Fast";
+        public string TextLineEndings { get; set; } = "Normalize";
+        public string TextWhitespace { get; set; } = "Normalize";
+        public string TextBom { get; set; } = "Ignore";
         public string TimestampTolerance { get; set; } = "Exact";
         public string NameComparison { get; set; } = "SystemDefault";
         public string FileSetMatchMode { get; set; } = "FileName";

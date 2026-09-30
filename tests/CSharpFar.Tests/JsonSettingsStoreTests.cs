@@ -36,6 +36,9 @@ public class JsonSettingsStoreTests : IDisposable
         Assert.True(store.Settings.FileOperations.ShowTotalProgress);
         Assert.Equal("Default", store.Settings.FileOperations.SecurityMode);
         Assert.Equal(1000, store.Settings.History.MaxCommandHistoryItems);
+        Assert.Equal("Normalize", store.Settings.Compare.TextLineEndings);
+        Assert.Equal("Normalize", store.Settings.Compare.TextWhitespace);
+        Assert.Equal("Ignore", store.Settings.Compare.TextBom);
     }
 
     [Fact]
@@ -105,6 +108,44 @@ public class JsonSettingsStoreTests : IDisposable
         Assert.Equal(4, item.Number);
         Assert.Equal("Work", item.Name);
         Assert.Equal(@"C:\Work", item.Path);
+    }
+
+    [Fact]
+    public void LegacyCompareSettingsWithoutTextPropertiesUseDefaults()
+    {
+        string configDir = Path.Combine(_tempDir, "legacy-compare");
+        Directory.CreateDirectory(configDir);
+        File.WriteAllText(
+            Path.Combine(configDir, "settings.json"),
+            """
+            { "compare": { "method": "Text" } }
+            """);
+
+        var store = new JsonSettingsStore(configDir);
+
+        Assert.Equal("Text", store.Settings.Compare.Method);
+        Assert.Equal("Normalize", store.Settings.Compare.TextLineEndings);
+        Assert.Equal("Normalize", store.Settings.Compare.TextWhitespace);
+        Assert.Equal("Ignore", store.Settings.Compare.TextBom);
+    }
+
+    [Fact]
+    public void SaveAndReload_PreservesTextComparisonSettings()
+    {
+        string configDir = Path.Combine(_tempDir, "compare-text");
+        var store = new JsonSettingsStore(configDir);
+        store.Settings.Compare.Method = "Text";
+        store.Settings.Compare.TextLineEndings = "Exact";
+        store.Settings.Compare.TextWhitespace = "IgnoreAll";
+        store.Settings.Compare.TextBom = "Exact";
+        store.Save();
+
+        var reloaded = new JsonSettingsStore(configDir);
+
+        Assert.Equal("Text", reloaded.Settings.Compare.Method);
+        Assert.Equal("Exact", reloaded.Settings.Compare.TextLineEndings);
+        Assert.Equal("IgnoreAll", reloaded.Settings.Compare.TextWhitespace);
+        Assert.Equal("Exact", reloaded.Settings.Compare.TextBom);
     }
 
     [Fact]

@@ -25,7 +25,7 @@ public sealed class FolderStructureCompareEngine
         var effectiveOptions = options with { Mode = CompareMode.FolderStructure };
         var leftEntries = _scanner.Scan(left, effectiveOptions, cancellationToken);
         var rightEntries = _scanner.Scan(right, effectiveOptions, cancellationToken);
-        var comparer = CreateComparer(effectiveOptions);
+        var comparer = FileComparerFactory.Create(effectiveOptions, _fileSystem);
         var keyComparer = effectiveOptions.IsNameComparisonCaseSensitive
             ? StringComparer.Ordinal
             : StringComparer.OrdinalIgnoreCase;
@@ -84,14 +84,6 @@ public sealed class FolderStructureCompareEngine
         watch.Stop();
         return BuildResult(CompareMode.FolderStructure, rows, leftEntries, rightEntries, watch.Elapsed, comparedBytes);
     }
-
-    private IFileComparer CreateComparer(ComparisonOptions options) =>
-        options.Method switch
-        {
-            CompareMethod.Content => new ByteContentFileComparer(_fileSystem),
-            CompareMethod.Text => new ByteContentFileComparer(_fileSystem),
-            _ => new FastFileComparer(options.TimestampToleranceValue),
-        };
 
     internal static CompareResult BuildResult(
         CompareMode mode,

@@ -7,7 +7,7 @@ namespace CSharpFar.App.Dialogs;
 internal sealed class CompareOptionsDialog
 {
     private const int DialogWidth = 86;
-    private const int DialogHeight = 26;
+    private const int DialogHeight = 30;
 
     private readonly FormFieldFactory _fields;
     private readonly DialogService _dialogs;
@@ -43,17 +43,26 @@ internal sealed class CompareOptionsDialog
         var depth = FormControls.Choice(
             "Depth:", ["All", "0", "1", "2", "Custom"], static value => value, settings.Depth, "All");
         var method = FormControls.Choice(
-            "Method:", [CompareMethod.Fast, CompareMethod.Content], MethodLabel,
-            Enum.TryParse(settings.Method, out CompareMethod initialMethod) ? initialMethod : CompareMethod.Fast);
+            "Method:", [CompareMethod.Fast, CompareMethod.Content, CompareMethod.Text], MethodLabel,
+            ParseEnum(settings.Method, CompareMethod.Fast));
+        var textLineEndings = FormControls.Choice(
+            "Line endings:", [TextLineEndingComparison.Exact, TextLineEndingComparison.Normalize], TextLineEndingsLabel,
+            ParseEnum(settings.TextLineEndings, TextLineEndingComparison.Normalize));
+        var textWhitespace = FormControls.Choice(
+            "Whitespace:", [TextWhitespaceMode.Exact, TextWhitespaceMode.Normalize, TextWhitespaceMode.IgnoreAll], TextWhitespaceLabel,
+            ParseEnum(settings.TextWhitespace, TextWhitespaceMode.Normalize));
+        var textBom = FormControls.Choice(
+            "BOM:", [TextBomComparison.Exact, TextBomComparison.Ignore], TextBomLabel,
+            ParseEnum(settings.TextBom, TextBomComparison.Ignore));
         var tolerance = FormControls.Choice(
             "Timestamp:", [TimestampTolerance.Exact, TimestampTolerance.TwoSeconds, TimestampTolerance.OneHour], ToleranceLabel,
-            Enum.TryParse(settings.TimestampTolerance, out TimestampTolerance initialTolerance) ? initialTolerance : TimestampTolerance.Exact);
+            ParseEnum(settings.TimestampTolerance, TimestampTolerance.Exact));
         var nameComparison = FormControls.Choice(
             "Name comparison:", [NameComparisonMode.SystemDefault, NameComparisonMode.CaseSensitive, NameComparisonMode.CaseInsensitive], NameComparisonLabel,
-            Enum.TryParse(settings.NameComparison, out NameComparisonMode initialNameComparison) ? initialNameComparison : NameComparisonMode.SystemDefault);
+            ParseEnum(settings.NameComparison, NameComparisonMode.SystemDefault));
         var fileSetMatch = FormControls.Choice(
             "Match by:", [FileSetMatchMode.FileName, FileSetMatchMode.FileNameAndSize, FileSetMatchMode.FileNameAndContentHash], FileSetMatchLabel,
-            Enum.TryParse(settings.FileSetMatchMode, out FileSetMatchMode initialFileSetMatch) ? initialFileSetMatch : FileSetMatchMode.FileName);
+            ParseEnum(settings.FileSetMatchMode, FileSetMatchMode.FileName));
         var buttons = FormControls.Buttons(
             [
                 DialogButton.Default("compare", "Compare", 'C'),
@@ -77,6 +86,9 @@ internal sealed class CompareOptionsDialog
                 include,
                 exclude,
                 method,
+                textLineEndings,
+                textWhitespace,
+                textBom,
                 tolerance,
                 nameComparison,
                 fileSetMatch),
@@ -85,7 +97,8 @@ internal sealed class CompareOptionsDialog
             {
                 return BuildOptions(
                     mode, recursive.Value, selectedOnly.Value, depth.Value, customDepth, include, exclude,
-                    method.Value, tolerance.Value, nameComparison.Value, fileSetMatch.Value);
+                    method.Value, tolerance.Value, nameComparison.Value, fileSetMatch.Value,
+                    textLineEndings.Value, textWhitespace.Value, textBom.Value);
             });
     }
 
@@ -100,6 +113,9 @@ internal sealed class CompareOptionsDialog
         TextField include,
         TextField exclude,
         ChoiceFormRow<CompareMethod> method,
+        ChoiceFormRow<TextLineEndingComparison> textLineEndings,
+        ChoiceFormRow<TextWhitespaceMode> textWhitespace,
+        ChoiceFormRow<TextBomComparison> textBom,
         ChoiceFormRow<TimestampTolerance> tolerance,
         ChoiceFormRow<NameComparisonMode> nameComparison,
         ChoiceFormRow<FileSetMatchMode> fileSetMatch)
@@ -133,6 +149,12 @@ internal sealed class CompareOptionsDialog
         rows.Add(method);
         if (method.Value == CompareMethod.Fast)
             rows.Add(tolerance);
+        else if (method.Value == CompareMethod.Text)
+        {
+            rows.Add(textLineEndings);
+            rows.Add(textWhitespace);
+            rows.Add(textBom);
+        }
         rows.Add(nameComparison);
         if (mode == CompareMode.FileSet)
             rows.Add(fileSetMatch);
@@ -159,7 +181,10 @@ internal sealed class CompareOptionsDialog
         CompareMethod method,
         TimestampTolerance tolerance,
         NameComparisonMode nameComparison,
-        FileSetMatchMode fileSetMatch)
+        FileSetMatchMode fileSetMatch,
+        TextLineEndingComparison textLineEndings = TextLineEndingComparison.Normalize,
+        TextWhitespaceMode textWhitespace = TextWhitespaceMode.Normalize,
+        TextBomComparison textBom = TextBomComparison.Ignore)
     {
         string? error = null;
         int? maxDepth = depth switch
@@ -188,6 +213,9 @@ internal sealed class CompareOptionsDialog
             IncludeMasks = includeMasks,
             ExcludeMasks = excludeMasks,
             Method = method,
+            TextLineEndings = textLineEndings,
+            TextWhitespace = textWhitespace,
+            TextBom = textBom,
             TimestampTolerance = tolerance,
             NameComparison = nameComparison,
             FileSetMatchMode = fileSetMatch,
@@ -207,7 +235,32 @@ internal sealed class CompareOptionsDialog
     }
 
     private static string MethodLabel(CompareMethod method) =>
-        method == CompareMethod.Content ? "Content (byte-by-byte)" : "Fast (size and modified time)";
+        method switch
+        {
+            CompareMethod.Fast => "Fast (size and modified time)",
+            CompareMethod.Content => "Content (byte-by-byte)",
+            CompareMethod.Text => "Text (normalized text)",
+            _ => throw new ArgumentOutOfRangeException(nameof(method), method, null),
+        };
+
+    private static string TextLineEndingsLabel(TextLineEndingComparison mode) =>
+        mode == TextLineEndingComparison.Normalize ? "Normalize" : "Exact";
+
+    private static string TextWhitespaceLabel(TextWhitespaceMode mode) =>
+        mode switch
+        {
+            TextWhitespaceMode.Exact => "Exact",
+            TextWhitespaceMode.Normalize => "Normalize",
+            TextWhitespaceMode.IgnoreAll => "Ignore all",
+            _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null),
+        };
+
+    private static string TextBomLabel(TextBomComparison mode) =>
+        mode == TextBomComparison.Ignore ? "Ignore" : "Exact presence";
+
+    private static T ParseEnum<T>(string? value, T fallback)
+        where T : struct, Enum =>
+        Enum.TryParse(value, out T parsed) && Enum.IsDefined(parsed) ? parsed : fallback;
 
     private static string ToleranceLabel(TimestampTolerance tolerance) =>
         tolerance switch { TimestampTolerance.TwoSeconds => "2 seconds", TimestampTolerance.OneHour => "1 hour", _ => "Exact" };

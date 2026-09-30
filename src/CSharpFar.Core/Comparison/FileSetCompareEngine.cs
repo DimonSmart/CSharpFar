@@ -7,6 +7,7 @@ public sealed class FileSetCompareEngine
     private readonly FolderScanner _scanner;
     private readonly IComparisonFileSystem _fileSystem;
     private readonly FileContentHasher _hasher;
+    private readonly TextContentHasher _textHasher;
 
     public FileSetCompareEngine(
         FolderScanner? scanner = null,
@@ -15,6 +16,7 @@ public sealed class FileSetCompareEngine
         _fileSystem = fileSystem ?? new LocalComparisonFileSystem();
         _scanner = scanner ?? new FolderScanner(_fileSystem);
         _hasher = new FileContentHasher(_fileSystem);
+        _textHasher = new TextContentHasher(_fileSystem);
     }
 
     public CompareResult Compare(
@@ -25,11 +27,9 @@ public sealed class FileSetCompareEngine
     {
         var watch = Stopwatch.StartNew();
         var effectiveOptions = options with { Mode = CompareMode.FileSet };
+        IFileComparer comparer = FileComparerFactory.Create(effectiveOptions, _fileSystem);
         var leftEntries = Prepare(_scanner.Scan(left, effectiveOptions, cancellationToken), effectiveOptions, cancellationToken);
         var rightEntries = Prepare(_scanner.Scan(right, effectiveOptions, cancellationToken), effectiveOptions, cancellationToken);
-        IFileComparer comparer = effectiveOptions.Method == CompareMethod.Content
-            ? new ByteContentFileComparer(_fileSystem)
-            : new FastFileComparer(effectiveOptions.TimestampToleranceValue);
         var keyComparer = effectiveOptions.IsNameComparisonCaseSensitive
             ? StringComparer.Ordinal
             : StringComparer.OrdinalIgnoreCase;
@@ -109,7 +109,12 @@ public sealed class FileSetCompareEngine
 
             try
             {
-                return entry with { ContentHash = _hasher.ComputeSha256(entry, cancellationToken) };
+                if (options.Method != CompareMethod.Text)
+                    return entry with { ContentHash = _hasher.ComputeSha256(entry, cancellationToken) };
+
+                TextContentHashResult textHash = _textHasher.ComputeSha256(entry, options, cancellationToken);
+                string domain = textHash.IsBinary ? "B" : "T";
+                return entry with { ContentHash = $"{domain}:{textHash.Digest}" };
             }
             catch (Exception ex) when (FolderScanner.IsFileSystemException(ex))
             {

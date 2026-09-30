@@ -4,6 +4,9 @@ public sealed record ComparisonOptions
 {
     public CompareMode Mode { get; init; } = CompareMode.FolderStructure;
     public CompareMethod Method { get; init; } = CompareMethod.Fast;
+    public TextLineEndingComparison TextLineEndings { get; init; } = TextLineEndingComparison.Normalize;
+    public TextWhitespaceMode TextWhitespace { get; init; } = TextWhitespaceMode.Normalize;
+    public TextBomComparison TextBom { get; init; } = TextBomComparison.Ignore;
     public FileSetMatchMode FileSetMatchMode { get; init; } = FileSetMatchMode.FileName;
     public bool IncludeSubfolders { get; init; } = true;
     public int? MaxDepth { get; init; }

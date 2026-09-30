@@ -124,6 +124,9 @@ internal sealed class CompareCommand : IApplicationCommand
         settings.IncludeMasks = options.IncludeMasks;
         settings.ExcludeMasks = options.ExcludeMasks;
         settings.Method = options.Method.ToString();
+        settings.TextLineEndings = options.TextLineEndings.ToString();
+        settings.TextWhitespace = options.TextWhitespace.ToString();
+        settings.TextBom = options.TextBom.ToString();
         settings.TimestampTolerance = options.TimestampTolerance.ToString();
         settings.NameComparison = options.NameComparison.ToString();
         settings.FileSetMatchMode = options.FileSetMatchMode.ToString();

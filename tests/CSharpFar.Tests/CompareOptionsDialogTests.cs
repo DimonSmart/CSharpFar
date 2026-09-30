@@ -24,6 +24,9 @@ public sealed class CompareOptionsDialogTests
         Assert.Equal("*", result.IncludeMasks);
         Assert.Equal(string.Empty, result.ExcludeMasks);
         Assert.Equal(CompareMethod.Fast, result.Method);
+        Assert.Equal(TextLineEndingComparison.Normalize, result.TextLineEndings);
+        Assert.Equal(TextWhitespaceMode.Normalize, result.TextWhitespace);
+        Assert.Equal(TextBomComparison.Ignore, result.TextBom);
         Assert.Equal(TimestampTolerance.Exact, result.TimestampTolerance);
         Assert.Equal(NameComparisonMode.SystemDefault, result.NameComparison);
         Assert.Equal(FileSetMatchMode.FileName, result.FileSetMatchMode);
@@ -196,6 +199,71 @@ public sealed class CompareOptionsDialogTests
             FileSetMatchMode.FileName);
 
         Assert.Empty(provider.Get(historyId).Items);
+    }
+
+    [Fact]
+    public void Show_TextRestoresPersistedTextOptions()
+    {
+        var driver = Driver(Key(ConsoleKey.F10));
+        var settings = new AppSettings.CompareSettings
+        {
+            Method = nameof(CompareMethod.Text),
+            TextLineEndings = nameof(TextLineEndingComparison.Exact),
+            TextWhitespace = nameof(TextWhitespaceMode.IgnoreAll),
+            TextBom = nameof(TextBomComparison.Exact),
+        };
+
+        ComparisonOptions? result = Show(driver, CompareMode.FolderStructure, settings);
+
+        Assert.NotNull(result);
+        Assert.Equal(CompareMethod.Text, result.Method);
+        Assert.Equal(TextLineEndingComparison.Exact, result.TextLineEndings);
+        Assert.Equal(TextWhitespaceMode.IgnoreAll, result.TextWhitespace);
+        Assert.Equal(TextBomComparison.Exact, result.TextBom);
+    }
+
+    [Fact]
+    public void Show_InvalidPersistedTextOptionsFallBackToDefaults()
+    {
+        var driver = Driver(Key(ConsoleKey.F10));
+        var settings = new AppSettings.CompareSettings
+        {
+            Method = "999",
+            TextLineEndings = "invalid",
+            TextWhitespace = "999",
+            TextBom = "invalid",
+        };
+
+        ComparisonOptions? result = Show(driver, CompareMode.FolderStructure, settings);
+
+        Assert.NotNull(result);
+        Assert.Equal(CompareMethod.Fast, result.Method);
+        Assert.Equal(TextLineEndingComparison.Normalize, result.TextLineEndings);
+        Assert.Equal(TextWhitespaceMode.Normalize, result.TextWhitespace);
+        Assert.Equal(TextBomComparison.Ignore, result.TextBom);
+    }
+
+    [Fact]
+    public void BuildOptions_TransfersTextOptions()
+    {
+        var fields = new FormFieldFactory(TextFieldHistoryTestProvider.Create());
+        TextField customDepth = fields.Text(new TextFieldOptions("3"));
+        TextField include = fields.Text(new TextFieldOptions("*"));
+        TextField exclude = fields.Text();
+
+        object submit = CompareOptionsDialog.BuildOptions(
+            CompareMode.FolderStructure, true, false, "All",
+            customDepth, include, exclude,
+            CompareMethod.Text, TimestampTolerance.Exact,
+            NameComparisonMode.SystemDefault, FileSetMatchMode.FileName,
+            TextLineEndingComparison.Exact,
+            TextWhitespaceMode.IgnoreAll,
+            TextBomComparison.Exact);
+
+        ComparisonOptions result = Assert.IsType<ComparisonOptions>(ReadInternal<object?>(submit, "Result"));
+        Assert.Equal(TextLineEndingComparison.Exact, result.TextLineEndings);
+        Assert.Equal(TextWhitespaceMode.IgnoreAll, result.TextWhitespace);
+        Assert.Equal(TextBomComparison.Exact, result.TextBom);
     }
 
     private static ComparisonOptions? Show(
