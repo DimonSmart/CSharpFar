@@ -1,6 +1,8 @@
 cask "csharpfar-app" do
   arch arm: "arm64", intel: "x64"
 
+  depends_on :macos
+
   version "1.0.82"
   sha256 arm: "a2699768d8df23a3638cf6aff1f24e0a83a4bba96a75345171f5a109c7ca692a",
          intel: "887ac83356df6951e0cfdc79cee968f016566e9f4a46dd96914ad8f35e755541"

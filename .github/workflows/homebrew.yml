@@ -89,10 +89,30 @@ jobs:
 
           $env:RELEASE_TAG | Set-Content -Path eng/packaging/homebrew-current-tag.txt -Encoding ascii
 
-      - name: Validate Homebrew metadata syntax
+      - name: Validate Ruby syntax
         run: |
           ruby -c Formula/csharpfar.rb
           ruby -c Casks/csharpfar-app.rb
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@848c272c7bfe984a197bd4d16383f4c106ec61e6 # 2026.09.21.1
+        with:
+          core: false
+          cask: false
+
+      - name: Validate Homebrew metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          brew tap-new dimonsmart/csharpfar
+          tap_dir="$(brew --repository dimonsmart/csharpfar)"
+          mkdir -p "$tap_dir/Formula" "$tap_dir/Casks"
+          cp Formula/csharpfar.rb "$tap_dir/Formula/csharpfar.rb"
+          cp Casks/csharpfar-app.rb "$tap_dir/Casks/csharpfar-app.rb"
+
+          brew audit --formula --strict dimonsmart/csharpfar/csharpfar
+          brew audit --cask --strict dimonsmart/csharpfar/csharpfar-app
 
       - name: Commit Homebrew metadata
         shell: pwsh

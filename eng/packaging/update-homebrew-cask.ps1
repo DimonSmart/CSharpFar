@@ -40,6 +40,8 @@ $cask = @'
 cask "csharpfar-app" do
   arch arm: "arm64", intel: "x64"
 
+  depends_on :macos
+
   version "__VERSION__"
   sha256 arm: "__ARM64_SHA256__",
          intel: "__X64_SHA256__"
