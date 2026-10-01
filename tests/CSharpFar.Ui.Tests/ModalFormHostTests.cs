@@ -333,21 +333,23 @@ public sealed class ModalFormHostTests
         driver.EnqueueInput(Mouse(downX + 7, downY + 3, MouseButton.None, MouseEventKind.Move));
         driver.EnqueueInput(Mouse(downX + 7, downY + 3, MouseButton.Left, MouseEventKind.Up));
         driver.EnqueueKey(Key(ConsoleKey.Escape));
+        var layouts = new List<Rect>();
 
         new ModalFormHost(ModalTestHost.Create(driver)).Run(
             new ScrollableFormDialog([new LabelRow("Value", DialogStyles.Fill)]),
             Options with { Movable = true },
-            Layout,
+            layout =>
+            {
+                layouts.Add(layout.OuterBounds);
+                return Layout(layout);
+            },
             formEvent => formEvent.IsCancelled
                 ? ModalDialogLoopResult<object?>.Complete(null)
                 : ModalDialogLoopResult<object?>.ContinueNoChange);
 
-        FakeConsoleDriver.WriteRecord title = driver.WriteRecords.Last(record =>
-            string.Equals(record.Text, " Test ", StringComparison.Ordinal));
-        int initialTitleX = initial.FrameBounds.X +
-            (initial.FrameBounds.Width - ConsoleTextMetrics.GetCellWidth(" Test ")) / 2;
-        Assert.Equal(initialTitleX + 7, title.X);
-        Assert.Equal(initial.FrameBounds.Y + 3, title.Y);
+        Assert.True(layouts.Count >= 2);
+        Assert.Equal(initial.OuterBounds.X + 7, layouts[^1].X);
+        Assert.Equal(initial.OuterBounds.Y + 3, layouts[^1].Y);
     }
 
     [Fact]
