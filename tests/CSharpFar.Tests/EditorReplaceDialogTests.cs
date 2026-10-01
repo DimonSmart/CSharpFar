@@ -307,6 +307,120 @@ public sealed class EditorReplaceDialogTests
         Assert.Empty(history.Get(AppTextHistoryIds.EditorReplaceText).Items);
     }
 
+
+    [Fact]
+    public void Show_DragPositionSurvivesFindNextAndReplaceAndResetsOnReopen()
+    {
+        var driver = new FakeConsoleDriver(100, 30);
+        var (dialog, _) = CreateDialog(driver);
+        (int X, int Y) initialTitle = default;
+        (int X, int Y) movedTitle = default;
+        (int X, int Y) afterFindNextTitle = default;
+        (int X, int Y) afterReplaceTitle = default;
+        int stage = 0;
+        int findCalls = 0;
+        int replaceCalls = 0;
+        int invalidations = 0;
+
+        Action<FakeConsoleDriver>? drive = null;
+        drive = current =>
+        {
+            if (current.PendingInputCount > 0)
+            {
+                current.BeforeReadInput = drive;
+                return;
+            }
+
+            switch (stage++)
+            {
+                case 0:
+                    initialTitle = FindReplaceTitle(current);
+                    current.EnqueueKey(Key(ConsoleKey.Enter));
+                    break;
+                case 1:
+                    Assert.Equal(initialTitle, FindReplaceTitle(current));
+                    current.EnqueueInput(new MouseConsoleInputEvent(
+                        initialTitle.X,
+                        initialTitle.Y,
+                        MouseButton.Left,
+                        MouseEventKind.Down,
+                        MouseKeyModifiers.None));
+                    break;
+                case 2:
+                    current.EnqueueInput(new MouseConsoleInputEvent(
+                        initialTitle.X + 8,
+                        initialTitle.Y + 3,
+                        MouseButton.None,
+                        MouseEventKind.Move,
+                        MouseKeyModifiers.None));
+                    break;
+                case 3:
+                    movedTitle = FindReplaceTitle(current);
+                    Assert.Equal((initialTitle.X + 8, initialTitle.Y + 3), movedTitle);
+                    current.EnqueueInput(new MouseConsoleInputEvent(
+                        initialTitle.X + 8,
+                        initialTitle.Y + 3,
+                        MouseButton.Left,
+                        MouseEventKind.Up,
+                        MouseKeyModifiers.None));
+                    break;
+                case 4:
+                    current.EnqueueKey(Key(ConsoleKey.Enter));
+                    break;
+                case 5:
+                    afterFindNextTitle = FindReplaceTitle(current);
+                    EnqueueButtonClick(current, "Replace");
+                    break;
+                case 6:
+                    afterReplaceTitle = FindReplaceTitle(current);
+                    current.EnqueueKey(Key(ConsoleKey.Escape));
+                    break;
+            }
+
+            current.BeforeReadInput = drive;
+        };
+        driver.BeforeReadInput = drive;
+
+        dialog.Show(
+            new EditorSearchOptions("foo"),
+            "bar",
+            _ =>
+            {
+                findCalls++;
+                return EditorReplaceCommandResult.Success();
+            },
+            (_, _) =>
+            {
+                replaceCalls++;
+                return EditorReplaceCommandResult.Success();
+            },
+            (_, _) => EditorReplaceCommandResult.Success(),
+            () => invalidations++);
+
+        Assert.Equal(2, findCalls);
+        Assert.Equal(1, replaceCalls);
+        Assert.Equal(0, invalidations);
+        Assert.Equal(movedTitle, afterFindNextTitle);
+        Assert.Equal(movedTitle, afterReplaceTitle);
+
+        (int X, int Y) reopenedTitle = default;
+        driver.BeforeReadInput = current =>
+        {
+            reopenedTitle = FindReplaceTitle(current);
+            current.EnqueueKey(Key(ConsoleKey.Escape));
+        };
+
+        dialog.Show(
+            new EditorSearchOptions("foo"),
+            "bar",
+            _ => EditorReplaceCommandResult.Success(),
+            (_, _) => EditorReplaceCommandResult.Success(),
+            (_, _) => EditorReplaceCommandResult.Success(),
+            () => { });
+
+        Assert.Equal(initialTitle, reopenedTitle);
+    }
+
     private static (EditorReplaceDialog Dialog, SingleLineTextHistoryRegistry History) CreateDialog(
         FakeConsoleDriver driver)
     {
@@ -341,6 +455,20 @@ public sealed class EditorReplaceDialogTests
             MouseButton.Left,
             MouseEventKind.Up,
             MouseKeyModifiers.None));
+    }
+
+    private static (int X, int Y) FindReplaceTitle(FakeConsoleDriver driver)
+    {
+        ConsoleViewport viewport = driver.GetViewport();
+        for (int y = 0; y < viewport.Height; y++)
+        {
+            string row = driver.GetRow(y);
+            int x = row.IndexOf("Replace", StringComparison.Ordinal);
+            if (x >= 0)
+                return (x, y);
+        }
+
+        throw new InvalidOperationException("Replace title was not rendered.");
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
