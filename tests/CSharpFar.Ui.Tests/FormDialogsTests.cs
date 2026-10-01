@@ -39,6 +39,61 @@ public sealed class FormDialogsTests
     }
 
     [Fact]
+    public void Show_MovableOptionDragsStandardForm()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        (int X, int Y) initial = default;
+        (int X, int Y) moved = default;
+        int stage = 0;
+
+        Action<FakeConsoleDriver>? drive = null;
+        drive = current =>
+        {
+            if (current.PendingInputCount > 0)
+            {
+                current.BeforeReadInput = drive;
+                return;
+            }
+
+            FakeConsoleDriver.WriteRecord title = current.WriteRecords.Last(record =>
+                string.Equals(record.Text, " Move ", StringComparison.Ordinal));
+            switch (stage++)
+            {
+                case 0:
+                    initial = (title.X + 1, title.Y);
+                    current.EnqueueInput(new MouseConsoleInputEvent(
+                        initial.X, initial.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+                    break;
+                case 1:
+                    current.EnqueueInput(new MouseConsoleInputEvent(
+                        initial.X + 5, initial.Y + 2, MouseButton.None, MouseEventKind.Move, MouseKeyModifiers.None));
+                    break;
+                case 2:
+                    moved = (title.X + 1, title.Y);
+                    current.EnqueueInput(new MouseConsoleInputEvent(
+                        initial.X + 5, initial.Y + 2, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
+                    break;
+                case 3:
+                    current.EnqueueKey(Key(ConsoleKey.Escape));
+                    break;
+            }
+
+            current.BeforeReadInput = drive;
+        };
+        driver.BeforeReadInput = drive;
+
+        string? result = new FormDialogs(ModalTestHost.Create(driver)).Show(
+            new FormDialogOptions("Move", 30, 8) { Movable = true },
+            rows: () => [FormControls.Label("Body")],
+            handle: formEvent => formEvent.IsCancelled
+                ? FormDialogOutcome<string?>.Complete(null)
+                : FormDialogOutcome<string?>.Continue());
+
+        Assert.Null(result);
+        Assert.Equal((initial.X + 5, initial.Y + 2), moved);
+    }
+
+    [Fact]
     public void Show_StandardSubmit_CommitsEveryCurrentHistoryField()
     {
         var driver = new FakeConsoleDriver();
