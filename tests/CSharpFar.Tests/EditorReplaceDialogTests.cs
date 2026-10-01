@@ -479,6 +479,12 @@ public sealed class EditorReplaceDialogTests
         throw new InvalidOperationException("Replace title was not rendered.");
     }
 
+    private static void AssertReplaceTitleAt(FakeConsoleDriver driver, int x, int y)
+    {
+        string row = driver.GetRow(y);
+        Assert.Equal("Replace", row.Substring(x, "Replace".Length));
+    }
+
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
         new('\0', key, shift: false, alt: false, control: false);
 }
