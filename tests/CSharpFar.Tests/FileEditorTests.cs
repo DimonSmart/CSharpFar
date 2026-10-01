@@ -338,6 +338,28 @@ public sealed class FileEditorTests : IDisposable
     }
 
     [Fact]
+    public void Show_NonScrollableDocumentRepaintsReservedScrollbarGutter()
+    {
+        string filePath = Path.Combine(_tempDir, "editor-non-scrollable-gutter.txt");
+        File.WriteAllText(filePath, "short");
+
+        var driver = new FakeConsoleDriver(width: 20, height: 8);
+        var renderer = new ScreenRenderer(driver);
+        using (renderer.BeginFrame())
+        {
+            for (int y = 1; y <= 5; y++)
+                renderer.WriteChar(19, y, '#', CellStyle.Default);
+        }
+
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(renderer, filePath);
+
+        for (int y = 1; y <= 5; y++)
+            Assert.Equal(' ', driver.GetRow(y)[19]);
+    }
+
+    [Fact]
     public void Show_ScrollbarIncreaseButtonScrollsTextDown()
     {
         string filePath = Path.Combine(_tempDir, "editor-scrollbar-increase.txt");

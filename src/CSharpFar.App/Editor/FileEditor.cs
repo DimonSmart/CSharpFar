@@ -1149,14 +1149,19 @@ internal sealed partial class FileEditor
             }
         }
 
-        if (frame.ScrollBarBounds is { } bounds && frame.VerticalScrollState is { } scrollState)
+        if (frame.ScrollBarBounds is { } bounds)
         {
-            new ScrollBarRenderer().RenderVerticalScrollbar(
-                canvas,
-                bounds,
-                scrollState,
-                new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false },
-                CSharpFarPaletteStyles.DialogBorder(_palette));
+            canvas.FillRegion(bounds, EditorTextStyle());
+
+            if (frame.VerticalScrollState is { } scrollState)
+            {
+                new ScrollBarRenderer().RenderVerticalScrollbar(
+                    canvas,
+                    bounds,
+                    scrollState,
+                    new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false },
+                    CSharpFarPaletteStyles.DialogBorder(_palette));
+            }
         }
     }
 
