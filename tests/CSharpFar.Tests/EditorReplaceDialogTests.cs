@@ -28,7 +28,7 @@ public sealed class EditorReplaceDialogTests
             Assert.Contains("Cancel", rendered);
         };
 
-        var (dialog, _) = CreateDialog(driver, clearRoot: true);
+        var (dialog, _) = CreateDialog(driver);
 
         dialog.Show(
             new EditorSearchOptions("foo"),
@@ -312,7 +312,7 @@ public sealed class EditorReplaceDialogTests
     public void Show_DragPositionSurvivesFindNextAndReplaceAndResetsOnReopen()
     {
         var driver = new FakeConsoleDriver(100, 30);
-        var (dialog, _) = CreateDialog(driver);
+        var (dialog, _) = CreateDialog(driver, clearRoot: true);
         (int X, int Y) initialTitle = default;
         (int X, int Y) movedTitle = default;
         (int X, int Y) afterFindNextTitle = default;
