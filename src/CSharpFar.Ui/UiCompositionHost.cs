@@ -342,9 +342,10 @@ public sealed class UiCompositionHost
         try
         {
             var composition = CaptureActiveComposition();
-            if (input is MouseConsoleInputEvent { Kind: MouseEventKind.Move, Button: MouseButton.None } passiveMove)
+            if (input is MouseConsoleInputEvent { Kind: MouseEventKind.Move, Button: MouseButton.None } passiveMove &&
+                _mouseCapture is null)
             {
-                bool hoverAllowed = _mouseCapture is null &&
+                bool hoverAllowed =
                     ReferenceEquals(composition.Surface, _layers[0]) &&
                     !composition.Overlays.Any(entry => entry.Layer.InputPolicy == UiLayerInputPolicy.Modal);
                 bool hoverInvalidate = hoverAllowed && _hoverMarquee.SetPointer(passiveMove.X, passiveMove.Y);
