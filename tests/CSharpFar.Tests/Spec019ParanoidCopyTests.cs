@@ -292,8 +292,13 @@ public sealed class Spec019ReliableCopyTests : IDisposable
                     DefaultConflictDecision = ConflictDecisionMode.Ask,
                 },
             },
-            progress is null ? null : new Progress<FileOperationProgress>(progress.Add),
+            progress is null ? null : new SynchronousProgress<FileOperationProgress>(progress.Add),
             resolver ?? new RecordingConflictResolver(ConflictDecisionMode.Overwrite));
+    }
+
+    private sealed class SynchronousProgress<T>(Action<T> handler) : IProgress<T>
+    {
+        public void Report(T value) => handler(value);
     }
 
     private static string CreateDeterministicFile(string directory, string name, int length)
