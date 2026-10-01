@@ -73,6 +73,7 @@ internal sealed class EditorReplaceDialog
                 MinHeight: MinimumHeight)
             {
                 InitialFocus = pattern,
+                Movable = true,
             },
             rows: () =>
             [
