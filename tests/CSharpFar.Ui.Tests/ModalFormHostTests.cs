@@ -323,6 +323,34 @@ public sealed class ModalFormHostTests
 
 
     [Fact]
+    public void Run_PublicHandler_MovableDialogDrags()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        ModalDialogRenderer.Layout initial = InitialLayout(80, 25);
+        int downX = initial.FrameBounds.X + 5;
+        int downY = initial.FrameBounds.Y;
+        driver.EnqueueInput(Mouse(downX, downY, MouseButton.Left, MouseEventKind.Down));
+        driver.EnqueueInput(Mouse(downX + 7, downY + 3, MouseButton.None, MouseEventKind.Move));
+        driver.EnqueueInput(Mouse(downX + 7, downY + 3, MouseButton.Left, MouseEventKind.Up));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        new ModalFormHost(ModalTestHost.Create(driver)).Run(
+            new ScrollableFormDialog([new LabelRow("Value", DialogStyles.Fill)]),
+            Options with { Movable = true },
+            Layout,
+            formEvent => formEvent.IsCancelled
+                ? ModalDialogLoopResult<object?>.Complete(null)
+                : ModalDialogLoopResult<object?>.ContinueNoChange);
+
+        FakeConsoleDriver.WriteRecord title = driver.WriteRecords.Last(record =>
+            string.Equals(record.Text, " Test ", StringComparison.Ordinal));
+        int initialTitleX = initial.FrameBounds.X +
+            (initial.FrameBounds.Width - ConsoleTextMetrics.GetCellWidth(" Test ")) / 2;
+        Assert.Equal(initialTitleX + 7, title.X);
+        Assert.Equal(initial.FrameBounds.Y + 3, title.Y);
+    }
+
+    [Fact]
     public void Run_MovableDialogDragsByTitleWithCaptureAndDoesNotReachFormHandler()
     {
         var driver = new FakeConsoleDriver(80, 25);
