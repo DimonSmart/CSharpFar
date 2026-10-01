@@ -68,7 +68,7 @@ public sealed class FormDialogsTests
                         initial.X + 5, initial.Y + 2, MouseButton.None, MouseEventKind.Move, MouseKeyModifiers.None));
                     break;
                 case 2:
-                    moved = title;
+                    Assert.Equal((initial.X + 5, initial.Y + 2), title);
                     current.EnqueueInput(new MouseConsoleInputEvent(
                         initial.X + 5, initial.Y + 2, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
                     break;
@@ -89,13 +89,6 @@ public sealed class FormDialogsTests
                 : FormDialogOutcome<string?>.Continue());
 
         Assert.Null(result);
-    }
-
-    private static void AssertTitleAt(FakeConsoleDriver driver, string title, int titleTextX, int y)
-    {
-        string expected = $" {title} ";
-        string row = driver.GetRow(y);
-        Assert.Equal(expected, row.Substring(titleTextX - 1, expected.Length));
     }
 
     [Fact]
