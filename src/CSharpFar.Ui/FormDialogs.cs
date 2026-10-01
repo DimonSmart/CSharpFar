@@ -30,6 +30,9 @@ public sealed record FormDialogOptions(
 
     public int VerticalMargin { get; init; } = 1;
 
+    /// <summary>Whether the modal form can be repositioned by dragging its title row.</summary>
+    public bool Movable { get; init; }
+
     /// <summary>Optional semantic control that receives initial form focus.</summary>
     public IFormFocusTarget? InitialFocus { get; init; }
 
@@ -358,6 +361,7 @@ internal sealed class FormDialogs
             ResizeMode = options.ResizeMode,
             HorizontalMargin = options.HorizontalMargin,
             VerticalMargin = options.VerticalMargin,
+            Movable = options.Movable,
         };
     }
 
