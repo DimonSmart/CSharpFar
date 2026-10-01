@@ -52,7 +52,6 @@ public enum CompareStatus
 
 public enum NameComparisonMode
 {
-    SystemDefault,
     CaseSensitive,
     CaseInsensitive,
 }

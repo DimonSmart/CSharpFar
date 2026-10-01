@@ -28,7 +28,7 @@ public sealed class CompareOptionsDialogTests
         Assert.Equal(TextWhitespaceMode.Normalize, result.TextWhitespace);
         Assert.Equal(TextBomComparison.Ignore, result.TextBom);
         Assert.Equal(TimestampTolerance.Exact, result.TimestampTolerance);
-        Assert.Equal(NameComparisonMode.SystemDefault, result.NameComparison);
+        Assert.Equal(NameComparisonDefaults.Current, result.NameComparison);
         Assert.Equal(FileSetMatchMode.FileName, result.FileSetMatchMode);
     }
 
@@ -72,6 +72,82 @@ public sealed class CompareOptionsDialogTests
         Assert.Equal(TimestampTolerance.TwoSeconds, result.TimestampTolerance);
         Assert.Equal(NameComparisonMode.CaseSensitive, result.NameComparison);
         Assert.Equal(FileSetMatchMode.FileNameAndSize, result.FileSetMatchMode);
+    }
+
+    [Theory]
+    [InlineData("SystemDefault")]
+    [InlineData("")]
+    [InlineData("invalid")]
+    public void Show_LegacyOrInvalidNameComparisonFallsBackToPlatformDefault(string persistedValue)
+    {
+        var driver = Driver(Key(ConsoleKey.F10));
+        var settings = new AppSettings.CompareSettings
+        {
+            NameComparison = persistedValue,
+        };
+
+        ComparisonOptions? result = Show(driver, CompareMode.FolderStructure, settings);
+
+        Assert.NotNull(result);
+        Assert.Equal(NameComparisonDefaults.Current, result.NameComparison);
+    }
+
+    [Theory]
+    [InlineData(NameComparisonMode.CaseSensitive)]
+    [InlineData(NameComparisonMode.CaseInsensitive)]
+    public void Show_ExplicitNameComparisonIsPreserved(NameComparisonMode persistedValue)
+    {
+        var driver = Driver(Key(ConsoleKey.F10));
+        var settings = new AppSettings.CompareSettings
+        {
+            NameComparison = persistedValue.ToString(),
+        };
+
+        ComparisonOptions? result = Show(driver, CompareMode.FolderStructure, settings);
+
+        Assert.NotNull(result);
+        Assert.Equal(persistedValue, result.NameComparison);
+    }
+
+    [Fact]
+    public void Show_MethodDropdownCommitsContentAndRebuildsMethodSpecificRows()
+    {
+        var driver = Driver(
+            Key(ConsoleKey.Tab),
+            Key(ConsoleKey.Tab),
+            Key(ConsoleKey.Tab),
+            Key(ConsoleKey.Tab),
+            Key(ConsoleKey.Tab),
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.DownArrow),
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.F10));
+
+        ComparisonOptions? result = Show(driver, CompareMode.FolderStructure, new AppSettings.CompareSettings());
+
+        Assert.NotNull(result);
+        Assert.Equal(CompareMethod.Content, result.Method);
+
+        string screen = string.Join('\n', Enumerable.Range(0, 35).Select(driver.GetRow));
+        Assert.Contains("Content (byte-by-byte)", screen);
+        Assert.DoesNotContain("Timestamp:", screen);
+        Assert.DoesNotContain("Line endings:", screen);
+        Assert.DoesNotContain("Whitespace:", screen);
+        Assert.DoesNotContain("BOM:", screen);
+    }
+
+    [Fact]
+    public void Show_DefaultDropdownLayoutRendersOnlySelectedLongValues()
+    {
+        var driver = Driver(Key(ConsoleKey.F10));
+
+        _ = Show(driver, CompareMode.FolderStructure, new AppSettings.CompareSettings());
+
+        string screen = string.Join('\n', Enumerable.Range(0, 35).Select(driver.GetRow));
+        Assert.Contains("Fast (size and modified time)", screen);
+        Assert.DoesNotContain("Content (byte-by-byte)", screen);
+        Assert.DoesNotContain("Text (normalized text)", screen);
+        Assert.DoesNotContain("System default", screen);
     }
 
     [Fact]
@@ -126,7 +202,7 @@ public sealed class CompareOptionsDialogTests
             exclude,
             CompareMethod.Fast,
             TimestampTolerance.Exact,
-            NameComparisonMode.SystemDefault,
+            NameComparisonDefaults.Current,
             FileSetMatchMode.FileName);
 
         Assert.False(ReadInternal<bool>(submit, "IsSuccess"));
@@ -153,7 +229,7 @@ public sealed class CompareOptionsDialogTests
             exclude,
             CompareMethod.Fast,
             TimestampTolerance.Exact,
-            NameComparisonMode.SystemDefault,
+            NameComparisonDefaults.Current,
             FileSetMatchMode.FileName);
 
         Assert.True(ReadInternal<bool>(submit, "IsSuccess"));
@@ -180,7 +256,7 @@ public sealed class CompareOptionsDialogTests
             exclude,
             CompareMethod.Fast,
             TimestampTolerance.Exact,
-            NameComparisonMode.SystemDefault,
+            NameComparisonDefaults.Current,
             FileSetMatchMode.FileName);
 
         Assert.Empty(provider.Get(historyId).Items);
@@ -195,7 +271,7 @@ public sealed class CompareOptionsDialogTests
             exclude,
             CompareMethod.Fast,
             TimestampTolerance.Exact,
-            NameComparisonMode.SystemDefault,
+            NameComparisonDefaults.Current,
             FileSetMatchMode.FileName);
 
         Assert.Empty(provider.Get(historyId).Items);
@@ -255,7 +331,7 @@ public sealed class CompareOptionsDialogTests
             CompareMode.FolderStructure, true, false, "All",
             customDepth, include, exclude,
             CompareMethod.Text, TimestampTolerance.Exact,
-            NameComparisonMode.SystemDefault, FileSetMatchMode.FileName,
+            NameComparisonDefaults.Current, FileSetMatchMode.FileName,
             TextLineEndingComparison.Exact,
             TextWhitespaceMode.IgnoreAll,
             TextBomComparison.Exact);

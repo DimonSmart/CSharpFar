@@ -12,16 +12,11 @@ public sealed record ComparisonOptions
     public int? MaxDepth { get; init; }
     public string IncludeMasks { get; init; } = "*";
     public string ExcludeMasks { get; init; } = string.Empty;
-    public NameComparisonMode NameComparison { get; init; } = NameComparisonMode.SystemDefault;
+    public NameComparisonMode NameComparison { get; init; } = NameComparisonDefaults.Current;
     public bool SelectedItemsOnly { get; init; }
 
     public bool IsNameComparisonCaseSensitive =>
-        NameComparison switch
-        {
-            NameComparisonMode.CaseSensitive => true,
-            NameComparisonMode.CaseInsensitive => false,
-            _ => !OperatingSystem.IsWindows(),
-        };
+        NameComparison == NameComparisonMode.CaseSensitive;
 
     public TimeSpan TimestampToleranceValue =>
         TimestampTolerance switch

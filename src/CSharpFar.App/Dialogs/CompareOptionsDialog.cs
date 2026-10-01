@@ -42,7 +42,7 @@ internal sealed class CompareOptionsDialog
         var selectedOnly = FormControls.CheckBox("Selected items only", settings.SelectedItemsOnly);
         var depth = FormControls.Choice(
             "Depth:", ["All", "0", "1", "2", "Custom"], static value => value, settings.Depth, "All");
-        var method = FormControls.Choice(
+        var method = FormControls.Dropdown(
             "Method:", [CompareMethod.Fast, CompareMethod.Content, CompareMethod.Text], MethodLabel,
             ParseEnum(settings.Method, CompareMethod.Fast));
         var textLineEndings = FormControls.Choice(
@@ -57,10 +57,10 @@ internal sealed class CompareOptionsDialog
         var tolerance = FormControls.Choice(
             "Timestamp:", [TimestampTolerance.Exact, TimestampTolerance.TwoSeconds, TimestampTolerance.OneHour], ToleranceLabel,
             ParseEnum(settings.TimestampTolerance, TimestampTolerance.Exact));
-        var nameComparison = FormControls.Choice(
-            "Name comparison:", [NameComparisonMode.SystemDefault, NameComparisonMode.CaseSensitive, NameComparisonMode.CaseInsensitive], NameComparisonLabel,
-            ParseEnum(settings.NameComparison, NameComparisonMode.SystemDefault));
-        var fileSetMatch = FormControls.Choice(
+        var nameComparison = FormControls.Dropdown(
+            "Name comparison:", [NameComparisonMode.CaseSensitive, NameComparisonMode.CaseInsensitive], NameComparisonLabel,
+            ParseEnum(settings.NameComparison, NameComparisonDefaults.Current));
+        var fileSetMatch = FormControls.Dropdown(
             "Match by:", [FileSetMatchMode.FileName, FileSetMatchMode.FileNameAndSize, FileSetMatchMode.FileNameAndContentHash], FileSetMatchLabel,
             ParseEnum(settings.FileSetMatchMode, FileSetMatchMode.FileName));
         var buttons = FormControls.Buttons(
@@ -112,13 +112,13 @@ internal sealed class CompareOptionsDialog
         TextField customDepth,
         TextField include,
         TextField exclude,
-        ChoiceFormRow<CompareMethod> method,
+        DropdownSelectFormRow<CompareMethod> method,
         ChoiceFormRow<TextLineEndingComparison> textLineEndings,
         ChoiceFormRow<TextWhitespaceMode> textWhitespace,
         ChoiceFormRow<TextBomComparison> textBom,
         ChoiceFormRow<TimestampTolerance> tolerance,
-        ChoiceFormRow<NameComparisonMode> nameComparison,
-        ChoiceFormRow<FileSetMatchMode> fileSetMatch)
+        DropdownSelectFormRow<NameComparisonMode> nameComparison,
+        DropdownSelectFormRow<FileSetMatchMode> fileSetMatch)
     {
         List<FormRow> rows =
         [
@@ -266,7 +266,12 @@ internal sealed class CompareOptionsDialog
         tolerance switch { TimestampTolerance.TwoSeconds => "2 seconds", TimestampTolerance.OneHour => "1 hour", _ => "Exact" };
 
     private static string NameComparisonLabel(NameComparisonMode mode) =>
-        mode switch { NameComparisonMode.CaseSensitive => "Case-sensitive", NameComparisonMode.CaseInsensitive => "Case-insensitive", _ => "System default" };
+        mode switch
+        {
+            NameComparisonMode.CaseSensitive => "Case-sensitive",
+            NameComparisonMode.CaseInsensitive => "Case-insensitive",
+            _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null),
+        };
 
     private static string FileSetMatchLabel(FileSetMatchMode mode) =>
         mode switch { FileSetMatchMode.FileNameAndSize => "File name + size", FileSetMatchMode.FileNameAndContentHash => "File name + content hash", _ => "File name" };
