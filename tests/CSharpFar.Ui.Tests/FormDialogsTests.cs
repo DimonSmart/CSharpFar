@@ -588,7 +588,7 @@ public sealed class FormDialogsTests
 
     private static (int X, int Y) FindFrameTitle(FakeConsoleDriver driver, string title)
     {
-        ConsoleViewport viewport = driver.GetViewport();
+        var viewport = driver.GetViewport();
         for (int y = 0; y < viewport.Height; y++)
         {
             string row = driver.GetRow(y);
