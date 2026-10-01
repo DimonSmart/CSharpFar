@@ -1,3 +1,4 @@
+using CSharpFar.Console;
 using CSharpFar.Console.Input;
 
 using CSharpFar.Ui;
