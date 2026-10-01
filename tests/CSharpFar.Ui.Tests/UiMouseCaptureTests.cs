@@ -34,6 +34,30 @@ public sealed class UiMouseCaptureTests
     }
 
     [Fact]
+    public void CapturedMove_WithNoReportedButtonStillRoutesToCaptureOwner()
+    {
+        var calls = new List<string>();
+        var (host, _) = Fixture(calls);
+        var owner = new CaptureLayer("owner", calls)
+        {
+            Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left),
+        };
+        var top = new CaptureLayer("top", calls);
+        using var ownerScope = host.PushOverlay(owner);
+        using var topScope = host.PushOverlay(top);
+
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Down, MouseButton.Left));
+        calls.Clear();
+        owner.Result = UiInputResult.NotHandled;
+        top.Result = UiInputResult.HandledResult;
+
+        host.DispatchInput(UiTestInput.Mouse(10, 10, MouseEventKind.Move, MouseButton.None));
+
+        Assert.Equal(["owner"], calls);
+        Assert.Contains(owner.Contexts, context => context is { IsCapturedRoute: true, Target.Value: "thumb" });
+    }
+
+    [Fact]
     public void ExplicitRelease_ClearsCapture()
     {
         var calls = new List<string>();
