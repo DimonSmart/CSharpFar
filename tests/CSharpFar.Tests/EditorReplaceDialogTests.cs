@@ -28,7 +28,7 @@ public sealed class EditorReplaceDialogTests
             Assert.Contains("Cancel", rendered);
         };
 
-        var (dialog, _) = CreateDialog(driver);
+        var (dialog, _) = CreateDialog(driver, clearRoot: true);
 
         dialog.Show(
             new EditorSearchOptions("foo"),
@@ -422,19 +422,24 @@ public sealed class EditorReplaceDialogTests
     }
 
     private static (EditorReplaceDialog Dialog, SingleLineTextHistoryRegistry History) CreateDialog(
-        FakeConsoleDriver driver)
+        FakeConsoleDriver driver,
+        bool clearRoot = false)
     {
         var history = new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore());
-        return (CreateDialog(driver, history), history);
+        return (CreateDialog(driver, history, clearRoot), history);
     }
 
     private static EditorReplaceDialog CreateDialog(
         FakeConsoleDriver driver,
-        SingleLineTextHistoryRegistry history)
+        SingleLineTextHistoryRegistry history,
+        bool clearRoot = false)
     {
         var fields = new FormFieldFactory(history);
+        ModalDialogHost modalDialogs = clearRoot
+            ? UiTestHost.Create(driver, ClearRoot).ModalDialogs
+            : ModalTestHost.Create(driver);
         return new EditorReplaceDialog(
-            new DialogService(ModalTestHost.Create(driver), fields),
+            new DialogService(modalDialogs, fields),
             fields);
     }
 
@@ -457,11 +462,26 @@ public sealed class EditorReplaceDialogTests
             MouseKeyModifiers.None));
     }
 
+    private static void ClearRoot(UiRenderContext context) =>
+        context.Canvas.FillRegion(
+            new Rect(0, 0, context.Size.Width, context.Size.Height),
+            DialogStyles.Fill);
+
     private static (int X, int Y) FindReplaceTitle(FakeConsoleDriver driver)
     {
-        FakeConsoleDriver.WriteRecord title = driver.WriteRecords.Last(record =>
-            string.Equals(record.Text, " Replace ", StringComparison.Ordinal));
-        return (title.X + 1, title.Y);
+        ConsoleViewport viewport = driver.GetViewport();
+        for (int y = 0; y < viewport.Height; y++)
+        {
+            string row = driver.GetRow(y);
+            if (!row.Contains('═') && !row.Contains('─'))
+                continue;
+
+            int x = row.IndexOf("Replace", StringComparison.Ordinal);
+            if (x >= 0)
+                return (x, y);
+        }
+
+        throw new InvalidOperationException("Replace title was not rendered.");
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
