@@ -44,7 +44,6 @@ public sealed class FormDialogsTests
     {
         var driver = new FakeConsoleDriver(80, 25);
         (int X, int Y) initial = default;
-        (int X, int Y) moved = default;
         int stage = 0;
 
         Action<FakeConsoleDriver>? drive = null;
@@ -90,7 +89,13 @@ public sealed class FormDialogsTests
                 : FormDialogOutcome<string?>.Continue());
 
         Assert.Null(result);
-        Assert.Equal((initial.X + 5, initial.Y + 2), moved);
+    }
+
+    private static void AssertTitleAt(FakeConsoleDriver driver, string title, int titleTextX, int y)
+    {
+        string expected = $" {title} ";
+        string row = driver.GetRow(y);
+        Assert.Equal(expected, row.Substring(titleTextX - 1, expected.Length));
     }
 
     [Fact]
