@@ -118,6 +118,7 @@ public sealed class CompareOptionsDialogTests
             Key(ConsoleKey.Tab),
             Key(ConsoleKey.Tab),
             Key(ConsoleKey.Tab),
+            Key(ConsoleKey.Tab),
             Key(ConsoleKey.Enter),
             Key(ConsoleKey.DownArrow),
             Key(ConsoleKey.Enter),
@@ -148,6 +149,41 @@ public sealed class CompareOptionsDialogTests
         Assert.DoesNotContain("Content (byte-by-byte)", screen);
         Assert.DoesNotContain("Text (normalized text)", screen);
         Assert.DoesNotContain("System default", screen);
+    }
+
+    [Fact]
+    public void Show_ComparisonSectionPutsNameBeforeMethodWithSeparator()
+    {
+        var driver = Driver(Key(ConsoleKey.F10));
+
+        _ = Show(driver, CompareMode.FolderStructure, new AppSettings.CompareSettings());
+
+        string[] rows = Enumerable.Range(0, 35).Select(driver.GetRow).ToArray();
+        int nameRow = Array.FindIndex(rows, row => row.Contains("Name:", StringComparison.Ordinal));
+        int methodRow = Array.FindIndex(rows, row => row.Contains("Method:", StringComparison.Ordinal));
+
+        Assert.True(nameRow >= 0);
+        Assert.True(methodRow > nameRow);
+        Assert.Contains(rows[(nameRow + 1)..methodRow], row => row.Contains('─'));
+        Assert.DoesNotContain(rows, row => row.Contains("Name comparison:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Show_FileSetComparisonPutsMatchByBetweenNameAndMethod()
+    {
+        var driver = Driver(Key(ConsoleKey.F10));
+
+        _ = Show(driver, CompareMode.FileSet, new AppSettings.CompareSettings());
+
+        string[] rows = Enumerable.Range(0, 35).Select(driver.GetRow).ToArray();
+        int nameRow = Array.FindIndex(rows, row => row.Contains("Name:", StringComparison.Ordinal));
+        int matchRow = Array.FindIndex(rows, row => row.Contains("Match by:", StringComparison.Ordinal));
+        int methodRow = Array.FindIndex(rows, row => row.Contains("Method:", StringComparison.Ordinal));
+
+        Assert.True(nameRow >= 0);
+        Assert.True(matchRow > nameRow);
+        Assert.True(methodRow > matchRow);
+        Assert.Contains(rows[(matchRow + 1)..methodRow], row => row.Contains('─'));
     }
 
     [Fact]

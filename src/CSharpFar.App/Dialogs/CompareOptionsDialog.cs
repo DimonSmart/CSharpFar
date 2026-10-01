@@ -58,7 +58,7 @@ internal sealed class CompareOptionsDialog
             "Timestamp:", [TimestampTolerance.Exact, TimestampTolerance.TwoSeconds, TimestampTolerance.OneHour], ToleranceLabel,
             ParseEnum(settings.TimestampTolerance, TimestampTolerance.Exact));
         var nameComparison = FormControls.Dropdown(
-            "Name comparison:", [NameComparisonMode.CaseSensitive, NameComparisonMode.CaseInsensitive], NameComparisonLabel,
+            "Name:", [NameComparisonMode.CaseSensitive, NameComparisonMode.CaseInsensitive], NameComparisonLabel,
             ParseEnum(settings.NameComparison, NameComparisonDefaults.Current));
         var fileSetMatch = FormControls.Dropdown(
             "Match by:", [FileSetMatchMode.FileName, FileSetMatchMode.FileNameAndSize, FileSetMatchMode.FileNameAndContentHash], FileSetMatchLabel,
@@ -146,6 +146,10 @@ internal sealed class CompareOptionsDialog
         rows.Add(FormControls.Text(exclude));
         rows.Add(FormControls.Separator());
         rows.Add(FormControls.Label("Comparison"));
+        rows.Add(nameComparison);
+        if (mode == CompareMode.FileSet)
+            rows.Add(fileSetMatch);
+        rows.Add(FormControls.Separator());
         rows.Add(method);
         if (method.Value == CompareMethod.Fast)
             rows.Add(tolerance);
@@ -155,9 +159,6 @@ internal sealed class CompareOptionsDialog
             rows.Add(textWhitespace);
             rows.Add(textBom);
         }
-        rows.Add(nameComparison);
-        if (mode == CompareMode.FileSet)
-            rows.Add(fileSetMatch);
         return rows;
     }
 
