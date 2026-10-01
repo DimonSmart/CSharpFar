@@ -55,12 +55,11 @@ public sealed class FormDialogsTests
                 return;
             }
 
-            FakeConsoleDriver.WriteRecord title = current.WriteRecords.Last(record =>
-                string.Equals(record.Text, " Move ", StringComparison.Ordinal));
+            (int X, int Y) title = FindFrameTitle(current, "Move");
             switch (stage++)
             {
                 case 0:
-                    initial = (title.X + 1, title.Y);
+                    initial = title;
                     current.EnqueueInput(new MouseConsoleInputEvent(
                         initial.X, initial.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
                     break;
@@ -69,7 +68,7 @@ public sealed class FormDialogsTests
                         initial.X + 5, initial.Y + 2, MouseButton.None, MouseEventKind.Move, MouseKeyModifiers.None));
                     break;
                 case 2:
-                    moved = (title.X + 1, title.Y);
+                    moved = title;
                     current.EnqueueInput(new MouseConsoleInputEvent(
                         initial.X + 5, initial.Y + 2, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
                     break;
@@ -82,7 +81,7 @@ public sealed class FormDialogsTests
         };
         driver.BeforeReadInput = drive;
 
-        string? result = new FormDialogs(ModalTestHost.Create(driver)).Show(
+        string? result = new FormDialogs(UiTestHost.Create(driver, ClearRoot).ModalDialogs).Show(
             new FormDialogOptions("Move", 30, 8) { Movable = true },
             rows: () => [FormControls.Label("Body")],
             handle: formEvent => formEvent.IsCancelled
@@ -579,6 +578,28 @@ public sealed class FormDialogsTests
                 : FormDialogOutcome<object?>.Continue());
 
         Assert.True(themeRequested);
+    }
+
+    private static void ClearRoot(UiRenderContext context) =>
+        context.Canvas.FillRegion(
+            new CSharpFar.Console.Models.Rect(0, 0, context.Size.Width, context.Size.Height),
+            DialogStyles.Fill);
+
+    private static (int X, int Y) FindFrameTitle(FakeConsoleDriver driver, string title)
+    {
+        ConsoleViewport viewport = driver.GetViewport();
+        for (int y = 0; y < viewport.Height; y++)
+        {
+            string row = driver.GetRow(y);
+            if (!row.Contains('═') && !row.Contains('─'))
+                continue;
+
+            int x = row.IndexOf(title, StringComparison.Ordinal);
+            if (x >= 0)
+                return (x, y);
+        }
+
+        throw new InvalidOperationException($"Dialog title '{title}' was not rendered.");
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
