@@ -321,10 +321,208 @@ public sealed class ModalFormHostTests
         Assert.Equal(frames[0].BodyBounds.Width, frames[1].BodyBounds.Width);
     }
 
+
+    [Fact]
+    public void Run_MovableDialogDragsByTitleWithCaptureAndDoesNotReachFormHandler()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        ModalDialogRenderer.Layout initial = InitialLayout(80, 25);
+        int downX = initial.FrameBounds.X + 5;
+        int downY = initial.FrameBounds.Y;
+        driver.EnqueueInput(Mouse(downX, downY, MouseButton.Left, MouseEventKind.Down));
+        driver.EnqueueInput(Mouse(downX + 7, downY + 3, MouseButton.None, MouseEventKind.Move));
+        driver.EnqueueInput(Mouse(downX + 7, downY + 3, MouseButton.Left, MouseEventKind.Up));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        int semanticCalls = 0;
+        ScrollableFormFrame? finalFrame = null;
+
+        new ModalFormHost(ModalTestHost.Create(driver)).Run(
+            new ScrollableFormDialog([new LabelRow("Value", DialogStyles.Fill)]),
+            Options with { Movable = true },
+            Layout,
+            (routed, input) =>
+            {
+                semanticCalls++;
+                finalFrame = routed.Frame;
+                return input.Kind == FormInputResultKind.Cancel
+                    ? ModalDialogLoopResult<object?>.Complete(null)
+                    : ModalDialogLoopResult<object?>.ContinueNoChange;
+            });
+
+        Assert.Equal(1, semanticCalls);
+        Assert.NotNull(finalFrame);
+        Assert.Equal(initial.ContentBounds.X + 1 + 7, finalFrame.BodyBounds.X);
+        Assert.Equal(initial.ContentBounds.Y + 3, finalFrame.BodyBounds.Y);
+    }
+
+    [Fact]
+    public void Run_MovableDialogClampsAndStopsMovingAfterRelease()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        ModalDialogRenderer.Layout initial = InitialLayout(80, 25);
+        int downX = initial.FrameBounds.X + 3;
+        int downY = initial.FrameBounds.Y;
+        driver.EnqueueInput(Mouse(downX, downY, MouseButton.Left, MouseEventKind.Down));
+        driver.EnqueueInput(Mouse(-100, -100, MouseButton.None, MouseEventKind.Move));
+        driver.EnqueueInput(Mouse(-100, -100, MouseButton.Left, MouseEventKind.Up));
+        driver.EnqueueInput(Mouse(70, 20, MouseButton.None, MouseEventKind.Move));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        ScrollableFormFrame? finalFrame = null;
+
+        new ModalFormHost(ModalTestHost.Create(driver)).Run(
+            new ScrollableFormDialog([new LabelRow("Value", DialogStyles.Fill)]),
+            Options with { Movable = true },
+            Layout,
+            (routed, input) =>
+            {
+                finalFrame = routed.Frame;
+                return input.Kind == FormInputResultKind.Cancel
+                    ? ModalDialogLoopResult<object?>.Complete(null)
+                    : ModalDialogLoopResult<object?>.ContinueNoChange;
+            });
+
+        Assert.NotNull(finalFrame);
+        Assert.Equal(3, finalFrame.BodyBounds.X);
+        Assert.Equal(2, finalFrame.BodyBounds.Y);
+    }
+
+    [Fact]
+    public void Run_TitleClickWithoutMovementKeepsCenteredResizeBehavior()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        ModalDialogRenderer.Layout initial = InitialLayout(80, 25);
+        int downX = initial.FrameBounds.X + 4;
+        int downY = initial.FrameBounds.Y;
+        driver.EnqueueInput(Mouse(downX, downY, MouseButton.Left, MouseEventKind.Down));
+        driver.EnqueueInput(Mouse(downX, downY, MouseButton.Left, MouseEventKind.Up));
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        ResizeAfterTitleRelease(driver, 100, 30);
+
+        ScrollableFormFrame? finalFrame = null;
+        new ModalFormHost(ModalTestHost.Create(driver)).Run(
+            new ScrollableFormDialog([new LabelRow("Value", DialogStyles.Fill)]),
+            Options with { Movable = true },
+            Layout,
+            (routed, input) =>
+            {
+                finalFrame = routed.Frame;
+                return input.Kind == FormInputResultKind.Cancel
+                    ? ModalDialogLoopResult<object?>.Complete(null)
+                    : ModalDialogLoopResult<object?>.ContinueNoChange;
+            });
+
+        ModalDialogRenderer.Layout resized = InitialLayout(100, 30);
+        Assert.NotNull(finalFrame);
+        Assert.Equal(resized.ContentBounds.X + 1, finalFrame.BodyBounds.X);
+        Assert.Equal(resized.ContentBounds.Y, finalFrame.BodyBounds.Y);
+    }
+
+    [Fact]
+    public void Run_UserPositionSurvivesResizeAndKeepsFormFocus()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        ModalDialogRenderer.Layout initial = InitialLayout(80, 25);
+        int downX = initial.FrameBounds.X + 4;
+        int downY = initial.FrameBounds.Y;
+        driver.EnqueueInput(Mouse(downX, downY, MouseButton.Left, MouseEventKind.Down));
+        driver.EnqueueInput(Mouse(downX + 6, downY + 2, MouseButton.None, MouseEventKind.Move));
+        driver.EnqueueInput(Mouse(downX + 6, downY + 2, MouseButton.Left, MouseEventKind.Up));
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        ResizeAfterTitleRelease(driver, 100, 30);
+
+        var first = new CheckBoxRow(new CheckBoxLine("First")) { Id = "first" };
+        var second = new CheckBoxRow(new CheckBoxLine("Second")) { Id = "second" };
+        var form = new ScrollableFormDialog([first, second]);
+        form.SetInitialFocus("first");
+        ScrollableFormFrame? finalFrame = null;
+
+        new ModalFormHost(ModalTestHost.Create(driver)).Run(
+            form,
+            Options with { Movable = true },
+            Layout,
+            (routed, input) =>
+            {
+                finalFrame = routed.Frame;
+                return input.Kind == FormInputResultKind.Cancel
+                    ? ModalDialogLoopResult<object?>.Complete(null)
+                    : ModalDialogLoopResult<object?>.ContinueNoChange;
+            });
+
+        Assert.NotNull(finalFrame);
+        Assert.Equal(initial.ContentBounds.X + 1 + 6, finalFrame.BodyBounds.X);
+        Assert.Equal(initial.ContentBounds.Y + 2, finalFrame.BodyBounds.Y);
+        Assert.Equal("first", form.FocusedRowId);
+    }
+
+    [Fact]
+    public void Run_NonMovableDialogDoesNotMoveFromTitleMouseInput()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        ModalDialogRenderer.Layout initial = InitialLayout(80, 25);
+        int downX = initial.FrameBounds.X + 5;
+        int downY = initial.FrameBounds.Y;
+        driver.EnqueueInput(Mouse(downX, downY, MouseButton.Left, MouseEventKind.Down));
+        driver.EnqueueInput(Mouse(downX + 7, downY + 3, MouseButton.None, MouseEventKind.Move));
+        driver.EnqueueInput(Mouse(downX + 7, downY + 3, MouseButton.Left, MouseEventKind.Up));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        ScrollableFormFrame? finalFrame = null;
+        new ModalFormHost(ModalTestHost.Create(driver)).Run(
+            new ScrollableFormDialog([new LabelRow("Value", DialogStyles.Fill)]),
+            Options,
+            Layout,
+            (routed, input) =>
+            {
+                finalFrame = routed.Frame;
+                return input.Kind == FormInputResultKind.Cancel
+                    ? ModalDialogLoopResult<object?>.Complete(null)
+                    : ModalDialogLoopResult<object?>.ContinueNoChange;
+            });
+
+        Assert.NotNull(finalFrame);
+        Assert.Equal(initial.ContentBounds.X + 1, finalFrame.BodyBounds.X);
+        Assert.Equal(initial.ContentBounds.Y, finalFrame.BodyBounds.Y);
+    }
+
     private static readonly ModalFormOptions Options = new("Test", 30, 8);
 
     private static ModalFormLayout Layout(ModalDialogRenderer.Layout layout) =>
         new(layout.ContentBounds);
+
+    private static ModalDialogRenderer.Layout InitialLayout(int width, int height) =>
+        new ModalDialogRenderer().CalculateLayout(
+            new ConsoleSize(width, height),
+            30,
+            8,
+            Options.MinWidth,
+            Options.MinHeight);
+
+    private static void ResizeAfterTitleRelease(FakeConsoleDriver driver, int width, int height)
+    {
+        Action<FakeConsoleDriver>? beforeRead = null;
+        beforeRead = current =>
+        {
+            if (current.LastDequeuedInput is MouseConsoleInputEvent { Kind: MouseEventKind.Up })
+            {
+                current.SetSize(width, height);
+                return;
+            }
+
+            current.BeforeReadInput = beforeRead;
+        };
+        driver.BeforeReadInput = beforeRead;
+    }
+
+    private static MouseConsoleInputEvent Mouse(
+        int x,
+        int y,
+        MouseButton button,
+        MouseEventKind kind) =>
+        new(x, y, button, kind, MouseKeyModifiers.None);
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
         new('\0', key, shift: false, alt: false, control: false);
