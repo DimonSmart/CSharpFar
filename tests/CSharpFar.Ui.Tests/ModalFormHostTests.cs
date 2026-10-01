@@ -489,6 +489,52 @@ public sealed class ModalFormHostTests
     }
 
     [Fact]
+    public void Run_MovableDialogPositionResetsBetweenSessions()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var host = new ModalFormHost(ModalTestHost.Create(driver));
+        ModalDialogRenderer.Layout initial = InitialLayout(80, 25);
+        int downX = initial.FrameBounds.X + 4;
+        int downY = initial.FrameBounds.Y;
+        driver.EnqueueInput(Mouse(downX, downY, MouseButton.Left, MouseEventKind.Down));
+        driver.EnqueueInput(Mouse(downX + 6, downY + 2, MouseButton.None, MouseEventKind.Move));
+        driver.EnqueueInput(Mouse(downX + 6, downY + 2, MouseButton.Left, MouseEventKind.Up));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        ScrollableFormFrame? firstSession = null;
+        host.Run(
+            new ScrollableFormDialog([new LabelRow("Value", DialogStyles.Fill)]),
+            Options with { Movable = true },
+            Layout,
+            (routed, input) =>
+            {
+                firstSession = routed.Frame;
+                return input.Kind == FormInputResultKind.Cancel
+                    ? ModalDialogLoopResult<object?>.Complete(null)
+                    : ModalDialogLoopResult<object?>.ContinueNoChange;
+            });
+
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        ScrollableFormFrame? secondSession = null;
+        host.Run(
+            new ScrollableFormDialog([new LabelRow("Value", DialogStyles.Fill)]),
+            Options with { Movable = true },
+            Layout,
+            (routed, input) =>
+            {
+                secondSession = routed.Frame;
+                return ModalDialogLoopResult<object?>.Complete(null);
+            });
+
+        Assert.NotNull(firstSession);
+        Assert.NotNull(secondSession);
+        Assert.Equal(initial.ContentBounds.X + 1 + 6, firstSession.BodyBounds.X);
+        Assert.Equal(initial.ContentBounds.Y + 2, firstSession.BodyBounds.Y);
+        Assert.Equal(initial.ContentBounds.X + 1, secondSession.BodyBounds.X);
+        Assert.Equal(initial.ContentBounds.Y, secondSession.BodyBounds.Y);
+    }
+
+    [Fact]
     public void Run_NonMovableDialogDoesNotMoveFromTitleMouseInput()
     {
         var driver = new FakeConsoleDriver(80, 25);
