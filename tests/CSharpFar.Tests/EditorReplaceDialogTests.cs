@@ -459,16 +459,9 @@ public sealed class EditorReplaceDialogTests
 
     private static (int X, int Y) FindReplaceTitle(FakeConsoleDriver driver)
     {
-        ConsoleViewport viewport = driver.GetViewport();
-        for (int y = 0; y < viewport.Height; y++)
-        {
-            string row = driver.GetRow(y);
-            int x = row.IndexOf("Replace", StringComparison.Ordinal);
-            if (x >= 0)
-                return (x, y);
-        }
-
-        throw new InvalidOperationException("Replace title was not rendered.");
+        FakeConsoleDriver.WriteRecord title = driver.WriteRecords.Last(record =>
+            string.Equals(record.Text, " Replace ", StringComparison.Ordinal));
+        return (title.X + 1, title.Y);
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
