@@ -314,9 +314,7 @@ public sealed class EditorReplaceDialogTests
         var driver = new FakeConsoleDriver(100, 30);
         var (dialog, _) = CreateDialog(driver, clearRoot: true);
         (int X, int Y) initialTitle = default;
-        (int X, int Y) movedTitle = default;
-        (int X, int Y) afterFindNextTitle = default;
-        (int X, int Y) afterReplaceTitle = default;
+
         int stage = 0;
         int findCalls = 0;
         int replaceCalls = 0;
@@ -355,8 +353,7 @@ public sealed class EditorReplaceDialogTests
                         MouseKeyModifiers.None));
                     break;
                 case 3:
-                    movedTitle = FindReplaceTitle(current);
-                    Assert.Equal((initialTitle.X + 8, initialTitle.Y + 3), movedTitle);
+                    AssertReplaceTitleAt(current, initialTitle.X + 8, initialTitle.Y + 3);
                     current.EnqueueInput(new MouseConsoleInputEvent(
                         initialTitle.X + 8,
                         initialTitle.Y + 3,
@@ -368,11 +365,11 @@ public sealed class EditorReplaceDialogTests
                     current.EnqueueKey(Key(ConsoleKey.Enter));
                     break;
                 case 5:
-                    afterFindNextTitle = FindReplaceTitle(current);
+                    AssertReplaceTitleAt(current, initialTitle.X + 8, initialTitle.Y + 3);
                     EnqueueButtonClick(current, "Replace");
                     break;
                 case 6:
-                    afterReplaceTitle = FindReplaceTitle(current);
+                    AssertReplaceTitleAt(current, initialTitle.X + 8, initialTitle.Y + 3);
                     current.EnqueueKey(Key(ConsoleKey.Escape));
                     break;
             }
@@ -400,8 +397,6 @@ public sealed class EditorReplaceDialogTests
         Assert.Equal(2, findCalls);
         Assert.Equal(1, replaceCalls);
         Assert.Equal(0, invalidations);
-        Assert.Equal(movedTitle, afterFindNextTitle);
-        Assert.Equal(movedTitle, afterReplaceTitle);
 
         (int X, int Y) reopenedTitle = default;
         driver.BeforeReadInput = current =>
