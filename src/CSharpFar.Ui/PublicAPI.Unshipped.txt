@@ -420,6 +420,8 @@ CSharpFar.Ui.FormDialogOptions.MinHeight.get -> int
 CSharpFar.Ui.FormDialogOptions.MinHeight.init -> void
 CSharpFar.Ui.FormDialogOptions.MinWidth.get -> int
 CSharpFar.Ui.FormDialogOptions.MinWidth.init -> void
+CSharpFar.Ui.FormDialogOptions.Movable.get -> bool
+CSharpFar.Ui.FormDialogOptions.Movable.init -> void
 CSharpFar.Ui.FormDialogOptions.PreferredHeight.get -> int?
 CSharpFar.Ui.FormDialogOptions.PreferredHeight.init -> void
 CSharpFar.Ui.FormDialogOptions.PreferredWidth.get -> int?
@@ -998,6 +1000,8 @@ CSharpFar.Ui.ModalFormOptions.MinHeight.get -> int
 CSharpFar.Ui.ModalFormOptions.MinHeight.init -> void
 CSharpFar.Ui.ModalFormOptions.MinWidth.get -> int
 CSharpFar.Ui.ModalFormOptions.MinWidth.init -> void
+CSharpFar.Ui.ModalFormOptions.Movable.get -> bool
+CSharpFar.Ui.ModalFormOptions.Movable.init -> void
 CSharpFar.Ui.ModalFormOptions.ModalFormOptions(string! Title, int? PreferredWidth = null, int? PreferredHeight = null, int MinWidth = 20, int MinHeight = 8, bool DoubleBorder = true, CSharpFar.Ui.PopupRenderOptions? OuterRenderOptions = null, CSharpFar.Ui.PopupRenderOptions? FrameRenderOptions = null, bool SubmitOnEnter = false) -> void
 CSharpFar.Ui.ModalFormOptions.OuterRenderOptions.get -> CSharpFar.Ui.PopupRenderOptions?
 CSharpFar.Ui.ModalFormOptions.OuterRenderOptions.init -> void
