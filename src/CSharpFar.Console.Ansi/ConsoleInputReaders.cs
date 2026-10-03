@@ -9,6 +9,15 @@ internal interface IMouseTrackingControl
     void SetMouseTrackingEnabled(bool enabled);
 }
 
+internal interface IKeyboardProtocolControl
+{
+    KeyboardProtocolSnapshot KeyboardProtocol { get; }
+
+    void PrepareForScreenChange();
+
+    void CompleteScreenChange(bool alternate);
+}
+
 internal abstract class ConsoleInputReaderBase : IConsoleInputReader
 {
     private readonly Func<ConsoleSize> _getSize;
@@ -27,6 +36,9 @@ internal abstract class ConsoleInputReaderBase : IConsoleInputReader
     public string InputBackendName => BackendName;
 
     public abstract bool MouseTrackingEnabled { get; }
+
+    public virtual KeyboardProtocolSnapshot KeyboardProtocol =>
+        KeyboardProtocolSnapshot.NotApplicable;
 
     public virtual ModifierKeyTrackingSnapshot ModifierKeyTracking =>
         ModifierKeyTrackerFactory.UnsupportedSnapshot;
@@ -66,13 +78,14 @@ internal abstract class ConsoleInputReaderBase : IConsoleInputReader
     }
 }
 
-internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMouseTrackingControl
+internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMouseTrackingControl, IKeyboardProtocolControl
 {
     private const string EnableMouseTracking = "\x1b[?1003h\x1b[?1006h";
     private const string DisableMouseTracking = "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l";
     private const int CancellationPollMilliseconds = 50;
 
     private readonly IAnsiInputByteReader _input;
+    private readonly KittyKeyboardProtocolController _keyboardProtocol;
     private readonly AnsiConsoleInputParser _parser;
     private readonly ITerminalInputMode _terminalMode;
     private readonly IModifierKeyTracker? _modifierKeyTracker;
@@ -89,11 +102,17 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
         Action<string> writeControl,
         ITerminalInputMode? terminalMode = null,
         IModifierKeyTracker? modifierKeyTracker = null,
-        AnsiConsoleInputParser? parser = null)
+        AnsiConsoleInputParser? parser = null,
+        bool enhancedKeyboardRequested = true)
         : base(getSize, resetCachedOutputState)
     {
-        _input = input;
+        var replayInput = new ReplayAnsiInputByteReader(input);
+        _input = replayInput;
         _writeControl = writeControl;
+        _keyboardProtocol = new KittyKeyboardProtocolController(
+            replayInput,
+            writeControl,
+            enhancedKeyboardRequested);
         _parser = parser ?? new AnsiConsoleInputParser();
         _terminalMode = terminalMode ?? new LinuxTerminalInputMode();
         _modifierKeyTracker = modifierKeyTracker ?? ModifierKeyTrackerFactory.TryCreateForCurrentPlatform();
@@ -112,6 +131,8 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
     public override string BackendName => "raw-vt";
 
     public override bool MouseTrackingEnabled => _mouseTrackingActive;
+
+    public override KeyboardProtocolSnapshot KeyboardProtocol => _keyboardProtocol.Snapshot;
 
     public override ModifierKeyTrackingSnapshot ModifierKeyTracking =>
         _modifierKeyTracker?.GetSnapshot() ?? ModifierKeyTrackerFactory.UnsupportedSnapshot;
@@ -164,6 +185,12 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
         return false;
     }
 
+    public void PrepareForScreenChange() =>
+        _keyboardProtocol.PrepareForScreenChange();
+
+    public void CompleteScreenChange(bool alternate) =>
+        _keyboardProtocol.CompleteScreenChange(alternate);
+
     public void SetMouseTrackingEnabled(bool enabled)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -182,6 +209,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
 
         try
         {
+            _keyboardProtocol.Suspend();
             _parser.ResetMouseState();
             _modifierKeyTracker?.Suspend();
             if (_mouseTrackingActive)
@@ -208,6 +236,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
 
         try
         {
+            _keyboardProtocol.Dispose();
             _writeControl(DisableMouseTracking);
         }
         finally
@@ -229,8 +258,13 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
 
         _modifierKeyTracker?.ObserveConsoleInput(inputEvent);
 
-        if (!intercept && inputEvent is KeyConsoleInputEvent { Key.KeyChar: not '\0' } keyEvent)
-            _writeControl(keyEvent.Key.KeyChar.ToString());
+        if (!intercept && inputEvent is KeyConsoleInputEvent keyEvent)
+        {
+            string? text = keyEvent.Text ??
+                (keyEvent.Key.KeyChar == '\0' ? null : keyEvent.Key.KeyChar.ToString());
+            if (text is not null)
+                _writeControl(text);
+        }
 
         return true;
     }
@@ -244,6 +278,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
         try
         {
             _parser.ResetMouseState();
+            _keyboardProtocol.Resume();
             if (_mouseTrackingRequested)
                 ApplyMouseTracking(enabled: true);
             _modifierKeyTracker?.Resume();
@@ -251,6 +286,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
         }
         catch
         {
+            _keyboardProtocol.Suspend();
             if (_mouseTrackingRequested)
             {
                 try

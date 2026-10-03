@@ -58,6 +58,7 @@ CSharpFar.Console.Input.ConsoleResizeInputEvent.ConsoleResizeInputEvent() -> voi
 CSharpFar.Console.Input.ConsoleResizeInputEvent.Equals(CSharpFar.Console.Input.ConsoleResizeInputEvent? other) -> bool
 CSharpFar.Console.Input.IConsoleInputDiagnostics
 CSharpFar.Console.Input.IConsoleInputDiagnostics.InputBackendName.get -> string!
+CSharpFar.Console.Input.IConsoleInputDiagnostics.KeyboardProtocol.get -> CSharpFar.Console.Input.KeyboardProtocolSnapshot!
 CSharpFar.Console.Input.IConsoleInputDiagnostics.ModifierKeyTracking.get -> CSharpFar.Console.Input.ModifierKeyTrackingSnapshot!
 CSharpFar.Console.Input.IConsoleInputDiagnostics.MouseTrackingEnabled.get -> bool
 CSharpFar.Console.Input.IConsoleInputReader
@@ -73,6 +74,16 @@ CSharpFar.Console.Input.IModifierKeyTracker.ObserveConsoleInput(CSharpFar.Consol
 CSharpFar.Console.Input.IModifierKeyTracker.Resume() -> void
 CSharpFar.Console.Input.IModifierKeyTracker.Suspend() -> void
 CSharpFar.Console.Input.IModifierKeyTracker.TryCreateInputEvent(out CSharpFar.Console.Input.ModifierKeyConsoleInputEvent? inputEvent) -> bool
+CSharpFar.Console.Input.KeyboardProtocolSnapshot
+CSharpFar.Console.Input.KeyboardProtocolSnapshot.ActiveScreen.get -> string?
+CSharpFar.Console.Input.KeyboardProtocolSnapshot.ConfirmedFlags.get -> int?
+CSharpFar.Console.Input.KeyboardProtocolSnapshot.FallbackReason.get -> string?
+CSharpFar.Console.Input.KeyboardProtocolSnapshot.IsActive.get -> bool
+CSharpFar.Console.Input.KeyboardProtocolSnapshot.NotApplicable.get -> CSharpFar.Console.Input.KeyboardProtocolSnapshot!
+CSharpFar.Console.Input.KeyboardProtocolSnapshot.Protocol.get -> string!
+CSharpFar.Console.Input.KeyboardProtocolSnapshot.Requested.get -> bool
+CSharpFar.Console.Input.KeyboardProtocolSnapshot.RequestedFlags.get -> int
+CSharpFar.Console.Input.KeyboardProtocolSnapshot.SupportStatus.get -> string!
 CSharpFar.Console.Input.KeyConsoleInputEvent
 CSharpFar.Console.Input.KeyConsoleInputEvent.Deconstruct(out System.ConsoleKeyInfo Key) -> void
 CSharpFar.Console.Input.KeyConsoleInputEvent.Equals(CSharpFar.Console.Input.KeyConsoleInputEvent? other) -> bool

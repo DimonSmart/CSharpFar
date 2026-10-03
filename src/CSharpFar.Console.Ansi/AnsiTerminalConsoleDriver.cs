@@ -69,6 +69,8 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
 
     public bool MouseTrackingEnabled => _inputReader.MouseTrackingEnabled;
 
+    public KeyboardProtocolSnapshot KeyboardProtocol => _inputReader.KeyboardProtocol;
+
     public ModifierKeyTrackingSnapshot ModifierKeyTracking => _inputReader.ModifierKeyTracking;
 
     public ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default) =>
@@ -317,13 +319,19 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
 
     public void EnterApplicationScreen()
     {
-        SetMouseTrackingEnabled(enabled: true);
         if (_applicationScreenActive)
+        {
+            SetMouseTrackingEnabled(enabled: true);
             return;
+        }
 
+        SetMouseTrackingEnabled(enabled: false);
+        PrepareKeyboardScreenChange();
         WriteControl(EnterAltScreen + ClearScreen + CursorHome);
         ResetCachedState();
         _applicationScreenActive = true;
+        CompleteKeyboardScreenChange(alternate: true);
+        SetMouseTrackingEnabled(enabled: true);
     }
 
     public void LeaveApplicationScreen()
@@ -332,10 +340,12 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
         if (!_applicationScreenActive)
             return;
 
+        PrepareKeyboardScreenChange();
         WriteControl(ResetAttributes + ShowCursor + LeaveAltScreen);
         ResetCachedState();
         _cursorVisible = true;
         _applicationScreenActive = false;
+        CompleteKeyboardScreenChange(alternate: false);
     }
 
     public void EnsureApplicationScreen() => EnterApplicationScreen();
@@ -372,19 +382,19 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
     {
         try
         {
-            WriteControl(LeaveAltScreen + ShowCursor + ResetAttributes);
+            _inputReader.SuspendInputMode();
         }
         finally
         {
-            ResetCachedState();
-            _cursorVisible = true;
-            _applicationScreenActive = false;
             try
             {
-                _inputReader.SuspendInputMode();
+                WriteControl(LeaveAltScreen + ShowCursor + ResetAttributes);
             }
             finally
             {
+                ResetCachedState();
+                _cursorVisible = true;
+                _applicationScreenActive = false;
                 _diagnosticTerminalMode?.RestoreOriginalMode();
             }
         }
@@ -417,6 +427,18 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
     {
         if (_inputReader is IMouseTrackingControl mouseTracking)
             mouseTracking.SetMouseTrackingEnabled(enabled);
+    }
+
+    private void PrepareKeyboardScreenChange()
+    {
+        if (_inputReader is IKeyboardProtocolControl keyboard)
+            keyboard.PrepareForScreenChange();
+    }
+
+    private void CompleteKeyboardScreenChange(bool alternate)
+    {
+        if (_inputReader is IKeyboardProtocolControl keyboard)
+            keyboard.CompleteScreenChange(alternate);
     }
 
     private static void WriteControl(string sequence)

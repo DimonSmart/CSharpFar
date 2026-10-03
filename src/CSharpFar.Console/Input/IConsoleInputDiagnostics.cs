@@ -6,5 +6,7 @@ public interface IConsoleInputDiagnostics
 
     bool MouseTrackingEnabled { get; }
 
+    KeyboardProtocolSnapshot KeyboardProtocol => KeyboardProtocolSnapshot.NotApplicable;
+
     ModifierKeyTrackingSnapshot ModifierKeyTracking { get; }
 }
