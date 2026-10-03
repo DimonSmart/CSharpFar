@@ -9,7 +9,9 @@ try
 {
     if (args is ["--version"]) { PrintVersion(); return 0; }
     if (args is ["--self-test"]) { using var startup = ApplicationStartupContext.Create(ApplicationRunOptions.Normal, MacOsPlatformServices.CreateDefaultSettings, ValidateShellSettings); return RunSelfTest(startup.SettingsStore); }
-    if (args is ["--check-terminal"] || args is ["--check-terminal", "--input-lab"]) return RunTerminalCheck();
+    if (args is ["--check-terminal"]) return RunTerminalCheck();
+    if (args.Length >= 2 && args[0] == "--check-terminal" && args[1] == "--input-lab")
+        return TerminalInputLab.RunMacOs(args.Skip(2).ToArray());
     if (!ApplicationRunOptionsParser.TryParse(args, out var options, out string? error) || !ApplicationRunOptionsValidator.TryValidate(options, out error)) { Console.Error.WriteLine(error); return 2; }
     using var context = ApplicationStartupContext.Create(options, MacOsPlatformServices.CreateDefaultSettings, ValidateShellSettings);
     using var platform = MacOsPlatformServices.Create(context.SettingsStore.ConfigDirectory, context.SettingsStore.Settings.Shell);
