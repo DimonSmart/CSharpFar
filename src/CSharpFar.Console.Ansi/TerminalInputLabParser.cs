@@ -18,6 +18,8 @@ internal sealed record TerminalInputLabEvent(
     MouseKeyModifiers MouseModifiers = MouseKeyModifiers.None,
     EnhancedKeyEventType? KeyEventType = null,
     string? ModifierKeyName = null,
+    string? AssociatedText = null,
+    string? Protocol = null,
     string? Error = null);
 
 internal sealed class TerminalInputLabParser
@@ -42,8 +44,13 @@ internal sealed class TerminalInputLabParser
                 true,
                 enhanced.ParsedKey,
                 KeyEventType: enhanced.EventType,
-                ModifierKeyName: enhanced.ModifierKeyName);
+                ModifierKeyName: enhanced.ModifierKeyName,
+                AssociatedText: enhanced.AssociatedText,
+                Protocol: "kitty");
         }
+
+        if (EnhancedTerminalKeyParser.LooksLikeKittyKeyboardSequence(raw))
+            return Unknown("MalformedEnhancedKeyboard", raw, protocol: "kitty");
 
         try
         {
@@ -51,7 +58,7 @@ internal sealed class TerminalInputLabParser
             bool standaloneEscape = raw.Length == 1 && raw[0] == 0x1b;
             bool known = standaloneEscape || key.Key != ConsoleKey.Escape || key.KeyChar == '\x1b' && raw.Length == 1;
             if (raw[0] != 0x1b || known)
-                return new TerminalInputLabEvent("Key", raw, true, key);
+                return new TerminalInputLabEvent("Key", raw, true, key, Protocol: "legacy-vt");
         }
         catch (Exception ex) when (ex is EndOfStreamException or DecoderFallbackException)
         {
@@ -89,12 +96,17 @@ internal sealed class TerminalInputLabParser
             TerminalY: mouse.Y + 1,
             UiX: mouse.X,
             UiY: mouse.Y,
-            MouseModifiers: mouse.Modifiers);
+            MouseModifiers: mouse.Modifiers,
+            Protocol: "sgr-mouse");
     }
 
     private static bool LooksLikeSgrMouse(IReadOnlyList<byte> bytes) =>
         bytes.Count >= 3 && bytes[0] == 0x1b && bytes[1] == '[' && bytes[2] == '<';
 
-    private static TerminalInputLabEvent Unknown(string kind, byte[] raw, string? error = null) =>
-        new(kind, raw, false, Error: error);
+    private static TerminalInputLabEvent Unknown(
+        string kind,
+        byte[] raw,
+        string? error = null,
+        string? protocol = null) =>
+        new(kind, raw, false, Protocol: protocol, Error: error);
 }
