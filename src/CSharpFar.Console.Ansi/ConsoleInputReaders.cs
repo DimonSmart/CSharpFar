@@ -103,7 +103,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
         ITerminalInputMode? terminalMode = null,
         IModifierKeyTracker? modifierKeyTracker = null,
         AnsiConsoleInputParser? parser = null,
-        bool enhancedKeyboardRequested = true)
+        bool enhancedKeyboardRequested = false)
         : base(getSize, resetCachedOutputState)
     {
         var replayInput = new ReplayAnsiInputByteReader(input);
