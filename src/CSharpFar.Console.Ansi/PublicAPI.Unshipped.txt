@@ -66,6 +66,7 @@ CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.InputBackendName.get -> string!
 CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.IsApplicationScreenActive.get -> bool
 CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.IsMouseTrackingEnabled.get -> bool
 CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.IsSupported.get -> bool
+CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.KeyboardProtocol.get -> CSharpFar.Console.Input.KeyboardProtocolSnapshot!
 CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.LeaveAlternateScreen() -> void
 CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.LeaveApplicationScreen() -> void
 CSharpFar.Console.Ansi.AnsiTerminalConsoleDriver.ModifierKeyTracking.get -> CSharpFar.Console.Input.ModifierKeyTrackingSnapshot!
