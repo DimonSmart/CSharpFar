@@ -169,7 +169,7 @@ internal sealed class KittyKeyboardProtocolController : IDisposable
             var unrelated = new List<byte>();
             long deadline = Environment.TickCount64 + _responseTimeoutMilliseconds;
 
-            while (TryReadResponseBefore(deadline, out byte[]? bytes))
+            while (TryReadResponseBefore(deadline, out byte[] bytes))
             {
                 if (TryParseKeyboardFlags(bytes, out int parsedFlags))
                 {
@@ -254,7 +254,7 @@ internal sealed class KittyKeyboardProtocolController : IDisposable
         var unrelated = new List<byte>();
         long deadline = Environment.TickCount64 + _responseTimeoutMilliseconds;
 
-        while (TryReadResponseBefore(deadline, out byte[]? bytes))
+        while (TryReadResponseBefore(deadline, out byte[] bytes))
         {
             if (TryParseKeyboardFlags(bytes, out int flags))
             {
@@ -289,12 +289,12 @@ internal sealed class KittyKeyboardProtocolController : IDisposable
         }
     }
 
-    private bool TryReadResponseBefore(long deadline, out byte[]? bytes)
+    private bool TryReadResponseBefore(long deadline, out byte[] bytes)
     {
         int remaining = (int)Math.Max(0, deadline - Environment.TickCount64);
         if (remaining <= 0 || !_input.WaitForInput(remaining))
         {
-            bytes = null;
+            bytes = [];
             return false;
         }
 
@@ -305,7 +305,7 @@ internal sealed class KittyKeyboardProtocolController : IDisposable
         }
         catch (Exception ex) when (ex is EndOfStreamException or DecoderFallbackException)
         {
-            bytes = null;
+            bytes = [];
             return false;
         }
     }
