@@ -379,8 +379,8 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
 
     public IDisposable EnterChildProcessConsoleMode()
     {
-        _inputReader.SuspendInputMode();
         _diagnosticTerminalMode?.RestoreOriginalMode();
+        _inputReader.SuspendInputMode();
         WriteControl(ResetAttributes + ShowCursor);
         _cursorVisible = true;
         EnsureMainScreen();
@@ -392,20 +392,20 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
     {
         try
         {
-            _inputReader.SuspendInputMode();
+            _diagnosticTerminalMode?.RestoreOriginalMode();
         }
         finally
         {
             try
             {
-                WriteControl(LeaveAltScreen + ShowCursor + ResetAttributes);
+                _inputReader.SuspendInputMode();
             }
             finally
             {
+                WriteControl(LeaveAltScreen + ShowCursor + ResetAttributes);
                 ResetCachedState();
                 _cursorVisible = true;
                 _applicationScreenActive = false;
-                _diagnosticTerminalMode?.RestoreOriginalMode();
             }
         }
     }
@@ -423,11 +423,11 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
         {
             try
             {
-                _inputReader.Dispose();
+                _diagnosticTerminalMode?.Dispose();
             }
             finally
             {
-                _diagnosticTerminalMode?.Dispose();
+                _inputReader.Dispose();
                 _disposed = true;
             }
         }
