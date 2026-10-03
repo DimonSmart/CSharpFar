@@ -140,7 +140,6 @@ public static class TerminalInputLab
             driver.RestoreTerminal();
         }
 
-        keyboard = driver.KeyboardProtocol;
         WriteSummary(summaryPath, jsonPath, keyboard, options, observations);
         PrintSummary(jsonPath, summaryPath, keyboard, options, observations);
         return 0;
