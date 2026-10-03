@@ -6,6 +6,7 @@ namespace CSharpFar.Console.Ansi;
 internal sealed class AnsiInputParser
 {
     private const int DefaultEscapeTimeoutMilliseconds = 50;
+    private const int MaxEscapeSequenceLength = 1024;
 
     private readonly Decoder _decoder = Encoding.UTF8.GetDecoder();
     private readonly int _escapeTimeoutMilliseconds;
@@ -74,7 +75,7 @@ internal sealed class AnsiInputParser
         }
 
         var sequence = new List<char>();
-        while (sequence.Count < 16)
+        while (sequence.Count < MaxEscapeSequenceLength)
         {
             if (!input.WaitForInput(_escapeTimeoutMilliseconds))
                 return false;

@@ -751,4 +751,71 @@ public sealed class AnsiInputParserTests
         Assert.Null(result);
         Assert.Equal(expectedError, error);
     }
+
+    [Theory]
+    [InlineData("\u001b[13;5u", ConsoleModifiers.Control)]
+    [InlineData("\u001b[13;2u", ConsoleModifiers.Shift)]
+    [InlineData("\u001b[13;6u", ConsoleModifiers.Control | ConsoleModifiers.Shift)]
+    public void ProductionParser_MapsEnhancedEnterCombinations(
+        string sequence,
+        ConsoleModifiers expectedModifiers)
+    {
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes(sequence));
+        var parser = new AnsiConsoleInputParser();
+
+        Assert.True(parser.TryRead(new StreamAnsiInputByteReader(input, null), out var inputEvent));
+
+        var keyEvent = Assert.IsType<KeyConsoleInputEvent>(inputEvent);
+        Assert.Equal(ConsoleKey.Enter, keyEvent.Key.Key);
+        Assert.Equal(expectedModifiers, keyEvent.Key.Modifiers);
+    }
+
+    [Fact]
+    public void ProductionParser_PreservesAssociatedText()
+    {
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes("\u001b[97;2;65:769u"));
+        var parser = new AnsiConsoleInputParser();
+
+        Assert.True(parser.TryRead(new StreamAnsiInputByteReader(input, null), out var inputEvent));
+
+        var keyEvent = Assert.IsType<KeyConsoleInputEvent>(inputEvent);
+        Assert.Equal("Á", keyEvent.Text);
+        Assert.Equal('\0', keyEvent.Key.KeyChar);
+    }
+
+    [Fact]
+    public void ProductionParser_PreservesPureNonBmpText()
+    {
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes("\u001b[0;;128512u"));
+        var parser = new AnsiConsoleInputParser();
+
+        Assert.True(parser.TryRead(new StreamAnsiInputByteReader(input, null), out var inputEvent));
+
+        var keyEvent = Assert.IsType<KeyConsoleInputEvent>(inputEvent);
+        Assert.Equal("😀", keyEvent.Text);
+        Assert.Equal(ConsoleKey.NoName, keyEvent.Key.Key);
+        Assert.Equal('\0', keyEvent.Key.KeyChar);
+    }
+
+    [Fact]
+    public void ProductionParser_IgnoresMalformedCsiUInsteadOfReturningEscape()
+    {
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes("\u001b[0;;1114112u"));
+        var parser = new AnsiConsoleInputParser();
+
+        Assert.False(parser.TryRead(new StreamAnsiInputByteReader(input, null), out var inputEvent));
+        Assert.Null(inputEvent);
+    }
+
+    [Fact]
+    public void ProductionParser_IgnoresModifierOnlyAndReleaseEvents()
+    {
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes("\u001b[57442;5u\u001b[97;1:3u"));
+        var parser = new AnsiConsoleInputParser();
+        var reader = new StreamAnsiInputByteReader(input, null);
+
+        Assert.False(parser.TryRead(reader, out _));
+        Assert.False(parser.TryRead(reader, out _));
+    }
+
 }

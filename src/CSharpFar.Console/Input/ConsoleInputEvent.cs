@@ -2,7 +2,14 @@ namespace CSharpFar.Console.Input;
 
 public abstract record ConsoleInputEvent;
 
-public sealed record KeyConsoleInputEvent(ConsoleKeyInfo Key) : ConsoleInputEvent;
+public sealed record KeyConsoleInputEvent(ConsoleKeyInfo Key) : ConsoleInputEvent
+{
+    /// <summary>
+    /// Protocol-neutral text produced by this key event when it cannot be represented
+    /// completely by <see cref="ConsoleKeyInfo.KeyChar"/>.
+    /// </summary>
+    public string? Text { get; init; }
+}
 
 public sealed record ModifierKeyConsoleInputEvent(ConsoleModifiers Modifiers) : ConsoleInputEvent;
 

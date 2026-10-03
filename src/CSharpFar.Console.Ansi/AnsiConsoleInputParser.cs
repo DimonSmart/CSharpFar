@@ -39,6 +39,28 @@ internal sealed class AnsiConsoleInputParser
             return false;
         }
 
+        EnhancedTerminalKeyEvent enhanced = EnhancedTerminalKeyParser.Parse(parsed.Bytes);
+        if (enhanced.IsKnown)
+        {
+            if (enhanced.ModifierOnly || enhanced.EventType == EnhancedKeyEventType.Release)
+            {
+                inputEvent = null;
+                return false;
+            }
+
+            inputEvent = new KeyConsoleInputEvent(enhanced.ParsedKey)
+            {
+                Text = enhanced.AssociatedText,
+            };
+            return true;
+        }
+
+        if (EnhancedTerminalKeyParser.LooksLikeKittyKeyboardSequence(parsed.Bytes))
+        {
+            inputEvent = null;
+            return false;
+        }
+
         inputEvent = new KeyConsoleInputEvent(parsed.Key);
         return true;
     }

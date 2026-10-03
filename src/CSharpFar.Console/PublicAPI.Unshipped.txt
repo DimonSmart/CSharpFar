@@ -79,6 +79,8 @@ CSharpFar.Console.Input.KeyConsoleInputEvent.Equals(CSharpFar.Console.Input.KeyC
 CSharpFar.Console.Input.KeyConsoleInputEvent.Key.get -> System.ConsoleKeyInfo
 CSharpFar.Console.Input.KeyConsoleInputEvent.Key.init -> void
 CSharpFar.Console.Input.KeyConsoleInputEvent.KeyConsoleInputEvent(System.ConsoleKeyInfo Key) -> void
+CSharpFar.Console.Input.KeyConsoleInputEvent.Text.get -> string?
+CSharpFar.Console.Input.KeyConsoleInputEvent.Text.init -> void
 CSharpFar.Console.Input.ModifierKeyConsoleInputEvent
 CSharpFar.Console.Input.ModifierKeyConsoleInputEvent.Deconstruct(out System.ConsoleModifiers Modifiers) -> void
 CSharpFar.Console.Input.ModifierKeyConsoleInputEvent.Equals(CSharpFar.Console.Input.ModifierKeyConsoleInputEvent? other) -> bool

@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace CSharpFar.Console.Ansi;
 
 internal static class EnhancedTerminalKeyParser
@@ -5,10 +7,13 @@ internal static class EnhancedTerminalKeyParser
     public static EnhancedTerminalKeyEvent Parse(ReadOnlySpan<byte> bytes)
     {
         string text = DecodeAscii(bytes);
-        if (!TryParseCsi(text, out var body, out char final))
+        if (!TryParseCsi(text, out string body, out char final))
             return EnhancedTerminalKeyEvent.Unknown;
 
-        if (final is 'u' or '~')
+        if (final == 'u')
+            return ParseKitty(body);
+
+        if (final == '~')
             return ParseNumbered(body, final);
 
         if (final is 'A' or 'B' or 'C' or 'D' or 'H' or 'F' or 'P' or 'Q' or 'R' or 'S')
@@ -17,25 +22,70 @@ internal static class EnhancedTerminalKeyParser
         return EnhancedTerminalKeyEvent.Unknown;
     }
 
-    private static EnhancedTerminalKeyEvent ParseNumbered(string body, char final)
+    public static bool LooksLikeKittyKeyboardSequence(ReadOnlySpan<byte> bytes) =>
+        bytes.Length >= 3 &&
+        bytes[0] == 0x1b &&
+        bytes[1] == (byte)'[' &&
+        bytes[^1] == (byte)'u';
+
+    private static EnhancedTerminalKeyEvent ParseKitty(string body)
     {
-        var fields = body.Split(';');
-        if (fields.Length == 0 || !TryParseSubField(fields[0], out int keyCode))
+        string[] fields = body.Split(';', StringSplitOptions.None);
+        if (fields.Length is < 1 or > 3 ||
+            !TryParseSubField(fields[0], out int keyCode))
+        {
+            return EnhancedTerminalKeyEvent.Unknown;
+        }
+
+        if (!TryParseModifierField(fields.Length >= 2 ? fields[1] : null, out var modifiers))
             return EnhancedTerminalKeyEvent.Unknown;
 
-        var modifiers = ParseModifierField(fields.Length >= 2 ? fields[1] : null);
-        var key = MapKeyCode(keyCode, final);
+        if (!TryParseAssociatedText(fields.Length >= 3 ? fields[2] : null, out string? associatedText))
+            return EnhancedTerminalKeyEvent.Unknown;
+
+        ConsoleKey key = MapKeyCode(keyCode, 'u');
+        bool modifierOnly = TryGetModifierKeyName(keyCode, out _);
+        bool validUnicodeKey = keyCode >= 32 && Rune.IsValid(keyCode);
+        if (keyCode == 0)
+        {
+            if (string.IsNullOrEmpty(associatedText))
+                return EnhancedTerminalKeyEvent.Unknown;
+        }
+        else if (key == ConsoleKey.NoName && !modifierOnly && !validUnicodeKey)
+        {
+            return EnhancedTerminalKeyEvent.Unknown;
+        }
+
+        return CreateEvent(keyCode, modifiers, key, 'u', associatedText);
+    }
+
+    private static EnhancedTerminalKeyEvent ParseNumbered(string body, char final)
+    {
+        string[] fields = body.Split(';', StringSplitOptions.None);
+        if (fields.Length is < 1 or > 2 ||
+            !TryParseSubField(fields[0], out int keyCode))
+        {
+            return EnhancedTerminalKeyEvent.Unknown;
+        }
+
+        if (!TryParseModifierField(fields.Length >= 2 ? fields[1] : null, out var modifiers))
+            return EnhancedTerminalKeyEvent.Unknown;
+
+        ConsoleKey key = MapKeyCode(keyCode, final);
         if (key == ConsoleKey.NoName && !TryGetModifierKeyName(keyCode, out _))
             return EnhancedTerminalKeyEvent.Unknown;
 
-        return CreateEvent(keyCode, modifiers, key, final);
+        return CreateEvent(keyCode, modifiers, key, final, associatedText: null);
     }
 
     private static EnhancedTerminalKeyEvent ParseLegacyNamed(string body, char final)
     {
-        var fields = string.IsNullOrEmpty(body)
+        string[] fields = string.IsNullOrEmpty(body)
             ? []
             : body.Split(';', StringSplitOptions.None);
+
+        if (fields.Length > 2)
+            return EnhancedTerminalKeyEvent.Unknown;
 
         if (fields.Length > 0 &&
             fields[0].Length > 0 &&
@@ -44,8 +94,10 @@ internal static class EnhancedTerminalKeyParser
             return EnhancedTerminalKeyEvent.Unknown;
         }
 
-        var modifiers = ParseModifierField(fields.Length >= 2 ? fields[1] : null);
-        var key = final switch
+        if (!TryParseModifierField(fields.Length >= 2 ? fields[1] : null, out var modifiers))
+            return EnhancedTerminalKeyEvent.Unknown;
+
+        ConsoleKey key = final switch
         {
             'A' => ConsoleKey.UpArrow,
             'B' => ConsoleKey.DownArrow,
@@ -60,18 +112,19 @@ internal static class EnhancedTerminalKeyParser
             _ => ConsoleKey.NoName,
         };
 
-        return CreateEvent(1, modifiers, key, final);
+        return CreateEvent(1, modifiers, key, final, associatedText: null);
     }
 
     private static EnhancedTerminalKeyEvent CreateEvent(
         int keyCode,
         EnhancedModifierField modifiers,
         ConsoleKey key,
-        char final)
+        char final,
+        string? associatedText)
     {
-        var consoleModifiers = modifiers.ToConsoleModifiers();
+        ConsoleModifiers consoleModifiers = modifiers.ToConsoleModifiers();
         var consoleKey = new ConsoleKeyInfo(
-            GetKeyChar(keyCode, key, consoleModifiers),
+            GetKeyChar(keyCode, key, associatedText),
             key,
             consoleModifiers.HasFlag(ConsoleModifiers.Shift),
             consoleModifiers.HasFlag(ConsoleModifiers.Alt),
@@ -87,26 +140,74 @@ internal static class EnhancedTerminalKeyParser
             ParsedKey: consoleKey,
             ModifierOnly: modifierOnly,
             ModifierKeyName: modifierName,
-            FinalChar: final);
+            FinalChar: final,
+            AssociatedText: associatedText);
     }
 
-    private static EnhancedModifierField ParseModifierField(string? field)
+    private static bool TryParseModifierField(
+        string? field,
+        out EnhancedModifierField modifiers)
     {
+        modifiers = new EnhancedModifierField(1, EnhancedKeyEventType.Press);
         if (string.IsNullOrEmpty(field))
-            return new EnhancedModifierField(1, EnhancedKeyEventType.Press);
+            return true;
 
-        var parts = field.Split(':', StringSplitOptions.None);
-        int rawValue = int.TryParse(parts[0], out int parsedRaw) ? parsedRaw : 1;
-        var eventType = parts.Length >= 2 && int.TryParse(parts[1], out int parsedEvent)
-            ? parsedEvent switch
+        string[] parts = field.Split(':', StringSplitOptions.None);
+        if (parts.Length > 2 ||
+            !int.TryParse(parts[0], out int rawValue) ||
+            rawValue < 1)
+        {
+            return false;
+        }
+
+        EnhancedKeyEventType eventType = EnhancedKeyEventType.Press;
+        if (parts.Length == 2)
+        {
+            if (!int.TryParse(parts[1], out int parsedEvent))
+                return false;
+
+            switch (parsedEvent)
             {
-                2 => EnhancedKeyEventType.Repeat,
-                3 => EnhancedKeyEventType.Release,
-                _ => EnhancedKeyEventType.Press,
+                case 1:
+                    eventType = EnhancedKeyEventType.Press;
+                    break;
+                case 2:
+                    eventType = EnhancedKeyEventType.Repeat;
+                    break;
+                case 3:
+                    eventType = EnhancedKeyEventType.Release;
+                    break;
+                default:
+                    return false;
             }
-            : EnhancedKeyEventType.Press;
+        }
 
-        return new EnhancedModifierField(rawValue, eventType);
+        modifiers = new EnhancedModifierField(rawValue, eventType);
+        return true;
+    }
+
+    private static bool TryParseAssociatedText(string? field, out string? associatedText)
+    {
+        associatedText = null;
+        if (string.IsNullOrEmpty(field))
+            return true;
+
+        var builder = new StringBuilder();
+        foreach (string part in field.Split(':', StringSplitOptions.None))
+        {
+            if (!int.TryParse(part, out int codePoint) ||
+                !Rune.IsValid(codePoint) ||
+                codePoint < 0x20 ||
+                codePoint is >= 0x7f and <= 0x9f)
+            {
+                return false;
+            }
+
+            builder.Append(new Rune(codePoint).ToString());
+        }
+
+        associatedText = builder.ToString();
+        return associatedText.Length > 0;
     }
 
     private static bool TryParseCsi(string text, out string body, out char final)
@@ -167,12 +268,19 @@ internal static class EnhancedTerminalKeyParser
             _ => ConsoleKey.NoName,
         };
 
-    private static char GetKeyChar(int keyCode, ConsoleKey key, ConsoleModifiers modifiers)
+    private static char GetKeyChar(int keyCode, ConsoleKey key, string? associatedText)
     {
-        if (keyCode is >= 32 and <= 0x10ffff && !TryGetModifierKeyName(keyCode, out _))
+        if (associatedText is { Length: 1 } && !char.IsSurrogate(associatedText[0]))
+            return associatedText[0];
+
+        if (associatedText is not null)
+            return '\0';
+
+        if (keyCode is >= 32 and <= char.MaxValue &&
+            Rune.IsValid(keyCode) &&
+            !TryGetModifierKeyName(keyCode, out _))
         {
-            char ch = (char)keyCode;
-            return modifiers.HasFlag(ConsoleModifiers.Shift) ? char.ToUpperInvariant(ch) : ch;
+            return (char)keyCode;
         }
 
         return key switch
@@ -225,7 +333,8 @@ internal sealed record EnhancedTerminalKeyEvent(
     ConsoleKeyInfo ParsedKey,
     bool ModifierOnly,
     string? ModifierKeyName,
-    char FinalChar)
+    char FinalChar,
+    string? AssociatedText)
 {
     public static EnhancedTerminalKeyEvent Unknown { get; } = new(
         IsKnown: false,
@@ -236,7 +345,8 @@ internal sealed record EnhancedTerminalKeyEvent(
         ParsedKey: default,
         ModifierOnly: false,
         ModifierKeyName: null,
-        FinalChar: '\0');
+        FinalChar: '\0',
+        AssociatedText: null);
 }
 
 internal enum EnhancedKeyEventType

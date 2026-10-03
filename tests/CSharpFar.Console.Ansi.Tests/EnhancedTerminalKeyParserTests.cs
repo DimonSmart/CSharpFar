@@ -82,4 +82,70 @@ public sealed class EnhancedTerminalKeyParserTests
 
     private static EnhancedTerminalKeyEvent Parse(string sequence) =>
         EnhancedTerminalKeyParser.Parse(Encoding.ASCII.GetBytes(sequence));
+
+    [Theory]
+    [InlineData("\x1b[13;5u", ConsoleModifiers.Control)]
+    [InlineData("\x1b[13;2u", ConsoleModifiers.Shift)]
+    [InlineData("\x1b[13;6u", ConsoleModifiers.Control | ConsoleModifiers.Shift)]
+    public void Parse_EnterCombinations_PreserveModifiers(string sequence, ConsoleModifiers modifiers)
+    {
+        var result = Parse(sequence);
+
+        Assert.True(result.IsKnown);
+        Assert.Equal(ConsoleKey.Enter, result.ParsedKey.Key);
+        Assert.Equal(modifiers, result.ParsedKey.Modifiers);
+    }
+
+    [Fact]
+    public void Parse_AssociatedText_UsesTerminalText()
+    {
+        var result = Parse("\x1b[97;2;65u");
+
+        Assert.True(result.IsKnown);
+        Assert.Equal(ConsoleKey.A, result.ParsedKey.Key);
+        Assert.Equal(ConsoleModifiers.Shift, result.ParsedKey.Modifiers);
+        Assert.Equal('A', result.ParsedKey.KeyChar);
+        Assert.Equal("A", result.AssociatedText);
+    }
+
+    [Fact]
+    public void Parse_PureTextEvent_ReturnsValidText()
+    {
+        var result = Parse("\x1b[0;;229u");
+
+        Assert.True(result.IsKnown);
+        Assert.Equal(ConsoleKey.NoName, result.ParsedKey.Key);
+        Assert.Equal('å', result.ParsedKey.KeyChar);
+        Assert.Equal("å", result.AssociatedText);
+    }
+
+    [Fact]
+    public void Parse_MultiCodePointAssociatedText_PreservesAllText()
+    {
+        var result = Parse("\x1b[97;1;97:769u");
+
+        Assert.True(result.IsKnown);
+        Assert.Equal("á", result.AssociatedText);
+        Assert.Equal('\0', result.ParsedKey.KeyChar);
+    }
+
+    [Fact]
+    public void Parse_NonBmpAssociatedText_PreservesSurrogatePair()
+    {
+        var result = Parse("\x1b[0;;128512u");
+
+        Assert.True(result.IsKnown);
+        Assert.Equal("😀", result.AssociatedText);
+        Assert.Equal('\0', result.ParsedKey.KeyChar);
+    }
+
+    [Theory]
+    [InlineData("\x1b[0;;1114112u")]
+    [InlineData("\x1b[0;;13u")]
+    [InlineData("\x1b[97;x;65u")]
+    public void Parse_MalformedAssociatedOrModifierField_ReturnsUnknown(string sequence)
+    {
+        Assert.False(Parse(sequence).IsKnown);
+    }
+
 }
