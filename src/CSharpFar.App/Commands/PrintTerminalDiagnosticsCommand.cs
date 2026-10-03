@@ -129,6 +129,17 @@ internal sealed class PrintTerminalDiagnosticsCommand : IApplicationCommand
         writer.WriteLine($"  Console driver: {terminal.ConsoleDriver}");
         writer.WriteLine($"  Input backend: {terminal.InputBackend}");
         writer.WriteLine($"  Mouse tracking enabled: {Value(terminal.MouseTrackingEnabled)}");
+        KeyboardProtocolSnapshot keyboard = terminal.KeyboardProtocol;
+        writer.WriteLine($"  Keyboard protocol: {keyboard.Protocol}");
+        writer.WriteLine($"  Enhanced keyboard support: {keyboard.SupportStatus}");
+        writer.WriteLine($"  Enhanced keyboard requested: {keyboard.Requested}");
+        writer.WriteLine($"  Requested flags: {keyboard.RequestedFlags}");
+        writer.WriteLine($"  Confirmed flags: {keyboard.ConfirmedFlags?.ToString() ?? "unavailable"}");
+        writer.WriteLine($"  Enhanced keyboard active: {keyboard.IsActive}");
+        if (keyboard.ActiveScreen is not null)
+            writer.WriteLine($"  Active keyboard screen: {keyboard.ActiveScreen}");
+        if (keyboard.FallbackReason is not null)
+            writer.WriteLine($"  Fallback reason: {keyboard.FallbackReason}");
     }
 
     internal static void WriteModifierTrackingDiagnostics(TextWriter writer, ModifierKeyTrackingSnapshot snapshot)

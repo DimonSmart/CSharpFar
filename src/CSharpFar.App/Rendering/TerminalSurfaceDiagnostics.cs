@@ -13,4 +13,5 @@ internal sealed record TerminalSurfaceDiagnostics(
     string ConsoleDriver,
     string InputBackend,
     bool? MouseTrackingEnabled,
+    KeyboardProtocolSnapshot KeyboardProtocol,
     ModifierKeyTrackingSnapshot ModifierKeyTracking);

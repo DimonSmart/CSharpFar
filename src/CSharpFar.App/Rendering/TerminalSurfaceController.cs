@@ -50,6 +50,7 @@ internal sealed class TerminalSurfaceController
             ConsoleDriver: _screen.ConsoleDriverName,
             InputBackend: input?.InputBackendName ?? "unknown",
             MouseTrackingEnabled: input?.MouseTrackingEnabled,
+            KeyboardProtocol: input?.KeyboardProtocol ?? KeyboardProtocolSnapshot.NotApplicable,
             ModifierKeyTracking: input?.ModifierKeyTracking ?? new ModifierKeyTrackingSnapshot(
                 "none",
                 IsPlatformSupported: false,

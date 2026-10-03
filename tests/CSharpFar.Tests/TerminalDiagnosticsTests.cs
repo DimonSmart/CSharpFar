@@ -132,6 +132,7 @@ public sealed class TerminalDiagnosticsTests
                 ConsoleDriver: "AnsiTerminalConsoleDriver",
                 InputBackend: "raw-vt",
                 MouseTrackingEnabled: true,
+                KeyboardProtocol: KeyboardProtocolSnapshot.NotApplicable,
                 ModifierKeyTracking: new ModifierKeyTrackingSnapshot(
                     "linux-evdev",
                     true,
@@ -145,5 +146,7 @@ public sealed class TerminalDiagnosticsTests
         Assert.Contains("Console driver: AnsiTerminalConsoleDriver", output, StringComparison.Ordinal);
         Assert.Contains("Input backend: raw-vt", output, StringComparison.Ordinal);
         Assert.Contains("Mouse tracking enabled: True", output, StringComparison.Ordinal);
+        Assert.Contains("Keyboard protocol: not applicable", output, StringComparison.Ordinal);
+        Assert.Contains("Enhanced keyboard requested: False", output, StringComparison.Ordinal);
     }
 }
