@@ -130,6 +130,28 @@ Both Homebrew packages are generated from SHA-256 checksums of the matching GitH
 
 Because the repository name does not use Homebrew's `homebrew-<tap>` naming convention, the first manual `brew tap` command includes the explicit Git URL.
 
+### Terminal diagnostics for the macOS app
+
+The executable inside `CSharpFar.app` can be launched directly from a real
+terminal. This is the correct way to run terminal diagnostics because it keeps
+stdin/stdout attached to the terminal emulator's TTY:
+
+```bash
+/Applications/CSharpFar.app/Contents/Resources/csharpfar --check-terminal
+```
+
+To inspect keyboard bytes and verify enhanced keyboard handling, run:
+
+```bash
+/Applications/CSharpFar.app/Contents/Resources/csharpfar --check-terminal --input-lab
+```
+
+The Input Lab uses the same production keyboard profile as CSharpFar and, when
+the terminal supports the Kitty keyboard protocol, reports the requested and
+confirmed flags together with Enter, Shift+Enter, Ctrl+Enter, and
+Ctrl+Shift+Enter observations.
+
+
 ## Releases
 
 Published releases provide:
