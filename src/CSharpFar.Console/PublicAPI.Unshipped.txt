@@ -79,7 +79,7 @@ CSharpFar.Console.Input.KeyboardProtocolSnapshot.ActiveScreen.get -> string?
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.ConfirmedFlags.get -> int?
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.FallbackReason.get -> string?
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.IsActive.get -> bool
-CSharpFar.Console.Input.KeyboardProtocolSnapshot.NotApplicable.get -> CSharpFar.Console.Input.KeyboardProtocolSnapshot!
+static CSharpFar.Console.Input.KeyboardProtocolSnapshot.NotApplicable.get -> CSharpFar.Console.Input.KeyboardProtocolSnapshot!
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.Protocol.get -> string!
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.Requested.get -> bool
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.RequestedFlags.get -> int
