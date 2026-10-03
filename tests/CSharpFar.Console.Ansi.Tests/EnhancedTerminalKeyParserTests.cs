@@ -148,4 +148,45 @@ public sealed class EnhancedTerminalKeyParserTests
         Assert.False(Parse(sequence).IsKnown);
     }
 
+
+    [Theory]
+    [InlineData("\x1b[57376;5u", ConsoleKey.F13, ConsoleModifiers.Control)]
+    [InlineData("\x1b[57419;6u", ConsoleKey.UpArrow, ConsoleModifiers.Control | ConsoleModifiers.Shift)]
+    [InlineData("\x1b[57414;2u", ConsoleKey.Enter, ConsoleModifiers.Shift)]
+    public void Parse_KittyFunctionalKeyCodes_MapWithoutProducingPrivateUseText(
+        string sequence,
+        ConsoleKey expectedKey,
+        ConsoleModifiers expectedModifiers)
+    {
+        var result = Parse(sequence);
+
+        Assert.True(result.IsKnown);
+        Assert.Equal(expectedKey, result.ParsedKey.Key);
+        Assert.Equal(expectedModifiers, result.ParsedKey.Modifiers);
+        Assert.Equal('\0', result.ParsedKey.KeyChar);
+    }
+
+    [Fact]
+    public void Parse_UnsupportedKittyPrivateUseKey_DoesNotBecomeText()
+    {
+        var result = Parse("\x1b[57428;1u");
+
+        Assert.False(result.IsKnown);
+    }
+
+    [Theory]
+    [InlineData("\x1b[57453;1u", "ISO_LEVEL3_SHIFT")]
+    [InlineData("\x1b[57454;1u", "ISO_LEVEL5_SHIFT")]
+    public void Parse_KittyIsoModifierOnlyKeys_AreIgnoredAsModifiers(
+        string sequence,
+        string expectedName)
+    {
+        var result = Parse(sequence);
+
+        Assert.True(result.IsKnown);
+        Assert.True(result.ModifierOnly);
+        Assert.Equal(expectedName, result.ModifierKeyName);
+        Assert.Equal('\0', result.ParsedKey.KeyChar);
+    }
+
 }
