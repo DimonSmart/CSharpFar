@@ -93,10 +93,11 @@ public static class TerminalInputLab
 
         return Run(options, platform);
     }
+
     private const string Csi = "\x1b[";
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
 
-    public static int Run(TerminalInputLabOptions options, TerminalInputLabPlatform platform)
+    private static int Run(TerminalInputLabOptions options, TerminalInputLabPlatform platform)
     {
         if (SystemConsole.IsInputRedirected || SystemConsole.IsOutputRedirected)
         {
