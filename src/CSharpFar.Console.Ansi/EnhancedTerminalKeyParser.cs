@@ -307,6 +307,9 @@ internal static class EnhancedTerminalKeyParser
         if (associatedText is not null)
             return '\0';
 
+        if (IsKittyFunctionalKeyCode(keyCode))
+            return '\0';
+
         if (keyCode is >= 32 and <= char.MaxValue &&
             !IsKittyFunctionalKeyCode(keyCode) &&
             Rune.IsValid(keyCode) &&
