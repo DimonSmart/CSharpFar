@@ -45,7 +45,10 @@ internal static class EnhancedTerminalKeyParser
 
         ConsoleKey key = MapKeyCode(keyCode, 'u');
         bool modifierOnly = TryGetModifierKeyName(keyCode, out _);
-        bool validUnicodeKey = keyCode >= 32 && Rune.IsValid(keyCode);
+        bool validUnicodeKey =
+            keyCode >= 32 &&
+            !IsKittyFunctionalKeyCode(keyCode) &&
+            Rune.IsValid(keyCode);
         if (keyCode == 0)
         {
             if (string.IsNullOrEmpty(associatedText))
@@ -253,20 +256,51 @@ internal static class EnhancedTerminalKeyParser
                 24 => ConsoleKey.F12,
                 _ => ConsoleKey.NoName,
             },
-            'u' => keyCode switch
-            {
-                9 => ConsoleKey.Tab,
-                13 => ConsoleKey.Enter,
-                27 => ConsoleKey.Escape,
-                32 => ConsoleKey.Spacebar,
-                127 => ConsoleKey.Backspace,
-                >= 48 and <= 57 => ConsoleKey.D0 + (keyCode - 48),
-                >= 65 and <= 90 => ConsoleKey.A + (keyCode - 65),
-                >= 97 and <= 122 => ConsoleKey.A + (keyCode - 97),
-                _ => ConsoleKey.NoName,
-            },
+            'u' => MapKittyKeyCode(keyCode),
             _ => ConsoleKey.NoName,
         };
+
+    private static ConsoleKey MapKittyKeyCode(int keyCode) =>
+        keyCode switch
+        {
+            9 => ConsoleKey.Tab,
+            13 => ConsoleKey.Enter,
+            27 => ConsoleKey.Escape,
+            32 => ConsoleKey.Spacebar,
+            127 => ConsoleKey.Backspace,
+            >= 48 and <= 57 => ConsoleKey.D0 + (keyCode - 48),
+            >= 65 and <= 90 => ConsoleKey.A + (keyCode - 65),
+            >= 97 and <= 122 => ConsoleKey.A + (keyCode - 97),
+            57358 => ConsoleKey.CapsLock,
+            57359 => ConsoleKey.ScrollLock,
+            57360 => ConsoleKey.NumLock,
+            57361 => ConsoleKey.PrintScreen,
+            57362 => ConsoleKey.Pause,
+            57363 => ConsoleKey.Applications,
+            >= 57376 and <= 57387 => ConsoleKey.F13 + (keyCode - 57376),
+            >= 57399 and <= 57408 => ConsoleKey.NumPad0 + (keyCode - 57399),
+            57409 => ConsoleKey.Decimal,
+            57410 => ConsoleKey.Divide,
+            57411 => ConsoleKey.Multiply,
+            57412 => ConsoleKey.Subtract,
+            57413 => ConsoleKey.Add,
+            57414 => ConsoleKey.Enter,
+            57416 => ConsoleKey.Separator,
+            57417 => ConsoleKey.LeftArrow,
+            57418 => ConsoleKey.RightArrow,
+            57419 => ConsoleKey.UpArrow,
+            57420 => ConsoleKey.DownArrow,
+            57421 => ConsoleKey.PageUp,
+            57422 => ConsoleKey.PageDown,
+            57423 => ConsoleKey.Home,
+            57424 => ConsoleKey.End,
+            57425 => ConsoleKey.Insert,
+            57426 => ConsoleKey.Delete,
+            _ => ConsoleKey.NoName,
+        };
+
+    private static bool IsKittyFunctionalKeyCode(int keyCode) =>
+        keyCode is >= 57344 and <= 63743;
 
     private static char GetKeyChar(int keyCode, ConsoleKey key, string? associatedText)
     {
@@ -277,6 +311,7 @@ internal static class EnhancedTerminalKeyParser
             return '\0';
 
         if (keyCode is >= 32 and <= char.MaxValue &&
+            !IsKittyFunctionalKeyCode(keyCode) &&
             Rune.IsValid(keyCode) &&
             !TryGetModifierKeyName(keyCode, out _))
         {
@@ -309,6 +344,8 @@ internal static class EnhancedTerminalKeyParser
             57450 => "RIGHT_SUPER",
             57451 => "RIGHT_HYPER",
             57452 => "RIGHT_META",
+            57453 => "ISO_LEVEL3_SHIFT",
+            57454 => "ISO_LEVEL5_SHIFT",
             _ => null,
         };
 
