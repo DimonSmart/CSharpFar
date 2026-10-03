@@ -97,6 +97,9 @@ CSharpFar.Console.Ansi.IAnsiInputByteReader
 CSharpFar.Console.Ansi.IAnsiInputByteReader.ReadByte() -> byte
 CSharpFar.Console.Ansi.IAnsiInputByteReader.TryReadByte(out byte value) -> bool
 CSharpFar.Console.Ansi.IAnsiInputByteReader.WaitForInput(int timeoutMilliseconds) -> bool
+CSharpFar.Console.Ansi.TerminalInputLab
+static CSharpFar.Console.Ansi.TerminalInputLab.RunLinux(string[]! arguments) -> int
+static CSharpFar.Console.Ansi.TerminalInputLab.RunMacOs(string[]! arguments) -> int
 override CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.Equals(object? obj) -> bool
 override CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.GetHashCode() -> int
 override CSharpFar.Console.Ansi.AnsiInputDiagnosticEvent.ToString() -> string!
