@@ -32,15 +32,7 @@ try
         return RunTerminalCheck();
 
     if (args.Length >= 2 && args[0] == "--check-terminal" && args[1] == "--input-lab")
-    {
-        if (!TerminalInputLabOptions.TryParse(args.Skip(2), out var options, out string? error))
-        {
-            Console.Error.WriteLine(error);
-            return 2;
-        }
-
-        return TerminalInputLab.Run(options);
-    }
+        return TerminalInputLab.RunLinux(args.Skip(2).ToArray());
 
     if (!ApplicationRunOptionsParser.TryParse(args, out var runOptions, out string? runError))
     {
