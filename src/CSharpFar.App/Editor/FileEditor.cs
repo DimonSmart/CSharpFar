@@ -227,8 +227,16 @@ internal sealed partial class FileEditor
                         return ModalDialogLoopResult<bool>.ContinueNoChange;
 
                     session.RaiseInput(key);
-                    bool printable = (key.KeyChar >= ' ' || key.KeyChar == '\t') &&
+                    bool acceptsText =
                         (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
+                    if (acceptsText && input.Text is { Length: > 0 } associatedText)
+                    {
+                        session.InsertText(associatedText);
+                        _persistentSelection = false;
+                        return ModalDialogLoopResult<bool>.ContinueChanged;
+                    }
+
+                    bool printable = (key.KeyChar >= ' ' || key.KeyChar == '\t') && acceptsText;
                     if (printable)
                     {
                         string text = key.KeyChar == '\t' && _settings.ExpandTabs

@@ -80,6 +80,15 @@ internal sealed class ApplicationCommandLineKeyboardHandler
                     resumesHiddenInteraction: false);
         }
 
+        if (input.Text is { Length: > 0 } text &&
+            (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0)
+        {
+            ResetNavigation(frame);
+            _context.CommandLine.InsertText(text);
+            NotifyCommandLineEdit();
+            return CommandLineChanged();
+        }
+
         if (ApplicationKeyboardTargetResolver.IsPrintable(key))
             return HandleStandardEditing(key, frame);
 

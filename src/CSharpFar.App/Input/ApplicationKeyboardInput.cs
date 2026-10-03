@@ -9,6 +9,8 @@ internal sealed record ApplicationKeyboardInput(
     ConsoleKeyInfo Key,
     ApplicationKeyboardOwner Owner)
 {
+    public string? Text { get; init; }
+
     public ApplicationUiFrame Frame => Routed.Frame;
     public PanelSide ActiveSide => Frame.Keyboard.ActiveSide;
     public UiTargetId? Target => Routed.Target;

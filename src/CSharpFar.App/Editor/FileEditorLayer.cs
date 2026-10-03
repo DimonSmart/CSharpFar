@@ -148,7 +148,7 @@ internal sealed partial class FileEditor
                 if (modifiersChanged)
                     _invalidation.Request(EditorRenderPart.FunctionKeyBar);
                 return new InteractiveSurfaceRouteResult<FileEditorInput>(
-                    FileEditorInput.Keyboard(key.Key),
+                    FileEditorInput.Keyboard(key.Key, key.Text),
                     Invalidate: modifiersChanged);
             }
 
@@ -353,6 +353,7 @@ internal sealed partial class FileEditor
     private readonly record struct FileEditorInput(
         FileEditorInputKind Kind,
         ConsoleKeyInfo? Key = null,
+        string? Text = null,
         ConsoleModifiers Modifiers = default,
         int ScrollLines = 0,
         int TopLine = 0,
@@ -360,7 +361,8 @@ internal sealed partial class FileEditor
         EditorPosition? Position = null)
     {
         public static FileEditorInput None => new(FileEditorInputKind.None);
-        public static FileEditorInput Keyboard(ConsoleKeyInfo key) => new(FileEditorInputKind.Keyboard, Key: key);
+        public static FileEditorInput Keyboard(ConsoleKeyInfo key, string? text = null) =>
+            new(FileEditorInputKind.Keyboard, Key: key, Text: text);
         public static FileEditorInput ModifierChanged(ConsoleModifiers modifiers) => new(FileEditorInputKind.ModifierChanged, Modifiers: modifiers);
         public static FileEditorInput MouseWheel(int lines) => new(FileEditorInputKind.MouseWheel, ScrollLines: lines);
         public static FileEditorInput ScrollbarToLine(int topLine) => new(FileEditorInputKind.ScrollbarToLine, TopLine: topLine);

@@ -7,7 +7,10 @@ namespace CSharpFar.App.Input;
 
 internal sealed class ApplicationKeyboardTargetResolver
 {
-    public ApplicationKeyboardOwner Resolve(ConsoleKeyInfo key, ApplicationUiFrame frame)
+    public ApplicationKeyboardOwner Resolve(
+        ConsoleKeyInfo key,
+        ApplicationUiFrame frame,
+        string? text = null)
     {
         if (frame.Mode == ApplicationWorkspaceMode.HiddenCommandLine)
             return ApplicationKeyboardOwner.CommandLine;
@@ -15,7 +18,7 @@ internal sealed class ApplicationKeyboardTargetResolver
         if (frame.Mode != ApplicationWorkspaceMode.Panels)
             return ApplicationKeyboardOwner.None;
 
-        if (CommandLineOwns(key, frame.Keyboard))
+        if (CommandLineOwns(key, frame.Keyboard, text))
             return ApplicationKeyboardOwner.CommandLine;
 
         if (PanelOwns(key, frame))
@@ -28,9 +31,12 @@ internal sealed class ApplicationKeyboardTargetResolver
         return ApplicationKeyboardOwner.None;
     }
 
-    private static bool CommandLineOwns(ConsoleKeyInfo key, ApplicationKeyboardFrame keyboard)
+    private static bool CommandLineOwns(
+        ConsoleKeyInfo key,
+        ApplicationKeyboardFrame keyboard,
+        string? text)
     {
-        if (IsPrintable(key))
+        if (IsPrintable(key) || IsTextInput(key, text))
             return true;
 
         if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.A, '\u0001') ||
@@ -94,6 +100,10 @@ internal sealed class ApplicationKeyboardTargetResolver
             (key.Modifiers & ConsoleModifiers.Alt) == 0;
         return isControlShortcut && key.Key is ConsoleKey.Multiply or ConsoleKey.D8;
     }
+
+    private static bool IsTextInput(ConsoleKeyInfo key, string? text) =>
+        !string.IsNullOrEmpty(text) &&
+        (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
 
     internal static bool IsPrintable(ConsoleKeyInfo key) =>
         key.KeyChar >= ' ' &&

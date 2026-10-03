@@ -40,9 +40,10 @@ internal sealed class KeyboardInputRouter
             return HandleWorkspaceModifier(modifiers, routed.Frame);
         }
 
-        if (routed.Input is not KeyConsoleInputEvent { Key: var key })
+        if (routed.Input is not KeyConsoleInputEvent keyEvent)
             return ApplicationInputHandlingResult.NotHandled;
 
+        ConsoleKeyInfo key = keyEvent.Key;
         if (routed.Target != ApplicationTargetIds.WorkspaceKeyboard ||
             routed.RouteKind != UiInputRouteKind.KeyboardTarget)
         {
@@ -50,8 +51,11 @@ internal sealed class KeyboardInputRouter
         }
 
         bool functionKeyLayerChanged = _context.SetFunctionKeyLayer(key.Modifiers);
-        ApplicationKeyboardOwner owner = _targetResolver.Resolve(key, routed.Frame);
-        var input = new ApplicationKeyboardInput(routed, key, owner);
+        ApplicationKeyboardOwner owner = _targetResolver.Resolve(key, routed.Frame, keyEvent.Text);
+        var input = new ApplicationKeyboardInput(routed, key, owner)
+        {
+            Text = keyEvent.Text,
+        };
 
         ApplicationInputHandlingResult global = _globalHandler.Handle(input);
         if (global.Handled)
