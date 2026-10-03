@@ -27,11 +27,20 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
     private bool _disposed;
     private readonly System.Text.StringBuilder _frameOutput = new();
 
-    public static AnsiTerminalConsoleDriver CreateLinux() => new(() => new LinuxTerminalInputMode());
+    public static AnsiTerminalConsoleDriver CreateLinux() => CreateLinux(enhancedKeyboardRequested: true);
 
-    public static AnsiTerminalConsoleDriver CreateMacOs() => new(() => new MacOsTerminalInputMode());
+    public static AnsiTerminalConsoleDriver CreateMacOs() => CreateMacOs(enhancedKeyboardRequested: true);
 
-    internal AnsiTerminalConsoleDriver(Func<ITerminalInputMode> terminalModeFactory, IConsoleInputReader? inputReader = null)
+    internal static AnsiTerminalConsoleDriver CreateLinux(bool enhancedKeyboardRequested) =>
+        new(() => new LinuxTerminalInputMode(), enhancedKeyboardRequested: enhancedKeyboardRequested);
+
+    internal static AnsiTerminalConsoleDriver CreateMacOs(bool enhancedKeyboardRequested) =>
+        new(() => new MacOsTerminalInputMode(), enhancedKeyboardRequested: enhancedKeyboardRequested);
+
+    internal AnsiTerminalConsoleDriver(
+        Func<ITerminalInputMode> terminalModeFactory,
+        IConsoleInputReader? inputReader = null,
+        bool enhancedKeyboardRequested = true)
     {
         _terminalModeFactory = terminalModeFactory;
         if (global::System.Console.IsInputRedirected || global::System.Console.IsOutputRedirected)
@@ -44,7 +53,8 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
             GetSize,
             ResetCachedState,
             WriteControl,
-            terminalMode: _terminalModeFactory());
+            terminalMode: _terminalModeFactory(),
+            enhancedKeyboardRequested: enhancedKeyboardRequested);
     }
 
     public bool IsSupported => true;
