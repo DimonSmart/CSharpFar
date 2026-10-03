@@ -95,4 +95,49 @@ public sealed class TerminalInputLabParserTests
         Assert.False(result.IsKnown);
         Assert.Equal(raw, result.RawBytes);
     }
+
+    [Fact]
+    public void Parse_EnhancedAssociatedText_ReportsKittyProtocolAndFullText()
+    {
+        var parser = new TerminalInputLabParser();
+
+        TerminalInputLabEvent result = parser.Parse(
+            Encoding.ASCII.GetBytes("\u001b[97;2;65:769u"));
+
+        Assert.True(result.IsKnown);
+        Assert.Equal("Key", result.Kind);
+        Assert.Equal(ConsoleKey.A, result.Key?.Key);
+        Assert.Equal(ConsoleModifiers.Shift, result.Key?.Modifiers);
+        Assert.Equal("Á", result.AssociatedText);
+        Assert.Equal("kitty", result.Protocol);
+    }
+
+    [Fact]
+    public void Parse_PureTextEnhancedEvent_PreservesNonBmpText()
+    {
+        var parser = new TerminalInputLabParser();
+
+        TerminalInputLabEvent result = parser.Parse(
+            Encoding.ASCII.GetBytes("\u001b[0;;128512u"));
+
+        Assert.True(result.IsKnown);
+        Assert.Equal(ConsoleKey.NoName, result.Key?.Key);
+        Assert.Equal("😀", result.AssociatedText);
+        Assert.Equal("kitty", result.Protocol);
+    }
+
+    [Fact]
+    public void Parse_MalformedEnhancedEvent_DoesNotBecomeEscape()
+    {
+        var parser = new TerminalInputLabParser();
+
+        TerminalInputLabEvent result = parser.Parse(
+            Encoding.ASCII.GetBytes("\u001b[0;;1114112u"));
+
+        Assert.False(result.IsKnown);
+        Assert.Equal("MalformedEnhancedKeyboard", result.Kind);
+        Assert.Null(result.Key);
+        Assert.Equal("kitty", result.Protocol);
+    }
+
 }
