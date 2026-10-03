@@ -368,4 +368,22 @@ public sealed class Spec027FarCommandLineShortcutTests : IDisposable
         public void Execute(ShellInvocation invocation, string workingDirectory) =>
             Invocations.Add(invocation);
     }
+
+    [Fact]
+    public void Run_AssociatedTextInputPreservesCompleteUnicodeText()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        driver.EnqueueInput(new KeyConsoleInputEvent(
+            new ConsoleKeyInfo('\0', ConsoleKey.NoName, shift: false, alt: false, control: false))
+        {
+            Text = "Ж😀á",
+        });
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(CreateFileSystem(), driver, new InMemoryHistoryStore());
+        app.Run();
+
+        Assert.Equal("Ж😀á", GetCommandLine(app).Text);
+    }
+
 }

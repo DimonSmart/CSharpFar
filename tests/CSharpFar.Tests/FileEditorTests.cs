@@ -1183,4 +1183,25 @@ public sealed class FileEditorTests : IDisposable
             return new(_spans, EditorSyntaxDiagnostics.Active("Fake", "Fake", "palette"));
         }
     }
+
+    [Fact]
+    public void Show_AssociatedTextInputPreservesCompleteUnicodeText()
+    {
+        string filePath = Path.Combine(_tempDir, "associated-text.txt");
+        File.WriteAllText(filePath, "");
+
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.EnqueueInput(new KeyConsoleInputEvent(
+            new ConsoleKeyInfo('\0', ConsoleKey.NoName, shift: false, alt: false, control: false))
+        {
+            Text = "Ж😀á",
+        });
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath);
+
+        Assert.Equal("Ж😀á", File.ReadAllText(filePath));
+    }
+
 }
