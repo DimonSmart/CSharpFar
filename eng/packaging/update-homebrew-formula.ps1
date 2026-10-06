@@ -40,19 +40,20 @@ $formula = @'
 class Csharpfar < Formula
   desc "Cross-platform, Far-inspired file manager built with C# and .NET"
   homepage "https://github.com/DimonSmart/CSharpFar"
-  version "__VERSION__"
-
-  on_arm do
-    url "https://github.com/DimonSmart/CSharpFar/releases/download/v__VERSION__/CSharpFar-v__VERSION__-osx-arm64.tar.gz"
-    sha256 "__ARM64_SHA256__"
-  end
-
-  on_intel do
-    url "https://github.com/DimonSmart/CSharpFar/releases/download/v__VERSION__/CSharpFar-v__VERSION__-osx-x64.tar.gz"
-    sha256 "__X64_SHA256__"
-  end
 
   depends_on :macos
+
+  on_macos do
+    on_arm do
+      url "https://github.com/DimonSmart/CSharpFar/releases/download/v__VERSION__/CSharpFar-v__VERSION__-osx-arm64.tar.gz"
+      sha256 "__ARM64_SHA256__"
+    end
+
+    on_intel do
+      url "https://github.com/DimonSmart/CSharpFar/releases/download/v__VERSION__/CSharpFar-v__VERSION__-osx-x64.tar.gz"
+      sha256 "__X64_SHA256__"
+    end
+  end
 
   def install
     bin.install "csharpfar"

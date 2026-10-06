@@ -1,16 +1,16 @@
 cask "csharpfar-app" do
   arch arm: "arm64", intel: "x64"
 
-  depends_on :macos
-
-  version "1.0.82"
-  sha256 arm: "a2699768d8df23a3638cf6aff1f24e0a83a4bba96a75345171f5a109c7ca692a",
-         intel: "887ac83356df6951e0cfdc79cee968f016566e9f4a46dd96914ad8f35e755541"
+  version "1.0.86"
+  sha256 arm: "284bae5ee552e4062137eb44c149625b3845404fedefafcd0baa832af2005741",
+         intel: "8ff84350b7d745ba7e275b3ddcbaf0aa16e00032b98b260fd16bfcd67f7f41ab"
 
   url "https://github.com/DimonSmart/CSharpFar/releases/download/v#{version}/CSharpFar-v#{version}-osx-#{arch}-app.zip"
   name "CSharpFar"
   desc "Far-inspired terminal file manager built with C# and .NET"
   homepage "https://github.com/DimonSmart/CSharpFar"
+
+  depends_on :macos
 
   app "CSharpFar.app"
 

@@ -40,8 +40,6 @@ $cask = @'
 cask "csharpfar-app" do
   arch arm: "arm64", intel: "x64"
 
-  depends_on :macos
-
   version "__VERSION__"
   sha256 arm: "__ARM64_SHA256__",
          intel: "__X64_SHA256__"
@@ -50,6 +48,8 @@ cask "csharpfar-app" do
   name "CSharpFar"
   desc "Far-inspired terminal file manager built with C# and .NET"
   homepage "https://github.com/DimonSmart/CSharpFar"
+
+  depends_on :macos
 
   app "CSharpFar.app"
 
