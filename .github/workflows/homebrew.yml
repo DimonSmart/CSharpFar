@@ -17,6 +17,9 @@ on:
       - master
     paths:
       - eng/packaging/homebrew-current-tag.txt
+      - eng/packaging/update-homebrew-formula.ps1
+      - eng/packaging/update-homebrew-cask.ps1
+      - .github/workflows/homebrew.yml
 
 permissions:
   contents: write
@@ -24,7 +27,7 @@ permissions:
 jobs:
   update-homebrew:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     steps:
       - name: Checkout master
