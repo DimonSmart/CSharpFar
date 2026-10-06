@@ -78,7 +78,7 @@ For the standard Homebrew-managed application installed at:
 1. `brew update`;
 2. read the Cask version with `brew info --cask --json=v2`;
 3. wait rather than upgrade if Homebrew metadata still trails the GitHub release;
-4. `brew upgrade --cask --no-quit --appdir=/Applications dimonsmart/csharpfar/csharpfar-app`;
+4. `brew upgrade --cask --no-quit --appdir=/Applications csharpfar-app`;
 5. verify the installed binary version;
 6. clear and verify CSharpFar's quarantine attribute;
 7. relaunch `/Applications/CSharpFar.app` and exit the old process.

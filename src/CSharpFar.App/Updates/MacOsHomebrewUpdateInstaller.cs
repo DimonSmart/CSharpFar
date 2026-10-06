@@ -5,7 +5,10 @@ namespace CSharpFar.App.Updates;
 
 internal sealed class MacOsHomebrewUpdateInstaller : IApplicationUpdateInstaller
 {
-    internal const string CaskName = "dimonsmart/csharpfar/csharpfar-app";
+    // Homebrew records an installed Cask by its canonical token, not its fully
+    // qualified tap path. Use that token for list, info, and upgrade so an
+    // installation made through dimonsmart/csharpfar is detected correctly.
+    internal const string CaskName = "csharpfar-app";
     internal const string ApplicationPath = "/Applications/CSharpFar.app";
     internal const string ApplicationExecutablePath =
         "/Applications/CSharpFar.app/Contents/Resources/csharpfar";

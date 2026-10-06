@@ -9,7 +9,7 @@ public sealed class ApplicationUpdateInstallerTests
         "/Applications/CSharpFar.app/Contents/Resources/csharpfar";
 
     [Fact]
-    public async Task Availability_RequiresStandardHomebrewManagedBundle()
+    public async Task Availability_QueriesCanonicalCaskTokenForStandardHomebrewManagedBundle()
     {
         var executor = new StubProcessExecutor((_, _, _) =>
             Result(0, "csharpfar-app 1.0.70"));
@@ -21,7 +21,7 @@ public sealed class ApplicationUpdateInstallerTests
         Assert.Equal(ApplicationUpdateAvailabilityStatus.Available, availability.Status);
         Assert.Equal(Brew, availability.HomebrewExecutable);
         Assert.Equal(
-            ["list", "--cask", "--versions", MacOsHomebrewUpdateInstaller.CaskName],
+            ["list", "--cask", "--versions", "csharpfar-app"],
             Assert.Single(executor.Calls).Arguments);
     }
 
