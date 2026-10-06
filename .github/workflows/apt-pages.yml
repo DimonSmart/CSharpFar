@@ -16,12 +16,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy-apt:
+  build-apt:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout
@@ -40,8 +37,10 @@ jobs:
           $debsDir = Join-Path $env:RUNNER_TEMP "debs"
           New-Item -ItemType Directory -Force -Path $debsDir | Out-Null
 
-          $releases = gh release list --limit 1000 --json tagName,isDraft | ConvertFrom-Json
-          foreach ($release in $releases | Where-Object { -not $_.isDraft }) {
+          $releases = @(gh release list --limit 1000 --json tagName,isDraft | ConvertFrom-Json) |
+            Where-Object { -not $_.isDraft } |
+            Select-Object -First 10
+          foreach ($release in $releases) {
             $assetNames = @(gh release view $release.tagName --json assets --jq '.assets[].name')
             foreach ($assetName in $assetNames | Where-Object { $_ -like "csharpfar_*_amd64.deb" }) {
               gh release download $release.tagName `
@@ -144,6 +143,14 @@ jobs:
         with:
           path: ${{ runner.temp }}/site
 
+  deploy-apt:
+    needs: build-apt
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
