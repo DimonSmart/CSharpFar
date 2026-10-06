@@ -10,7 +10,6 @@ internal sealed record DirectoryShortcutEditResult(
 internal sealed class DirectoryShortcutEditDialog
 {
     private const int DialogWidth = 62;
-    private const int DialogHeight = 10;
 
     private readonly DialogService _dialogs;
     private readonly FormFieldFactory _fields;
@@ -32,7 +31,7 @@ internal sealed class DirectoryShortcutEditDialog
         TextInputRow pathRow = FormControls.Text(path);
         var actions = FormControls.OkCancel();
         return _dialogs.Form(
-            new FormDialogOptions($"Directory shortcut {number}", DialogWidth, DialogHeight),
+            new FormDialogOptions($"Directory shortcut {number}", PreferredWidth: DialogWidth),
             rows: () =>
             [
                 FormControls.Label("Name"),

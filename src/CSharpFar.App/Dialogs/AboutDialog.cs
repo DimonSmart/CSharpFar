@@ -174,7 +174,7 @@ internal sealed class AboutDialog
             {
                 Title = "About",
                 PreferredWidth = 58,
-                PreferredHeight = 11,
+                PreferredHeight = 12,
                 MinWidth = 40,
                 MinHeight = 8,
                 RefreshInterval = TimeSpan.FromDays(1),
