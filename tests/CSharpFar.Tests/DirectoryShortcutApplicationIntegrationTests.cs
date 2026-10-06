@@ -99,18 +99,7 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
     public void EditDialog_MouseCancel_WorksWhileNameFieldHasFocus()
     {
         var driver = new FakeConsoleDriver();
-        driver.EnqueueInput(new MouseConsoleInputEvent(
-            39,
-            14,
-            MouseButton.Left,
-            MouseEventKind.Down,
-            MouseKeyModifiers.None));
-        driver.EnqueueInput(new MouseConsoleInputEvent(
-            39,
-            14,
-            MouseButton.Left,
-            MouseEventKind.Up,
-            MouseKeyModifiers.None));
+        QueueClickOnRenderedButton(driver, "[ Cancel ]");
         var currentItem = new AppSettings.DirectoryShortcutItem
         {
             Number = 1,
@@ -129,18 +118,7 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
     public void EditDialog_MouseOk_WorksWhileNameFieldHasFocus()
     {
         var driver = new FakeConsoleDriver();
-        driver.EnqueueInput(new MouseConsoleInputEvent(
-            32,
-            14,
-            MouseButton.Left,
-            MouseEventKind.Down,
-            MouseKeyModifiers.None));
-        driver.EnqueueInput(new MouseConsoleInputEvent(
-            32,
-            14,
-            MouseButton.Left,
-            MouseEventKind.Up,
-            MouseKeyModifiers.None));
+        QueueClickOnRenderedButton(driver, "{ OK }");
 
         var screen = new ScreenRenderer(driver);
         var result = new DirectoryShortcutEditDialog(new DialogService(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))
@@ -246,6 +224,38 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
         return (ApplicationUiSurface)runtime.GetType()
             .GetField("_applicationSurface", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(runtime)!;
+    }
+
+    private static void QueueClickOnRenderedButton(FakeConsoleDriver driver, string buttonText)
+    {
+        driver.BeforeReadInput = currentDriver =>
+        {
+            var size = currentDriver.GetSize();
+            for (int y = 0; y < size.Height; y++)
+            {
+                string row = currentDriver.GetRow(y);
+                int x = row.IndexOf(buttonText, StringComparison.Ordinal);
+                if (x < 0)
+                    continue;
+
+                int clickX = x + buttonText.Length / 2;
+                currentDriver.EnqueueInput(new MouseConsoleInputEvent(
+                    clickX,
+                    y,
+                    MouseButton.Left,
+                    MouseEventKind.Down,
+                    MouseKeyModifiers.None));
+                currentDriver.EnqueueInput(new MouseConsoleInputEvent(
+                    clickX,
+                    y,
+                    MouseButton.Left,
+                    MouseEventKind.Up,
+                    MouseKeyModifiers.None));
+                return;
+            }
+
+            throw new InvalidOperationException($"Button '{buttonText}' was not rendered.");
+        };
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
