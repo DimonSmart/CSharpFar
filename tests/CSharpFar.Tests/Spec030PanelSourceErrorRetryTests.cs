@@ -15,7 +15,7 @@ public sealed class Spec030PanelSourceErrorRetryTests
     public void TryLoadDirectory_WhenLocalReadFails_ShowsPanelLoadErrorAtTarget()
     {
         var fs = new ToggleFileSystemService();
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = @"C:\Old" };
         state.Items.Add(new FilePanelItem
         {
@@ -41,7 +41,7 @@ public sealed class Spec030PanelSourceErrorRetryTests
     public void TryRefreshDirectory_AfterLocalSourceBecomesAvailable_ClearsPanelLoadError()
     {
         var fs = new ToggleFileSystemService { Error = new IOException("Drive is not ready.") };
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = @"R:\" };
 
         Assert.False(ctrl.TryRefreshDirectory(state, visibleRows: 10));
@@ -75,7 +75,7 @@ public sealed class Spec030PanelSourceErrorRetryTests
             new FakeFileSystemService(),
             new PanelSortService(),
             sources: registry);
-        var ctrl = new PanelController(builder);
+        var ctrl = TestPanelControllerFactory.Create(builder);
         var state = new FilePanelState { CurrentDirectory = @"C:\" };
         var location = new PanelLocation(source.SourceId, "/remote");
 
@@ -101,7 +101,7 @@ public sealed class Spec030PanelSourceErrorRetryTests
             new FakeFileSystemService(),
             new PanelSortService(),
             sources: registry);
-        var ctrl = new PanelController(builder);
+        var ctrl = TestPanelControllerFactory.Create(builder);
         var state = new FilePanelState { CurrentDirectory = @"C:\" };
         state.CurrentLocation = new PanelLocation(source.SourceId, "/remote");
 
