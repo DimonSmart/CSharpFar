@@ -1,6 +1,7 @@
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.DirectoryShortcuts;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 
 namespace CSharpFar.App.Commands;
 
@@ -50,16 +51,25 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
         if (!context.CanAccessLocalFileSystem(state))
             return ApplicationCommandResult.Rendered();
 
-        if (!Directory.Exists(path))
+        if (!LocalPathNormalizer.Current.TryNormalize(
+            path,
+            basePath: null,
+            out string canonicalPath))
         {
-            context.Dialogs.Message("Directory Shortcut", $"Directory not found: {path}");
+            context.Dialogs.Message("Directory Shortcut", $"Invalid directory path: {path}");
+            return ApplicationCommandResult.Rendered();
+        }
+
+        if (!Directory.Exists(canonicalPath))
+        {
+            context.Dialogs.Message("Directory Shortcut", $"Directory not found: {canonicalPath}");
             return ApplicationCommandResult.Rendered();
         }
 
         try
         {
             context.ResetTransientNavigationUi();
-            context.Controller.LoadDirectory(state, path, context.PanelOptions);
+            context.Controller.LoadDirectory(state, canonicalPath, context.PanelOptions);
             context.StartWatching(state, side);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
