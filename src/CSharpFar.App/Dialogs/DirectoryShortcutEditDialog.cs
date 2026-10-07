@@ -44,18 +44,7 @@ internal sealed class DirectoryShortcutEditDialog
             submit: () => FormSubmit.Success(Accepted(number, name.Text, path.Text)));
     }
 
-    private static DirectoryShortcutEditResult Accepted(int number, string name, string path)
-    {
-        path = path.Trim();
-        return new DirectoryShortcutEditResult(
-            path.Length == 0
-                ? null
-                : new AppSettings.DirectoryShortcutItem
-                {
-                    Number = number,
-                    Name = DirectoryShortcutNormalizer.NormalizeName(name),
-                    Path = path,
-                });
-    }
+    private static DirectoryShortcutEditResult Accepted(int number, string name, string path) =>
+        new(DirectoryShortcutNormalizer.NormalizeItem(number, name, path));
 
 }
