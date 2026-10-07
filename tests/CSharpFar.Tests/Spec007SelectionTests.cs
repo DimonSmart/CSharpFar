@@ -19,7 +19,7 @@ public sealed class Spec007SelectionTests
             new FilePanelItem { Name = "SubDir", FullPath = Root + @"\SubDir", IsDirectory = true },
             new FilePanelItem { Name = "file.txt", FullPath = Root + @"\file.txt", IsDirectory = false });
 
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root, opts);
         return (ctrl, state);
@@ -129,7 +129,7 @@ public sealed class Spec007SelectionTests
             new FilePanelItem { Name = "a.txt", FullPath = Root + @"\a.txt", IsDirectory = false, Size = 10 },
             new FilePanelItem { Name = "b.txt", FullPath = Root + @"\b.txt", IsDirectory = false, Size = 20 });
 
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
         state.CursorIndex = 1;
@@ -150,7 +150,7 @@ public sealed class Spec007SelectionTests
             new FilePanelItem { Name = "a.txt", FullPath = Root + @"\a.txt", IsDirectory = false, Size = 10 },
             new FilePanelItem { Name = "dir", FullPath = Root + @"\dir", IsDirectory = true });
 
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
 
