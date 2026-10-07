@@ -1,5 +1,6 @@
 using CSharpFar.App.DirectoryShortcuts;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 
 namespace CSharpFar.Tests;
 
@@ -24,7 +25,7 @@ public sealed class DirectoryShortcutNormalizerTests
 
         Assert.Equal([1, 2, 0], items.Select(item => item.Number));
         Assert.Equal("SourceFi", items[1].Name);
-        Assert.Equal(@"D:\src", items[1].Path);
+        Assert.Equal(LocalPathNormalizer.Current.Normalize(@"D:\src"), items[1].Path);
     }
 
     [Fact]
