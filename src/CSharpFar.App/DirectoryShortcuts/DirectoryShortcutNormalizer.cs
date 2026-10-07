@@ -1,4 +1,5 @@
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 
 namespace CSharpFar.App.DirectoryShortcuts;
 
@@ -15,25 +16,48 @@ internal static class DirectoryShortcutNormalizer
             if (item is null || !IsValidNumber(item.Number))
                 continue;
 
-            string path = item.Path?.Trim() ?? string.Empty;
-            if (path.Length == 0)
+            var normalizedItem = NormalizeItem(item.Number, item.Name, item.Path);
+            if (normalizedItem is null)
             {
                 itemsByNumber.Remove(item.Number);
                 continue;
             }
 
-            itemsByNumber[item.Number] = new AppSettings.DirectoryShortcutItem
-            {
-                Number = item.Number,
-                Name = NormalizeName(item.Name),
-                Path = path,
-            };
+            itemsByNumber[item.Number] = normalizedItem;
         }
 
         return DisplayOrder
             .Where(itemsByNumber.ContainsKey)
             .Select(number => itemsByNumber[number])
             .ToArray();
+    }
+
+    public static AppSettings.DirectoryShortcutItem? NormalizeItem(
+        int number,
+        string? name,
+        string? path)
+    {
+        if (!IsValidNumber(number))
+            return null;
+
+        string normalizedPath = path?.Trim() ?? string.Empty;
+        if (normalizedPath.Length == 0)
+            return null;
+
+        if (LocalPathNormalizer.Current.TryNormalize(
+            normalizedPath,
+            basePath: null,
+            out string canonicalPath))
+        {
+            normalizedPath = canonicalPath;
+        }
+
+        return new AppSettings.DirectoryShortcutItem
+        {
+            Number = number,
+            Name = NormalizeName(name),
+            Path = normalizedPath,
+        };
     }
 
     public static IReadOnlyList<int> DisplayOrder { get; } = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
