@@ -3,6 +3,7 @@ using CSharpFar.App.State;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
@@ -71,13 +72,34 @@ internal static class ApplicationSessionFactory
         if (runOptions.Mode == ApplicationRunMode.Demo)
             return PanelLocation.Demo("/");
 
-        if (!string.IsNullOrWhiteSpace(remembered) && fileSystem.DirectoryExists(remembered))
-            return PanelLocation.Local(remembered);
+        if (TryResolveLocalPath(remembered, fileSystem, out var rememberedLocation))
+            return rememberedLocation;
 
-        if (!string.IsNullOrWhiteSpace(configured) && fileSystem.DirectoryExists(configured))
-            return PanelLocation.Local(configured);
+        if (TryResolveLocalPath(configured, fileSystem, out var configuredLocation))
+            return configuredLocation;
 
-        return PanelLocation.Local(Directory.GetCurrentDirectory());
+        return PanelLocation.Local(
+            LocalPathNormalizer.Current.Normalize(Directory.GetCurrentDirectory()));
+    }
+
+    private static bool TryResolveLocalPath(
+        string? candidate,
+        IFileSystemService fileSystem,
+        out PanelLocation location)
+    {
+        location = default;
+        if (string.IsNullOrWhiteSpace(candidate) ||
+            !LocalPathNormalizer.Current.TryNormalize(
+                candidate,
+                basePath: null,
+                out string normalizedPath) ||
+            !fileSystem.DirectoryExists(normalizedPath))
+        {
+            return false;
+        }
+
+        location = PanelLocation.Local(normalizedPath);
+        return true;
     }
 
     private static SortMode ResolveSortMode(string? configured) =>
