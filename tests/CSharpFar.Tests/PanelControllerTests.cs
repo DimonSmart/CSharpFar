@@ -25,7 +25,7 @@ public class PanelControllerTests
             .ToArray();
 
         fs.AddDirectory(Root, items);
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
         return (ctrl, state);
@@ -80,7 +80,7 @@ public class PanelControllerTests
         fs.AddDirectory(Sub1,
             new FilePanelItem { Name = "other.txt", FullPath = Sub1 + @"\other.txt", IsDirectory = false });
 
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
         state.SelectedPaths.Add(Root + @"\file.txt");
@@ -128,7 +128,7 @@ public class PanelControllerTests
     [Fact]
     public void ReplaceContent_UsesPanelLocationBeforeFullPathForIdentity()
     {
-        var ctrl = new PanelController(new FakePanelViewBuilder(new FakeFileSystemService()));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(new FakeFileSystemService()));
         var state = new FilePanelState { CurrentDirectory = Root };
         var retainedSourceId = new PanelSourceId("virtual-a");
         state.Items.Add(new FilePanelItem
@@ -155,7 +155,7 @@ public class PanelControllerTests
     [Fact]
     public void LoadDirectory_DoesNotChangeStateWhenReadFails()
     {
-        var ctrl = new PanelController(new FakePanelViewBuilder(new ThrowingFileSystemService()));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(new ThrowingFileSystemService()));
         var state = new FilePanelState { CurrentDirectory = Root };
         state.Items.Add(new FilePanelItem { Name = "old.txt", FullPath = Root + @"\old.txt", IsDirectory = false });
         state.SelectedPaths.Add(Root + @"\old.txt");
@@ -180,7 +180,7 @@ public class PanelControllerTests
             new FilePanelItem { Name = "a.txt", FullPath = Root + @"\a.txt", IsDirectory = false },
             new FilePanelItem { Name = "b.txt", FullPath = Root + @"\b.txt", IsDirectory = false });
 
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
         state.SelectedPaths.Add(Root + @"\a.txt");
@@ -202,7 +202,7 @@ public class PanelControllerTests
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(Root, FileItem("a.txt"), FileItem("b.txt"), FileItem("c.txt"));
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
         state.CursorIndex = 1;
@@ -220,7 +220,7 @@ public class PanelControllerTests
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(Root, FileItem("a.txt"), FileItem("b.txt"), FileItem("c.txt"));
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
         state.CursorIndex = 2;
@@ -238,7 +238,7 @@ public class PanelControllerTests
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(Root, ParentItem(), FileItem("a.txt"));
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
         state.CursorIndex = 1;
@@ -256,7 +256,7 @@ public class PanelControllerTests
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(Root, FileItem("a.txt"));
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
         state.CursorIndex = 0;
@@ -275,7 +275,7 @@ public class PanelControllerTests
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(Root, FileItem("a.txt"), FileItem("b.txt"), FileItem("c.txt"));
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
         state.CursorIndex = 1;
@@ -352,7 +352,7 @@ public class PanelControllerTests
     [Fact]
     public void NormalizeCursor_WhenItemsEmpty_ResetsCursorAndScroll()
     {
-        var ctrl = new PanelController(new FakePanelViewBuilder(new FakeFileSystemService()));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(new FakeFileSystemService()));
         var state = new FilePanelState { CurrentDirectory = Root };
         state.CursorIndex = 10;
         state.ScrollOffset = 10;
@@ -499,7 +499,7 @@ public class PanelControllerTests
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(Root);
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
 
@@ -557,7 +557,7 @@ public class PanelControllerTests
             new FilePanelItem { Name = "a.txt", FullPath = Root + @"\a.txt", IsDirectory = false, Size = 30 },
             new FilePanelItem { Name = "b.txt", FullPath = Root + @"\b.txt", IsDirectory = false, Size = 10 },
             new FilePanelItem { Name = "c.txt", FullPath = Root + @"\c.txt", IsDirectory = false, Size = 20 });
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
         state.CursorIndex = 1;
@@ -572,7 +572,7 @@ public class PanelControllerTests
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(Root, FileItem("a.txt"), FileItem("b.txt"), FileItem("c.txt"));
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
         state.CursorIndex = 2;
@@ -594,7 +594,7 @@ public class PanelControllerTests
         fs.AddDirectory(Root,
             new FilePanelItem { Name = "Sub1", FullPath = Sub1, IsDirectory = true });
 
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
         var state = new FilePanelState { CurrentDirectory = Sub1 };
         ctrl.LoadDirectory(state, Sub1);
 
@@ -613,7 +613,7 @@ public class PanelControllerTests
             new FilePanelItem { Name = "Sub1", FullPath = Sub1, IsDirectory = true },
             new FilePanelItem { Name = "ZDir", FullPath = @"C:\Root\ZDir", IsDirectory = true });
 
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
         var state = new FilePanelState { CurrentDirectory = Sub1 };
         ctrl.LoadDirectory(state, Sub1);
 
@@ -646,7 +646,7 @@ public class PanelControllerTests
 
         fs.AddDirectory(Root, rootItems);
 
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
         var state = new FilePanelState { CurrentDirectory = childPath };
         ctrl.LoadDirectory(state, childPath);
 
@@ -665,7 +665,7 @@ public class PanelControllerTests
         fs.AddDirectory(@"C:\",
             new FilePanelItem { Name = "Root", FullPath = Root, IsDirectory = true });
 
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
 
@@ -682,7 +682,7 @@ public class PanelControllerTests
         fs.AddDirectory(@"C:\",
             new FilePanelItem { Name = "Root", FullPath = Root, IsDirectory = true });
 
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
         var state = new FilePanelState { CurrentDirectory = @"C:\" };
         ctrl.LoadDirectory(state, @"C:\");
 
@@ -700,7 +700,7 @@ public class PanelControllerTests
         fs.AddDirectory("/home/user",
             new FilePanelItem { Name = "project", FullPath = "/home/user/project", IsDirectory = true });
 
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new UnixPanelPathSemantics());
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs), new UnixPanelPathSemantics());
         var state = new FilePanelState { CurrentDirectory = "/home/user/project" };
         ctrl.LoadDirectory(state, "/home/user/project");
 
@@ -718,7 +718,7 @@ public class PanelControllerTests
             new FilePanelItem { Name = "other", FullPath = "/home/other", IsDirectory = true },
             new FilePanelItem { Name = "user", FullPath = "/home/user", IsDirectory = true });
 
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new UnixPanelPathSemantics());
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs), new UnixPanelPathSemantics());
         var state = new FilePanelState { CurrentDirectory = "/home/user" };
         ctrl.LoadDirectory(state, "/home/user");
 
@@ -736,7 +736,7 @@ public class PanelControllerTests
         fs.AddDirectory("/",
             new FilePanelItem { Name = "home", FullPath = "/home", IsDirectory = true });
 
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new UnixPanelPathSemantics());
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs), new UnixPanelPathSemantics());
         var state = new FilePanelState { CurrentDirectory = "/home" };
         ctrl.LoadDirectory(state, "/home");
 
@@ -753,7 +753,7 @@ public class PanelControllerTests
         fs.AddDirectory("/",
             new FilePanelItem { Name = "home", FullPath = "/home", IsDirectory = true });
 
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new UnixPanelPathSemantics());
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs), new UnixPanelPathSemantics());
         var state = new FilePanelState { CurrentDirectory = "/" };
         ctrl.LoadDirectory(state, "/");
 
@@ -771,7 +771,7 @@ public class PanelControllerTests
         fs.AddDirectory("/home",
             new FilePanelItem { Name = "user", FullPath = "/home/user", IsDirectory = true });
 
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new UnixPanelPathSemantics());
+        var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs), new UnixPanelPathSemantics());
         var state = new FilePanelState { CurrentDirectory = "/home/user" };
         ctrl.LoadDirectory(state, "/home/user");
 
