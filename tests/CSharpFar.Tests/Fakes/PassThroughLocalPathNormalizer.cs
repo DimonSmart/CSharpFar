@@ -1,6 +1,18 @@
 using CSharpFar.Core.Abstractions;
+using CSharpFar.Core.Controllers;
 
 namespace CSharpFar.Tests.Fakes;
+
+internal static class TestPanelControllerFactory
+{
+    public static PanelController Create(
+        IPanelViewBuilder viewBuilder,
+        IPanelPathSemantics? pathSemantics = null) =>
+        new(
+            viewBuilder,
+            pathSemantics,
+            PassThroughLocalPathNormalizer.Instance);
+}
 
 internal sealed class PassThroughLocalPathNormalizer : ILocalPathNormalizer
 {
