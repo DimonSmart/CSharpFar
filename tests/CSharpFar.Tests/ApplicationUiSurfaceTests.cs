@@ -939,7 +939,7 @@ public sealed class ApplicationUiSurfaceTests
     {
         driver ??= new FakeConsoleDriver(80, 25);
         var fs = new FakeFileSystemService();
-        const string root = @"C:\Root";
+        string root = OperatingSystem.IsWindows() ? @"C:\Root" : "/Root";
         fs.AddDirectory(root);
         var settings = new AppSettings();
         settings.Panels.LeftStartDirectory = root;
