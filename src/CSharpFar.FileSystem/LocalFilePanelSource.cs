@@ -1,5 +1,6 @@
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 
 namespace CSharpFar.FileSystem;
 
@@ -8,13 +9,16 @@ public sealed class LocalFilePanelSource : IFilePanelSource
     private static readonly char[] LocalPathSeparators = [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar];
     private readonly IFileSystemService _fileSystem;
     private readonly IVolumeMountPointService? _mountPoints;
+    private readonly ILocalPathNormalizer _localPathNormalizer;
 
     public LocalFilePanelSource(
         IFileSystemService fileSystem,
-        IVolumeMountPointService? mountPoints = null)
+        IVolumeMountPointService? mountPoints = null,
+        ILocalPathNormalizer? localPathNormalizer = null)
     {
         _fileSystem = fileSystem;
         _mountPoints = mountPoints;
+        _localPathNormalizer = localPathNormalizer ?? LocalPathNormalizer.Current;
     }
 
     public PanelSourceId SourceId => PanelSourceId.Local;
@@ -25,7 +29,7 @@ public sealed class LocalFilePanelSource : IFilePanelSource
 
     public IReadOnlyCollection<char> PathSeparators => LocalPathSeparators;
 
-    public string NormalizePath(string sourcePath) => Path.GetFullPath(sourcePath);
+    public string NormalizePath(string sourcePath) => _localPathNormalizer.Normalize(sourcePath);
 
     public bool IsRootPath(string sourcePath) =>
         Path.GetPathRoot(NormalizePath(sourcePath)) == NormalizePath(sourcePath)
