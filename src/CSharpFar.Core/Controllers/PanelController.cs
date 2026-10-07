@@ -9,14 +9,17 @@ public sealed class PanelController
 {
     private readonly IPanelViewBuilder _viewBuilder;
     private readonly IPanelPathSemantics _pathSemantics;
+    private readonly ILocalPathNormalizer _localPathNormalizer;
     private readonly PanelSortService _sortService = new();
 
     public PanelController(
         IPanelViewBuilder viewBuilder,
-        IPanelPathSemantics? pathSemantics = null)
+        IPanelPathSemantics? pathSemantics = null,
+        ILocalPathNormalizer? localPathNormalizer = null)
     {
         _viewBuilder = viewBuilder;
         _pathSemantics = pathSemantics ?? PanelPathSemantics.Current;
+        _localPathNormalizer = localPathNormalizer ?? LocalPathNormalizer.Current;
     }
 
     public void LoadDirectory(
@@ -40,6 +43,7 @@ public sealed class PanelController
         PanelLocation location,
         AppSettings.PanelOptionsSettings? options = null)
     {
+        location = NormalizeLocation(location);
         options ??= new AppSettings.PanelOptionsSettings();
         var view = BuildView(state, location, options, s_emptySet);
         ApplyLoadedLocation(state, location, view);
@@ -50,6 +54,10 @@ public sealed class PanelController
         PanelLocation location,
         AppSettings.PanelOptionsSettings? options = null)
     {
+        if (!TryNormalizeLocation(location, out var normalizedLocation))
+            return false;
+
+        location = normalizedLocation;
         options ??= new AppSettings.PanelOptionsSettings();
 
         try
@@ -113,7 +121,7 @@ public sealed class PanelController
                 DirectoriesFirst = true,
             });
 
-        state.CurrentLocation = content.Location;
+        state.CurrentLocation = NormalizeLocation(content.Location);
         state.Items.Clear();
         state.Items.AddRange(sortedItems);
         state.SelectedPaths.Clear();
@@ -733,6 +741,34 @@ public sealed class PanelController
             VolumeSpace = summary.VolumeSpace,
             VolumeSpaceUnavailable = summary.VolumeSpaceUnavailable,
         };
+    }
+
+    private PanelLocation NormalizeLocation(PanelLocation location) =>
+        location.SourceId == PanelSourceId.Local
+            ? PanelLocation.Local(_localPathNormalizer.Normalize(location.SourcePath))
+            : location;
+
+    private bool TryNormalizeLocation(
+        PanelLocation location,
+        out PanelLocation normalizedLocation)
+    {
+        if (location.SourceId != PanelSourceId.Local)
+        {
+            normalizedLocation = location;
+            return true;
+        }
+
+        if (!_localPathNormalizer.TryNormalize(
+            location.SourcePath,
+            basePath: null,
+            out string normalizedPath))
+        {
+            normalizedLocation = default;
+            return false;
+        }
+
+        normalizedLocation = PanelLocation.Local(normalizedPath);
+        return true;
     }
 
     private static void ApplyLoadError(
