@@ -1,5 +1,6 @@
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Commands;
@@ -34,15 +35,24 @@ internal sealed class DirectoryHistoryCommand : IApplicationCommand
             if (path is null)
                 return ApplicationCommandResult.Rendered();
 
-            if (!Directory.Exists(path))
+            if (!LocalPathNormalizer.Current.TryNormalize(
+                path,
+                basePath: null,
+                out string canonicalPath))
             {
-                context.Dialogs.Message("Directory History", $"Directory not found: {path}");
+                context.Dialogs.Message("Directory History", $"Invalid directory path: {path}");
+                return ApplicationCommandResult.Rendered();
+            }
+
+            if (!Directory.Exists(canonicalPath))
+            {
+                context.Dialogs.Message("Directory History", $"Directory not found: {canonicalPath}");
                 return ApplicationCommandResult.Rendered();
             }
 
             try
             {
-                context.Controller.LoadDirectory(target.State, path, context.PanelOptions);
+                context.Controller.LoadDirectory(target.State, canonicalPath, context.PanelOptions);
                 context.StartWatching(target.State, target.Side);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
