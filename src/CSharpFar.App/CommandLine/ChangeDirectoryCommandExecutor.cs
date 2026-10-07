@@ -1,5 +1,7 @@
+using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App.CommandLine;
@@ -12,6 +14,7 @@ internal sealed class ChangeDirectoryCommandExecutor
     private readonly Func<bool> _isLocalSourceAvailable;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
     private readonly Action<FilePanelState, PanelSide> _startWatching;
+    private readonly ILocalPathNormalizer _localPathNormalizer;
 
     public ChangeDirectoryCommandExecutor(
         PanelController controller,
@@ -19,7 +22,8 @@ internal sealed class ChangeDirectoryCommandExecutor
         Func<PanelSide> activeSide,
         Func<bool> isLocalSourceAvailable,
         Func<AppSettingsAlias.PanelOptionsSettings> panelOptions,
-        Action<FilePanelState, PanelSide> startWatching)
+        Action<FilePanelState, PanelSide> startWatching,
+        ILocalPathNormalizer? localPathNormalizer = null)
     {
         _controller = controller;
         _activeState = activeState;
@@ -27,6 +31,7 @@ internal sealed class ChangeDirectoryCommandExecutor
         _isLocalSourceAvailable = isLocalSourceAvailable;
         _panelOptions = panelOptions;
         _startWatching = startWatching;
+        _localPathNormalizer = localPathNormalizer ?? LocalPathNormalizer.Current;
     }
 
     public bool TryExecute(string command)
@@ -42,7 +47,14 @@ internal sealed class ChangeDirectoryCommandExecutor
         try
         {
             string target = Environment.ExpandEnvironmentVariables(rawTarget);
-            targetDirectory = Path.GetFullPath(target, state.CurrentDirectory);
+            if (!_localPathNormalizer.TryNormalize(
+                target,
+                state.CurrentDirectory,
+                out targetDirectory))
+            {
+                return true;
+            }
+
             if (!Directory.Exists(targetDirectory))
                 return true;
         }
@@ -52,7 +64,7 @@ internal sealed class ChangeDirectoryCommandExecutor
         }
 
         if (string.Equals(
-            Path.GetFullPath(state.CurrentDirectory),
+            state.CurrentDirectory,
             targetDirectory,
             StringComparison.OrdinalIgnoreCase))
         {
