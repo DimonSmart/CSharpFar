@@ -31,8 +31,9 @@ internal static class CoreServicesFactory
         ApplicationRunOptions? runOptions)
     {
         var effectiveSettings = settings ?? new AppSettingsAlias();
+        var localPathNormalizer = LocalPathNormalizer.Current;
         var effectiveSourceRegistry = sourceRegistry ?? new FilePanelSourceRegistry([
-            new LocalFilePanelSource(fs, mountPointService),
+            new LocalFilePanelSource(fs, mountPointService, localPathNormalizer),
         ]);
         var sortService = new PanelSortService();
         var viewBuilder = new PanelViewBuilder(
@@ -41,7 +42,9 @@ internal static class CoreServicesFactory
             volumeInfoService,
             mountPoints: mountPointService,
             sources: effectiveSourceRegistry);
-        var controller = new PanelController(viewBuilder);
+        var controller = new PanelController(
+            viewBuilder,
+            localPathNormalizer: localPathNormalizer);
         var effectiveHistory = history ?? new InMemoryHistoryStore();
         var session = ApplicationSessionFactory.Create(effectiveSettings, controller, fs, runOptions);
         var effectiveConfigDirectory = configDirectory ?? Path.Combine(
