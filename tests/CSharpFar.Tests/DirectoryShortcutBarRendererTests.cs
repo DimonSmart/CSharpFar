@@ -1,6 +1,7 @@
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 using CSharpFar.Tests.Fakes;
 
 namespace CSharpFar.Tests;
@@ -54,7 +55,7 @@ public sealed class DirectoryShortcutBarRendererTests
 
         var hit = Assert.Single(frame!.Shortcuts);
         Assert.Equal(1, hit.ShortcutNumber);
-        Assert.Equal(@"C:\Projects", hit.Path);
+        Assert.Equal(LocalPathNormalizer.Current.Normalize(@"C:\Projects"), hit.Path);
     }
 
     [Fact]
