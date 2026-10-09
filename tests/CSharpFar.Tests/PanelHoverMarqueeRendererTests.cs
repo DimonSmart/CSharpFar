@@ -43,7 +43,7 @@ public sealed class PanelHoverMarqueeRendererTests
         Assert.EndsWith("ending.txt", Row(driver, 1, 1, 19).TrimEnd());
         Assert.Equal(ConsoleColor.Magenta, driver.GetCell(1, 1).Foreground);
         Assert.Equal(CSharpFarPaletteRegistry.Default.CursorActiveBg, driver.GetCell(1, 1).Background);
-        Assert.Equal(CSharpFarPaletteRegistry.Default.Ui.SelectedBg, driver.GetCell(1, 2).Background);
+        Assert.Equal(CSharpFarPaletteRegistry.Default.PanelSelectedBg, driver.GetCell(1, 2).Background);
         Assert.Equal(CSharpFarPaletteRegistry.Default.DirectoryFg, driver.GetCell(1, 3).Foreground);
 
         // The size field starts after the registered name bound and keeps its own row style.
