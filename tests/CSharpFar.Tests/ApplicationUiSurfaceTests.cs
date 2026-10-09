@@ -935,6 +935,89 @@ public sealed class ApplicationUiSurfaceTests
         { new ModifierKeyConsoleInputEvent(ConsoleModifiers.Control), typeof(ModifierKeyConsoleInputEvent) },
     };
 
+    [Theory]
+    [InlineData(PanelViewMode.Full)]
+    [InlineData(PanelViewMode.BriefTwoColumns)]
+    public void ShiftClick_ProductionPointerRouteSelectsLogicalRange(PanelViewMode mode)
+    {
+        var services = Services();
+        FilePanelState state = services.Session.Panels.Left;
+        AddScrollableItems(state, 70);
+        state.CursorIndex = 2;
+        state.ScrollOffset = 1;
+        services.Session.Panels.LeftViewMode = mode;
+        services.Composition.Render();
+
+        ApplicationPanelFrame frame = services.ApplicationSurface.CommittedFrame.LeftPanel!;
+        int targetIndex = mode == PanelViewMode.Full
+            ? 5
+            : state.ScrollOffset + frame.RowsPerColumn + 1;
+        ApplicationPanelItemHit target = frame.VisibleItems.Single(hit => hit.ItemIndex == targetIndex);
+        UiInputResult routed = services.Composition.DispatchInput(new MouseConsoleInputEvent(
+            target.Bounds.X, target.Bounds.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.Shift));
+
+        Assert.True(routed.Handled);
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
+        Assert.Equal(MouseKeyModifiers.Shift, Assert.IsType<MouseConsoleInputEvent>(packet.Input).Modifiers);
+        Assert.Equal(targetIndex, Assert.IsType<ApplicationPanelInteraction>(packet.PointerInteraction).Action.Item!.Item!.ItemIndex);
+        Assert.True(services.Inner.ApplicationInputDispatcher.Handle(packet).ShouldRender);
+        Assert.Equal(targetIndex, state.CursorIndex);
+        Assert.True(state.SelectedPaths.SetEquals(
+            state.Items.Skip(2).Take(targetIndex - 1).Select(item => item.FullPath)));
+        Assert.True(state.SelectedLocations.SetEquals(
+            state.Items.Skip(2).Take(targetIndex - 1).Select(item => item.Location)));
+    }
+
+    [Fact]
+    public void ShiftClick_ProductionPointerRouteUsesClickedPanelNotActivePanel()
+    {
+        var services = Services();
+        FilePanelState left = services.Session.Panels.Left;
+        FilePanelState right = services.Session.Panels.Right;
+        AddScrollableItems(left, 12);
+        AddScrollableItems(right, 12);
+        left.CursorIndex = 4;
+        right.CursorIndex = 2;
+        left.SelectedPaths.Add(left.Items[0].FullPath);
+        left.SelectedLocations.Add(left.Items[0].Location);
+        services.Composition.Render();
+
+        ApplicationPanelItemHit target = services.ApplicationSurface.CommittedFrame.RightPanel!
+            .VisibleItems.Single(hit => hit.ItemIndex == 7);
+        Assert.True(services.Composition.DispatchInput(new MouseConsoleInputEvent(
+            target.Bounds.X, target.Bounds.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.Shift)).Handled);
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
+        services.Inner.ApplicationInputDispatcher.Handle(packet);
+
+        Assert.Equal(PanelSide.Right, services.Session.Panels.ActiveSide);
+        Assert.Equal(4, left.CursorIndex);
+        Assert.Single(left.SelectedPaths);
+        Assert.Equal(7, right.CursorIndex);
+        Assert.True(right.SelectedLocations.SetEquals(right.Items.Skip(2).Take(6).Select(item => item.Location)));
+    }
+
+    [Fact]
+    public void ShiftClick_ProductionPointerRouteRejectsStaleHitIdentity()
+    {
+        var services = Services();
+        FilePanelState state = services.Session.Panels.Left;
+        AddScrollableItems(state, 12);
+        state.CursorIndex = 1;
+        services.Composition.Render();
+        ApplicationPanelItemHit target = services.ApplicationSurface.CommittedFrame.LeftPanel!
+            .VisibleItems.Single(hit => hit.ItemIndex == 5);
+        state.Items[5] = state.Items[0];
+
+        Assert.True(services.Composition.DispatchInput(new MouseConsoleInputEvent(
+            target.Bounds.X, target.Bounds.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.Shift)).Handled);
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
+        services.Inner.ApplicationInputDispatcher.Handle(packet);
+
+        Assert.Equal(1, state.CursorIndex);
+        Assert.Empty(state.SelectedPaths);
+        Assert.Empty(state.SelectedLocations);
+    }
+
     private static TestServices Services(FakeConsoleDriver? driver = null)
     {
         driver ??= new FakeConsoleDriver(80, 25);
