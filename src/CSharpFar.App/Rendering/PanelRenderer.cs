@@ -74,7 +74,7 @@ internal sealed class PanelRenderer
         var dirStyle = new CellStyle(p.DirectoryFg, p.PanelBackground);
         var cursor = new CellStyle(p.CursorActiveFg, p.CursorActiveBg);
         var footer = new CellStyle(p.FooterActiveFg, p.PanelBackground);
-        var selStyle = new CellStyle(p.Ui.SelectedFg, p.Ui.SelectedBg);
+        var selStyle = new CellStyle(p.PanelSelectedFg, p.PanelSelectedBg);
 
         _screen.FillRegion(bounds, fill);
         _screen.DrawDoubleBox(bounds, border);

@@ -1,5 +1,6 @@
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
+using CSharpFar.Console.Input;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
 
@@ -14,7 +15,7 @@ internal sealed class ApplicationPanelInputHandler
         _context = context;
     }
 
-    public ApplicationInputHandlingResult Handle(ApplicationPanelInteraction interaction)
+    public ApplicationInputHandlingResult Handle(ApplicationPanelInteraction interaction, MouseKeyModifiers modifiers = MouseKeyModifiers.None)
     {
         ApplicationPanelFrame frame = interaction.Frame;
         var state = _context.GetPanelState(frame.Side);
@@ -36,8 +37,6 @@ internal sealed class ApplicationPanelInputHandler
             return ApplicationInputHandlingResult.FromHandled(shouldRender: true);
         }
 
-        bool hasItemTarget = hit is not null;
-
         if (interaction.Action.Kind == RoutedPointerActionKind.ItemSecondaryPressed)
         {
             _context.Mouse.LastLeftPanelItemClick = null;
@@ -58,6 +57,11 @@ internal sealed class ApplicationPanelInputHandler
         if (interaction.Action.Kind == RoutedPointerActionKind.ItemDoubleClicked)
         {
             _context.SetActiveSide(frame.Side);
+            if (modifiers == MouseKeyModifiers.Shift)
+            {
+                _context.Mouse.LastLeftPanelItemClick = null;
+                return ApplicationInputHandlingResult.FromHandled(shouldRender: true);
+            }
             if (hit is not null && TryGetCurrentItem(hit, state, out var item))
             {
                 _context.PanelController.SetCursorTo(state, hit.ItemIndex, frame.VisibleRows);
@@ -75,9 +79,20 @@ internal sealed class ApplicationPanelInputHandler
             _context.SetActiveSide(frame.Side);
             if (hit is not null && TryGetCurrentItem(hit, state, out _))
             {
-                _context.PanelController.SetCursorTo(state, hit.ItemIndex, frame.VisibleRows);
-                _context.Mouse.LastLeftPanelItemClick =
-                    new PanelItemClick(frame.Side, hit.ItemIndex, hit.ItemLocation);
+                if (interaction.Action.Kind == RoutedPointerActionKind.ItemPrimaryPressed &&
+                    modifiers == MouseKeyModifiers.Shift)
+                {
+                    int anchorIndex = state.CursorIndex;
+                    _context.PanelController.SelectRange(state, anchorIndex, hit.ItemIndex, _context.PanelOptions());
+                    _context.PanelController.SetCursorTo(state, hit.ItemIndex, frame.VisibleRows);
+                    _context.Mouse.LastLeftPanelItemClick = null;
+                }
+                else
+                {
+                    _context.PanelController.SetCursorTo(state, hit.ItemIndex, frame.VisibleRows);
+                    _context.Mouse.LastLeftPanelItemClick =
+                        new PanelItemClick(frame.Side, hit.ItemIndex, hit.ItemLocation);
+                }
             }
             else
             {

@@ -25,6 +25,8 @@ public static class CSharpFarPaletteRegistry
         PanelBorderActiveFg = ConsoleColor.Cyan,
         PanelTitleFocusedFg = ConsoleColor.Cyan,
         NormalFileFg = ConsoleColor.Cyan,
+        PanelSelectedFg = ConsoleColor.Black,
+        PanelSelectedBg = ConsoleColor.Green,
         DirectoryFg = ConsoleColor.Cyan,
         CursorActiveBg = ConsoleColor.Green,
         FooterActiveFg = ConsoleColor.Cyan,

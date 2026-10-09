@@ -475,6 +475,37 @@ public sealed class PanelController
             ? state.Items[state.CursorIndex]
             : null;
 
+    /// <summary>Adds selectable items in an inclusive range without moving the cursor.</summary>
+    public void SelectRange(
+        FilePanelState state,
+        int anchorIndex,
+        int targetIndex,
+        AppSettings.PanelOptionsSettings? options = null)
+    {
+        if (anchorIndex < 0 || anchorIndex >= state.Items.Count ||
+            targetIndex < 0 || targetIndex >= state.Items.Count)
+            return;
+
+        options ??= new AppSettings.PanelOptionsSettings();
+        bool changed = false;
+        int first = Math.Min(anchorIndex, targetIndex);
+        int last = Math.Max(anchorIndex, targetIndex);
+
+        for (int i = first; i <= last; i++)
+        {
+            FilePanelItem item = state.Items[i];
+            if (!CanSelect(item, options))
+                continue;
+
+            bool pathAdded = state.SelectedPaths.Add(item.FullPath);
+            bool locationAdded = state.SelectedLocations.Add(item.Location);
+            changed |= pathAdded || locationAdded;
+        }
+
+        if (changed)
+            RefreshSelectedSummary(state);
+    }
+
     public void ToggleSelection(
         FilePanelState state,
         int visibleRows,

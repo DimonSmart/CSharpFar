@@ -12,6 +12,8 @@ public sealed class CSharpFarPalette
     public ConsoleColor PanelPathActiveFg { get; init; } = ConsoleColor.Black;
     public ConsoleColor PanelPathActiveBg { get; init; } = ConsoleColor.DarkCyan;
     public ConsoleColor NormalFileFg { get; init; } = ConsoleColor.White;
+    public ConsoleColor PanelSelectedFg { get; init; } = ConsoleColor.Yellow;
+    public ConsoleColor PanelSelectedBg { get; init; } = ConsoleColor.DarkCyan;
     public ConsoleColor DirectoryFg { get; init; } = ConsoleColor.Cyan;
     public ConsoleColor CursorActiveFg { get; init; } = ConsoleColor.Black;
     public ConsoleColor CursorActiveBg { get; init; } = ConsoleColor.DarkCyan;

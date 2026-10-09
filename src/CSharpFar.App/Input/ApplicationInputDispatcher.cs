@@ -36,7 +36,7 @@ internal sealed class ApplicationInputDispatcher
         ApplicationInputHandlingResult pointerResult = packet.PointerInteraction switch
         {
             ApplicationCommandLineInteraction interaction => _commandLineInputHandler.Handle(interaction),
-            ApplicationPanelInteraction interaction => _panelInputHandler.Handle(interaction),
+            ApplicationPanelInteraction interaction => _panelInputHandler.Handle(interaction, packet.Input is MouseConsoleInputEvent mouse ? mouse.Modifiers : MouseKeyModifiers.None),
             ApplicationPanelScrollInteraction interaction => _panelScrollbarInputHandler.Handle(interaction),
             ApplicationFunctionKeyInteraction interaction => _functionKeyBarInputHandler.Handle(interaction),
             ApplicationDirectoryShortcutInteraction interaction => _directoryShortcutBarInputHandler.Handle(interaction),
