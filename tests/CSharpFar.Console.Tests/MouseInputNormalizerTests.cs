@@ -132,6 +132,33 @@ public sealed class MouseInputNormalizerTests
         Assert.Equal(MouseEventKind.Down, result.Kind);
     }
 
+    [Fact]
+    public void MatchingShiftClicksBecomeDoubleClickWithoutDroppingModifiers()
+    {
+        var normalizer = Create();
+        normalizer.Normalize(Mouse(MouseButton.Left, MouseEventKind.Down, modifiers: MouseKeyModifiers.Shift));
+        _timestamp += 100;
+
+        var result = normalizer.Normalize(
+            Mouse(MouseButton.Left, MouseEventKind.Down, modifiers: MouseKeyModifiers.Shift));
+
+        Assert.Equal(MouseEventKind.DoubleClick, result.Kind);
+        Assert.Equal(MouseKeyModifiers.Shift, result.Modifiers);
+    }
+
+    [Fact]
+    public void ShiftClickAndOrdinaryClickDoNotShareDoubleClickSequence()
+    {
+        var normalizer = Create();
+        normalizer.Normalize(Mouse(MouseButton.Left, MouseEventKind.Down, modifiers: MouseKeyModifiers.Shift));
+        _timestamp += 100;
+
+        var result = normalizer.Normalize(Mouse(MouseButton.Left, MouseEventKind.Down));
+
+        Assert.Equal(MouseEventKind.Down, result.Kind);
+        Assert.Equal(MouseKeyModifiers.None, result.Modifiers);
+    }
+
     private MouseInputNormalizer Create() =>
         new(() => _timestamp);
 

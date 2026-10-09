@@ -89,7 +89,7 @@ internal static class ApplicationInputDispatcherTestExtensions
             { Button: MouseButton.WheelDown, Kind: MouseEventKind.Wheel } => RoutedPointerActionKind.WheelDown,
             _ => null,
         };
-        return kind is { } action ? handler.Handle(new ApplicationPanelInteraction(frame.Side, frame, new RoutedPointerAction<ApplicationPanelPointerTarget>(action, item))) : ApplicationInputHandlingResult.NotHandled;
+        return kind is { } action ? handler.Handle(new ApplicationPanelInteraction(frame.Side, frame, new RoutedPointerAction<ApplicationPanelPointerTarget>(action, item)), input.Modifiers) : ApplicationInputHandlingResult.NotHandled;
     }
 
     public static ApplicationInputHandlingResult Handle(this ApplicationFunctionKeyBarInputHandler handler, MouseConsoleInputEvent _, ApplicationUiFrame frame, ApplicationFunctionKeyHit action, UiInputRouteKind __) =>
