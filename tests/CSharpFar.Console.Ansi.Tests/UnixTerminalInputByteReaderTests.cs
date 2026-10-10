@@ -61,7 +61,7 @@ public sealed class UnixTerminalInputByteReaderTests
     [Fact]
     public void EmptyNonBlockingInput_ReturnsFalse()
     {
-        var source = new ScriptedSource();
+        var source = new ScriptedSource(Array.Empty<string>());
         Assert.False(source.CreateReader().TryReadByte(out _));
         Assert.Equal([0], source.PollTimeouts);
     }
