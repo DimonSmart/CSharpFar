@@ -83,6 +83,8 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
     private const string EnableMouseTracking = "\x1b[?1003h\x1b[?1006h";
     private const string DisableMouseTracking = "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l";
     private const int CancellationPollMilliseconds = 50;
+    private const string EnableFocusReporting = "\x1b[?1004h";
+    private const string DisableFocusReporting = "\x1b[?1004l";
 
     private readonly IAnsiInputByteReader _input;
     private readonly KittyKeyboardProtocolController _keyboardProtocol;
@@ -93,6 +95,10 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
     private bool _active;
     private bool _mouseTrackingRequested = true;
     private bool _mouseTrackingActive;
+    private bool _focusReportingActive;
+    private bool _hasFocus = true;
+    private bool _pendingModifierReset;
+    private ConsoleModifiers _heldModifiers;
     private bool _disposed;
 
     public UnixRawTerminalInputReader(
@@ -134,8 +140,29 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
 
     public override KeyboardProtocolSnapshot KeyboardProtocol => _keyboardProtocol.Snapshot;
 
-    public override ModifierKeyTrackingSnapshot ModifierKeyTracking =>
-        _modifierKeyTracker?.GetSnapshot() ?? ModifierKeyTrackerFactory.UnsupportedSnapshot;
+    public override ModifierKeyTrackingSnapshot ModifierKeyTracking
+    {
+        get
+        {
+            ModifierKeyTrackingSnapshot native =
+                _modifierKeyTracker?.GetSnapshot() ?? ModifierKeyTrackerFactory.UnsupportedSnapshot;
+            if (KittyTracksModifiers)
+            {
+                return native with
+                {
+                    ActiveSource = "kitty",
+                    SupportedModifiers = "Shift, Alt, Control",
+                    ProtocolTrackingAvailable = true,
+                };
+            }
+
+            return native.IsEnabled && native.CanTrackShiftOnly
+                ? native with { ActiveSource = "linux-evdev", SupportedModifiers = "Shift" }
+                : native;
+        }
+    }
+
+    private bool KittyTracksModifiers => _keyboardProtocol.Snapshot.CanTrackStandaloneModifiers;
 
     public override ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default)
     {
@@ -143,7 +170,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (_modifierKeyTracker?.TryCreateInputEvent(out var modifierEvent) == true)
+            if (TryReadModifierStateEvent(out var modifierEvent))
                 return modifierEvent;
 
             if (TryReadResize(out var resize))
@@ -151,7 +178,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
 
             if (!_input.WaitForInput(CancellationPollMilliseconds))
             {
-                if (_modifierKeyTracker?.TryCreateInputEvent(out modifierEvent) == true)
+                if (TryReadModifierStateEvent(out modifierEvent))
                     return modifierEvent;
                 continue;
             }
@@ -166,7 +193,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
     public override bool TryReadInput(bool intercept, [NotNullWhen(true)] out ConsoleInputEvent? inputEvent)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_modifierKeyTracker?.TryCreateInputEvent(out var modifierEvent) == true)
+        if (TryReadModifierStateEvent(out var modifierEvent))
         {
             inputEvent = modifierEvent;
             return true;
@@ -179,17 +206,30 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
         {
             if (TryReadParsedEvent(intercept, out inputEvent))
                 return true;
+            if (TryReadModifierStateEvent(out var pending))
+            {
+                inputEvent = pending;
+                return true;
+            }
         }
 
         inputEvent = null;
         return false;
     }
 
-    public void PrepareForScreenChange() =>
+    public void PrepareForScreenChange()
+    {
+        ResetHeldModifiers();
+        _modifierKeyTracker?.Suspend();
         _keyboardProtocol.PrepareForScreenChange();
+    }
 
-    public void CompleteScreenChange(bool alternate) =>
+    public void CompleteScreenChange(bool alternate)
+    {
         _keyboardProtocol.CompleteScreenChange(alternate);
+        if (_active && !KittyTracksModifiers)
+            _modifierKeyTracker?.Resume();
+    }
 
     public void SetMouseTrackingEnabled(bool enabled)
     {
@@ -209,7 +249,9 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
 
         try
         {
+            ResetHeldModifiers();
             _keyboardProtocol.Suspend();
+            DisableFocus();
             _parser.ResetMouseState();
             _modifierKeyTracker?.Suspend();
             if (_mouseTrackingActive)
@@ -237,6 +279,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
         try
         {
             _keyboardProtocol.Dispose();
+            DisableFocus();
             _writeControl(DisableMouseTracking);
         }
         finally
@@ -249,15 +292,81 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
         }
     }
 
+    private bool TryReadModifierStateEvent(
+        [NotNullWhen(true)] out ModifierKeyConsoleInputEvent? inputEvent)
+    {
+        if (_pendingModifierReset)
+        {
+            _pendingModifierReset = false;
+            inputEvent = new ModifierKeyConsoleInputEvent(default);
+            return true;
+        }
+
+        inputEvent = null;
+        if (!_hasFocus || KittyTracksModifiers || _modifierKeyTracker is null)
+            return false;
+
+        if (!_modifierKeyTracker.TryCreateInputEvent(out var native) || native is null)
+            return false;
+
+        return TryPublishModifiers(native.Modifiers, out inputEvent);
+    }
+
+    private bool TryPublishModifiers(
+        ConsoleModifiers modifiers,
+        [NotNullWhen(true)] out ModifierKeyConsoleInputEvent? inputEvent)
+    {
+        if (_heldModifiers == modifiers)
+        {
+            inputEvent = null;
+            return false;
+        }
+
+        _heldModifiers = modifiers;
+        _pendingModifierReset = false;
+        inputEvent = new ModifierKeyConsoleInputEvent(modifiers);
+        return true;
+    }
+
+    private void ResetHeldModifiers()
+    {
+        if (_heldModifiers == default)
+            return;
+
+        _heldModifiers = default;
+        _pendingModifierReset = true;
+    }
+
     private bool TryReadParsedEvent(
         bool intercept,
         [NotNullWhen(true)] out ConsoleInputEvent? inputEvent)
     {
-        if (!_parser.TryRead(_input, out inputEvent))
+        if (!_parser.TryRead(_input, KittyTracksModifiers, out inputEvent, out bool? focusChanged))
+        {
+            if (focusChanged.HasValue)
+            {
+                _hasFocus = focusChanged.Value;
+                if (!focusChanged.Value)
+                    ResetHeldModifiers();
+            }
+
             return false;
+        }
 
-        _modifierKeyTracker?.ObserveConsoleInput(inputEvent);
+        if (inputEvent is ModifierKeyConsoleInputEvent modifier)
+        {
+            if (!KittyTracksModifiers || !TryPublishModifiers(modifier.Modifiers, out var changed))
+            {
+                inputEvent = null;
+                return false;
+            }
 
+            inputEvent = changed;
+            return true;
+        }
+
+        // A chord describes that key event, not a physical modifier lifecycle.
+        // Never change the held state or the function bar from its modifiers.
         if (!intercept && inputEvent is KeyConsoleInputEvent keyEvent)
         {
             string? text = keyEvent.Text ??
@@ -269,6 +378,15 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
         return true;
     }
 
+    private void DisableFocus()
+    {
+        if (!_focusReportingActive)
+            return;
+
+        _writeControl(DisableFocusReporting);
+        _focusReportingActive = false;
+    }
+
     private void EnableInputMode()
     {
         if (_active)
@@ -278,15 +396,30 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
         try
         {
             _parser.ResetMouseState();
+            _hasFocus = true;
+            ResetHeldModifiers();
             _keyboardProtocol.Resume();
+            _modifierKeyTracker?.Suspend();
+            if (!KittyTracksModifiers)
+                _modifierKeyTracker?.Resume();
+            _writeControl(EnableFocusReporting);
+            _focusReportingActive = true;
             if (_mouseTrackingRequested)
                 ApplyMouseTracking(enabled: true);
-            _modifierKeyTracker?.Resume();
             _active = true;
         }
         catch
         {
             _keyboardProtocol.Suspend();
+            try
+            {
+                DisableFocus();
+            }
+            catch
+            {
+                // Preserve the original input-mode restoration failure.
+            }
+            _modifierKeyTracker?.Suspend();
             if (_mouseTrackingRequested)
             {
                 try
