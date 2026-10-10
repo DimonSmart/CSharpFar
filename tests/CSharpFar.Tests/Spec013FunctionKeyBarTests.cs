@@ -53,7 +53,7 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
     }
 
     [Fact]
-    public void Run_KeyEventWithAltModifierSwitchesFunctionKeyBarLayer()
+    public void Run_KeyChordAloneDoesNotSwitchFunctionKeyBarLayer()
     {
         var fs = CreateFileSystem();
         var driver = new FakeConsoleDriver(width: 100, height: 14);
@@ -68,7 +68,8 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
             .Select(record => record.Text)
             .ToArray();
 
-        Assert.Contains(bottomWrites, text => text.Contains("Search", StringComparison.Ordinal));
+        Assert.DoesNotContain(bottomWrites, text => text.Contains("Search", StringComparison.Ordinal));
+        Assert.Contains(bottomWrites, text => text.Contains("Help", StringComparison.Ordinal));
     }
 
     [Fact]
