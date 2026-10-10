@@ -20,7 +20,9 @@ internal sealed record TerminalInputLabEvent(
     string? ModifierKeyName = null,
     string? AssociatedText = null,
     string? Protocol = null,
-    string? Error = null);
+    string? Error = null,
+    int? KeyCode = null,
+    ConsoleModifiers EffectiveModifiers = default);
 
 internal sealed class TerminalInputLabParser
 {
@@ -31,6 +33,11 @@ internal sealed class TerminalInputLabParser
         byte[] raw = bytes.ToArray();
         if (raw.Length == 0)
             return Unknown("Unknown", raw);
+
+        if (raw.AsSpan().SequenceEqual("\x1b[O"u8))
+            return new TerminalInputLabEvent("FocusOut", raw, true, Protocol: "dec-focus");
+        if (raw.AsSpan().SequenceEqual("\x1b[I"u8))
+            return new TerminalInputLabEvent("FocusIn", raw, true, Protocol: "dec-focus");
 
         if (LooksLikeSgrMouse(raw))
             return ParseMouse(raw);
@@ -46,7 +53,9 @@ internal sealed class TerminalInputLabParser
                 KeyEventType: enhanced.EventType,
                 ModifierKeyName: enhanced.ModifierKeyName,
                 AssociatedText: enhanced.AssociatedText,
-                Protocol: "kitty");
+                Protocol: "kitty",
+                KeyCode: enhanced.KeyCode,
+                EffectiveModifiers: enhanced.ParsedKey.Modifiers);
         }
 
         if (EnhancedTerminalKeyParser.LooksLikeKittyKeyboardSequence(raw))

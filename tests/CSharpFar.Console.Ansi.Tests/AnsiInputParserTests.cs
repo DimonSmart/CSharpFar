@@ -818,4 +818,130 @@ public sealed class AnsiInputParserTests
         Assert.False(parser.TryRead(reader, out _));
     }
 
+
+    [Theory]
+    [InlineData("\x1b[57441;2:1u", ConsoleModifiers.Shift)]
+    [InlineData("\x1b[57447;2:1u", ConsoleModifiers.Shift)]
+    [InlineData("\x1b[57442;5:1u", ConsoleModifiers.Control)]
+    [InlineData("\x1b[57448;5:1u", ConsoleModifiers.Control)]
+    [InlineData("\x1b[57443;3:1u", ConsoleModifiers.Alt)]
+    [InlineData("\x1b[57449;3:1u", ConsoleModifiers.Alt)]
+    [InlineData("\x1b[57441;1:3u", ConsoleModifiers.None)]
+    [InlineData("\x1b[57442;1:3u", ConsoleModifiers.None)]
+    public void ProductionParser_FullKitty_EmitsStandaloneModifier(
+        string bytes, ConsoleModifiers expected)
+    {
+        var parser = new AnsiConsoleInputParser();
+        var input = new StreamAnsiInputByteReader(
+            new MemoryStream(Encoding.ASCII.GetBytes(bytes)), null);
+
+        Assert.True(parser.TryRead(input, reportStandaloneModifiers: true, out var evt, out _));
+        Assert.Equal(expected, Assert.IsType<ModifierKeyConsoleInputEvent>(evt).Modifiers);
+    }
+
+    [Theory]
+    [InlineData("\x1b[I", true)]
+    [InlineData("\x1b[O", false)]
+    public void ProductionParser_FocusControls_AreNotEscapeKeys(string bytes, bool expectedFocus)
+    {
+        var parser = new AnsiConsoleInputParser();
+        var input = new StreamAnsiInputByteReader(
+            new MemoryStream(Encoding.ASCII.GetBytes(bytes)), null);
+
+        Assert.False(parser.TryRead(input, reportStandaloneModifiers: true, out var evt, out var focus));
+        Assert.Null(evt);
+        Assert.Equal(expectedFocus, focus);
+    }
+
+    [Fact]
+    public void RawReader_KeepsShiftAcrossRegularKeyReleaseAndDeduplicatesModifierPresses()
+    {
+        string bytes =
+            "\x1b[?0u\x1b[?1;2c\x1b[?27u" +
+            "\x1b[57441;2:1u" +
+            "\x1b[57447;2:1u" +
+            "\x1b[57369;2:1u" +
+            "\x1b[57369;2:3u" +
+            "\x1b[57441;2:3u" +
+            "\x1b[57447;1:3u";
+        using var reader = new UnixRawTerminalInputReader(
+            new StreamAnsiInputByteReader(
+                new MemoryStream(Encoding.ASCII.GetBytes(bytes)), null),
+            () => new CSharpFar.Console.Models.ConsoleSize(80, 25),
+            () => { },
+            _ => { },
+            new FakeTerminalInputMode(),
+            enhancedKeyboardRequested: true);
+
+        Assert.True(reader.KeyboardProtocol.CanTrackStandaloneModifiers);
+        Assert.Equal("kitty", reader.ModifierKeyTracking.ActiveSource);
+        Assert.True(reader.TryReadInput(true, out var shift));
+        Assert.Equal(ConsoleModifiers.Shift, Assert.IsType<ModifierKeyConsoleInputEvent>(shift).Modifiers);
+        Assert.True(reader.TryReadInput(true, out var f6));
+        var key = Assert.IsType<KeyConsoleInputEvent>(f6);
+        Assert.Equal(ConsoleKey.F6, key.Key.Key);
+        Assert.Equal(ConsoleModifiers.Shift, key.Key.Modifiers);
+        Assert.True(reader.TryReadInput(true, out var released));
+        Assert.Equal(ConsoleModifiers.None, Assert.IsType<ModifierKeyConsoleInputEvent>(released).Modifiers);
+        Assert.False(reader.TryReadInput(true, out _));
+    }
+
+    [Fact]
+    public void RawReader_FocusOutDeliversPlainResetBeforeNextCommand()
+    {
+        string bytes =
+            "\x1b[?0u\x1b[?1;2c\x1b[?27u" +
+            "\x1b[57441;2:1u\x1b[O\x1b[Ia";
+        using var reader = new UnixRawTerminalInputReader(
+            new StreamAnsiInputByteReader(
+                new MemoryStream(Encoding.ASCII.GetBytes(bytes)), null),
+            () => new CSharpFar.Console.Models.ConsoleSize(80, 25),
+            () => { },
+            _ => { },
+            new FakeTerminalInputMode(),
+            enhancedKeyboardRequested: true);
+
+        Assert.True(reader.TryReadInput(true, out var down));
+        Assert.Equal(ConsoleModifiers.Shift, Assert.IsType<ModifierKeyConsoleInputEvent>(down).Modifiers);
+        Assert.True(reader.TryReadInput(true, out var reset));
+        Assert.Equal(ConsoleModifiers.None, Assert.IsType<ModifierKeyConsoleInputEvent>(reset).Modifiers);
+        Assert.True(reader.TryReadInput(true, out var next));
+        Assert.Equal(ConsoleKey.A, Assert.IsType<KeyConsoleInputEvent>(next).Key.Key);
+        Assert.False(reader.TryReadInput(true, out _));
+    }
+
+    [Fact]
+    public void RawReader_SuspendQueuesSingleModifierResetForRestore()
+    {
+        string bytes = "\x1b[?0u\x1b[?1;2c\x1b[?27u\x1b[57441;2:1u\x1b[?27u";
+        using var reader = new UnixRawTerminalInputReader(
+            new StreamAnsiInputByteReader(new MemoryStream(Encoding.ASCII.GetBytes(bytes)), null),
+            () => new CSharpFar.Console.Models.ConsoleSize(80, 25),
+            () => { },
+            _ => { },
+            new FakeTerminalInputMode(),
+            enhancedKeyboardRequested: true);
+        Assert.True(reader.TryReadInput(true, out var down));
+        Assert.Equal(ConsoleModifiers.Shift, Assert.IsType<ModifierKeyConsoleInputEvent>(down).Modifiers);
+
+        reader.SuspendInputMode();
+        reader.RestoreInputMode();
+        Assert.True(reader.TryReadInput(true, out var up));
+        Assert.Equal(ConsoleModifiers.None, Assert.IsType<ModifierKeyConsoleInputEvent>(up).Modifiers);
+        Assert.False(reader.TryReadInput(true, out _));
+    }
+
+    [Theory]
+    [InlineData("\x1b[57364;1u", ConsoleKey.F1)]
+    [InlineData("\x1b[57369;2u", ConsoleKey.F6)]
+    [InlineData("\x1b[57375;1u", ConsoleKey.F12)]
+    public void ProductionParser_MapsKittyFunctionKeys(string bytes, ConsoleKey expected)
+    {
+        var parser = new AnsiConsoleInputParser();
+        Assert.True(parser.TryRead(
+            new StreamAnsiInputByteReader(new MemoryStream(Encoding.ASCII.GetBytes(bytes)), null),
+            out var evt));
+        Assert.Equal(expected, Assert.IsType<KeyConsoleInputEvent>(evt).Key.Key);
+    }
+
 }

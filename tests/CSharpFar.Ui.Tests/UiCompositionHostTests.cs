@@ -102,6 +102,26 @@ public sealed class UiCompositionHostTests
     }
 
     [Fact]
+    public void ModalDismissal_NotifiesWorkspaceOfLatestHeldModifiers()
+    {
+        var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => { }));
+        var notifications = new List<ConsoleModifiers>();
+        host.ModalLayerClosed += notifications.Add;
+
+        using (host.PushOverlay(new TestInteractiveLayer(UiLayerInputPolicy.Modal)))
+        {
+            host.Render();
+            host.DispatchInput(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Shift));
+            Assert.Equal(ConsoleModifiers.Shift, host.LastObservedModifiers);
+            host.DispatchInput(new ModifierKeyConsoleInputEvent(default));
+        }
+
+        Assert.Equal(default, host.LastObservedModifiers);
+        Assert.Equal([default(ConsoleModifiers)], notifications);
+    }
+
+    [Fact]
     public void SurfaceReadInput_ConsumesResizeAndReturnsFollowingKey()
     {
         var driver = new FakeConsoleDriver();

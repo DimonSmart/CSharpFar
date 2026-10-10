@@ -39,6 +39,13 @@ internal sealed partial class FileEditor
 
         protected override FileEditorFrame RenderFrameCore(UiRenderContext context)
         {
+            ConsoleModifiers observed = _editor._surfaces.LastObservedModifiers;
+            if (_functionKeyModifiers != observed)
+            {
+                _functionKeyModifiers = observed;
+                _invalidation.Request(EditorRenderPart.FunctionKeyBar);
+            }
+
             PendingInvalidationSnapshot<EditorRenderPart> attempt =
                 _invalidation.SnapshotForRenderAttempt();
             EditorRenderPart parts = attempt.Parts;
@@ -143,13 +150,8 @@ internal sealed partial class FileEditor
                 context.Target == Keyboard)
             {
                 _mouseSelectionAnchor = null;
-                bool modifiersChanged = _functionKeyModifiers != key.Key.Modifiers;
-                _functionKeyModifiers = key.Key.Modifiers;
-                if (modifiersChanged)
-                    _invalidation.Request(EditorRenderPart.FunctionKeyBar);
                 return new InteractiveSurfaceRouteResult<FileEditorInput>(
-                    FileEditorInput.Keyboard(key.Key, key.Text),
-                    Invalidate: modifiersChanged);
+                    FileEditorInput.Keyboard(key.Key, key.Text));
             }
 
             if (input is MouseConsoleInputEvent mouse)
