@@ -13,6 +13,21 @@ internal sealed class UnixTerminalInputByteReader : IAnsiInputByteReader
     private const int MaxReadsPerBatch = 8;
 
     private readonly Queue<byte> _pending = new();
+    private readonly Func<int, bool> _pollForInput;
+    private readonly Func<byte[], int> _readInto;
+
+    public UnixTerminalInputByteReader()
+        : this(PollForInput, ReadInto)
+    {
+    }
+
+    internal UnixTerminalInputByteReader(
+        Func<int, bool> pollForInput,
+        Func<byte[], int> readInto)
+    {
+        _pollForInput = pollForInput ?? throw new ArgumentNullException(nameof(pollForInput));
+        _readInto = readInto ?? throw new ArgumentNullException(nameof(readInto));
+    }
 
     public byte ReadByte()
     {
@@ -39,12 +54,12 @@ internal sealed class UnixTerminalInputByteReader : IAnsiInputByteReader
         if (_pending.Count > 0)
             return true;
 
-        return PollForInput(timeoutMilliseconds);
+        return _pollForInput(timeoutMilliseconds);
     }
 
     private bool ReadPacket(bool block)
     {
-        if (!PollForInput(block ? -1 : 0))
+        if (!_pollForInput(block ? -1 : 0))
             return false;
 
         byte[] buffer = new byte[256];
@@ -52,7 +67,7 @@ internal sealed class UnixTerminalInputByteReader : IAnsiInputByteReader
         // period adds latency to every keypress and can starve continuous input.
         for (int i = 0; i < MaxReadsPerBatch; i++)
         {
-            int readCount = ReadInto(buffer);
+            int readCount = _readInto(buffer);
             if (readCount == -InterruptedSystemCall)
                 continue;
             if (readCount < 0)
@@ -67,7 +82,7 @@ internal sealed class UnixTerminalInputByteReader : IAnsiInputByteReader
             for (int j = 0; j < readCount; j++)
                 _pending.Enqueue(buffer[j]);
 
-            if (!PollForInput(0))
+            if (!_pollForInput(0))
                 break;
         }
 
