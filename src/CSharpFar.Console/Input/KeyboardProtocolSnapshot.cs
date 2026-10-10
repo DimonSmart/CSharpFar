@@ -13,7 +13,8 @@ public sealed class KeyboardProtocolSnapshot
         int? confirmedFlags,
         bool isActive,
         string? activeScreen,
-        string? fallbackReason)
+        string? fallbackReason,
+        int activeFlags = 0)
     {
         Protocol = protocol;
         SupportStatus = supportStatus;
@@ -23,6 +24,7 @@ public sealed class KeyboardProtocolSnapshot
         IsActive = isActive;
         ActiveScreen = activeScreen;
         FallbackReason = fallbackReason;
+        ActiveFlags = activeFlags;
     }
 
     public string Protocol { get; }
@@ -40,6 +42,12 @@ public sealed class KeyboardProtocolSnapshot
     public string? ActiveScreen { get; }
 
     public string? FallbackReason { get; }
+
+    public int ActiveFlags { get; }
+
+    public bool ReportsKeyEventTypes => IsActive && (ActiveFlags & 2) != 0;
+
+    public bool CanTrackStandaloneModifiers => IsActive && (ActiveFlags & 27) == 27;
 
     public static KeyboardProtocolSnapshot NotApplicable { get; } = new(
         protocol: "not applicable",
