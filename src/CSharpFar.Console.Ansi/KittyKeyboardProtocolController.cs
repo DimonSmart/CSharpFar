@@ -58,10 +58,11 @@ internal sealed class KittyKeyboardProtocolController : IDisposable
 {
     private const string Csi = "\x1b[";
     private const int DefaultResponseTimeoutMilliseconds = 200;
-    private const KittyKeyboardFlags ProductionFlags =
+    private const KittyKeyboardFlags BasicFlags =
         KittyKeyboardFlags.DisambiguateEscapeCodes |
         KittyKeyboardFlags.ReportAllKeysAsEscapeCodes |
         KittyKeyboardFlags.ReportAssociatedText;
+    private const KittyKeyboardFlags ProductionFlags = BasicFlags | KittyKeyboardFlags.ReportEventTypes;
 
     private readonly ReplayAnsiInputByteReader _input;
     private readonly Action<string> _writeControl;
@@ -73,6 +74,7 @@ internal sealed class KittyKeyboardProtocolController : IDisposable
     private int? _confirmedFlags;
     private bool _inputActive;
     private bool _pushed;
+    private KittyKeyboardFlags _activeProfile;
     private bool _disposed;
     private TerminalKeyboardScreen _screen = TerminalKeyboardScreen.Main;
     private string? _fallbackReason;
@@ -94,14 +96,15 @@ internal sealed class KittyKeyboardProtocolController : IDisposable
     }
 
     public KeyboardProtocolSnapshot Snapshot => new(
-        protocol: _pushed ? "kitty" : "legacy-vt",
+        protocol: _activeProfile != KittyKeyboardFlags.None ? "kitty" : "legacy-vt",
         supportStatus: _supportStatus,
         requested: _requested,
         requestedFlags: _requested ? (int)ProductionFlags : 0,
         confirmedFlags: _confirmedFlags,
-        isActive: _pushed,
-        activeScreen: _pushed ? ScreenName(_screen) : null,
-        fallbackReason: _pushed ? null : _fallbackReason);
+        isActive: _activeProfile != KittyKeyboardFlags.None,
+        activeScreen: _activeProfile != KittyKeyboardFlags.None ? ScreenName(_screen) : null,
+        fallbackReason: _fallbackReason,
+        activeFlags: (int)_activeProfile);
 
     public void Resume()
     {
@@ -220,32 +223,66 @@ internal sealed class KittyKeyboardProtocolController : IDisposable
         if (_pushed || !_inputActive)
             return;
 
+        if (TryActivateProfile(ProductionFlags, out string fullReason))
+        {
+            _fallbackReason = null;
+            return;
+        }
+
+        _fallbackReason = fullReason;
+        // A failed pop leaves ownership of the terminal stack uncertain.
+        // Never push another level until our previous level was removed.
+        if (_pushed)
+            return;
+
+        if (TryActivateProfile(BasicFlags, out string basicReason))
+        {
+            _fallbackReason = fullReason;
+            return;
+        }
+
+        _fallbackReason = $"{fullReason}; basic Kitty fallback failed: {basicReason}";
+    }
+
+    private bool TryActivateProfile(KittyKeyboardFlags flags, out string reason)
+    {
+        reason = "";
         try
         {
-            _writeControl($"{Csi}>{(int)ProductionFlags}u");
-            _pushed = true;
-
-            int? confirmed = QueryCurrentFlags();
-            _confirmedFlags = confirmed;
-            if (confirmed.HasValue &&
-                (confirmed.Value & (int)ProductionFlags) == (int)ProductionFlags)
-            {
-                _fallbackReason = null;
-                return;
-            }
-
-            string reason = confirmed.HasValue
-                ? $"requested flags {(int)ProductionFlags} were not confirmed (actual {confirmed.Value})"
-                : "activation confirmation timeout";
-            DeactivateCurrentScreen();
-            _fallbackReason = reason;
+            _writeControl($"{Csi}>{(int)flags}u");
         }
         catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
         {
-            BestEffortPop();
-            _pushed = false;
-            _fallbackReason = $"activation failed: {ex.Message}";
+            // The writer did not report success. We cannot infer that a stack
+            // entry exists, so issuing a blind pop would corrupt another owner.
+            reason = $"push {(int)flags} failed: {ex.Message}";
+            return false;
         }
+
+        _pushed = true;
+        int? confirmed = null;
+        try
+        {
+            confirmed = QueryCurrentFlags();
+            _confirmedFlags = confirmed;
+            if (confirmed.HasValue && (confirmed.Value & (int)flags) == (int)flags)
+            {
+                _activeProfile = flags;
+                return true;
+            }
+
+            reason = confirmed.HasValue
+                ? $"requested flags {(int)flags} were not confirmed (actual {confirmed.Value})"
+                : $"activation confirmation timeout for flags {(int)flags}";
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
+        {
+            reason = $"confirmation of flags {(int)flags} failed: {ex.Message}";
+        }
+
+        if (!TryPopCurrentScreen())
+            reason += "; failed to restore previous keyboard mode";
+        return false;
     }
 
     private int? QueryCurrentFlags()
@@ -271,21 +308,26 @@ internal sealed class KittyKeyboardProtocolController : IDisposable
 
     private void DeactivateCurrentScreen()
     {
-        if (!_pushed)
-            return;
-
-        BestEffortPop();
-        _pushed = false;
+        if (!TryPopCurrentScreen())
+            _fallbackReason = "failed to restore previous keyboard mode";
     }
 
-    private void BestEffortPop()
+    private bool TryPopCurrentScreen()
     {
+        if (!_pushed)
+            return true;
+
         try
         {
             _writeControl($"{Csi}<u");
+            _pushed = false;
+            _activeProfile = KittyKeyboardFlags.None;
+            return true;
         }
-        catch
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
         {
+            _fallbackReason = $"failed to pop keyboard mode: {ex.Message}";
+            return false;
         }
     }
 
