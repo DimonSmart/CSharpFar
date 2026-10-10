@@ -8,7 +8,9 @@ internal sealed class UnixTerminalInputByteReader : IAnsiInputByteReader
     private const int StdinFileDescriptor = 0;
     private const int InterruptedSystemCall = 4;
     private const short PollInput = 0x0001;
-    private const int PacketIdleTimeoutMilliseconds = 100;
+    private const short PollError = 0x0008;
+    private const short PollHangup = 0x0010;
+    private const int MaxReadsPerBatch = 8;
 
     private readonly Queue<byte> _pending = new();
 
@@ -45,17 +47,29 @@ internal sealed class UnixTerminalInputByteReader : IAnsiInputByteReader
         if (!PollForInput(block ? -1 : 0))
             return false;
 
-        do
+        byte[] buffer = new byte[256];
+        // Drain only bytes that are already available. Waiting for a quiet
+        // period adds latency to every keypress and can starve continuous input.
+        for (int i = 0; i < MaxReadsPerBatch; i++)
         {
-            byte[] buffer = new byte[32];
             int readCount = ReadInto(buffer);
+            if (readCount == -InterruptedSystemCall)
+                continue;
             if (readCount < 0)
                 throw new InvalidOperationException("Failed to read terminal input.", new Win32Exception(Marshal.GetLastPInvokeError()));
+            if (readCount == 0)
+            {
+                if (_pending.Count == 0)
+                    throw new EndOfStreamException("Terminal input closed.");
+                break;
+            }
 
-            for (int i = 0; i < readCount; i++)
-                _pending.Enqueue(buffer[i]);
+            for (int j = 0; j < readCount; j++)
+                _pending.Enqueue(buffer[j]);
+
+            if (!PollForInput(0))
+                break;
         }
-        while (PollForInput(PacketIdleTimeoutMilliseconds));
 
         return _pending.Count > 0;
     }
@@ -67,7 +81,7 @@ internal sealed class UnixTerminalInputByteReader : IAnsiInputByteReader
             var fds = new[] { new PollFd { Fd = StdinFileDescriptor, Events = PollInput } };
             int result = poll(fds, 1, timeoutMilliseconds);
             if (result >= 0)
-                return result > 0 && (fds[0].Revents & PollInput) != 0;
+                return result > 0 && (fds[0].Revents & (PollInput | PollError | PollHangup)) != 0;
 
             int error = Marshal.GetLastPInvokeError();
             if (error == InterruptedSystemCall)
@@ -83,6 +97,8 @@ internal sealed class UnixTerminalInputByteReader : IAnsiInputByteReader
         try
         {
             nint readCount = read(StdinFileDescriptor, nativeBuffer, (nuint)buffer.Length);
+            if (readCount < 0 && Marshal.GetLastPInvokeError() == InterruptedSystemCall)
+                return -InterruptedSystemCall;
             if (readCount > 0)
                 Marshal.Copy(nativeBuffer, buffer, 0, (int)readCount);
 
