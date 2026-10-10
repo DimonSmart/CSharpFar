@@ -1832,8 +1832,7 @@ CSharpFar.Ui.UiCompositionHost.HandleHoverWake() -> bool
 CSharpFar.Ui.UiCompositionHost.HasViewportChanged() -> bool
 CSharpFar.Ui.UiCompositionHost.LastObservedModifiers.get -> System.ConsoleModifiers
 CSharpFar.Ui.UiCompositionHost.LastStableViewport.get -> CSharpFar.Console.Models.ConsoleViewport?
-CSharpFar.Ui.UiCompositionHost.ModalLayerClosed.add -> void
-CSharpFar.Ui.UiCompositionHost.ModalLayerClosed.remove -> void
+CSharpFar.Ui.UiCompositionHost.ModalLayerClosed -> System.Action<System.ConsoleModifiers>?
 CSharpFar.Ui.UiCompositionHost.NextHoverWakeUtc.get -> System.DateTimeOffset?
 CSharpFar.Ui.UiCompositionHost.ReadInput(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CSharpFar.Console.Input.ConsoleInputEvent!
 CSharpFar.Ui.UiCompositionHost.ReadInputUntil(System.DateTimeOffset? wakeUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CSharpFar.Console.Input.ConsoleInputEvent?
