@@ -71,7 +71,7 @@ public sealed class UnixTerminalInputByteReaderTests
     {
         var reader = new UnixTerminalInputByteReader(_ => true, _ => 0);
 
-        Assert.Throws<EndOfStreamException>(reader.ReadByte);
+        Assert.Throws<EndOfStreamException>(() => reader.ReadByte());
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class UnixTerminalInputByteReaderTests
         var reader = new UnixTerminalInputByteReader(
             _ => throw new IOException("poll error"), _ => 0);
 
-        Assert.Throws<IOException>(reader.ReadByte);
+        Assert.Throws<IOException>(() => reader.ReadByte());
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public sealed class UnixTerminalInputByteReaderTests
         var reader = new UnixTerminalInputByteReader(
             _ => true, _ => -5);
 
-        Assert.Throws<InvalidOperationException>(reader.ReadByte);
+        Assert.Throws<InvalidOperationException>(() => reader.ReadByte());
     }
 
     private sealed class ScriptedSource
