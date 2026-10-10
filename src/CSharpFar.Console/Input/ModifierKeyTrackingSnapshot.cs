@@ -9,7 +9,10 @@ public sealed record ModifierKeyTrackingSnapshot(
     bool CanTrackShiftOnly,
     string Status,
     string? FailureReason,
-    IReadOnlyList<ModifierKeyDeviceSnapshot> Devices);
+    IReadOnlyList<ModifierKeyDeviceSnapshot> Devices,
+    string ActiveSource = "none",
+    string SupportedModifiers = "none",
+    bool ProtocolTrackingAvailable = false);
 
 public sealed record ModifierKeyDeviceSnapshot(
     string Path,
