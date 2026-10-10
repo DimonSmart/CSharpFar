@@ -309,7 +309,12 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
         if (!_modifierKeyTracker.TryCreateInputEvent(out var native) || native is null)
             return false;
 
-        return TryPublishModifiers(native.Modifiers, out inputEvent);
+        if (!TryPublishModifiers(native.Modifiers, out _))
+            return false;
+
+        // Preserve the native tracker event identity for existing consumers.
+        inputEvent = native;
+        return true;
     }
 
     private bool TryPublishModifiers(
@@ -355,7 +360,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
 
         if (inputEvent is ModifierKeyConsoleInputEvent modifier)
         {
-            if (!KittyTracksModifiers || !TryPublishModifiers(modifier.Modifiers, out var changed))
+            if (!_hasFocus || !KittyTracksModifiers || !TryPublishModifiers(modifier.Modifiers, out var changed))
             {
                 inputEvent = null;
                 return false;
@@ -399,8 +404,9 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
             _hasFocus = true;
             ResetHeldModifiers();
             _keyboardProtocol.Resume();
-            _modifierKeyTracker?.Suspend();
-            if (!KittyTracksModifiers)
+            if (KittyTracksModifiers)
+                _modifierKeyTracker?.Suspend();
+            else
                 _modifierKeyTracker?.Resume();
             _writeControl(EnableFocusReporting);
             _focusReportingActive = true;
