@@ -39,6 +39,13 @@ internal sealed partial class FileEditor
 
         protected override FileEditorFrame RenderFrameCore(UiRenderContext context)
         {
+            ConsoleModifiers observed = _editor._surfaces.LastObservedModifiers;
+            if (_functionKeyModifiers != observed)
+            {
+                _functionKeyModifiers = observed;
+                _invalidation.Request(EditorRenderPart.FunctionKeyBar);
+            }
+
             PendingInvalidationSnapshot<EditorRenderPart> attempt =
                 _invalidation.SnapshotForRenderAttempt();
             EditorRenderPart parts = attempt.Parts;
