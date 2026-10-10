@@ -74,6 +74,7 @@ internal sealed class KittyKeyboardProtocolController : IDisposable
     private int? _confirmedFlags;
     private bool _inputActive;
     private bool _pushed;
+    private bool _stackStateUncertain;
     private KittyKeyboardFlags _activeProfile;
     private bool _disposed;
     private TerminalKeyboardScreen _screen = TerminalKeyboardScreen.Main;
@@ -220,7 +221,7 @@ internal sealed class KittyKeyboardProtocolController : IDisposable
 
     private void ActivateCurrentScreen()
     {
-        if (_pushed || !_inputActive)
+        if (_pushed || _stackStateUncertain || !_inputActive)
             return;
 
         if (TryActivateProfile(ProductionFlags, out string fullReason))
@@ -232,7 +233,7 @@ internal sealed class KittyKeyboardProtocolController : IDisposable
         _fallbackReason = fullReason;
         // A failed pop leaves ownership of the terminal stack uncertain.
         // Never push another level until our previous level was removed.
-        if (_pushed)
+        if (_pushed || _stackStateUncertain)
             return;
 
         if (TryActivateProfile(BasicFlags, out string basicReason))
@@ -255,7 +256,8 @@ internal sealed class KittyKeyboardProtocolController : IDisposable
         {
             // The writer did not report success. We cannot infer that a stack
             // entry exists, so issuing a blind pop would corrupt another owner.
-            reason = $"push {(int)flags} failed: {ex.Message}";
+            _stackStateUncertain = true;
+            reason = $"push {(int)flags} failed (stack state unknown): {ex.Message}";
             return false;
         }
 
@@ -326,7 +328,12 @@ internal sealed class KittyKeyboardProtocolController : IDisposable
         }
         catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
         {
-            _fallbackReason = $"failed to pop keyboard mode: {ex.Message}";
+            // A failed write may already have reached the terminal. Do not
+            // retry an unverified pop or push against the same screen stack.
+            _stackStateUncertain = true;
+            _pushed = false;
+            _activeProfile = KittyKeyboardFlags.None;
+            _fallbackReason = $"failed to pop keyboard mode (stack state unknown): {ex.Message}";
             return false;
         }
     }
