@@ -41,7 +41,7 @@ public sealed class UnixRawTerminalInputReaderMouseTrackingTests
         using var reader = CreateReader(terminalMode, controls);
 
         reader.SetMouseTrackingEnabled(false);
-        int controlCountAfterDisable = controls.Count;
+        int mouseControlCountAfterDisable = controls.Count(IsMouseControl);
 
         reader.SuspendInputMode();
         reader.RestoreInputMode();
@@ -49,7 +49,7 @@ public sealed class UnixRawTerminalInputReaderMouseTrackingTests
         Assert.False(reader.MouseTrackingEnabled);
         Assert.Equal(2, terminalMode.EnableCount);
         Assert.Equal(1, terminalMode.RestoreCount);
-        Assert.Equal(controlCountAfterDisable, controls.Count);
+        Assert.Equal(mouseControlCountAfterDisable, controls.Count(IsMouseControl));
 
         reader.SetMouseTrackingEnabled(true);
 
@@ -99,10 +99,15 @@ public sealed class UnixRawTerminalInputReaderMouseTrackingTests
                 throw new IOException("enable failed");
         }));
 
-        Assert.Equal([EnableMouseTracking, DisableMouseTracking], controls);
+        Assert.Equal([EnableMouseTracking, DisableMouseTracking], controls.Where(IsMouseControl));
+        Assert.Contains("\x1b[?1004h", controls);
+        Assert.Contains("\x1b[?1004l", controls);
         Assert.Equal(1, terminalMode.RestoreCount);
         Assert.Equal(1, terminalMode.DisposeCount);
     }
+
+    private static bool IsMouseControl(string sequence) =>
+        sequence == EnableMouseTracking || sequence == DisableMouseTracking;
 
     private static UnixRawTerminalInputReader CreateReader(
         RecordingTerminalInputMode terminalMode,

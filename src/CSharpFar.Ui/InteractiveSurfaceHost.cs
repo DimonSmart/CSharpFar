@@ -16,6 +16,8 @@ public sealed class InteractiveSurfaceHost
     /// </summary>
     public void RequestRedraw() => _composition.Render();
 
+    public ConsoleModifiers LastObservedModifiers => _composition.LastObservedModifiers;
+
     /// <summary>
     /// Runs an interactive temporary surface until the domain handler completes it.
     /// Frame-dependent surface state is synchronized only through

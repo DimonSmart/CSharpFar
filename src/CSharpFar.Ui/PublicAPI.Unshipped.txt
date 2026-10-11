@@ -644,6 +644,7 @@ CSharpFar.Ui.InMemorySingleLineTextHistoryStore.Load(string! fieldKey) -> System
 CSharpFar.Ui.InMemorySingleLineTextHistoryStore.Save(string! fieldKey, System.Collections.Generic.IReadOnlyList<string!>! items) -> void
 CSharpFar.Ui.InteractiveSurfaceHost
 CSharpFar.Ui.InteractiveSurfaceHost.InteractiveSurfaceHost(CSharpFar.Ui.UiCompositionHost! composition) -> void
+CSharpFar.Ui.InteractiveSurfaceHost.LastObservedModifiers.get -> System.ConsoleModifiers
 CSharpFar.Ui.InteractiveSurfaceHost.RequestRedraw() -> void
 CSharpFar.Ui.InteractiveSurfaceHost.Run<TFrame, TSemantic, TResult>(CSharpFar.Ui.InteractiveSurfaceLayer<TFrame, TSemantic>! layer, System.Func<CSharpFar.Ui.UiRoutedInput<TFrame>!, TSemantic, CSharpFar.Ui.ModalDialogLoopResult<TResult>>! handleInput, System.Action? prepareRender = null, System.Func<System.DateTimeOffset?>? getNextWakeUtc = null, System.Func<TFrame, CSharpFar.Ui.InteractiveSurfaceWakeResult>? handleWake = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> TResult
 CSharpFar.Ui.InteractiveSurfaceHost.RunTimed<TFrame, TSemantic, TResult>(CSharpFar.Ui.InteractiveSurfaceLayer<TFrame, TSemantic>! layer, System.Func<CSharpFar.Ui.UiRoutedInput<TFrame>!, TSemantic, CSharpFar.Ui.ModalDialogLoopResult<TResult>>! handleInput, System.Func<System.DateTimeOffset?>! getNextWakeUtc, System.Func<TFrame, CSharpFar.Ui.InteractiveSurfaceWakeResult<TResult>>! handleWake, System.Action? prepareRender = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken), System.Threading.CancellationToken wakeSignal = default(System.Threading.CancellationToken)) -> TResult
@@ -1829,7 +1830,9 @@ CSharpFar.Ui.UiCompositionHost.CancelHoverMarquee() -> bool
 CSharpFar.Ui.UiCompositionHost.DispatchInput(CSharpFar.Console.Input.ConsoleInputEvent! input) -> CSharpFar.Ui.UiInputResult
 CSharpFar.Ui.UiCompositionHost.HandleHoverWake() -> bool
 CSharpFar.Ui.UiCompositionHost.HasViewportChanged() -> bool
+CSharpFar.Ui.UiCompositionHost.LastObservedModifiers.get -> System.ConsoleModifiers
 CSharpFar.Ui.UiCompositionHost.LastStableViewport.get -> CSharpFar.Console.Models.ConsoleViewport?
+CSharpFar.Ui.UiCompositionHost.ModalLayerClosed -> System.Action<System.ConsoleModifiers>?
 CSharpFar.Ui.UiCompositionHost.NextHoverWakeUtc.get -> System.DateTimeOffset?
 CSharpFar.Ui.UiCompositionHost.ReadInput(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CSharpFar.Console.Input.ConsoleInputEvent!
 CSharpFar.Ui.UiCompositionHost.ReadInputUntil(System.DateTimeOffset? wakeUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CSharpFar.Console.Input.ConsoleInputEvent?

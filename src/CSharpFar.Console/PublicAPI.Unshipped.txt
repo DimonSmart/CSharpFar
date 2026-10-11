@@ -75,7 +75,10 @@ CSharpFar.Console.Input.IModifierKeyTracker.Resume() -> void
 CSharpFar.Console.Input.IModifierKeyTracker.Suspend() -> void
 CSharpFar.Console.Input.IModifierKeyTracker.TryCreateInputEvent(out CSharpFar.Console.Input.ModifierKeyConsoleInputEvent? inputEvent) -> bool
 CSharpFar.Console.Input.KeyboardProtocolSnapshot
+CSharpFar.Console.Input.KeyboardProtocolSnapshot.ActiveFlags.get -> int
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.ActiveScreen.get -> string?
+CSharpFar.Console.Input.KeyboardProtocolSnapshot.CanTrackStandaloneModifiers.get -> bool
+CSharpFar.Console.Input.KeyboardProtocolSnapshot.ReportsKeyEventTypes.get -> bool
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.ConfirmedFlags.get -> int?
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.FallbackReason.get -> string?
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.IsActive.get -> bool
@@ -115,6 +118,8 @@ CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.Path.get -> string!
 CSharpFar.Console.Input.ModifierKeyDeviceSnapshot.Path.init -> void
 CSharpFar.Console.Input.ModifierKeyTrackingSnapshot
 CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.<Clone>$() -> CSharpFar.Console.Input.ModifierKeyTrackingSnapshot!
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.ActiveSource.get -> string!
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.ActiveSource.init -> void
 CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.BackendName.get -> string!
 CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.BackendName.init -> void
 CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.CanTrackShiftOnly.get -> bool
@@ -130,6 +135,10 @@ CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.IsEnabled.init -> void
 CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.IsPlatformSupported.get -> bool
 CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.IsPlatformSupported.init -> void
 CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.ModifierKeyTrackingSnapshot(string! BackendName, bool IsPlatformSupported, bool IsEnabled, bool CanTrackShiftOnly, string! Status, string? FailureReason, System.Collections.Generic.IReadOnlyList<CSharpFar.Console.Input.ModifierKeyDeviceSnapshot!>! Devices) -> void
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.ProtocolTrackingAvailable.get -> bool
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.ProtocolTrackingAvailable.init -> void
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.SupportedModifiers.get -> string!
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.SupportedModifiers.init -> void
 CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.Status.get -> string!
 CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.Status.init -> void
 CSharpFar.Console.Input.ModifierKeyTrackingStatus

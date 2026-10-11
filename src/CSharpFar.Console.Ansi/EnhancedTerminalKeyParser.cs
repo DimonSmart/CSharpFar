@@ -227,8 +227,21 @@ internal static class EnhancedTerminalKeyParser
 
     private static bool TryParseSubField(string field, out int value)
     {
-        string first = field.Split(':', StringSplitOptions.None)[0];
-        return int.TryParse(first, out value);
+        value = 0;
+        string[] parts = field.Split(':', StringSplitOptions.None);
+        if (parts.Length > 3 || !int.TryParse(parts[0], out value) || value < 0)
+            return false;
+
+        // Kitty allows omitted alternate-key subfields, but supplied
+        // subfields must still be valid non-negative Unicode key codes.
+        for (int i = 1; i < parts.Length; i++)
+        {
+            if (parts[i].Length > 0 &&
+                (!int.TryParse(parts[i], out int alternate) || alternate < 0))
+                return false;
+        }
+
+        return true;
     }
 
     private static ConsoleKey MapKeyCode(int keyCode, char final) =>
@@ -274,6 +287,7 @@ internal static class EnhancedTerminalKeyParser
             57361 => ConsoleKey.PrintScreen,
             57362 => ConsoleKey.Pause,
             57363 => ConsoleKey.Applications,
+            >= 57364 and <= 57375 => ConsoleKey.F1 + (keyCode - 57364),
             >= 57376 and <= 57387 => ConsoleKey.F13 + (keyCode - 57376),
             >= 57399 and <= 57408 => ConsoleKey.NumPad0 + (keyCode - 57399),
             57409 => ConsoleKey.Decimal,

@@ -135,7 +135,10 @@ internal sealed class PrintTerminalDiagnosticsCommand : IApplicationCommand
         writer.WriteLine($"  Enhanced keyboard requested: {keyboard.Requested}");
         writer.WriteLine($"  Requested flags: {keyboard.RequestedFlags}");
         writer.WriteLine($"  Confirmed flags: {keyboard.ConfirmedFlags?.ToString() ?? "unavailable"}");
+        writer.WriteLine($"  Active profile: {keyboard.ActiveFlags}");
         writer.WriteLine($"  Enhanced keyboard active: {keyboard.IsActive}");
+        writer.WriteLine($"  Key event reporting: {keyboard.ReportsKeyEventTypes}");
+        writer.WriteLine($"  Standalone modifiers available: {keyboard.CanTrackStandaloneModifiers}");
         if (keyboard.ActiveScreen is not null)
             writer.WriteLine($"  Active keyboard screen: {keyboard.ActiveScreen}");
         if (keyboard.FallbackReason is not null)
@@ -146,6 +149,9 @@ internal sealed class PrintTerminalDiagnosticsCommand : IApplicationCommand
     {
         writer.WriteLine("Modifier tracking:");
         writer.WriteLine($"  Backend: {snapshot.BackendName}");
+        writer.WriteLine($"  Modifier source: {snapshot.ActiveSource}");
+        writer.WriteLine($"  Tracked modifiers: {snapshot.SupportedModifiers}");
+        writer.WriteLine($"  Protocol tracking available: {snapshot.ProtocolTrackingAvailable}");
         writer.WriteLine($"  Platform supported: {snapshot.IsPlatformSupported}");
         writer.WriteLine($"  Enabled: {snapshot.IsEnabled}");
         writer.WriteLine($"  Can track Shift-only: {snapshot.CanTrackShiftOnly}");
@@ -163,7 +169,7 @@ internal sealed class PrintTerminalDiagnosticsCommand : IApplicationCommand
             writer.WriteLine($"    {device.Path}  {device.Name ?? "unknown"}  shift={device.HasShiftCapability}");
         }
 
-        if (!snapshot.CanTrackShiftOnly)
+        if (!snapshot.CanTrackShiftOnly && !snapshot.ProtocolTrackingAvailable)
         {
             writer.WriteLine(
                 "  Hint: The app continues without Shift-only tracking. Do not run CSharpFar with sudo just for normal usage unless you intentionally want elevated file-manager permissions.");

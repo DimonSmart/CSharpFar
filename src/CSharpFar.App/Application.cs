@@ -194,6 +194,9 @@ public sealed class Application
         BindMouseInputContext(services.MouseInputContext);
         BindRenderContext(_renderContext);
         _runtime = services.Runtime;
+        // Modals consume keyboard events before the workspace router sees them.
+        // Synchronize the workspace's displayed layer when a modal closes.
+        _composition.ModalLayerClosed += modifiers => { SetFunctionKeyLayer(modifiers); };
 
     }
 

@@ -152,6 +152,46 @@ confirmed flags together with Enter, Shift+Enter, Ctrl+Enter, and
 Ctrl+Shift+Enter observations.
 
 
+### Kitty terminal keyboard support on macOS
+
+To get reliable standalone Shift/Control/Alt press and release events, run the
+CLI executable from a Kitty terminal, rather than launching the app bundle
+through Finder into the default Terminal app. For a Homebrew CLI installation:
+
+```bash
+kitty -- csharpfar
+```
+
+Or run the app bundle's executable inside Kitty:
+
+```bash
+kitty -- /Applications/CSharpFar.app/Contents/Resources/csharpfar
+```
+
+CSharpFar negotiates Kitty keyboard flags **27**, including key press/repeat/
+release reporting, and checks the terminal's confirmed response. If a terminal
+only supports flags **25**, extended key chords continue to work, but standalone
+modifier lifecycle is not available. Legacy VT terminals have their usual
+keyboard limitations, including potentially indistinguishable Enter variants.
+
+For Option to behave as Alt, put the following in `kitty.conf`:
+
+```conf
+macos_option_as_alt left
+```
+
+Use `macos_option_as_alt both` if both Option keys should act as Alt.
+This changes how Option types special characters. Function keys may require
+Fn/Globe on Mac keyboards, and some shortcuts are intercepted by macOS or
+Kitty itself. CSharpFar does not alter Kitty configuration or require macOS
+Accessibility permissions.
+
+Verify the negotiated flags with `csharpfar --check-terminal`, and inspect
+raw modifier press and release events with `csharpfar --check-terminal
+--input-lab`. Inspect the bottom function-key row in the running application:
+pressing and releasing each modifier should change and restore it without
+pressing any other key.
+
 ## Releases
 
 Published releases provide:

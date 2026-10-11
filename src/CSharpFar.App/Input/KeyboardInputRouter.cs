@@ -50,7 +50,6 @@ internal sealed class KeyboardInputRouter
             return ApplicationInputHandlingResult.NotHandled;
         }
 
-        bool functionKeyLayerChanged = _context.SetFunctionKeyLayer(key.Modifiers);
         ApplicationKeyboardOwner owner = _targetResolver.Resolve(key, routed.Frame, keyEvent.Text);
         var input = new ApplicationKeyboardInput(routed, key, owner)
         {
@@ -59,15 +58,15 @@ internal sealed class KeyboardInputRouter
 
         ApplicationInputHandlingResult global = _globalHandler.Handle(input);
         if (global.Handled)
-            return WithFunctionKeyBar(global, functionKeyLayerChanged);
+            return global;
 
         ApplicationInputHandlingResult directoryShortcut = _directoryShortcutHandler.Handle(input);
         if (directoryShortcut.Handled)
-            return WithFunctionKeyBar(directoryShortcut, functionKeyLayerChanged);
+            return directoryShortcut;
 
         ApplicationInputHandlingResult functionKey = _functionKeyHandler.Handle(input);
         if (functionKey.Handled)
-            return WithFunctionKeyBar(functionKey, functionKeyLayerChanged);
+            return functionKey;
 
         ApplicationInputHandlingResult owned = owner switch
         {
@@ -80,14 +79,7 @@ internal sealed class KeyboardInputRouter
             _ => ApplicationInputHandlingResult.NotHandled,
         };
 
-        if (owned.Handled)
-            return WithFunctionKeyBar(owned, functionKeyLayerChanged);
-
-        return functionKeyLayerChanged
-            ? ApplicationInputHandlingResult.FromHandled(
-                true,
-                ApplicationRenderPart.FunctionKeyBar)
-            : ApplicationInputHandlingResult.NotHandled;
+        return owned;
     }
 
     private ApplicationInputHandlingResult HandleWorkspaceModifier(
@@ -106,16 +98,4 @@ internal sealed class KeyboardInputRouter
             : ApplicationInputHandlingResult.NotHandled;
     }
 
-    private static ApplicationInputHandlingResult WithFunctionKeyBar(
-        ApplicationInputHandlingResult result,
-        bool functionKeyLayerChanged)
-    {
-        if (!functionKeyLayerChanged)
-            return result;
-
-        ApplicationRenderPart parts = result.ShouldRender
-            ? result.RenderParts | ApplicationRenderPart.FunctionKeyBar
-            : ApplicationRenderPart.FunctionKeyBar;
-        return ApplicationInputHandlingResult.FromHandled(true, parts);
-    }
 }

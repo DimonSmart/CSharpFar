@@ -25,8 +25,28 @@ internal sealed class AnsiConsoleInputParser
     public bool TryRead(
         IAnsiInputByteReader input,
         [NotNullWhen(true)] out ConsoleInputEvent? inputEvent)
+        => TryRead(input, reportStandaloneModifiers: false, out inputEvent, out _);
+
+    internal bool TryRead(
+        IAnsiInputByteReader input,
+        bool reportStandaloneModifiers,
+        [NotNullWhen(true)] out ConsoleInputEvent? inputEvent,
+        out bool? focusChanged)
     {
+        focusChanged = null;
         AnsiInputReadResult parsed = _keyParser.Read(input);
+        if (parsed.Bytes.AsSpan().SequenceEqual("\x1b[I"u8))
+        {
+            focusChanged = true;
+            inputEvent = null;
+            return false;
+        }
+        if (parsed.Bytes.AsSpan().SequenceEqual("\x1b[O"u8))
+        {
+            focusChanged = false;
+            inputEvent = null;
+            return false;
+        }
         if (SgrMouseInputParser.TryParse(parsed.Bytes, ref _lastPressedButton, out var mouse, out _))
         {
             inputEvent = _mouseNormalizer.Normalize(mouse.Mouse);
@@ -42,7 +62,15 @@ internal sealed class AnsiConsoleInputParser
         EnhancedTerminalKeyEvent enhanced = EnhancedTerminalKeyParser.Parse(parsed.Bytes);
         if (enhanced.IsKnown)
         {
-            if (enhanced.ModifierOnly || enhanced.EventType == EnhancedKeyEventType.Release)
+            if (enhanced.ModifierOnly)
+            {
+                inputEvent = reportStandaloneModifiers
+                    ? new ModifierKeyConsoleInputEvent(enhanced.ParsedKey.Modifiers)
+                    : null;
+                return inputEvent is not null;
+            }
+
+            if (enhanced.EventType == EnhancedKeyEventType.Release)
             {
                 inputEvent = null;
                 return false;

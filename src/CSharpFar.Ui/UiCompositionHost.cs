@@ -164,6 +164,12 @@ public sealed class UiCompositionHost
     /// </summary>
     public long StableRenderVersion { get; private set; }
 
+    // Presentation snapshot of the input backend's last modifier lifecycle event.
+    // A regular key chord never changes this value.
+    public ConsoleModifiers LastObservedModifiers { get; private set; }
+
+    public event Action<ConsoleModifiers>? ModalLayerClosed;
+
     public void SetRootSurface(IUiSurface surface)
     {
         EnsureCanChangeLayers();
@@ -342,6 +348,8 @@ public sealed class UiCompositionHost
         try
         {
             var composition = CaptureActiveComposition();
+            if (input is ModifierKeyConsoleInputEvent modifier)
+                LastObservedModifiers = modifier.Modifiers;
             if (input is MouseConsoleInputEvent { Kind: MouseEventKind.Move, Button: MouseButton.None } passiveMove &&
                 _mouseCapture is null)
             {
@@ -434,6 +442,8 @@ public sealed class UiCompositionHost
         _hoverMarquee.SetPointer(null, null);
         _layers.RemoveAt(_layers.Count - 1);
         RevalidateMouseCapture();
+        if (entry.Layer.InputPolicy == UiLayerInputPolicy.Modal)
+            ModalLayerClosed?.Invoke(LastObservedModifiers);
     }
 
     private void CloseOverlay(UiLayerEntry entry)
@@ -445,6 +455,8 @@ public sealed class UiCompositionHost
         _hoverMarquee.SetPointer(null, null);
         _layers.RemoveAt(_layers.Count - 1);
         RevalidateMouseCapture();
+        if (entry.Layer.InputPolicy == UiLayerInputPolicy.Modal)
+            ModalLayerClosed?.Invoke(LastObservedModifiers);
     }
 
     private void EnsureRootSurface()

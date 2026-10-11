@@ -132,7 +132,7 @@ public static class TerminalInputLab
                 : $"{Csi}?1002h{Csi}?1006h");
 
             PrintHeader(options, jsonPath, keyboard);
-            RunManualSteps(driver, parser, log, options, observations);
+            RunManualSteps(driver, parser, log, options, keyboard, observations);
         }
         finally
         {
@@ -150,9 +150,10 @@ public static class TerminalInputLab
         TerminalInputLabParser parser,
         StreamWriter log,
         TerminalInputLabOptions options,
+        KeyboardProtocolSnapshot keyboard,
         HashSet<string> observations)
     {
-        List<LabStep> steps = CreateSteps(options.MouseAllMotion);
+        List<LabStep> steps = CreateSteps(options.MouseAllMotion, keyboard.CanTrackStandaloneModifiers);
         DateTimeOffset? lastExitSignal = null;
         string? lastExitKey = null;
         for (int index = 0; index < steps.Count; index++)
@@ -204,17 +205,17 @@ public static class TerminalInputLab
                 value.StartsWith("Unknown", StringComparison.OrdinalIgnoreCase) ||
                 value.StartsWith("Malformed", StringComparison.OrdinalIgnoreCase));
             string result = observed == step.Expected.Length
-                ? "observed"
-                : observed == 0 && unknown
-                    ? "unknown"
+                ? "Passed"
+                : unknown
+                    ? "Failed"
                     : observed == 0
-                        ? "not observed"
-                        : $"partial ({observed}/{step.Expected.Length})";
+                        ? "Not observed"
+                        : $"Failed ({observed}/{step.Expected.Length} observed)";
             SystemConsole.WriteLine($"Result: {result}");
         }
     }
 
-    private static List<LabStep> CreateSteps(bool allMotion)
+    private static List<LabStep> CreateSteps(bool allMotion, bool standaloneModifiers)
     {
         var steps = new List<LabStep>
         {
@@ -235,7 +236,24 @@ public static class TerminalInputLab
             new("Mouse click", "Click left, right and middle mouse buttons inside this terminal.", ["Mouse:LeftDown", "Mouse:LeftUp", "Mouse:RightDown", "Mouse:RightUp", "Mouse:MiddleDown", "Mouse:MiddleUp"]),
             new("Mouse wheel", "Scroll mouse wheel up and down inside this terminal.", ["Mouse:WheelUp", "Mouse:WheelDown"]),
             new("Mouse drag", "Hold left mouse button and drag inside this terminal.", ["Mouse:LeftDown", "Mouse:MoveWithButton", "Mouse:LeftUp"]),
+            new("Focus lifecycle", "Move focus to another window, then return to this terminal.", ["FocusOut", "FocusIn"]),
         };
+        if (standaloneModifiers)
+        {
+            steps.AddRange(
+            [
+                new("Left Shift lifecycle", "Press and release left Shift by itself.", ["Modifier:LEFT_SHIFT:Press", "Modifier:LEFT_SHIFT:Release"]),
+                new("Right Shift lifecycle", "Press and release right Shift by itself.", ["Modifier:RIGHT_SHIFT:Press", "Modifier:RIGHT_SHIFT:Release"]),
+                new("Two Shift keys", "Hold both Shifts, release one then the other.", ["Modifier:LEFT_SHIFT:Press", "Modifier:RIGHT_SHIFT:Press", "Modifier:LEFT_SHIFT:Release", "Modifier:RIGHT_SHIFT:Release"]),
+                new("Left Control lifecycle", "Press and release left Control.", ["Modifier:LEFT_CONTROL:Press", "Modifier:LEFT_CONTROL:Release"]),
+                new("Right Control lifecycle", "Press and release right Control.", ["Modifier:RIGHT_CONTROL:Press", "Modifier:RIGHT_CONTROL:Release"]),
+                new("Left Alt lifecycle", "Press and release left Alt/Option.", ["Modifier:LEFT_ALT:Press", "Modifier:LEFT_ALT:Release"]),
+                new("Right Alt lifecycle", "Press and release right Alt/Option.", ["Modifier:RIGHT_ALT:Press", "Modifier:RIGHT_ALT:Release"]),
+                new("Combined modifiers", "Press and release Shift+Control, Shift+Alt and Control+Alt.", ["Modifier:LEFT_SHIFT:Press", "Modifier:LEFT_CONTROL:Press", "Modifier:LEFT_ALT:Press"]),
+                new("Press Repeat Release", "Hold a printable key until it repeats, then release it.", ["Key:A", "KeyRepeat:A", "KeyRelease:A"]),
+                new("Fast input", "Type a sequence of keys quickly.", ["Key:A"]),
+            ]);
+        }
         if (allMotion)
             steps.Add(new("Mouse all-motion", "Move mouse inside terminal without pressing buttons.", ["Mouse:MoveNoButton"]));
         return steps;
@@ -269,6 +287,12 @@ public static class TerminalInputLab
         SystemConsole.WriteLine($"  Requested keyboard flags: {keyboard.RequestedFlags}");
         SystemConsole.WriteLine($"  Confirmed keyboard flags: {keyboard.ConfirmedFlags?.ToString() ?? "unavailable"}");
         SystemConsole.WriteLine($"  Protocol active: {keyboard.IsActive}");
+        SystemConsole.WriteLine($"  Active flags: {keyboard.ActiveFlags}");
+        SystemConsole.WriteLine($"  Key event reporting: {keyboard.ReportsKeyEventTypes}");
+        SystemConsole.WriteLine($"  Standalone modifiers: {keyboard.CanTrackStandaloneModifiers}");
+        SystemConsole.WriteLine($"  Modifier source: {(keyboard.CanTrackStandaloneModifiers ? "kitty" : "none")}");
+        if (keyboard.FallbackReason is not null)
+            SystemConsole.WriteLine($"  Fallback: {keyboard.FallbackReason}");
     }
 
     private static void PrintEvent(TerminalInputLabEvent input)
@@ -283,6 +307,10 @@ public static class TerminalInputLab
             SystemConsole.WriteLine($"               Parsed: {input.Kind}{(input.Error is null ? "" : $" ({input.Error})")}");
 
         SystemConsole.WriteLine($"               Modifiers: {(input.Key.HasValue ? FormatModifiers(input.Key.Value.Modifiers) : "None")}");
+        SystemConsole.WriteLine($"               Key code: {input.KeyCode?.ToString() ?? "unavailable"}");
+        SystemConsole.WriteLine($"               Event type: {input.KeyEventType?.ToString() ?? "unavailable"}");
+        SystemConsole.WriteLine($"               Physical modifier: {input.ModifierKeyName ?? "none"}");
+        SystemConsole.WriteLine($"               Effective modifiers: {FormatModifiers(input.EffectiveModifiers)}");
         SystemConsole.WriteLine($"               Associated text: {FormatAssociatedText(input.AssociatedText)}");
         SystemConsole.WriteLine($"               Parser kind: {input.Kind}");
         SystemConsole.WriteLine($"               Protocol: {input.Protocol ?? "unknown"}");
@@ -303,6 +331,8 @@ public static class TerminalInputLab
             ["protocol"] = input.Protocol,
             ["keyEventType"] = input.KeyEventType?.ToString(),
             ["modifierKey"] = input.ModifierKeyName,
+            ["keyCode"] = input.KeyCode,
+            ["effectiveModifiers"] = GetModifiers(input.EffectiveModifiers),
             ["mouseEvent"] = input.MouseEvent,
             ["mouseButton"] = input.MouseButton?.ToString(),
             ["buttonCode"] = input.ButtonCode,
@@ -330,6 +360,9 @@ public static class TerminalInputLab
         SystemConsole.WriteLine($"Shift+Enter: {Status(observed, ["Key:Enter:Shift"])}");
         SystemConsole.WriteLine($"Ctrl+Enter: {EnhancedStatus(observed, "Key:Enter:Control", keyboard)}");
         SystemConsole.WriteLine($"Ctrl+Shift+Enter: {EnhancedStatus(observed, "Key:Enter:Control+Shift", keyboard)}");
+        SystemConsole.WriteLine($"Left Shift lifecycle: {StandaloneStatus(observed, keyboard, ["Modifier:LEFT_SHIFT:Press", "Modifier:LEFT_SHIFT:Release"])}");
+        SystemConsole.WriteLine($"Right Shift lifecycle: {StandaloneStatus(observed, keyboard, ["Modifier:RIGHT_SHIFT:Press", "Modifier:RIGHT_SHIFT:Release"])}");
+        SystemConsole.WriteLine($"Focus: {Status(observed, ["FocusOut", "FocusIn"])}");
         SystemConsole.WriteLine($"Plain keys: {Status(observed, ["Key:A", "Key:B", "Key:D1", "Key:Spacebar"])}");
         SystemConsole.WriteLine($"Arrows: {Status(observed, ["Key:UpArrow", "Key:DownArrow", "Key:LeftArrow", "Key:RightArrow"])}");
         SystemConsole.WriteLine($"Navigation keys: {Status(observed, ["Key:Home", "Key:End", "Key:PageUp", "Key:PageDown", "Key:Insert", "Key:Delete"])}");
@@ -361,12 +394,17 @@ public static class TerminalInputLab
             $"- Protocol support: {keyboard.SupportStatus}",
             $"- Requested keyboard flags: {keyboard.RequestedFlags}",
             $"- Confirmed keyboard flags: {keyboard.ConfirmedFlags?.ToString() ?? "unavailable"}",
-            $"- Protocol active: {keyboard.IsActive}", "",
+            $"- Protocol active: {keyboard.IsActive}",
+            $"- Active keyboard flags: {keyboard.ActiveFlags}",
+            $"- Standalone modifiers: {keyboard.CanTrackStandaloneModifiers}", "",
             "| Check | Result |", "|---|---|",
             $"| Enter | {Status(observed, ["Key:Enter"])} |",
             $"| Shift+Enter | {Status(observed, ["Key:Enter:Shift"])} |",
             $"| Ctrl+Enter | {EnhancedStatus(observed, "Key:Enter:Control", keyboard)} |",
             $"| Ctrl+Shift+Enter | {EnhancedStatus(observed, "Key:Enter:Control+Shift", keyboard)} |",
+            $"| Left Shift | {StandaloneStatus(observed, keyboard, ["Modifier:LEFT_SHIFT:Press", "Modifier:LEFT_SHIFT:Release"])} |",
+            $"| Right Shift | {StandaloneStatus(observed, keyboard, ["Modifier:RIGHT_SHIFT:Press", "Modifier:RIGHT_SHIFT:Release"])} |",
+            $"| Focus | {Status(observed, ["FocusOut", "FocusIn"])} |",
             $"| Plain keys | {Status(observed, ["Key:A", "Key:B", "Key:D1", "Key:Spacebar"])} |",
             $"| Arrows | {Status(observed, ["Key:UpArrow", "Key:DownArrow", "Key:LeftArrow", "Key:RightArrow"])} |",
             $"| Navigation keys | {Status(observed, ["Key:Home", "Key:End", "Key:PageUp", "Key:PageDown", "Key:Insert", "Key:Delete"])} |",
@@ -388,9 +426,7 @@ public static class TerminalInputLab
             return $"Mouse:{input.MouseEvent}";
         if (input.Kind == "ModifierKey")
         {
-            string name = input.ModifierKeyName?
-                .Replace("LEFT_", "", StringComparison.Ordinal)
-                .Replace("RIGHT_", "", StringComparison.Ordinal) ?? "UNKNOWN";
+            string name = input.ModifierKeyName ?? "UNKNOWN";
             return $"Modifier:{name}:{input.KeyEventType}";
         }
 
@@ -398,7 +434,13 @@ public static class TerminalInputLab
             return input.Kind;
 
         string modifiers = FormatModifiers(input.Key.Value.Modifiers);
-        return $"Key:{input.Key.Value.Key}{(modifiers == "None" ? "" : $":{modifiers}")}";
+        string kind = input.KeyEventType switch
+        {
+            EnhancedKeyEventType.Repeat => "KeyRepeat",
+            EnhancedKeyEventType.Release => "KeyRelease",
+            _ => "Key",
+        };
+        return $"{kind}:{input.Key.Value.Key}{(modifiers == "None" ? "" : $":{modifiers}")}";
     }
 
     private static bool IsExitSignal(TerminalInputLabEvent input, out string? key)
@@ -414,6 +456,12 @@ public static class TerminalInputLab
 
         return key is not null;
     }
+
+    private static string StandaloneStatus(
+        HashSet<string> observed,
+        KeyboardProtocolSnapshot keyboard,
+        IEnumerable<string> expected) =>
+        keyboard.CanTrackStandaloneModifiers ? Status(observed, expected) : "Not supported";
 
     private static string EnhancedStatus(
         HashSet<string> observed,
