@@ -10,64 +10,64 @@ Git history is the source for deleted or previous document versions.
 
 | Document | Role | Area | Notes | Replaces |
 | --- | --- | --- | --- | --- |
-| 0001.spec-csharpfar-file-manager.md | spec | CSharpFar file manager |  |  |
-| 0002.adr-render-buffering-strategy.md | adr | Render buffering strategy |  |  |
-| 0003.spec-display-modes-palettes-settings-menu.md | spec | Display modes, palettes, and settings menu |  |  |
-| 0004.spec-column-navigation-ctrl-o-resize.md | spec | Column navigation, Ctrl+O command line, and resize behavior |  |  |
-| 0005.spec-drive-volume-selection.md | spec | Drive and volume selection |  |  |
-| 0006.spec-file-folder-highlighting.md | spec | File and folder highlighting |  |  |
-| 0007.spec-file-panel-options.md | spec | File panel options |  |  |
-| 0008.spec-menu-bar-popup-shadow.md | spec | Menu bar, popup rendering, and shadows |  |  |
-| 0009.spec-open-panel-item.md | spec | Open panel item |  |  |
-| 0010.spec-file-operations.md | spec | File operations |  |  |
-| 0012.spec-search-feature.md | spec | Search feature |  |  |
-| 0013.spec-dynamic-function-key-bar.md | spec | Dynamic function key bar |  |  |
-| 0014.spec-quick-view-panel.md | spec | Quick View Panel |  |  |
-| 0016.adr-console-viewport-rendering.md | adr | Viewport-bound console rendering |  |  |
-| 0017.spec-current-console-program-launch.md | spec | Current-console program launch |  |  |
-| 0018.spec-command-history-completion.md | spec | Command history completion |  |  |
-| 0019.spec-paranoid-copy-resume.md | spec | Reliable copy resume |  |  |
-| 0020.spec-unified-window-scrollbars.md | spec | Unified window scrollbars |  |  |
-| 0021.spec-scrollbar-mouse-interaction.md | spec | Scrollbar mouse interaction |  |  |
-| 0022.spec-hidden-console-history-scroll.md | spec | Hidden console history scroll |  |  |
-| 0027.spec-far-command-line-shortcuts.md | spec | Far command-line shortcuts |  |  |
-| 0028.spec-panel-visibility-modes.md | spec | Panel and hidden command-line workspace modes |  |  |
-| 0029.spec-sftp-file-system-provider.md | spec | SFTP file system provider |  |  |
-| 0030.spec-panel-source-error-retry.md | spec | Panel source error retry |  |  |
-| 0032.spec-unified-file-viewer.md | spec | Unified File Viewer |  |  |
-| 0033.spec-viewer-encoding-selection.md | spec | Viewer Encoding Selection |  |  |
-| 0034.spec-panel-quick-search.md | spec | Panel quick search |  |  |
-| 0035.spec-ftp-ftps-file-system-provider.md | spec | FTP and FTPS file system provider |  |  |
-| 0036.spec-application-icon.md | spec | Application icon |  |  |
-| 0038.spec-history-enabled-text-input.md | spec | History-enabled text input |  |  |
-| 0046.spec-built-in-text-editor.md | spec | Built-in text editor |  |  |
-| 0048.spec-create-new-file-dialog.md | spec | Create new file dialog |  |  |
-| 0049.spec-editor-far-editing-commands.md | spec | Editor Far editing commands |  |  |
-| 0050.spec-editor-textmate-syntax-highlighting.md | spec | Editor TextMate syntax highlighting |  |  |
-| 0051.spec-editor-unicode-scalar-cursor.md | spec | Editor Unicode scalar cursor behavior |  |  |
-| 0052.spec-viewer-far-hotkeys.md | spec | Viewer Far Hotkeys |  |  |
-| 0053.spec-delete-progress-dialog.md | spec | Delete progress dialog |  |  |
-| 0054.spec-paranoid-copy-auto-retry.md | spec | Reliable copy auto retry |  |  |
-| 0055.spec-directory-shortcuts.md | spec | Directory shortcuts |  |  |
-| 0056.spec-built-in-cd-panel-navigation.md | spec | Built-in cd panel navigation |  |  |
-| 0059.spec-panel-cursor-normalization.md | spec | Panel cursor normalization |  |  |
-| 0060.spec-file-rename-operation.md | spec | File rename operation |  |  |
-| 0061.spec-native-plugin-system.md | spec | Native plugin system |  |  |
-| 0062.spec-console-ui-component-library.md | spec | Console UI component library |  |  |
-| 0063.spec-file-attributes-dialog.md | spec | File attributes dialog |  |  |
-| 0064.spec-unix-terminal-input.md | spec | Unix terminal input |  |  |
-| 0065.spec-debian-ubuntu-apt-distribution-installation.md | spec | Debian/Ubuntu APT distribution and installation |  |  |
-| 0066.spec-folder-and-file-set-comparison.md | spec | Folder and file-set comparison |  |  |
-| 0067.spec-ui-layer-composition-and-modal-resize.md | spec | UI layer composition and modal resize |  |  |
-| 0071.spec-transactional-ui-frame-commit.md | spec | Transactional UI frame commit and resize regression coverage |  |  |
-| 0072.spec-application-integration-test-input-lifecycle.md | spec | Application integration test input lifecycle |  |  |
-| 0073.spec-processes-and-ports.md | spec | Processes and Ports | Local endpoint diagnostics module |  |
-| 0074.spec-far-compatible-wildcard-destination-names.md | spec | FAR-compatible wildcard destination names | Destination name transformation for file operations |  |
-| 0075.spec-destination-templates.md | spec | Destination templates | Explicit per-source destination path evaluation for file operations |  |
-| 0076.spec-macos-homebrew-distribution.md | spec | macOS Homebrew distribution | Formula and Cask installation/upgrade paths |  |
-| 0077.spec-macos-application-bundle.md | spec | macOS application bundle | Finder/Applications bundle over terminal UI |  |
-| 0078.spec-search-results-edit-referenced-items.md | spec | Search result item editing | `F4` edits the referenced item while the virtual panel structure remains read-only | 0012 Edit restriction; 0013 F4 availability restriction |
-| 0079.spec-search-results-delete-referenced-items.md | spec | Search result item deletion | `F8` deletes referenced items and reconciles the virtual result list without re-running search | 0012 Delete restriction; 0013 F8 availability restriction; 0078 Delete restriction |
-| 0080.spec-file-usage-panel.md | spec | File Usage panel | Local-file usage and lock diagnostics with safe owner release |  |
-| 0081.spec-runtime-diagnostics.md | spec | Runtime diagnostics | Opt-in in-memory tracing and safe copyable diagnostic report |  |
-| 0082.spec-macos-homebrew-install-self-update.md | spec | macOS install and self-update | Recommended Homebrew Cask installer and guarded About self-update | 0076/0077 distribution workflow clarification |
+| IDD-0001 | spec | CSharpFar file manager |  |  |
+| IDD-0002 | adr | Render buffering strategy |  |  |
+| IDD-0003 | spec | Display modes, palettes, and settings menu |  |  |
+| IDD-0004 | spec | Column navigation, Ctrl+O command line, and resize behavior |  |  |
+| IDD-0005 | spec | Drive and volume selection |  |  |
+| IDD-0006 | spec | File and folder highlighting |  |  |
+| IDD-0007 | spec | File panel options |  |  |
+| IDD-0008 | spec | Menu bar, popup rendering, and shadows |  |  |
+| IDD-0009 | spec | Open panel item |  |  |
+| IDD-0010 | spec | File operations |  |  |
+| IDD-0012 | spec | Search feature |  |  |
+| IDD-0013 | spec | Dynamic function key bar |  |  |
+| IDD-0014 | spec | Quick View Panel |  |  |
+| IDD-0016 | adr | Viewport-bound console rendering |  |  |
+| IDD-0017 | spec | Current-console program launch |  |  |
+| IDD-0018 | spec | Command history completion |  |  |
+| IDD-0019 | spec | Reliable copy resume |  |  |
+| IDD-0020 | spec | Unified window scrollbars |  |  |
+| IDD-0021 | spec | Scrollbar mouse interaction |  |  |
+| IDD-0022 | spec | Hidden console history scroll |  |  |
+| IDD-0027 | spec | Far command-line shortcuts |  |  |
+| IDD-0028 | spec | Panel and hidden command-line workspace modes |  |  |
+| IDD-0029 | spec | SFTP file system provider |  |  |
+| IDD-0030 | spec | Panel source error retry |  |  |
+| IDD-0032 | spec | Unified File Viewer |  |  |
+| IDD-0033 | spec | Viewer Encoding Selection |  |  |
+| IDD-0034 | spec | Panel quick search |  |  |
+| IDD-0035 | spec | FTP and FTPS file system provider |  |  |
+| IDD-0036 | spec | Application icon |  |  |
+| IDD-0038 | spec | History-enabled text input |  |  |
+| IDD-0046 | spec | Built-in text editor |  |  |
+| IDD-0048 | spec | Create new file dialog |  |  |
+| IDD-0049 | spec | Editor Far editing commands |  |  |
+| IDD-0050 | spec | Editor TextMate syntax highlighting |  |  |
+| IDD-0051 | spec | Editor Unicode scalar cursor behavior |  |  |
+| IDD-0052 | spec | Viewer Far Hotkeys |  |  |
+| IDD-0053 | spec | Delete progress dialog |  |  |
+| IDD-0054 | spec | Reliable copy auto retry |  |  |
+| IDD-0055 | spec | Directory shortcuts |  |  |
+| IDD-0056 | spec | Built-in cd panel navigation |  |  |
+| IDD-0059 | spec | Panel cursor normalization |  |  |
+| IDD-0060 | spec | File rename operation |  |  |
+| IDD-0061 | spec | Native plugin system |  |  |
+| IDD-0062 | spec | Console UI component library |  |  |
+| IDD-0063 | spec | File attributes dialog |  |  |
+| IDD-0064 | spec | Unix terminal input |  |  |
+| IDD-0065 | spec | Debian/Ubuntu APT distribution and installation |  |  |
+| IDD-0066 | spec | Folder and file-set comparison |  |  |
+| IDD-0067 | spec | UI layer composition and modal resize |  |  |
+| IDD-0071 | spec | Transactional UI frame commit and resize regression coverage |  |  |
+| IDD-0072 | spec | Application integration test input lifecycle |  |  |
+| IDD-0073 | spec | Processes and Ports | Local endpoint diagnostics module |  |
+| IDD-0074 | spec | FAR-compatible wildcard destination names | Destination name transformation for file operations |  |
+| IDD-0075 | spec | Destination templates | Explicit per-source destination path evaluation for file operations |  |
+| IDD-0076 | spec | macOS Homebrew distribution | Formula and Cask installation/upgrade paths |  |
+| IDD-0077 | spec | macOS application bundle | Finder/Applications bundle over terminal UI |  |
+| IDD-0078 | spec | Search result item editing | `F4` edits the referenced item while the virtual panel structure remains read-only | IDD-0012 Edit restriction; IDD-0013 F4 availability restriction |
+| IDD-0079 | spec | Search result item deletion | `F8` deletes referenced items and reconciles the virtual result list without re-running search | IDD-0012 Delete restriction; IDD-0013 F8 availability restriction; IDD-0078 Delete restriction |
+| IDD-0080 | spec | File Usage panel | Local-file usage and lock diagnostics with safe owner release |  |
+| IDD-0081 | spec | Runtime diagnostics | Opt-in in-memory tracing and safe copyable diagnostic report |  |
+| IDD-0082 | spec | macOS install and self-update | Recommended Homebrew Cask installer and guarded About self-update | IDD-0076/IDD-0077 distribution workflow clarification |
