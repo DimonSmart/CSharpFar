@@ -13,21 +13,13 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
     }
 
     public string CommandId { get; }
-
     protected PanelSide PanelSide { get; }
-
     public bool CanExecute(ApplicationCommandContext context, object? args = null) => true;
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        try
-        {
-            return ExecuteCore(context);
-        }
-        finally
-        {
-            context.ResetFunctionKeyLayer();
-        }
+        try { return ExecuteCore(context); }
+        finally { context.ResetFunctionKeyLayer(); }
     }
 
     private ApplicationCommandResult ExecuteCore(ApplicationCommandContext context)
@@ -38,12 +30,9 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
         var items = volumes
             .Select(v => new VolumeSelectionItem
             {
-                Label = v.DisplayName,
-                Shortcut = v.Shortcut,
-                Volume = v,
+                Label = v.DisplayName, Shortcut = v.Shortcut, Volume = v,
                 Action = VolumeSelectionAction.OpenVolume,
-            })
-            .ToList();
+            }).ToList();
         foreach (var moduleItem in context.ModuleDiskMenuItems)
         {
             items.Add(new VolumeSelectionItem
@@ -57,10 +46,9 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
         }
 
         int initialCursor = FindInitialCursor(items, targetState.CurrentDirectory, targetState.SourceId);
-
-        var selected = new DriveDialog(context.ModalDialogs, context.Dialogs).Show(items, initialCursor);
-        if (selected is null)
-            return ApplicationCommandResult.Rendered();
+        bool mac = OperatingSystem.IsMacOS() && targetState.SourceId != PanelSourceId.Demo;
+        var selected = new DriveDialog(context.ModalDialogs, context.Dialogs).Show(items, initialCursor, mac);
+        if (selected is null) return ApplicationCommandResult.Rendered();
 
         if (selected.Action == VolumeSelectionAction.OpenModule)
         {
@@ -70,73 +58,75 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
         }
 
         var volume = selected.Volume!;
-        string directoryPath = SelectedVolumeDirectory(volume.RootPath, otherState.CurrentDirectory, targetState.SourceId);
+        string directoryPath = SelectedVolumeDirectory(volume.RootPath, otherState.CurrentDirectory,
+            otherState.SourceId, volumes);
+
+        // Do not change the workspace, quick view, history or watcher before the load succeeds.
+        bool loaded = context.Controller.TryLoadLocation(targetState,
+            PanelLocation.Local(directoryPath), context.PanelOptions, preserveOnError: true);
+        if (!loaded)
+        {
+            context.Dialogs.Message("Change drive", $"Unable to open volume: {volume.RootPath}");
+            return ApplicationCommandResult.Rendered();
+        }
 
         context.QuickView = false;
         context.ActiveSide = PanelSide;
-
-        bool loaded = targetState.SourceId == PanelSourceId.Local
-            ? context.Controller.TryLoadDirectory(targetState, directoryPath, context.PanelOptions)
-            : context.Controller.TryLoadLocation(targetState, new PanelLocation(targetState.SourceId, directoryPath), context.PanelOptions);
-        if (loaded)
-        {
-            if (targetState.SourceId == PanelSourceId.Local)
-                context.History.AddDirectory(new DirectoryHistoryItem { Path = directoryPath });
-            context.StartWatching(targetState, PanelSide);
-        }
-
+        context.History.AddDirectory(new DirectoryHistoryItem { Path = directoryPath });
+        context.StartWatching(targetState, PanelSide);
         return ApplicationCommandResult.Rendered();
     }
 
-    private static int FindInitialCursor(List<VolumeSelectionItem> items, string currentDirectory, PanelSourceId sourceId)
+    internal static int FindInitialCursor(IReadOnlyList<VolumeSelectionItem> items, string currentDirectory, PanelSourceId sourceId)
     {
         if (sourceId != PanelSourceId.Local)
-            return items.FindIndex(item => item.Volume?.RootPath == "/") is var index && index >= 0 ? index : 0;
+        {
+            int rootIndex = Enumerable.Range(0, items.Count)
+                .FirstOrDefault(i => items[i].Volume?.RootPath == "/", -1);
+            return Math.Max(0, rootIndex);
+        }
 
         int bestIndex = 0;
         int bestLength = -1;
-
         for (int i = 0; i < items.Count; i++)
         {
             string? root = items[i].Volume?.RootPath;
-            if (root is null)
-                continue;
-
-            if (currentDirectory.StartsWith(root, StringComparison.OrdinalIgnoreCase) &&
-                root.Length > bestLength)
-            {
-                bestLength = root.Length;
-                bestIndex = i;
-            }
+            if (root is null || !ContainsPath(root, currentDirectory) || root.Length <= bestLength) continue;
+            bestLength = root.Length;
+            bestIndex = i;
         }
-
         return bestIndex;
     }
 
-    private static string SelectedVolumeDirectory(string rootPath, string otherPanelDirectory, PanelSourceId sourceId)
+    internal static string SelectedVolumeDirectory(
+        string rootPath, string otherPanelDirectory, PanelSourceId otherSource,
+        IReadOnlyList<FileSystemVolume> volumes)
     {
-        if (sourceId != PanelSourceId.Local)
+        if (otherSource != PanelSourceId.Local)
             return rootPath;
 
-        if (IsSameVolumePath(rootPath, otherPanelDirectory))
-            return otherPanelDirectory;
+        FileSystemVolume? owning = volumes
+            .Where(volume => ContainsPath(volume.RootPath, otherPanelDirectory))
+            .OrderByDescending(volume => Normalize(volume.RootPath).Length)
+            .FirstOrDefault();
 
-        return rootPath;
+        return owning is not null &&
+            string.Equals(Normalize(owning.RootPath), Normalize(rootPath), Comparison)
+            ? otherPanelDirectory : rootPath;
     }
 
-    private static bool IsSameVolumePath(string rootPath, string directory)
+    internal static bool ContainsPath(string rootPath, string directory)
     {
-        string normalizedRoot = NormalizeDirectoryPrefix(rootPath);
-        string normalizedDirectory = NormalizeDirectoryPrefix(directory);
-        return normalizedDirectory.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
+        string root = Normalize(rootPath);
+        string path = Normalize(directory);
+        if (string.Equals(root, path, Comparison)) return true;
+        if (!path.StartsWith(root, Comparison)) return false;
+        return Path.EndsInDirectorySeparator(root) ||
+            (path.Length > root.Length && Path.DirectorySeparatorChar == path[root.Length]) ||
+            (path.Length > root.Length && Path.AltDirectorySeparatorChar == path[root.Length]);
     }
 
-    private static string NormalizeDirectoryPrefix(string path)
-    {
-        string fullPath = Path.GetFullPath(path);
-        return Path.EndsInDirectorySeparator(fullPath)
-            ? fullPath
-            : fullPath + Path.DirectorySeparatorChar;
-    }
-
+    private static string Normalize(string path) => Path.TrimEndingDirectorySeparator(path);
+    private static StringComparison Comparison =>
+        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 }
