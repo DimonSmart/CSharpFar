@@ -1,95 +1,4 @@
 #nullable enable
-~override CSharpFar.Ui.ChoiceDialogResult.Equals(object obj) -> bool
-~override CSharpFar.Ui.ChoiceDialogResult.ToString() -> string
-~override CSharpFar.Ui.CompositeDialogContentInputResult.Equals(object obj) -> bool
-~override CSharpFar.Ui.CompositeDialogContentInputResult.ToString() -> string
-~override CSharpFar.Ui.CompositeDialogEvent.Equals(object obj) -> bool
-~override CSharpFar.Ui.CompositeDialogEvent.ToString() -> string
-~override CSharpFar.Ui.CompositeDialogOutcome<TResult>.Equals(object obj) -> bool
-~override CSharpFar.Ui.CompositeDialogOutcome<TResult>.ToString() -> string
-~override CSharpFar.Ui.ConsoleTextViewport.Equals(object obj) -> bool
-~override CSharpFar.Ui.ConsoleTextViewport.ToString() -> string
-~override CSharpFar.Ui.FormDialogEvent.Equals(object obj) -> bool
-~override CSharpFar.Ui.FormDialogEvent.ToString() -> string
-~override CSharpFar.Ui.FormInputResult.Equals(object obj) -> bool
-~override CSharpFar.Ui.FormInputResult.ToString() -> string
-~override CSharpFar.Ui.FormRouteResult.Equals(object obj) -> bool
-~override CSharpFar.Ui.FormRouteResult.ToString() -> string
-~override CSharpFar.Ui.FormRowLayout.Equals(object obj) -> bool
-~override CSharpFar.Ui.FormRowLayout.ToString() -> string
-~override CSharpFar.Ui.FunctionKeyBarAction<TAction>.Equals(object obj) -> bool
-~override CSharpFar.Ui.FunctionKeyBarAction<TAction>.ToString() -> string
-~override CSharpFar.Ui.FunctionKeyBarActionHit<TAction>.Equals(object obj) -> bool
-~override CSharpFar.Ui.FunctionKeyBarActionHit<TAction>.ToString() -> string
-~override CSharpFar.Ui.FunctionKeyBarItem.Equals(object obj) -> bool
-~override CSharpFar.Ui.FunctionKeyBarItem.ToString() -> string
-~override CSharpFar.Ui.FunctionKeyBarMouseHit.Equals(object obj) -> bool
-~override CSharpFar.Ui.FunctionKeyBarMouseHit.ToString() -> string
-~override CSharpFar.Ui.FunctionKeyBarSlot.Equals(object obj) -> bool
-~override CSharpFar.Ui.FunctionKeyBarSlot.ToString() -> string
-~override CSharpFar.Ui.InteractiveSurfaceRouteResult<TSemantic>.Equals(object obj) -> bool
-~override CSharpFar.Ui.InteractiveSurfaceRouteResult<TSemantic>.ToString() -> string
-~override CSharpFar.Ui.InteractiveSurfaceWakeResult.Equals(object obj) -> bool
-~override CSharpFar.Ui.InteractiveSurfaceWakeResult.ToString() -> string
-~override CSharpFar.Ui.InteractiveSurfaceWakeResult<TResult>.Equals(object obj) -> bool
-~override CSharpFar.Ui.InteractiveSurfaceWakeResult<TResult>.ToString() -> string
-~override CSharpFar.Ui.ListAppearanceStyles.Equals(object obj) -> bool
-~override CSharpFar.Ui.ListAppearanceStyles.ToString() -> string
-~override CSharpFar.Ui.ModalDialogRenderer.Layout.Equals(object obj) -> bool
-~override CSharpFar.Ui.ModalDialogRenderer.Layout.ToString() -> string
-~override CSharpFar.Ui.ModalFormLayout.Equals(object obj) -> bool
-~override CSharpFar.Ui.ModalFormLayout.ToString() -> string
-~override CSharpFar.Ui.OperationDialogOutcome<TResult>.Equals(object obj) -> bool
-~override CSharpFar.Ui.OperationDialogOutcome<TResult>.ToString() -> string
-~override CSharpFar.Ui.RoutedPointerAction<TItem>.Equals(object obj) -> bool
-~override CSharpFar.Ui.RoutedPointerAction<TItem>.ToString() -> string
-~override CSharpFar.Ui.RoutedPointerInput<TItem>.Equals(object obj) -> bool
-~override CSharpFar.Ui.RoutedPointerInput<TItem>.ToString() -> string
-~override CSharpFar.Ui.RoutedPointerItem<TItem>.Equals(object obj) -> bool
-~override CSharpFar.Ui.RoutedPointerItem<TItem>.ToString() -> string
-~override CSharpFar.Ui.RoutedPointerSelectionAction<TPosition>.Equals(object obj) -> bool
-~override CSharpFar.Ui.RoutedPointerSelectionAction<TPosition>.ToString() -> string
-~override CSharpFar.Ui.RoutedPointerSelectionInput<TPosition>.Equals(object obj) -> bool
-~override CSharpFar.Ui.RoutedPointerSelectionInput<TPosition>.ToString() -> string
-~override CSharpFar.Ui.RoutedScrollableListInputResult.Equals(object obj) -> bool
-~override CSharpFar.Ui.RoutedScrollableListInputResult.ToString() -> string
-~override CSharpFar.Ui.RoutedScrollableViewportInputResult.Equals(object obj) -> bool
-~override CSharpFar.Ui.RoutedScrollableViewportInputResult.ToString() -> string
-~override CSharpFar.Ui.RoutedScrollbarSurfaceInput.Equals(object obj) -> bool
-~override CSharpFar.Ui.RoutedScrollbarSurfaceInput.ToString() -> string
-~override CSharpFar.Ui.ScrollableListInputResult.Equals(object obj) -> bool
-~override CSharpFar.Ui.ScrollableListInputResult.ToString() -> string
-~override CSharpFar.Ui.ScrollableListRenderOptions<T>.Equals(object obj) -> bool
-~override CSharpFar.Ui.ScrollableListRenderOptions<T>.ToString() -> string
-~override CSharpFar.Ui.ScrollableViewportFrameState.Equals(object obj) -> bool
-~override CSharpFar.Ui.ScrollableViewportFrameState.ToString() -> string
-~override CSharpFar.Ui.ScrollableViewportInputResult.Equals(object obj) -> bool
-~override CSharpFar.Ui.ScrollableViewportInputResult.ToString() -> string
-~override CSharpFar.Ui.ScrollBarDragState.Equals(object obj) -> bool
-~override CSharpFar.Ui.ScrollBarDragState.ToString() -> string
-~override CSharpFar.Ui.ScrollBarHitTestResult.Equals(object obj) -> bool
-~override CSharpFar.Ui.ScrollBarHitTestResult.ToString() -> string
-~override CSharpFar.Ui.ScrollBarThumb.Equals(object obj) -> bool
-~override CSharpFar.Ui.ScrollBarThumb.ToString() -> string
-~override CSharpFar.Ui.TextHistoryId.Equals(object obj) -> bool
-~override CSharpFar.Ui.UiCursorPlacement.Equals(object obj) -> bool
-~override CSharpFar.Ui.UiCursorPlacement.ToString() -> string
-~override CSharpFar.Ui.UiFocusRequest.Equals(object obj) -> bool
-~override CSharpFar.Ui.UiFocusRequest.ToString() -> string
-~override CSharpFar.Ui.UiFrameCompletion.Equals(object obj) -> bool
-~override CSharpFar.Ui.UiFrameCompletion.ToString() -> string
-~override CSharpFar.Ui.UiInputResult.Equals(object obj) -> bool
-~override CSharpFar.Ui.UiInputResult.ToString() -> string
-~override CSharpFar.Ui.UiMouseCaptureRequest.Equals(object obj) -> bool
-~override CSharpFar.Ui.UiMouseCaptureRequest.ToString() -> string
-~override CSharpFar.Ui.UiRenderRequest.Equals(object obj) -> bool
-~override CSharpFar.Ui.UiRenderRequest.ToString() -> string
-~override CSharpFar.Ui.VerticalLayoutSplit.Equals(object obj) -> bool
-~override CSharpFar.Ui.VerticalLayoutSplit.ToString() -> string
-~override CSharpFar.Ui.VerticalScrollbarFrame.Equals(object obj) -> bool
-~override CSharpFar.Ui.VerticalScrollbarFrame.ToString() -> string
-~override CSharpFar.Ui.VerticalScrollbarInputResult.Equals(object obj) -> bool
-~override CSharpFar.Ui.VerticalScrollbarInputResult.ToString() -> string
 abstract CSharpFar.Ui.DialogOutcome<TResult>.<Clone>$() -> CSharpFar.Ui.DialogOutcome<TResult>!
 abstract CSharpFar.Ui.FormTargetFrame.<Clone>$() -> CSharpFar.Ui.FormTargetFrame!
 abstract CSharpFar.Ui.UiLayer<TFrame>.InputPolicy.get -> CSharpFar.Ui.UiLayerInputPolicy
@@ -244,10 +153,6 @@ CSharpFar.Ui.CompositeDialogOptions.PreferredHeight.get -> int
 CSharpFar.Ui.CompositeDialogOptions.PreferredHeight.init -> void
 CSharpFar.Ui.CompositeDialogOptions.PreferredWidth.get -> int
 CSharpFar.Ui.CompositeDialogOptions.PreferredWidth.init -> void
-CSharpFar.Ui.CompositeDialogOptions.PreferredWidthProvider.get -> System.Func<int>?
-CSharpFar.Ui.CompositeDialogOptions.PreferredWidthProvider.init -> void
-CSharpFar.Ui.CompositeDialogOptions.PreserveStatusEnd.get -> bool
-CSharpFar.Ui.CompositeDialogOptions.PreserveStatusEnd.init -> void
 CSharpFar.Ui.CompositeDialogOptions.ResizeMode.get -> CSharpFar.Ui.DialogResizeMode
 CSharpFar.Ui.CompositeDialogOptions.ResizeMode.init -> void
 CSharpFar.Ui.CompositeDialogOptions.Title.get -> string!
@@ -434,8 +339,8 @@ CSharpFar.Ui.DialogService.Form<TResult>(CSharpFar.Ui.FormDialogOptions! options
 CSharpFar.Ui.DialogService.Form<TResult>(CSharpFar.Ui.FormDialogOptions! options, System.Func<System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FormRow!>!>! rows, System.Func<System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FormRow!>!>? footer, System.Func<CSharpFar.Ui.FormSubmitResult<TResult>>! submit, System.Func<CSharpFar.Ui.FormDialogEvent, bool>? auxiliary = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> TResult?
 CSharpFar.Ui.DialogService.Input(CSharpFar.Ui.SingleLineInputDialogOptions! options) -> string?
 CSharpFar.Ui.DialogService.List<T, TResult>(CSharpFar.Ui.ListDialogOptions<T, TResult>! options) -> TResult?
-CSharpFar.Ui.DialogService.Message(string! title, string! message, System.Collections.Generic.IReadOnlyList<string!>! buttons) -> int
 CSharpFar.Ui.DialogService.Message(string! title, string! message) -> void
+CSharpFar.Ui.DialogService.Message(string! title, string! message, System.Collections.Generic.IReadOnlyList<string!>! buttons) -> int
 CSharpFar.Ui.DialogService.Operation<TBackground, TResult>(CSharpFar.Ui.OperationDialogOptions! options, System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<TBackground>!>! operation, CSharpFar.Ui.ScrollableFormDialog! form, CSharpFar.Ui.ICompositeDialogContent! content, System.Func<string?>? status, System.Collections.Generic.IReadOnlyDictionary<System.ConsoleKey, string!>? commands, System.Func<bool>? synchronize, System.Func<CSharpFar.Ui.CompositeDialogEvent, CSharpFar.Ui.OperationDialogOutcome<TResult>>! handle, System.Func<TBackground, TResult>! complete, System.Action? onCancellationRequested = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> TResult
 CSharpFar.Ui.DialogService.SearchOptions(CSharpFar.Ui.SearchOptionsDialogOptions! options) -> CSharpFar.Ui.SearchOptionsDialogResult?
 CSharpFar.Ui.DialogService.Select<T>(CSharpFar.Ui.SelectionDialogOptions<T>! options) -> CSharpFar.Ui.SelectionListDialogResult<T>!
@@ -1096,9 +1001,9 @@ CSharpFar.Ui.ModalFormOptions.MinHeight.get -> int
 CSharpFar.Ui.ModalFormOptions.MinHeight.init -> void
 CSharpFar.Ui.ModalFormOptions.MinWidth.get -> int
 CSharpFar.Ui.ModalFormOptions.MinWidth.init -> void
-CSharpFar.Ui.ModalFormOptions.ModalFormOptions(string! Title, int? PreferredWidth = null, int? PreferredHeight = null, int MinWidth = 20, int MinHeight = 8, bool DoubleBorder = true, CSharpFar.Ui.PopupRenderOptions? OuterRenderOptions = null, CSharpFar.Ui.PopupRenderOptions? FrameRenderOptions = null, bool SubmitOnEnter = false) -> void
 CSharpFar.Ui.ModalFormOptions.Movable.get -> bool
 CSharpFar.Ui.ModalFormOptions.Movable.init -> void
+CSharpFar.Ui.ModalFormOptions.ModalFormOptions(string! Title, int? PreferredWidth = null, int? PreferredHeight = null, int MinWidth = 20, int MinHeight = 8, bool DoubleBorder = true, CSharpFar.Ui.PopupRenderOptions? OuterRenderOptions = null, CSharpFar.Ui.PopupRenderOptions? FrameRenderOptions = null, bool SubmitOnEnter = false) -> void
 CSharpFar.Ui.ModalFormOptions.OuterRenderOptions.get -> CSharpFar.Ui.PopupRenderOptions?
 CSharpFar.Ui.ModalFormOptions.OuterRenderOptions.init -> void
 CSharpFar.Ui.ModalFormOptions.PreferredHeight.get -> int?
@@ -1586,10 +1491,10 @@ CSharpFar.Ui.SelectionDialogOptions<T>.MaxWidth.get -> int?
 CSharpFar.Ui.SelectionDialogOptions<T>.MaxWidth.init -> void
 CSharpFar.Ui.SelectionDialogOptions<T>.Presentation.get -> CSharpFar.Ui.SelectionDialogPresentation?
 CSharpFar.Ui.SelectionDialogOptions<T>.Presentation.init -> void
-CSharpFar.Ui.SelectionDialogOptions<T>.SearchText.get -> System.Func<T, string!>?
-CSharpFar.Ui.SelectionDialogOptions<T>.SearchText.init -> void
 CSharpFar.Ui.SelectionDialogOptions<T>.SelectedIndex.get -> int
 CSharpFar.Ui.SelectionDialogOptions<T>.SelectedIndex.init -> void
+CSharpFar.Ui.SelectionDialogOptions<T>.SearchText.get -> System.Func<T, string!>?
+CSharpFar.Ui.SelectionDialogOptions<T>.SearchText.init -> void
 CSharpFar.Ui.SelectionDialogOptions<T>.SelectionChanged.get -> System.Action<T, int>?
 CSharpFar.Ui.SelectionDialogOptions<T>.SelectionChanged.init -> void
 CSharpFar.Ui.SelectionDialogOptions<T>.SelectionDialogOptions() -> void
@@ -1693,14 +1598,6 @@ CSharpFar.Ui.TableColumn<T>.Width.get -> CSharpFar.Ui.TableWidth!
 CSharpFar.Ui.TableColumnAlignment
 CSharpFar.Ui.TableColumnAlignment.Left = 0 -> CSharpFar.Ui.TableColumnAlignment
 CSharpFar.Ui.TableColumnAlignment.Right = 1 -> CSharpFar.Ui.TableColumnAlignment
-CSharpFar.Ui.TableDialogOptions<T, TResult>.ItemIdentity.get -> System.Func<T, object!>?
-CSharpFar.Ui.TableDialogOptions<T, TResult>.ItemIdentity.init -> void
-CSharpFar.Ui.TableDialogOptions<T, TResult>.PreferredWidthProvider.get -> System.Func<int>?
-CSharpFar.Ui.TableDialogOptions<T, TResult>.PreferredWidthProvider.init -> void
-CSharpFar.Ui.TableDialogOptions<T, TResult>.PreserveStatusEnd.get -> bool
-CSharpFar.Ui.TableDialogOptions<T, TResult>.PreserveStatusEnd.init -> void
-CSharpFar.Ui.TableDialogOptions<T, TResult>.StatusText.get -> System.Func<T?, string?>?
-CSharpFar.Ui.TableDialogOptions<T, TResult>.StatusText.init -> void
 CSharpFar.Ui.TableList<T>
 CSharpFar.Ui.TableList<T>.ApplyCommittedFrame(CSharpFar.Ui.TableListFrame! frame) -> void
 CSharpFar.Ui.TableList<T>.BuildInteractionFragment(CSharpFar.Ui.TableListFrame! frame, int focusOrder = 0) -> CSharpFar.Ui.UiInteractionFragment!
@@ -1749,7 +1646,6 @@ CSharpFar.Ui.TableListFrame.ViewportRows.get -> int
 CSharpFar.Ui.TableWidth
 CSharpFar.Ui.TableWidth.<Clone>$() -> CSharpFar.Ui.TableWidth!
 CSharpFar.Ui.TableWidth.Equals(CSharpFar.Ui.TableWidth? other) -> bool
-CSharpFar.Ui.TableWidth.IsGrow.get -> bool
 CSharpFar.Ui.TableWidth.IsOptional.get -> bool
 CSharpFar.Ui.TableWidth.Minimum.get -> int
 CSharpFar.Ui.TableWidth.Preferred.get -> int
@@ -1805,6 +1701,9 @@ CSharpFar.Ui.TextHistory.Add(string! text) -> void
 CSharpFar.Ui.TextHistory.AddPreservingWhitespace(string! text) -> void
 CSharpFar.Ui.TextHistory.HasItems.get -> bool
 CSharpFar.Ui.TextHistory.Items.get -> System.Collections.Generic.IReadOnlyList<string!>!
+CSharpFar.Ui.TextHistoryValueMode
+CSharpFar.Ui.TextHistoryValueMode.PreserveWhitespace = 1 -> CSharpFar.Ui.TextHistoryValueMode
+CSharpFar.Ui.TextHistoryValueMode.Trimmed = 0 -> CSharpFar.Ui.TextHistoryValueMode
 CSharpFar.Ui.TextHistoryId
 CSharpFar.Ui.TextHistoryId.Equals(CSharpFar.Ui.TextHistoryId other) -> bool
 CSharpFar.Ui.TextHistoryId.TextHistoryId() -> void
@@ -1813,9 +1712,6 @@ CSharpFar.Ui.TextHistoryId.Value.get -> string!
 CSharpFar.Ui.TextHistoryPersistenceOperation
 CSharpFar.Ui.TextHistoryPersistenceOperation.Load = 0 -> CSharpFar.Ui.TextHistoryPersistenceOperation
 CSharpFar.Ui.TextHistoryPersistenceOperation.Save = 1 -> CSharpFar.Ui.TextHistoryPersistenceOperation
-CSharpFar.Ui.TextHistoryValueMode
-CSharpFar.Ui.TextHistoryValueMode.PreserveWhitespace = 1 -> CSharpFar.Ui.TextHistoryValueMode
-CSharpFar.Ui.TextHistoryValueMode.Trimmed = 0 -> CSharpFar.Ui.TextHistoryValueMode
 CSharpFar.Ui.TextInputKeyResult
 CSharpFar.Ui.TextInputKeyResult.AcceptCurrentText = 3 -> CSharpFar.Ui.TextInputKeyResult
 CSharpFar.Ui.TextInputKeyResult.Handled = 1 -> CSharpFar.Ui.TextInputKeyResult
@@ -2428,8 +2324,8 @@ static CSharpFar.Ui.FormControls.OkCancel() -> CSharpFar.Ui.ButtonRow!
 static CSharpFar.Ui.FormControls.Separator() -> CSharpFar.Ui.FormRow!
 static CSharpFar.Ui.FormControls.Spacer(int height = 1) -> CSharpFar.Ui.FormRow!
 static CSharpFar.Ui.FormControls.Text(CSharpFar.Ui.TextField! field) -> CSharpFar.Ui.TextInputRow!
-static CSharpFar.Ui.FormControls.Text(string! label, CSharpFar.Ui.TextField! field, System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.DialogButton!>! buttons) -> CSharpFar.Ui.TextInputWithButtonsRow!
 static CSharpFar.Ui.FormControls.Text(string! label, CSharpFar.Ui.TextField! field) -> CSharpFar.Ui.LabeledTextInputRow!
+static CSharpFar.Ui.FormControls.Text(string! label, CSharpFar.Ui.TextField! field, System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.DialogButton!>! buttons) -> CSharpFar.Ui.TextInputWithButtonsRow!
 static CSharpFar.Ui.FormControls.TriStateCheckBox(string! id, string! label, CSharpFar.Ui.CheckState value = CSharpFar.Ui.CheckState.Unchecked, bool enabled = true, string? disabledReason = null) -> CSharpFar.Ui.TriStateCheckBoxRow!
 static CSharpFar.Ui.FormControls.TriStateCheckBox(string! label, CSharpFar.Ui.CheckState value = CSharpFar.Ui.CheckState.Unchecked, bool enabled = true, string? disabledReason = null) -> CSharpFar.Ui.TriStateCheckBoxRow!
 static CSharpFar.Ui.FormControls.TriStateMatrix(string! id, System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.TriStateMatrixColumn!>! columns, System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.TriStateMatrixRow!>! rows) -> CSharpFar.Ui.TriStateMatrixFormRow!
@@ -2522,8 +2418,8 @@ static CSharpFar.Ui.ModalDialogLoopResult<TResult>.ContinueWithFocus(CSharpFar.U
 static CSharpFar.Ui.ModalDialogRenderer.Layout.operator !=(CSharpFar.Ui.ModalDialogRenderer.Layout left, CSharpFar.Ui.ModalDialogRenderer.Layout right) -> bool
 static CSharpFar.Ui.ModalDialogRenderer.Layout.operator ==(CSharpFar.Ui.ModalDialogRenderer.Layout left, CSharpFar.Ui.ModalDialogRenderer.Layout right) -> bool
 static CSharpFar.Ui.ModalDialogWakeResult<TResult>.Changed.get -> CSharpFar.Ui.ModalDialogWakeResult<TResult>
-static CSharpFar.Ui.ModalDialogWakeResult<TResult>.Complete(TResult result, bool invalidate) -> CSharpFar.Ui.ModalDialogWakeResult<TResult>
 static CSharpFar.Ui.ModalDialogWakeResult<TResult>.Complete(TResult result) -> CSharpFar.Ui.ModalDialogWakeResult<TResult>
+static CSharpFar.Ui.ModalDialogWakeResult<TResult>.Complete(TResult result, bool invalidate) -> CSharpFar.Ui.ModalDialogWakeResult<TResult>
 static CSharpFar.Ui.ModalDialogWakeResult<TResult>.NoChange.get -> CSharpFar.Ui.ModalDialogWakeResult<TResult>
 static CSharpFar.Ui.ModalFormLayout.BodyOnly(CSharpFar.Console.Models.Rect contentBounds) -> CSharpFar.Ui.ModalFormLayout
 static CSharpFar.Ui.ModalFormLayout.operator !=(CSharpFar.Ui.ModalFormLayout left, CSharpFar.Ui.ModalFormLayout right) -> bool
@@ -2635,7 +2531,6 @@ static CSharpFar.Ui.TableListColumnFrame.operator !=(CSharpFar.Ui.TableListColum
 static CSharpFar.Ui.TableListColumnFrame.operator ==(CSharpFar.Ui.TableListColumnFrame? left, CSharpFar.Ui.TableListColumnFrame? right) -> bool
 static CSharpFar.Ui.TableWidth.Fixed(int width) -> CSharpFar.Ui.TableWidth!
 static CSharpFar.Ui.TableWidth.Flexible(int preferred, int minimum) -> CSharpFar.Ui.TableWidth!
-static CSharpFar.Ui.TableWidth.Grow(int preferred, int minimum) -> CSharpFar.Ui.TableWidth!
 static CSharpFar.Ui.TableWidth.operator !=(CSharpFar.Ui.TableWidth? left, CSharpFar.Ui.TableWidth? right) -> bool
 static CSharpFar.Ui.TableWidth.operator ==(CSharpFar.Ui.TableWidth? left, CSharpFar.Ui.TableWidth? right) -> bool
 static CSharpFar.Ui.TableWidth.Optional(int preferred, int minimum = 0, int priority = 0) -> CSharpFar.Ui.TableWidth!
@@ -2724,3 +2619,108 @@ virtual CSharpFar.Ui.InteractiveSurfaceLayer<TFrame, TSemantic>.RenderFrameCore(
 virtual CSharpFar.Ui.InteractiveSurfaceLayer<TFrame, TSemantic>.RouteSemanticInput(CSharpFar.Console.Input.ConsoleInputEvent! input, TFrame frame, CSharpFar.Ui.UiInputRouteContext! context) -> CSharpFar.Ui.InteractiveSurfaceRouteResult<TSemantic>
 virtual CSharpFar.Ui.UiLayer<TFrame>.BuildInteractionFrame(TFrame frame) -> CSharpFar.Ui.UiInteractionFrame!
 virtual CSharpFar.Ui.UiLayer<TFrame>.OnFrameCommitted(TFrame frame) -> void
+~override CSharpFar.Ui.ChoiceDialogResult.Equals(object obj) -> bool
+~override CSharpFar.Ui.ChoiceDialogResult.ToString() -> string
+~override CSharpFar.Ui.CompositeDialogContentInputResult.Equals(object obj) -> bool
+~override CSharpFar.Ui.CompositeDialogContentInputResult.ToString() -> string
+~override CSharpFar.Ui.CompositeDialogEvent.Equals(object obj) -> bool
+~override CSharpFar.Ui.CompositeDialogEvent.ToString() -> string
+~override CSharpFar.Ui.CompositeDialogOutcome<TResult>.Equals(object obj) -> bool
+~override CSharpFar.Ui.CompositeDialogOutcome<TResult>.ToString() -> string
+~override CSharpFar.Ui.ConsoleTextViewport.Equals(object obj) -> bool
+~override CSharpFar.Ui.ConsoleTextViewport.ToString() -> string
+~override CSharpFar.Ui.FormDialogEvent.Equals(object obj) -> bool
+~override CSharpFar.Ui.FormDialogEvent.ToString() -> string
+~override CSharpFar.Ui.FormInputResult.Equals(object obj) -> bool
+~override CSharpFar.Ui.FormInputResult.ToString() -> string
+~override CSharpFar.Ui.FormRouteResult.Equals(object obj) -> bool
+~override CSharpFar.Ui.FormRouteResult.ToString() -> string
+~override CSharpFar.Ui.FormRowLayout.Equals(object obj) -> bool
+~override CSharpFar.Ui.FormRowLayout.ToString() -> string
+~override CSharpFar.Ui.FunctionKeyBarAction<TAction>.Equals(object obj) -> bool
+~override CSharpFar.Ui.FunctionKeyBarAction<TAction>.ToString() -> string
+~override CSharpFar.Ui.FunctionKeyBarActionHit<TAction>.Equals(object obj) -> bool
+~override CSharpFar.Ui.FunctionKeyBarActionHit<TAction>.ToString() -> string
+~override CSharpFar.Ui.FunctionKeyBarItem.Equals(object obj) -> bool
+~override CSharpFar.Ui.FunctionKeyBarItem.ToString() -> string
+~override CSharpFar.Ui.FunctionKeyBarMouseHit.Equals(object obj) -> bool
+~override CSharpFar.Ui.FunctionKeyBarMouseHit.ToString() -> string
+~override CSharpFar.Ui.FunctionKeyBarSlot.Equals(object obj) -> bool
+~override CSharpFar.Ui.FunctionKeyBarSlot.ToString() -> string
+~override CSharpFar.Ui.InteractiveSurfaceRouteResult<TSemantic>.Equals(object obj) -> bool
+~override CSharpFar.Ui.InteractiveSurfaceRouteResult<TSemantic>.ToString() -> string
+~override CSharpFar.Ui.InteractiveSurfaceWakeResult.Equals(object obj) -> bool
+~override CSharpFar.Ui.InteractiveSurfaceWakeResult.ToString() -> string
+~override CSharpFar.Ui.InteractiveSurfaceWakeResult<TResult>.Equals(object obj) -> bool
+~override CSharpFar.Ui.InteractiveSurfaceWakeResult<TResult>.ToString() -> string
+~override CSharpFar.Ui.ListAppearanceStyles.Equals(object obj) -> bool
+~override CSharpFar.Ui.ListAppearanceStyles.ToString() -> string
+~override CSharpFar.Ui.ModalDialogRenderer.Layout.Equals(object obj) -> bool
+~override CSharpFar.Ui.ModalDialogRenderer.Layout.ToString() -> string
+~override CSharpFar.Ui.ModalFormLayout.Equals(object obj) -> bool
+~override CSharpFar.Ui.ModalFormLayout.ToString() -> string
+~override CSharpFar.Ui.OperationDialogOutcome<TResult>.Equals(object obj) -> bool
+~override CSharpFar.Ui.OperationDialogOutcome<TResult>.ToString() -> string
+~override CSharpFar.Ui.RoutedPointerAction<TItem>.Equals(object obj) -> bool
+~override CSharpFar.Ui.RoutedPointerAction<TItem>.ToString() -> string
+~override CSharpFar.Ui.RoutedPointerInput<TItem>.Equals(object obj) -> bool
+~override CSharpFar.Ui.RoutedPointerInput<TItem>.ToString() -> string
+~override CSharpFar.Ui.RoutedPointerItem<TItem>.Equals(object obj) -> bool
+~override CSharpFar.Ui.RoutedPointerItem<TItem>.ToString() -> string
+~override CSharpFar.Ui.RoutedPointerSelectionAction<TPosition>.Equals(object obj) -> bool
+~override CSharpFar.Ui.RoutedPointerSelectionAction<TPosition>.ToString() -> string
+~override CSharpFar.Ui.RoutedPointerSelectionInput<TPosition>.Equals(object obj) -> bool
+~override CSharpFar.Ui.RoutedPointerSelectionInput<TPosition>.ToString() -> string
+~override CSharpFar.Ui.RoutedScrollableListInputResult.Equals(object obj) -> bool
+~override CSharpFar.Ui.RoutedScrollableListInputResult.ToString() -> string
+~override CSharpFar.Ui.RoutedScrollableViewportInputResult.Equals(object obj) -> bool
+~override CSharpFar.Ui.RoutedScrollableViewportInputResult.ToString() -> string
+~override CSharpFar.Ui.RoutedScrollbarSurfaceInput.Equals(object obj) -> bool
+~override CSharpFar.Ui.RoutedScrollbarSurfaceInput.ToString() -> string
+~override CSharpFar.Ui.ScrollableListInputResult.Equals(object obj) -> bool
+~override CSharpFar.Ui.ScrollableListInputResult.ToString() -> string
+~override CSharpFar.Ui.ScrollableListRenderOptions<T>.Equals(object obj) -> bool
+~override CSharpFar.Ui.ScrollableListRenderOptions<T>.ToString() -> string
+~override CSharpFar.Ui.ScrollableViewportFrameState.Equals(object obj) -> bool
+~override CSharpFar.Ui.ScrollableViewportFrameState.ToString() -> string
+~override CSharpFar.Ui.ScrollableViewportInputResult.Equals(object obj) -> bool
+~override CSharpFar.Ui.ScrollableViewportInputResult.ToString() -> string
+~override CSharpFar.Ui.ScrollBarDragState.Equals(object obj) -> bool
+~override CSharpFar.Ui.ScrollBarDragState.ToString() -> string
+~override CSharpFar.Ui.ScrollBarHitTestResult.Equals(object obj) -> bool
+~override CSharpFar.Ui.ScrollBarHitTestResult.ToString() -> string
+~override CSharpFar.Ui.ScrollBarThumb.Equals(object obj) -> bool
+~override CSharpFar.Ui.ScrollBarThumb.ToString() -> string
+~override CSharpFar.Ui.TextHistoryId.Equals(object obj) -> bool
+~override CSharpFar.Ui.UiCursorPlacement.Equals(object obj) -> bool
+~override CSharpFar.Ui.UiCursorPlacement.ToString() -> string
+~override CSharpFar.Ui.UiFocusRequest.Equals(object obj) -> bool
+~override CSharpFar.Ui.UiFocusRequest.ToString() -> string
+~override CSharpFar.Ui.UiFrameCompletion.Equals(object obj) -> bool
+~override CSharpFar.Ui.UiFrameCompletion.ToString() -> string
+~override CSharpFar.Ui.UiInputResult.Equals(object obj) -> bool
+~override CSharpFar.Ui.UiInputResult.ToString() -> string
+~override CSharpFar.Ui.UiMouseCaptureRequest.Equals(object obj) -> bool
+~override CSharpFar.Ui.UiMouseCaptureRequest.ToString() -> string
+~override CSharpFar.Ui.UiRenderRequest.Equals(object obj) -> bool
+~override CSharpFar.Ui.UiRenderRequest.ToString() -> string
+~override CSharpFar.Ui.VerticalLayoutSplit.Equals(object obj) -> bool
+~override CSharpFar.Ui.VerticalLayoutSplit.ToString() -> string
+~override CSharpFar.Ui.VerticalScrollbarFrame.Equals(object obj) -> bool
+~override CSharpFar.Ui.VerticalScrollbarFrame.ToString() -> string
+~override CSharpFar.Ui.VerticalScrollbarInputResult.Equals(object obj) -> bool
+~override CSharpFar.Ui.VerticalScrollbarInputResult.ToString() -> string
+CSharpFar.Ui.CompositeDialogOptions.PreferredWidthProvider.get -> System.Func<int>?
+CSharpFar.Ui.CompositeDialogOptions.PreferredWidthProvider.init -> void
+CSharpFar.Ui.CompositeDialogOptions.PreserveStatusEnd.get -> bool
+CSharpFar.Ui.CompositeDialogOptions.PreserveStatusEnd.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.ItemIdentity.get -> System.Func<T, object!>?
+CSharpFar.Ui.TableDialogOptions<T, TResult>.ItemIdentity.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.PreferredWidthProvider.get -> System.Func<int>?
+CSharpFar.Ui.TableDialogOptions<T, TResult>.PreferredWidthProvider.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.PreserveStatusEnd.get -> bool
+CSharpFar.Ui.TableDialogOptions<T, TResult>.PreserveStatusEnd.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.StatusText.get -> System.Func<T?, string?>?
+CSharpFar.Ui.TableDialogOptions<T, TResult>.StatusText.init -> void
+CSharpFar.Ui.TableWidth.IsGrow.get -> bool
+static CSharpFar.Ui.TableWidth.Grow(int preferred, int minimum) -> CSharpFar.Ui.TableWidth!
