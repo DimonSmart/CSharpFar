@@ -52,7 +52,8 @@ public sealed class PanelController
     public bool TryLoadLocation(
         FilePanelState state,
         PanelLocation location,
-        AppSettings.PanelOptionsSettings? options = null)
+        AppSettings.PanelOptionsSettings? options = null,
+        bool preserveOnError = false)
     {
         if (!TryNormalizeLocation(location, out var normalizedLocation))
             return false;
@@ -72,7 +73,7 @@ public sealed class PanelController
         }
         catch (Exception ex) when (IsPanelLoadException(ex))
         {
-            ApplyLoadError(state, location, ex);
+            if (!preserveOnError) ApplyLoadError(state, location, ex);
             return false;
         }
     }
