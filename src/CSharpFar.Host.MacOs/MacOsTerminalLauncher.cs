@@ -29,7 +29,7 @@ internal sealed class MacOsTerminalLauncher
         _bundleIdentifier = bundleIdentifier ?? ReadBundleIdentifier;
         _start = start ?? Start;
         _homeDirectory = homeDirectory ?? GetHomeDirectory;
-        _error = error ?? Console.Error.WriteLine;
+        _error = error ?? System.Console.Error.WriteLine;
     }
 
     internal static bool TryGetBundlePaths(

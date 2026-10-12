@@ -128,8 +128,10 @@ public sealed class JsonSettingsStore
         try
         {
             string json = File.ReadAllText(_filePath);
-            return JsonSerializer.Deserialize<AppSettings>(json, JsonOptions)
+            AppSettings settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions)
                 ?? throw new InvalidDataException("Settings file does not contain a JSON object: " + _filePath);
+            settings.Application ??= new AppSettings.ApplicationSettings();
+            return settings;
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException)
         {
