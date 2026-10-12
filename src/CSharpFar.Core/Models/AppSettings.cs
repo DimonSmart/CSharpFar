@@ -18,6 +18,15 @@ public sealed class AppSettings
     public sealed class ApplicationSettings
     {
         public bool ConfirmExit { get; set; } = true;
+
+        private string _preferredMacOsTerminal = MacOsTerminalPreference.Auto;
+
+        [System.Text.Json.Serialization.JsonConverter(typeof(MacOsTerminalPreferenceConverter))]
+        public string PreferredMacOsTerminal
+        {
+            get => _preferredMacOsTerminal;
+            set => _preferredMacOsTerminal = MacOsTerminalPreference.Normalize(value);
+        }
     }
 
     public sealed class UiSettings

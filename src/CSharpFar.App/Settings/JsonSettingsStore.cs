@@ -58,6 +58,52 @@ public sealed class JsonSettingsStore
             "CSharpFar");
     }
 
+    /// <summary>
+    /// Reads only the Finder-launch preference from the existing settings.json.
+    /// Does not create files or deserialize unrelated settings sections.
+    /// </summary>
+    public static string ReadMacOsTerminalPreference(string executableDirectory, Action<string>? reportError = null) =>
+        ReadMacOsTerminalPreference(executableDirectory, File.ReadAllText, reportError);
+
+    internal static string ReadMacOsTerminalPreference(
+        string executableDirectory,
+        Func<string, string> readFile,
+        Action<string>? reportError = null)
+    {
+        try
+        {
+            string configDirectory = ResolveConfigDirectory(executableDirectory);
+            string json = readFile(Path.Combine(configDirectory, "settings.json"));
+            using JsonDocument document = JsonDocument.Parse(json);
+            JsonElement root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+                throw new JsonException("Settings root must be an object.");
+
+            if (!root.TryGetProperty("application", out JsonElement application) ||
+                application.ValueKind != JsonValueKind.Object ||
+                !application.TryGetProperty("preferredMacOsTerminal", out JsonElement preference))
+                return MacOsTerminalPreference.Auto;
+
+            return MacOsTerminalPreference.Normalize(
+                preference.ValueKind == JsonValueKind.String ? preference.GetString() : null);
+        }
+        catch (FileNotFoundException)
+        {
+            return MacOsTerminalPreference.Auto;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return MacOsTerminalPreference.Auto;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                                   System.Security.SecurityException or ArgumentException or
+                                   NotSupportedException or JsonException)
+        {
+            reportError?.Invoke($"Cannot read launcher preference ({ex.GetType().Name}); using Terminal.app.");
+            return MacOsTerminalPreference.Terminal;
+        }
+    }
+
     public void Save()
     {
         try

@@ -24,7 +24,8 @@ internal sealed record CSharpFarSettingsDialogResult(
     CSharpFarPanelSettings Panels,
     string PaletteName,
     bool EditorSyntaxHighlightingEnabled,
-    string EditorSyntaxTheme);
+    string EditorSyntaxTheme,
+    string PreferredMacOsTerminal);
 
 internal sealed class CSharpFarSettingsDialog
 {
@@ -42,7 +43,9 @@ internal sealed class CSharpFarSettingsDialog
         string paletteName,
         bool editorSyntaxHighlightingEnabled,
         string editorSyntaxTheme,
-        IEditorSyntaxCatalog syntaxCatalog)
+        IEditorSyntaxCatalog syntaxCatalog,
+        string preferredMacOsTerminal = MacOsTerminalPreference.Auto,
+        bool? isMacOs = null)
     {
         ArgumentNullException.ThrowIfNull(panels);
         ArgumentNullException.ThrowIfNull(syntaxCatalog);
@@ -63,6 +66,12 @@ internal sealed class CSharpFarSettingsDialog
             "application.confirm-exit",
             "Confirm before exit",
             applicationConfirmExit);
+        var preferredTerminal = FormControls.CompactChoice(
+            "application.preferred-terminal",
+            "Preferred terminal",
+            MacOsTerminalPreference.Values,
+            MacOsTerminalPreference.Label,
+            MacOsTerminalPreference.Normalize(preferredMacOsTerminal));
         var leftViewMode = FormControls.CompactChoice(
             "panels.left-view-mode",
             "Left panel view",
@@ -142,7 +151,11 @@ internal sealed class CSharpFarSettingsDialog
             new SettingsPage(
                 "application",
                 "Application",
-                [confirmExit]),
+                (isMacOs ?? OperatingSystem.IsMacOS())
+                    ? [confirmExit, preferredTerminal,
+                       FormControls.Label("Applies on the next app launch without a terminal."),
+                       FormControls.Label("If Kitty is unavailable, Terminal.app is used.")]
+                    : [confirmExit]),
             new SettingsPage(
                 "panels",
                 "Panels",
@@ -204,7 +217,8 @@ internal sealed class CSharpFarSettingsDialog
                 showParentDirectoryInRootFolders.Value),
             palette.Value,
             syntaxHighlighting.Value,
-            syntaxTheme.Value.Name);
+            syntaxTheme.Value.Name,
+            preferredTerminal.Value);
     }
 
     private static string ViewModeLabel(PanelViewMode mode) =>

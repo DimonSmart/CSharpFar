@@ -37,12 +37,14 @@ internal sealed class OpenSettingsCommand : IApplicationCommand
             context.Settings.Ui.Palette,
             context.Settings.Editor.SyntaxHighlightingEnabled,
             context.Settings.Editor.SyntaxTheme,
-            syntaxCatalog);
+            syntaxCatalog,
+            preferredMacOsTerminal: context.Settings.Application.PreferredMacOsTerminal);
 
         if (result is null)
             return ApplicationCommandResult.Rendered();
 
         context.Settings.Application.ConfirmExit = result.ApplicationConfirmExit;
+        context.Settings.Application.PreferredMacOsTerminal = result.PreferredMacOsTerminal;
 
         CSharpFarPanelSettings panels = result.Panels;
         context.LeftViewMode = panels.LeftViewMode;
