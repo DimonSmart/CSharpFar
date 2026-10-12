@@ -105,6 +105,27 @@ public sealed class AnsiInputParserTests
         Assert.Equal(expectedModifiers, keyEvent.Key.Modifiers);
     }
 
+    [Theory]
+    [InlineData("\\u007f", ConsoleModifiers.None)]
+    [InlineData("\\x1b[127u", ConsoleModifiers.None)]
+    [InlineData("\\x1b[127;1:2u", ConsoleModifiers.None)]
+    [InlineData("\\x1b[127;5u", ConsoleModifiers.Control)]
+    public void ProductionParser_NormalizesBackspaceWithoutInsertingDeleteCharacter(
+        string sequence,
+        ConsoleModifiers expectedModifiers)
+    {
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes(sequence));
+        var parser = new AnsiConsoleInputParser();
+
+        Assert.True(parser.TryRead(new StreamAnsiInputByteReader(input, null), out var inputEvent));
+
+        var keyEvent = Assert.IsType<KeyConsoleInputEvent>(inputEvent);
+        Assert.Equal(ConsoleKey.Backspace, keyEvent.Key.Key);
+        Assert.Equal('\\b', keyEvent.Key.KeyChar);
+        Assert.Equal(expectedModifiers, keyEvent.Key.Modifiers);
+        Assert.Null(keyEvent.Text);
+    }
+
     [Fact]
     public void ProductionParser_MapsAltUtf8Character()
     {
