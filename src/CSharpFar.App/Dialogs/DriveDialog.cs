@@ -33,7 +33,8 @@ internal sealed class DriveDialog
 
         int initial = Array.FindIndex(rows, row => ReferenceEquals(row.Item, initialItem));
         if (initial < 0) initial = 0;
-        int presentationRows = items.Count + 4;
+        int presentationRows = rows.Length + Enumerable.Range(1, rows.Length - 1)
+            .Count(index => rows[index - 1].Group != rows[index].Group);
 
         // Register the union of shortcuts, but resolve the command only against current visible rows.
         // A hidden system volume cannot be activated by an old shortcut.
@@ -68,7 +69,7 @@ internal sealed class DriveDialog
             InitialSelectedIndex = initial,
             PreferredWidth = mac ? PreferredWidth() : DialogWidth,
             PreferredWidthProvider = mac ? PreferredWidth : null,
-            PreferredHeight = Math.Min(presentationRows + 6, 24),
+            PreferredHeight = Math.Min(presentationRows + (mac ? 8 : 6), 24),
             MinWidth = 20,
             MinHeight = 6,
             Appearance = DialogAppearance.Popup,
