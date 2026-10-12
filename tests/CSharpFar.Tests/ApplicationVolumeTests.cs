@@ -814,10 +814,25 @@ public sealed class ApplicationVolumeTests : IDisposable
 
         Assert.Same(volumes[0], result);
         string rendered = string.Join("\n", driver.WriteRecords.Select(x => x.Text));
-        Assert.True(rendered.Contains("System volumes: shown", StringComparison.Ordinal),
-            "Drive dialog writes: " + string.Join(" | ", driver.WriteRecords.Select(x => x.Text.Trim()).Where(x => x.Length > 0).TakeLast(60)));
+        // The frame renderer emits changed cells only, so a toggle may write just "shown".
         Assert.Contains("System volumes: hidden", rendered);
-        Assert.Contains("Preboot", rendered);
+        Assert.Contains(driver.WriteRecords, record => record.Text.Contains("shown", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void MacDriveDialog_F9MakesTechnicalVolumeSelectable()
+    {
+        VolumeSelectionItem[] volumes =
+        [
+            MacVolume("/", VolumeVisibility.User),
+            MacVolume("/Volumes/External SSD", VolumeVisibility.User),
+            MacVolume("/System/Volumes/Preboot", VolumeVisibility.System),
+        ];
+        var driver = DialogDriver(KeyInput(ConsoleKey.F9), KeyInput(ConsoleKey.DownArrow),
+            KeyInput(ConsoleKey.DownArrow), KeyInput(ConsoleKey.Enter));
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(volumes, macVolumes: true);
+
+        Assert.Same(volumes[2], result);
     }
 
     [Fact]
