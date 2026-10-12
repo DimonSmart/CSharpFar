@@ -18,6 +18,10 @@ public sealed record CompositeDialogOptions(
     public int HorizontalMargin { get; init; } = 2;
 
     public int VerticalMargin { get; init; } = 1;
+
+    public Func<int>? PreferredWidthProvider { get; init; }
+
+    public bool PreserveStatusEnd { get; init; }
 }
 
 public enum CompositeDialogEventKind
@@ -159,7 +163,9 @@ public sealed class CompositeDialogHost
                 formFrame = form.Render(new FormRenderContext(context, header, DialogStyles.Border, footer), focus);
                 content.Render(context.Canvas, contentFrame);
                 if (statusBounds.Height > 0)
-                    context.Canvas.Write(statusBounds.X, statusBounds.Y, ConsoleTextMetrics.FitToCells(status?.Invoke() ?? string.Empty, statusBounds.Width), DialogStyles.Fill);
+                    context.Canvas.Write(statusBounds.X, statusBounds.Y, ConsoleTextMetrics.FitToCells(options.PreserveStatusEnd
+                        ? ConsoleTextMetrics.TruncateEndToCells(status?.Invoke() ?? string.Empty, statusBounds.Width)
+                        : status?.Invoke() ?? string.Empty, statusBounds.Width), DialogStyles.Fill);
             });
         return new(modal, formFrame, contentFrame);
     }
