@@ -814,7 +814,8 @@ public sealed class ApplicationVolumeTests : IDisposable
 
         Assert.Same(volumes[0], result);
         string rendered = string.Join("\n", driver.WriteRecords.Select(x => x.Text));
-        Assert.Contains("System volumes: shown", rendered);
+        Assert.True(rendered.Contains("System volumes: shown", StringComparison.Ordinal),
+            "Drive dialog writes: " + string.Join(" | ", driver.WriteRecords.Select(x => x.Text.Trim()).Where(x => x.Length > 0).TakeLast(60)));
         Assert.Contains("System volumes: hidden", rendered);
         Assert.Contains("Preboot", rendered);
     }
