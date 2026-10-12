@@ -43,7 +43,7 @@ Homebrew selects the matching self-contained application archive automatically:
 - Apple Silicon (`arm64`) uses `CSharpFar-v<version>-osx-arm64-app.zip`;
 - Intel (`x86_64`) uses `CSharpFar-v<version>-osx-x64-app.zip`.
 
-The Cask installs `CSharpFar.app` into Applications. Opening the app launches CSharpFar in Terminal because the application itself is a terminal UI.
+The Cask installs `CSharpFar.app` into Applications. Opening the app starts CSharpFar in the terminal selected under **Options → Settings → Application → Preferred terminal**. The default is Automatic (Kitty if installed, otherwise Terminal.app).
 
 A direct manual Cask installation does not automatically clear quarantine. Because the application is currently unsigned and not notarized, recent macOS versions may require the standard Gatekeeper workflow:
 
@@ -130,6 +130,35 @@ Both Homebrew packages are generated from SHA-256 checksums of the matching GitH
 
 Because the repository name does not use Homebrew's `homebrew-<tap>` naming convention, the first manual `brew tap` command includes the explicit Git URL.
 
+### Choose the preferred macOS terminal
+
+In CSharpFar, open **Options → Settings → Application → Preferred terminal**.
+Choose one of:
+
+- **Automatic (recommended):** opens Kitty when a valid Kitty app is installed;
+  otherwise opens Terminal.app.
+- **Kitty:** prefers Kitty; if it is unavailable, falls back to Terminal.app
+  without changing the saved preference.
+- **Terminal.app:** always opens Apple's built-in Terminal.
+
+Install Kitty separately from [the official Kitty site](https://sw.kovidgoyal.net/kitty/)
+or with `brew install --cask kitty`. The launcher searches only
+`/Applications/kitty.app` and `~/Applications/kitty.app`; it validates the
+bundle identity and executable permissions. Kitty installed in a custom
+location is not currently discovered.
+
+Save and close CSharpFar, then open `CSharpFar.app` from Finder, Dock or
+Spotlight. The preference is read from the existing `settings.json` on the
+next bundle launch. Saving does **not** move a running session between
+terminals. A malformed or unreadable settings file makes the launcher
+conservatively use Terminal.app, without rewriting the file. Normal UI startup
+may still reject other malformed settings.
+
+A direct `csharpfar` command inside Kitty, Terminal.app, SSH, an IDE terminal,
+or another interactive PTY remains in that terminal. Only opening the app
+bundle **without** a TTY or command-line arguments invokes provider selection.
+The command-line Formula and portable archives are unaffected.
+
 ### Terminal diagnostics for the macOS app
 
 The executable inside `CSharpFar.app` can be launched directly from a real
@@ -154,9 +183,9 @@ Ctrl+Shift+Enter observations.
 
 ### Kitty terminal keyboard support on macOS
 
-To get reliable standalone Shift/Control/Alt press and release events, run the
-CLI executable from a Kitty terminal, rather than launching the app bundle
-through Finder into the default Terminal app. For a Homebrew CLI installation:
+To get reliable standalone Shift/Control/Alt press and release events, select
+Kitty in the app's **Preferred terminal** setting and start it from Finder,
+or run the CLI executable from a Kitty terminal. For a Homebrew CLI installation:
 
 ```bash
 kitty -- csharpfar
@@ -204,7 +233,7 @@ Published releases provide:
 - an unsigned `CSharpFar.app` ZIP archive for Intel Macs;
 - a Debian package for Linux.
 
-The macOS app bundles contain the same self-contained `csharpfar` executable as the CLI release plus macOS bundle metadata, application icon, and a launcher that opens the terminal UI in Terminal when started from Finder.
+The macOS app bundles contain the same self-contained `csharpfar` executable as the CLI release plus macOS bundle metadata, application icon, and a launcher that opens the terminal UI in Kitty (when available and preferred) or Terminal.app from Finder.
 
 See the [GitHub Releases](https://github.com/DimonSmart/CSharpFar/releases) page for available versions and checksums.
 
