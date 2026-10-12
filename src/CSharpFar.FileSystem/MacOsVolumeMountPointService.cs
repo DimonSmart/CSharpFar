@@ -7,7 +7,7 @@ public sealed class MacOsVolumeMountPointService : IVolumeMountPointService
 {
     private readonly IVolumeService _volumeService;
     public MacOsVolumeMountPointService() : this(new MacOsVolumeService()) { }
-    internal MacOsVolumeMountPointService(IVolumeService volumeService) => _volumeService = volumeService;
+    public MacOsVolumeMountPointService(IVolumeService volumeService) => _volumeService = volumeService ?? throw new ArgumentNullException(nameof(volumeService));
 
     public VolumeMountPointInfo GetMountPointInfo(string directoryPath)
     {
