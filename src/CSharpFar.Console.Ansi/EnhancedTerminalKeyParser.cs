@@ -315,6 +315,9 @@ internal static class EnhancedTerminalKeyParser
 
     private static char GetKeyChar(int keyCode, ConsoleKey key, string? associatedText)
     {
+        if (key == ConsoleKey.Backspace)
+            return '\b';
+
         if (associatedText is { Length: 1 } && !char.IsSurrogate(associatedText[0]))
             return associatedText[0];
 
@@ -336,7 +339,6 @@ internal static class EnhancedTerminalKeyParser
         {
             ConsoleKey.Enter => '\r',
             ConsoleKey.Tab => '\t',
-            ConsoleKey.Backspace => '\b',
             ConsoleKey.Escape => '\x1b',
             _ => '\0',
         };
