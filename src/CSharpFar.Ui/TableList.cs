@@ -8,19 +8,25 @@ public enum TableColumnAlignment { Left, Right }
 
 public sealed record TableWidth
 {
-    private TableWidth(int preferred, int minimum, bool optional, int priority) { Preferred = preferred; Minimum = minimum; IsOptional = optional; Priority = priority; }
+    private TableWidth(int preferred, int minimum, bool optional, int priority, bool grow = false) { Preferred = preferred; Minimum = minimum; IsOptional = optional; Priority = priority; IsGrow = grow; }
     public int Preferred { get; }
     public int Minimum { get; }
     public bool IsOptional { get; }
+    public bool IsGrow { get; }
     public int Priority { get; }
+    public static TableWidth Grow(int preferred, int minimum) { Validate(preferred, minimum); return new(preferred, minimum, false, 0, grow: true); }
     public static TableWidth Fixed(int width) => Create(width, width, false, 0);
     public static TableWidth Flexible(int preferred, int minimum) => Create(preferred, minimum, false, 0);
     public static TableWidth Optional(int preferred, int minimum = 0, int priority = 0) => Create(preferred, minimum, true, priority);
     private static TableWidth Create(int preferred, int minimum, bool optional, int priority)
     {
+        Validate(preferred, minimum);
+        return new(preferred, minimum, optional, priority);
+    }
+    private static void Validate(int preferred, int minimum)
+    {
         if (preferred < 0) throw new ArgumentOutOfRangeException(nameof(preferred));
         if (minimum < 0 || minimum > preferred) throw new ArgumentOutOfRangeException(nameof(minimum));
-        return new(preferred, minimum, optional, priority);
     }
 }
 
@@ -246,6 +252,15 @@ public sealed class TableList<T> : ICompositeDialogContent
         { int excess = Math.Max(0, Footprint() - bounds.Width); state.Width -= Math.Min(excess, state.Width - state.Column.Width.Minimum); }
         foreach (ColumnState state in visible.Where(x => x.Column.Width.IsOptional).OrderBy(x => x.Column.Width.Priority).ThenByDescending(x => x.Index).ToArray())
         { if (Footprint() > bounds.Width) state.Visible = false; }
+        // Only explicitly growable columns consume surplus cells; existing modes retain their behavior.
+        ColumnState[] growers = visible.Where(x => x.Visible && x.Column.Width.IsGrow).ToArray();
+        int spare = Math.Max(0, bounds.Width - Footprint());
+        foreach (ColumnState grower in growers)
+        {
+            int portion = spare / growers.Length;
+            grower.Width += portion;
+            spare -= portion;
+        }
         int x = bounds.X; var result = new List<TableListColumnFrame>();
         foreach (ColumnState state in visible.Where(x => x.Visible)) { int width = Math.Min(state.Width, Math.Max(0, bounds.Right - x)); if (width <= 0) break; result.Add(new(state.Column.Header, x, width, state.Column.Alignment) { DefinitionIndex = state.Index }); x += width + SeparatorWidth; }
         return result;
