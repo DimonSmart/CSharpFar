@@ -39,6 +39,7 @@
     <ProjectReference Include="..\..\src\CSharpFar.App\CSharpFar.App.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Platform.Linux\CSharpFar.Platform.Linux.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Platform.MacOs\CSharpFar.Platform.MacOs.csproj" />
+    <ProjectReference Include="..\..\src\CSharpFar.Host.MacOs\CSharpFar.Host.MacOs.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Platform.Windows\CSharpFar.Platform.Windows.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Shell\CSharpFar.Shell.csproj" />
     <ProjectReference Include="..\..\samples\CSharpFar.Ui.Demo\CSharpFar.Ui.Demo.csproj" />
