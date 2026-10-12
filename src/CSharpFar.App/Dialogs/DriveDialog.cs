@@ -263,5 +263,5 @@ internal sealed class DriveDialog
         return $"{number.Replace('.', ',')} {unit}";
     }
 
-    private sealed record DriveDialogRow(VolumeSelectionItem Item, string? EffectiveShortcut, int Group, bool IsMac)
+    private sealed record DriveDialogRow(VolumeSelectionItem Item, string? EffectiveShortcut, int Group, bool IsMac);
 }
