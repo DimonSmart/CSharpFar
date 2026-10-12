@@ -115,7 +115,7 @@ if (( $# > 0 )) || [[ -t 0 && -t 1 ]]; then
     exec "$binary" "$@"
 fi
 
-exec /usr/bin/open -a Terminal "$resources_dir/launch.command"
+exec "$binary" --launch-from-finder
 '@
 
 $terminalLauncher = @'

@@ -7,6 +7,20 @@ using CSharpFar.Platform.MacOs;
 
 try
 {
+    if (args is ["--launch-from-finder"])
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            Console.Error.WriteLine("Finder launcher requires macOS.");
+            return 2;
+        }
+        if (!Console.IsInputRedirected && !Console.IsOutputRedirected)
+        {
+            Console.Error.WriteLine("--launch-from-finder cannot be used from an interactive terminal.");
+            return 2;
+        }
+        return new CSharpFar.Host.MacOs.MacOsTerminalLauncher().Launch(Environment.ProcessPath);
+    }
     if (args is ["--version"]) { PrintVersion(); return 0; }
     if (args is ["--self-test"]) { using var startup = ApplicationStartupContext.Create(ApplicationRunOptions.Normal, MacOsPlatformServices.CreateDefaultSettings, ValidateShellSettings); return RunSelfTest(startup.SettingsStore); }
     if (args is ["--check-terminal"]) return RunTerminalCheck();
