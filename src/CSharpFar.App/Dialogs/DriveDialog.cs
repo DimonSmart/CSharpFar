@@ -24,7 +24,8 @@ internal sealed class DriveDialog
         ArgumentNullException.ThrowIfNull(items);
         if (items.Count == 0) { _dialogs.Message("Change drive", "No volumes found."); return null; }
 
-        bool mac = macVolumes ?? OperatingSystem.IsMacOS();
+        bool mac = macVolumes ?? (OperatingSystem.IsMacOS() &&
+            items.Any(item => item.Volume?.RootPath.StartsWith('/') == true));
         VolumeSelectionItem initialItem = items[Math.Clamp(initialCursor, 0, items.Count - 1)];
         // The active panel's mount remains visible even when macOS classifies it as technical.
         VolumeSelectionItem? contextual = mac && initialItem.Volume?.Visibility == VolumeVisibility.System ? initialItem : null;
