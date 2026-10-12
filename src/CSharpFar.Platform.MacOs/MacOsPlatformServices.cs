@@ -57,16 +57,17 @@ public sealed class MacOsPlatformServices : IPlatformServices
     public static MacOsPlatformServices Create(string configDirectory, AppSettings.ShellSettings shellSettings)
     {
         var driver = AnsiTerminalConsoleDriver.CreateMacOs();
+        var volumes = new MacOsVolumeService(new MacOsNativeMountProvider());
         return new MacOsPlatformServices(
             driver,
             driver,
             new ShellService(new UnixShellCommandLineBuilder(shellSettings.Executable), ShellComposition.CreateRegistry()),
             new UnixShellFileLauncher(new UnixExecutableFileDetector(), new MacOsAssociationLauncher()),
             new FileCredentialStore(configDirectory),
-            new MacOsVolumeService(),
+            volumes,
             new VolumeInfoService(),
             new FileSystemLocationService(),
-            new MacOsVolumeMountPointService(),
+            new MacOsVolumeMountPointService(volumes),
             new MacOsFileSystemPlatformOperations());
     }
 

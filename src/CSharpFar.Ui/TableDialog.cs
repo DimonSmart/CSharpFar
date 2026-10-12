@@ -19,6 +19,10 @@ public sealed class TableDialogOptions<T, TResult>
     public int MinWidth { get; init; } = 20;
     public int MinHeight { get; init; } = 8;
     public string? FooterText { get; init; }
+    public Func<T?, string?>? StatusText { get; init; }
+    public Func<T, object>? ItemIdentity { get; init; }
+    public Func<int>? PreferredWidthProvider { get; init; }
+    public bool PreserveStatusEnd { get; init; }
     public DialogAppearance Appearance { get; init; } = DialogAppearance.Standard;
     public ListAppearance TableAppearance { get; init; } = ListAppearance.Dialog;
 }
@@ -54,10 +58,15 @@ internal sealed class TableDialog<T, TResult>
                 options.PreferredHeight,
                 options.MinWidth,
                 options.MinHeight,
-                Appearance: options.Appearance),
+                Appearance: options.Appearance)
+            {
+                PreferredWidthProvider = options.PreferredWidthProvider,
+                PreserveStatusEnd = options.PreserveStatusEnd,
+            },
             form,
             table,
-            options.FooterText is null ? null : () => options.FooterText,
+            options.StatusText is not null ? () => options.StatusText(table.SelectedItem) :
+                options.FooterText is null ? null : () => options.FooterText,
             BuildCommands(options),
             semantic => HandleEvent(semantic, table, options));
     }
@@ -106,7 +115,7 @@ internal sealed class TableDialog<T, TResult>
         {
             DialogOutcome<TResult>.Close close => CompositeDialogOutcome<TResult?>.Complete(close.Result),
             DialogOutcome<TResult>.Continue => CompositeDialogOutcome<TResult?>.ContinueNoChange,
-            DialogOutcome<TResult>.Refresh refresh => ApplyRefresh(refresh, table, options.Items),
+            DialogOutcome<TResult>.Refresh refresh => ApplyRefresh(refresh, table, options),
             _ => throw new InvalidOperationException("Unknown table-dialog outcome."),
         };
     }
@@ -114,10 +123,16 @@ internal sealed class TableDialog<T, TResult>
     private static CompositeDialogOutcome<TResult?> ApplyRefresh(
         DialogOutcome<TResult>.Refresh outcome,
         TableList<T> table,
-        Func<IReadOnlyList<T>> items)
+        TableDialogOptions<T, TResult> options)
     {
         if (outcome.ReloadItems)
-            table.ReplaceItems(GetItems(items));
+        {
+            IReadOnlyList<T> current = GetItems(options.Items);
+            if (options.ItemIdentity is { } key)
+                table.ReplaceItems(current, key);
+            else
+                table.ReplaceItems(current);
+        }
 
         if (outcome.SelectedIndex.HasValue)
             SetSelection(table, outcome.SelectedIndex.Value);

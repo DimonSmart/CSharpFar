@@ -6,6 +6,7 @@ public sealed class FileSystemVolume
     public required string DisplayName { get; init; }
     public required string RootPath { get; init; }
     public VolumeKind Kind { get; init; }
+    public VolumeVisibility Visibility { get; init; } = VolumeVisibility.Unknown;
     public VolumeStatus Status { get; init; }
     public long? TotalBytes { get; init; }
     public long? FreeBytes { get; init; }

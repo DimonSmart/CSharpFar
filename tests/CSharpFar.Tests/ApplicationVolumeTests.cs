@@ -800,6 +800,80 @@ public sealed class ApplicationVolumeTests : IDisposable
         Assert.Equal(expected, DriveDialog.FormatBytes(bytes));
     }
 
+    [Fact]
+    public void MacDriveDialog_F9ShowsAndHidesSystemVolumesWithoutClosing()
+    {
+        VolumeSelectionItem[] volumes =
+        [
+            MacVolume("/", VolumeVisibility.User),
+            MacVolume("/Volumes/External SSD", VolumeVisibility.User),
+            MacVolume("/System/Volumes/Preboot", VolumeVisibility.System),
+        ];
+        var driver = DialogDriver(KeyInput(ConsoleKey.F9), KeyInput(ConsoleKey.F9), KeyInput(ConsoleKey.Enter));
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(volumes, macVolumes: true);
+
+        Assert.Same(volumes[0], result);
+        string rendered = string.Join("\n", driver.WriteRecords.Select(x => x.Text));
+        // The frame renderer emits changed cells only, so a toggle may write just "shown".
+        Assert.Contains("System volumes: hidden", rendered);
+        Assert.Contains(driver.WriteRecords, record => record.Text.Contains("shown", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void MacDriveDialog_F9MakesTechnicalVolumeSelectable()
+    {
+        VolumeSelectionItem[] volumes =
+        [
+            MacVolume("/", VolumeVisibility.User),
+            MacVolume("/Volumes/External SSD", VolumeVisibility.User),
+            MacVolume("/System/Volumes/Preboot", VolumeVisibility.System),
+        ];
+        var driver = DialogDriver(KeyInput(ConsoleKey.F9), KeyInput(ConsoleKey.DownArrow),
+            KeyInput(ConsoleKey.DownArrow), KeyInput(ConsoleKey.Enter));
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(volumes, macVolumes: true);
+
+        Assert.Same(volumes[2], result);
+    }
+
+    [Fact]
+    public void MacDriveDialog_CurrentSystemMountIsVisibleAsContextualException()
+    {
+        VolumeSelectionItem[] volumes =
+        [
+            MacVolume("/", VolumeVisibility.User),
+            MacVolume("/System/Volumes/Preboot", VolumeVisibility.System),
+            MacVolume("/System/Volumes/VM", VolumeVisibility.System),
+        ];
+        var driver = DialogDriver(KeyInput(ConsoleKey.Enter));
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(volumes, initialCursor: 1, macVolumes: true);
+
+        Assert.Same(volumes[1], result);
+        string rendered = string.Join("\n", driver.WriteRecords.Select(x => x.Text));
+        Assert.DoesNotContain("/System/Volumes/VM", rendered);
+    }
+
+    [Fact]
+    public void MacDriveDialog_DetailsDisplaysFullPathWithoutNavigating()
+    {
+        const string mount = "/Volumes/My Very Long External Disk Archive";
+        var driver = DialogDriver(KeyInput(ConsoleKey.F3), KeyInput(ConsoleKey.Enter), KeyInput(ConsoleKey.Escape));
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show([MacVolume(mount, VolumeVisibility.Unknown)], macVolumes: true);
+
+        Assert.Null(result);
+        Assert.Contains(driver.WriteRecords, record => record.Text.Contains(mount, StringComparison.Ordinal));
+    }
+
+    private static VolumeSelectionItem MacVolume(string path, VolumeVisibility visibility) => new()
+    {
+        Label = path,
+        Action = VolumeSelectionAction.OpenVolume,
+        Volume = new FileSystemVolume
+        {
+            Id = path, RootPath = path, DisplayName = path == "/" ? "/" : Path.GetFileName(path),
+            Visibility = visibility, Status = VolumeStatus.Unchecked,
+        },
+    };
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private static FakeConsoleDriver DialogDriver(params ConsoleInputEvent[] inputs)
