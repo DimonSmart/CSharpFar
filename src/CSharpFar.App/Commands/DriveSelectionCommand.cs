@@ -62,8 +62,11 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
             otherState.SourceId, volumes);
 
         // Do not change the workspace, quick view, history or watcher before the load succeeds.
+        PanelLocation destination = targetState.SourceId == PanelSourceId.Demo
+            ? new PanelLocation(PanelSourceId.Demo, directoryPath)
+            : PanelLocation.Local(directoryPath);
         bool loaded = context.Controller.TryLoadLocation(targetState,
-            PanelLocation.Local(directoryPath), context.PanelOptions, preserveOnError: true);
+            destination, context.PanelOptions, preserveOnError: true);
         if (!loaded)
         {
             context.Dialogs.Message("Change drive", $"Unable to open volume: {volume.RootPath}");
@@ -72,7 +75,8 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
 
         context.QuickView = false;
         context.ActiveSide = PanelSide;
-        context.History.AddDirectory(new DirectoryHistoryItem { Path = directoryPath });
+        if (destination.SourceId == PanelSourceId.Local)
+            context.History.AddDirectory(new DirectoryHistoryItem { Path = directoryPath });
         context.StartWatching(targetState, PanelSide);
         return ApplicationCommandResult.Rendered();
     }
