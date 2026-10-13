@@ -131,6 +131,34 @@ jobs:
             throw "--self-test failed for $binaryPath"
           }
 
+      - name: Verify macOS native architecture and system Git launch
+        if: startsWith(matrix.runtime, 'osx-')
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ matrix.runtime }}" in
+            osx-arm64) expected_arch=arm64 ;;
+            osx-x64) expected_arch=x86_64 ;;
+            *) echo "::error::Unsupported macOS runtime"; exit 1 ;;
+          esac
+
+          runner_arch="$(uname -m)"
+          if [[ "$runner_arch" != "$expected_arch" ]]; then
+            echo "::error::Runner architecture $runner_arch does not match ${{ matrix.runtime }}"
+            exit 1
+          fi
+
+          binary="$PUBLISH_DIR/csharpfar"
+          /usr/bin/file "$binary"
+          binary_archs="$(/usr/bin/lipo -archs "$binary")"
+          if [[ "$binary_archs" != "$expected_arch" ]]; then
+            echo "::error::Published binary architectures '$binary_archs', expected '$expected_arch'"
+            exit 1
+          fi
+
+          /usr/bin/lipo -verify_arch "$expected_arch" "$binary"
+          "$binary" --check-system-git
+
       - name: macOS terminal smoke test
         if: startsWith(matrix.runtime, 'osx-')
         shell: pwsh
@@ -160,6 +188,30 @@ jobs:
           $appHash = (Get-FileHash -Path $appAssetPath -Algorithm SHA256).Hash.ToLowerInvariant()
           "$appHash  $appAssetName" | Set-Content -Path "$appAssetPath.sha256" -Encoding ascii
           "MACOS_APP_ASSET_PATH=$appAssetPath" >> $env:GITHUB_ENV
+
+      - name: Verify macOS app binary and system Git launch
+        if: startsWith(matrix.runtime, 'osx-')
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ matrix.runtime }}" in
+            osx-arm64) expected_arch=arm64 ;;
+            osx-x64) expected_arch=x86_64 ;;
+            *) echo "::error::Unsupported macOS runtime"; exit 1 ;;
+          esac
+
+          app="$RUNNER_TEMP/app-${{ matrix.runtime }}/CSharpFar.app"
+          bundled="$app/Contents/Resources/csharpfar"
+          published="$PUBLISH_DIR/csharpfar"
+          cmp "$published" "$bundled"
+          /usr/bin/file "$bundled"
+          bundled_archs="$(/usr/bin/lipo -archs "$bundled")"
+          if [[ "$bundled_archs" != "$expected_arch" ]]; then
+            echo "::error::App binary architectures '$bundled_archs', expected '$expected_arch'"
+            exit 1
+          fi
+
+          "$app/Contents/MacOS/CSharpFar" --check-system-git
 
       - name: Build Debian package
         if: matrix.runtime == 'linux-x64'

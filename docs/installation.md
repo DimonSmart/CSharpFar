@@ -223,6 +223,17 @@ the terminal supports the Kitty keyboard protocol, reports the requested and
 confirmed flags together with Enter, Shift+Enter, Ctrl+Enter, and
 Ctrl+Shift+Enter observations.
 
+To diagnose macOS Git / Command Line Tools architecture mismatches, run:
+
+```bash
+/Applications/CSharpFar.app/Contents/Resources/csharpfar --check-system-git
+```
+
+This prints the CSharpFar process architecture, then launches Apple's
+`/usr/bin/git --version` through the same Unix shell command builder used
+for typed CSharpFar commands. A nonzero exit status means the launch failed.
+This deliberately tests the macOS Git shim rather than any Homebrew Git.
+
 
 ### Kitty terminal keyboard support on macOS
 

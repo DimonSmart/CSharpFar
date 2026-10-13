@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using CSharpFar.Shell;
 using CSharpFar.App.Updates;
 using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Diagnostics;
@@ -23,6 +26,7 @@ try
     }
     if (args is ["--version"]) { PrintVersion(); return 0; }
     if (args is ["--self-test"]) { using var startup = ApplicationStartupContext.Create(ApplicationRunOptions.Normal, MacOsPlatformServices.CreateDefaultSettings, ValidateShellSettings); return RunSelfTest(startup.SettingsStore); }
+    if (args is ["--check-system-git"]) return RunSystemGitCheck();
     if (args is ["--check-terminal"]) return RunTerminalCheck();
     if (args.Length >= 2 && args[0] == "--check-terminal" && args[1] == "--input-lab")
         return TerminalInputLab.RunMacOs(args.Skip(2).ToArray());
@@ -40,6 +44,37 @@ static int RunSelfTest(JsonSettingsStore settings)
     Directory.CreateDirectory(settings.ConfigDirectory);
     if (!File.Exists(settings.Settings.Shell.Executable)) { Console.Error.WriteLine($"Shell executable is unavailable: {settings.Settings.Shell.Executable}"); return 1; }
     Console.WriteLine("CSharpFar self-test passed."); return 0;
+}
+static int RunSystemGitCheck()
+{
+    if (!OperatingSystem.IsMacOS()) { Console.Error.WriteLine("System Git check requires macOS."); return 2; }
+    Console.WriteLine($"CSharpFar process architecture: {RuntimeInformation.ProcessArchitecture}");
+    try
+    {
+        var builder = new UnixShellCommandLineBuilder("/bin/sh", "-c", new MacOsExecutablePathProvider().GetPath);
+        ProcessStartInfo startInfo = builder.CreateStartInfo("/usr/bin/git --version", Environment.CurrentDirectory);
+        using Process process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start the system Git process.");
+        if (!process.WaitForExit(20000))
+        {
+            process.Kill(entireProcessTree: true);
+            Console.Error.WriteLine("System Git launch timed out.");
+            return 1;
+        }
+        if (process.ExitCode != 0)
+        {
+            Console.Error.WriteLine($"System Git launch failed (exit code {process.ExitCode}).");
+            return 1;
+        }
+
+        Console.WriteLine("System Git launch passed.");
+        return 0;
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"System Git launch failed: {ex.Message}");
+        return 1;
+    }
 }
 static int RunTerminalCheck()
 {
