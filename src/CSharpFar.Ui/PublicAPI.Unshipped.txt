@@ -2710,12 +2710,16 @@ virtual CSharpFar.Ui.UiLayer<TFrame>.OnFrameCommitted(TFrame frame) -> void
 ~override CSharpFar.Ui.VerticalScrollbarFrame.ToString() -> string
 ~override CSharpFar.Ui.VerticalScrollbarInputResult.Equals(object obj) -> bool
 ~override CSharpFar.Ui.VerticalScrollbarInputResult.ToString() -> string
+CSharpFar.Ui.CompositeDialogOptions.PreferredHeightProvider.get -> System.Func<int>?
+CSharpFar.Ui.CompositeDialogOptions.PreferredHeightProvider.init -> void
 CSharpFar.Ui.CompositeDialogOptions.PreferredWidthProvider.get -> System.Func<int>?
 CSharpFar.Ui.CompositeDialogOptions.PreferredWidthProvider.init -> void
 CSharpFar.Ui.CompositeDialogOptions.PreserveStatusEnd.get -> bool
 CSharpFar.Ui.CompositeDialogOptions.PreserveStatusEnd.init -> void
 CSharpFar.Ui.TableDialogOptions<T, TResult>.ItemIdentity.get -> System.Func<T, object!>?
 CSharpFar.Ui.TableDialogOptions<T, TResult>.ItemIdentity.init -> void
+CSharpFar.Ui.TableDialogOptions<T, TResult>.PreferredHeightProvider.get -> System.Func<int>?
+CSharpFar.Ui.TableDialogOptions<T, TResult>.PreferredHeightProvider.init -> void
 CSharpFar.Ui.TableDialogOptions<T, TResult>.PreferredWidthProvider.get -> System.Func<int>?
 CSharpFar.Ui.TableDialogOptions<T, TResult>.PreferredWidthProvider.init -> void
 CSharpFar.Ui.TableDialogOptions<T, TResult>.PreserveStatusEnd.get -> bool
