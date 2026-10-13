@@ -55,7 +55,7 @@ public sealed class ShellService : IShellService
     {
         // An option prefix may include -l/-i before -c. Keep .exe and /c
         // configurations routed to the original Windows builder.
-        bool looksUnix = shellExecutable.StartsWith('/', StringComparison.Ordinal) ||
+        bool looksUnix = shellExecutable.StartsWith("/", StringComparison.Ordinal) ||
             (!shellExecutable.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
              shellArgsFormat?.TrimStart().StartsWith("-", StringComparison.Ordinal) == true);
         if (looksUnix)

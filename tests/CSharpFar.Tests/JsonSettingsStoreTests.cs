@@ -149,6 +149,26 @@ public class JsonSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void MacOsPathMode_DefaultsForLegacyJsonAndRoundTripsOptOut()
+    {
+        string configDir = Path.Combine(_tempDir, "macos-path");
+        Directory.CreateDirectory(configDir);
+        File.WriteAllText(Path.Combine(configDir, "settings.json"),
+            """{"shell":{"executable":"/bin/zsh","argumentsFormat":"-lc"},"ui":{"palette":"Custom"}}""");
+
+        var store = new JsonSettingsStore(configDir);
+        Assert.Equal("appendStandard", store.Settings.Shell.MacOsPathMode);
+        Assert.Equal("-lc", store.Settings.Shell.ArgumentsFormat);
+        store.Settings.Shell.MacOsPathMode = "inherited";
+        store.Save();
+
+        var reloaded = new JsonSettingsStore(configDir);
+        Assert.Equal("inherited", reloaded.Settings.Shell.MacOsPathMode);
+        Assert.Equal("-lc", reloaded.Settings.Shell.ArgumentsFormat);
+        Assert.Equal("Custom", reloaded.Settings.Ui.Palette);
+    }
+
+    [Fact]
     public void NonPortableModeUsesAppDataDirectory()
     {
         string exeDir = Path.Combine(_tempDir, "exedir");

@@ -130,6 +130,49 @@ Both Homebrew packages are generated from SHA-256 checksums of the matching GitH
 
 Because the repository name does not use Homebrew's `homebrew-<tap>` naming convention, the first manual `brew tap` command includes the explicit Git URL.
 
+### CLI command PATH and Unix shell options
+
+CSharpFar may be launched from Finder, Dock, Kitty, or Terminal.app with a
+reduced `PATH`. On macOS, user-launched shell commands, registered
+PowerShell aliases (`ps:` / `pwsh:`), and executable files launched from
+panels receive a consistent `PATH`. Existing entries retain their order;
+only existing directories are appended, in this order:
+`/opt/homebrew/bin`, `/usr/local/bin`, `/opt/homebrew/sbin`,
+`/usr/local/sbin`. Missing `PATH` uses
+`/usr/bin:/bin:/usr/sbin:/sbin` before appending. The application process
+environment, system updaters, and file associations are not changed.
+
+The default `shell.macOsPathMode` is `appendStandard`, including for older
+settings files that lack this field. To opt out, edit `settings.json` and set
+`"macOsPathMode": "inherited"` under `"shell"`. Changes take effect after
+restarting CSharpFar. An unrecognized mode triggers a warning and behaves as
+`inherited`, without rewriting the file.
+
+On macOS and Linux, `shell.argumentsFormat` specifies Unix shell flags
+rather than a command-line template. Supported examples are `-c`, `-lc`,
+`-lic`, `-l -c`, `-c {0}`, and `-l -c {0}`. The optional `{0}` must
+be the last separate token; the user command is passed as **one argument**
+after the flags, never interpolated into the format. Only short alphabetic
+options are accepted, with a single final `c`. Invalid options fall back
+to `-c` with a warning. The default remains `/bin/sh` with `-c`.
+
+For example, to request a zsh login shell, configure:
+
+```json
+"shell": {
+  "executable": "/bin/zsh",
+  "argumentsFormat": "-lc",
+  "macOsPathMode": "appendStandard"
+}
+```
+
+A login shell does not necessarily read interactive startup files:
+`zsh -lc` reads `.zprofile`, but not normally `.zshrc`. Use `-lic`
+only intentionally: startup scripts can expect an interactive terminal.
+The automatic macOS PATH policy does not initialize tools from custom
+version managers (nvm, mise, pyenv, etc.) or support shell aliases/functions.
+Windows `cmd.exe` handling is unchanged.
+
 ### Choose the preferred macOS terminal
 
 In CSharpFar, open **Options → Settings → Application → Preferred terminal**.

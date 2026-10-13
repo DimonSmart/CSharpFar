@@ -37,8 +37,9 @@ public sealed class PowerShellCommandLineBuilder : IShellCommandLineBuilder
     public ProcessStartInfo CreateStartInfo(string command, string workingDirectory)
     {
         string? effectivePath = _effectivePathProvider?.Invoke();
-        string? executable = _resolveExecutable?.Invoke()
-            ?? (effectivePath is null
+        string? executable = _resolveExecutable is not null
+            ? _resolveExecutable()
+            : (effectivePath is null
                 ? ExecutableResolver.FindOnPath(_candidates)
                 : ExecutableResolver.FindOnPath(_candidates, effectivePath, ':'));
         executable ??= throw new FileNotFoundException(

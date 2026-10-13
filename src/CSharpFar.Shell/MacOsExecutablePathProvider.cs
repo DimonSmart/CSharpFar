@@ -83,7 +83,7 @@ public sealed class MacOsExecutablePathProvider
 
     private static string? NormalizeAbsolute(string value)
     {
-        if (!value.StartsWith('/', StringComparison.Ordinal))
+        if (!value.StartsWith("/", StringComparison.Ordinal))
             return null;
         string result = value.TrimEnd('/');
         return result.Length == 0 ? "/" : result;
