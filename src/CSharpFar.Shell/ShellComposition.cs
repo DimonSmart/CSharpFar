@@ -7,4 +7,10 @@ public static class ShellComposition
             "powershell",
             ["ps", "pwsh", "powershell"],
             new PowerShellCommandLineBuilder()));
+
+    public static ShellRegistry CreateRegistry(Func<string?> effectivePathProvider) =>
+        new(new ShellProfile(
+            "powershell",
+            ["ps", "pwsh", "powershell"],
+            new PowerShellCommandLineBuilder(null, effectivePathProvider)));
 }

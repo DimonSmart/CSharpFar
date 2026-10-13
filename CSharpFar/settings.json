@@ -8,7 +8,8 @@
   },
   "shell": {
     "executable": "/bin/sh",
-    "argumentsFormat": "-c"
+    "argumentsFormat": "-c",
+    "macOsPathMode": "appendStandard"
   },
   "panels": {
     "leftStartDirectory": null,

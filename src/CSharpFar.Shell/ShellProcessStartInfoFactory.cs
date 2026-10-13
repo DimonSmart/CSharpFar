@@ -14,4 +14,10 @@ internal static class ShellProcessStartInfoFactory
         RedirectStandardError = false,
         CreateNoWindow = false,
     };
+
+    public static void ApplyPath(ProcessStartInfo startInfo, string? effectivePath)
+    {
+        if (effectivePath is not null)
+            startInfo.Environment["PATH"] = effectivePath;
+    }
 }

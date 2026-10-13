@@ -61,7 +61,7 @@ public sealed class LinuxPlatformServices : IPlatformServices
         return new LinuxPlatformServices(
             consoleDriver,
             consoleDriver,
-            new ShellService(new UnixShellCommandLineBuilder(shellSettings.Executable), ShellComposition.CreateRegistry()),
+            new ShellService(new UnixShellCommandLineBuilder(shellSettings.Executable, shellSettings.ArgumentsFormat), ShellComposition.CreateRegistry()),
             new UnixShellFileLauncher(new UnixExecutableFileDetector(), new UnixAssociationLauncher(new UnixEnvironment())),
             new FileCredentialStore(configDirectory),
             new LinuxVolumeService(),

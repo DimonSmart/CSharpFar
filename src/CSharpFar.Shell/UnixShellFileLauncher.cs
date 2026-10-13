@@ -10,6 +10,7 @@ public sealed class UnixShellFileLauncher : IFileLauncher
     private readonly IUnixAssociationLauncher _associationLauncher;
     private readonly Func<ProcessStartInfo, Process?> _startProcess;
     private readonly Action<Process> _waitForExit;
+    private readonly Func<string?>? _effectivePathProvider;
 
     public UnixShellFileLauncher(IExecutableFileDetector executableDetector)
         : this(executableDetector, new UnixAssociationLauncher(new UnixEnvironment()))
@@ -19,7 +20,16 @@ public sealed class UnixShellFileLauncher : IFileLauncher
     public UnixShellFileLauncher(
         IExecutableFileDetector executableDetector,
         IUnixAssociationLauncher associationLauncher)
-        : this(executableDetector, associationLauncher, Process.Start, process => process.WaitForExit())
+        : this(executableDetector, associationLauncher, Process.Start, process => process.WaitForExit(), null)
+    {
+    }
+
+    public UnixShellFileLauncher(
+        IExecutableFileDetector executableDetector,
+        IUnixAssociationLauncher associationLauncher,
+        Func<string?> effectivePathProvider)
+        : this(executableDetector, associationLauncher, Process.Start,
+            process => process.WaitForExit(), effectivePathProvider)
     {
     }
 
@@ -28,11 +38,22 @@ public sealed class UnixShellFileLauncher : IFileLauncher
         IUnixAssociationLauncher associationLauncher,
         Func<ProcessStartInfo, Process?> startProcess,
         Action<Process> waitForExit)
+        : this(executableDetector, associationLauncher, startProcess, waitForExit, null)
+    {
+    }
+
+    internal UnixShellFileLauncher(
+        IExecutableFileDetector executableDetector,
+        IUnixAssociationLauncher associationLauncher,
+        Func<ProcessStartInfo, Process?> startProcess,
+        Action<Process> waitForExit,
+        Func<string?>? effectivePathProvider)
     {
         _executableDetector = executableDetector;
         _associationLauncher = associationLauncher;
         _startProcess = startProcess;
         _waitForExit = waitForExit;
+        _effectivePathProvider = effectivePathProvider;
     }
 
     public FileLaunchMode GetLaunchMode(string fullPath) =>
@@ -65,17 +86,10 @@ public sealed class UnixShellFileLauncher : IFileLauncher
             throw new InvalidOperationException(error);
     }
 
-    private static ProcessStartInfo CreateCurrentConsoleStartInfo(
-        string fileName,
-        string workingDirectory) =>
-        new()
-        {
-            FileName = fileName,
-            WorkingDirectory = workingDirectory,
-            UseShellExecute = false,
-            RedirectStandardInput = false,
-            RedirectStandardOutput = false,
-            RedirectStandardError = false,
-            CreateNoWindow = false,
-        };
+    private ProcessStartInfo CreateCurrentConsoleStartInfo(string fileName, string workingDirectory)
+    {
+        var startInfo = ShellProcessStartInfoFactory.Create(fileName, workingDirectory);
+        ShellProcessStartInfoFactory.ApplyPath(startInfo, _effectivePathProvider?.Invoke());
+        return startInfo;
+    }
 }

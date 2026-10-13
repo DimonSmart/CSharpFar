@@ -53,8 +53,13 @@ public sealed class ShellService : IShellService
         string shellExecutable,
         string shellArgsFormat)
     {
-        if (shellArgsFormat.TrimStart().StartsWith("-c", StringComparison.Ordinal))
-            return new UnixShellCommandLineBuilder(shellExecutable);
+        // An option prefix may include -l/-i before -c. Keep .exe and /c
+        // configurations routed to the original Windows builder.
+        bool looksUnix = shellExecutable.StartsWith('/', StringComparison.Ordinal) ||
+            (!shellExecutable.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
+             shellArgsFormat?.TrimStart().StartsWith("-", StringComparison.Ordinal) == true);
+        if (looksUnix)
+            return new UnixShellCommandLineBuilder(shellExecutable, shellArgsFormat);
 
         return new WindowsShellCommandLineBuilder(shellExecutable);
     }
