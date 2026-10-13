@@ -22,6 +22,7 @@ public sealed class TableDialogOptions<T, TResult>
     public Func<T?, string?>? StatusText { get; init; }
     public Func<T, object>? ItemIdentity { get; init; }
     public Func<int>? PreferredWidthProvider { get; init; }
+    public Func<int>? PreferredHeightProvider { get; init; }
     public bool PreserveStatusEnd { get; init; }
     public DialogAppearance Appearance { get; init; } = DialogAppearance.Standard;
     public ListAppearance TableAppearance { get; init; } = ListAppearance.Dialog;
@@ -61,6 +62,7 @@ internal sealed class TableDialog<T, TResult>
                 Appearance: options.Appearance)
             {
                 PreferredWidthProvider = options.PreferredWidthProvider,
+                PreferredHeightProvider = options.PreferredHeightProvider,
                 PreserveStatusEnd = options.PreserveStatusEnd,
             },
             form,

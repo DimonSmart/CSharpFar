@@ -21,6 +21,8 @@ public sealed record CompositeDialogOptions(
 
     public Func<int>? PreferredWidthProvider { get; init; }
 
+    public Func<int>? PreferredHeightProvider { get; init; }
+
     public bool PreserveStatusEnd { get; init; }
 }
 
@@ -126,10 +128,16 @@ public sealed class CompositeDialogHost
 
     private Frame Render(UiRenderContext context, IUiFocusState focus, CompositeDialogOptions options, ScrollableFormDialog form, ICompositeDialogContent content, Func<string?>? status)
     {
+        int preferredWidth = options.PreferredWidthProvider?.Invoke() ?? options.PreferredWidth;
+        int preferredHeight = options.PreferredHeightProvider?.Invoke() ?? options.PreferredHeight;
+        if (options.PreferredWidthProvider is not null)
+            preferredWidth = Math.Min(preferredWidth, Math.Max(0, context.Size.Width - Math.Max(0, options.HorizontalMargin) * 2));
+        if (options.PreferredHeightProvider is not null)
+            preferredHeight = Math.Min(preferredHeight, Math.Max(0, context.Size.Height - Math.Max(0, options.VerticalMargin) * 2));
         (int width, int height) = DialogSizing.Resolve(
             context.Size,
-            options.PreferredWidth,
-            options.PreferredHeight,
+            preferredWidth,
+            preferredHeight,
             options.ResizeMode,
             options.HorizontalMargin,
             options.VerticalMargin);

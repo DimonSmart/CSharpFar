@@ -34,9 +34,6 @@ internal sealed class DriveDialog
 
         int initial = Array.FindIndex(rows, row => ReferenceEquals(row.Item, initialItem));
         if (initial < 0) initial = 0;
-        int presentationRows = rows.Length + Enumerable.Range(1, rows.Length - 1)
-            .Count(index => rows[index - 1].Group != rows[index].Group);
-
         // Register the union of shortcuts, but resolve the command only against current visible rows.
         // A hidden system volume cannot be activated by an old shortcut.
         IReadOnlyDictionary<ConsoleKey, string> shortcuts = ShortcutCommands(ProjectRows(items, mac));
@@ -70,7 +67,8 @@ internal sealed class DriveDialog
             InitialSelectedIndex = initial,
             PreferredWidth = mac ? PreferredWidth() : DialogWidth,
             PreferredWidthProvider = mac ? PreferredWidth : null,
-            PreferredHeight = Math.Min(presentationRows + (mac ? 8 : 6), 24),
+            PreferredHeight = CalculatePreferredHeight(),
+            PreferredHeightProvider = mac ? CalculatePreferredHeight : null,
             MinWidth = 20,
             MinHeight = 6,
             Appearance = DialogAppearance.Popup,
@@ -98,6 +96,17 @@ internal sealed class DriveDialog
             14, 108);
 
         int PreferredWidth() => Math.Clamp(PreferredNameWidth() + 10 + 10 + 6 + 1 + 4, 72, 140);
+
+        int CalculatePreferredHeight()
+        {
+            int presentationRows = rows.Length;
+            for (int index = 1; index < rows.Length; index++)
+                if (rows[index - 1].Group != rows[index].Group)
+                    presentationRows++;
+
+            int desiredHeight = presentationRows + (mac ? 8 : 6);
+            return mac ? desiredHeight : Math.Min(desiredHeight, 24);
+        }
 
         DialogOutcome<VolumeSelectionItem?> Handle(ListDialogActionContext<DriveDialogRow> action)
         {

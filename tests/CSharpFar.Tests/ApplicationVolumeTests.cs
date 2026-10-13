@@ -801,6 +801,56 @@ public sealed class ApplicationVolumeTests : IDisposable
     }
 
     [Fact]
+    public void MacDriveDialog_SystemVolumeToggleExpandsAndRestoresHeight()
+    {
+        VolumeSelectionItem[] volumes =
+        [
+            MacVolume("/", VolumeVisibility.User),
+            MacVolume("/Volumes/External", VolumeVisibility.User),
+            .. Enumerable.Range(0, 22).Select(index =>
+                MacVolume($"/System/Volumes/Technical{index:D2}", VolumeVisibility.System)),
+        ];
+        var driver = new FakeConsoleDriver(width: 120, height: 48);
+        driver.EnqueueInput(KeyInput(ConsoleKey.F9));
+        driver.EnqueueInput(KeyInput(ConsoleKey.F9));
+        driver.EnqueueInput(KeyInput(ConsoleKey.Escape));
+        var titleRows = new List<int>();
+        driver.BeforeReadInput = current =>
+            titleRows.Add(current.WriteRecords.Last(record =>
+                record.Text.Contains("Change drive", StringComparison.Ordinal)).Y);
+
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(volumes, macVolumes: true);
+
+        Assert.Null(result);
+        Assert.Equal(3, titleRows.Count);
+        Assert.True(titleRows[1] < titleRows[0]);
+        Assert.Equal(titleRows[0], titleRows[2]);
+        Assert.True(titleRows[1] < 12);
+    }
+
+    [Fact]
+    public void MacDriveDialog_TallVolumeListUsesAvailableHeightWithMargins()
+    {
+        VolumeSelectionItem[] volumes =
+        [
+            MacVolume("/", VolumeVisibility.User),
+            .. Enumerable.Range(0, 80).Select(index =>
+                MacVolume($"/Volumes/Drive{index:D2}", VolumeVisibility.User)),
+        ];
+        var driver = new FakeConsoleDriver(width: 120, height: 30);
+        driver.EnqueueInput(KeyInput(ConsoleKey.Escape));
+        int? titleRow = null;
+        driver.BeforeReadInput = current =>
+            titleRow = current.WriteRecords.Last(record =>
+                record.Text.Contains("Change drive", StringComparison.Ordinal)).Y;
+
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(volumes, macVolumes: true);
+
+        Assert.Null(result);
+        Assert.Equal(2, titleRow);
+    }
+
+    [Fact]
     public void MacDriveDialog_F9ShowsAndHidesSystemVolumesWithoutClosing()
     {
         VolumeSelectionItem[] volumes =

@@ -111,6 +111,41 @@ public sealed class CompositeDialogHostTests
     }
 
     [Fact]
+    public void Run_preferredSizeProvidersRecalculateAndRespectViewportMargins()
+    {
+        var driver = new FakeConsoleDriver(120, 50);
+        driver.EnqueueKey(Key(ConsoleKey.F5));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        var content = new TestContent();
+        var form = new ScrollableFormDialog();
+        int preferredWidth = 40;
+        int preferredHeight = 12;
+
+        Run(driver, form, content, status: null, semantic =>
+        {
+            if (semantic.Kind == CompositeDialogEventKind.Command)
+            {
+                preferredWidth = 200;
+                preferredHeight = 120;
+                return CompositeDialogOutcome<object?>.ContinueChanged;
+            }
+            return semantic.Kind == CompositeDialogEventKind.Cancelled
+                ? CompositeDialogOutcome<object?>.Complete(null)
+                : CompositeDialogOutcome<object?>.ContinueNoChange;
+        }, options: new CompositeDialogOptions("Dynamic", 40, 12)
+        {
+            PreferredWidthProvider = () => preferredWidth,
+            PreferredHeightProvider = () => preferredHeight,
+        });
+
+        Assert.True(content.Frames.Count >= 2);
+        Assert.True(content.Frames[^1].Bounds.Width > content.Frames[0].Bounds.Width);
+        Assert.True(content.Frames[^1].Bounds.Height > content.Frames[0].Bounds.Height);
+        Assert.Equal(112, content.Frames[^1].Bounds.Width);
+        Assert.Equal(44, content.Frames[^1].Bounds.Height);
+    }
+
+    [Fact]
     public void Run_supports_table_content_and_preserves_selection_when_items_are_replaced()
     {
         var driver = new FakeConsoleDriver(80, 25);
