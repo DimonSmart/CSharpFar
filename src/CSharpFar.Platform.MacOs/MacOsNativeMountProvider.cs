@@ -15,8 +15,19 @@ public sealed class MacOsNativeMountProvider : IMacOsMountProvider
     private const uint MntDontBrowse = 0x00100000;
     private const uint MntLocal = 0x00001000;
 
+    // On Intel macOS the unsuffixed symbol uses the legacy statfs layout.
+    // The $INODE64 variant matches the 2168-byte Darwin statfs layout parsed below.
+    [DllImport("/usr/lib/libSystem.B.dylib", EntryPoint = "getfsstat$INODE64", SetLastError = true)]
+    private static extern int GetFsStatX64(IntPtr buffer, int bufferSize, int flags);
+
+    // Apple Silicon has only the modern 64-bit inode ABI.
     [DllImport("/usr/lib/libSystem.B.dylib", EntryPoint = "getfsstat", SetLastError = true)]
-    private static extern int GetFsStat(IntPtr buffer, int bufferSize, int flags);
+    private static extern int GetFsStatArm64(IntPtr buffer, int bufferSize, int flags);
+
+    private static int GetFsStat(IntPtr buffer, int bufferSize, int flags) =>
+        RuntimeInformation.ProcessArchitecture == Architecture.X64
+            ? GetFsStatX64(buffer, bufferSize, flags)
+            : GetFsStatArm64(buffer, bufferSize, flags);
 
     public IReadOnlyList<MacOsMount> GetMounts()
     {
