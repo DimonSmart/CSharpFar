@@ -108,7 +108,7 @@ public sealed class UnixShellOptionsTests
             foreach (string executable in new[] { tool, shell, pwsh })
                 File.SetUnixFileMode(executable, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
 
-            var provider = new MacOsExecutablePathProvider("appendStandard", () => "/usr/bin:/bin",
+            var provider = new MacOsExecutablePathProvider("appendStandard", () => "/csharpfar-test-nonexistent",
                 Directory.Exists, [root]);
             var shellBuilder = new UnixShellCommandLineBuilder("customsh", "-c", provider.GetPath);
             var shellInfo = shellBuilder.CreateStartInfo("my-tool", root);
