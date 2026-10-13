@@ -42,8 +42,9 @@ public sealed class PowerShellCommandLineBuilder : IShellCommandLineBuilder
             : (effectivePath is null
                 ? ExecutableResolver.FindOnPath(_candidates)
                 : ExecutableResolver.FindOnPath(_candidates, effectivePath, ':'));
-        executable ??= throw new FileNotFoundException(
-            $"PowerShell executable was not found. Tried: {string.Join(", ", _candidates)}");
+        if (executable is null)
+            throw new FileNotFoundException(
+                $"PowerShell executable was not found. Tried: {string.Join(", ", _candidates)}");
 
         var startInfo = ShellProcessStartInfoFactory.Create(executable, workingDirectory);
         startInfo.ArgumentList.Add("-NoLogo");
