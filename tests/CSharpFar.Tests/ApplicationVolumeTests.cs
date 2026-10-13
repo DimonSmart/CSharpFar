@@ -815,9 +815,13 @@ public sealed class ApplicationVolumeTests : IDisposable
         driver.EnqueueInput(KeyInput(ConsoleKey.F9));
         driver.EnqueueInput(KeyInput(ConsoleKey.Escape));
         var titleRows = new List<int>();
-        driver.BeforeReadInput = current =>
+        driver.BeforeReadInput = CaptureTitleRow;
+        void CaptureTitleRow(FakeConsoleDriver current)
+        {
             titleRows.Add(current.WriteRecords.Last(record =>
                 record.Text.Contains("Change drive", StringComparison.Ordinal)).Y);
+            current.BeforeReadInput = CaptureTitleRow;
+        }
 
         VolumeSelectionItem? result = CreateDriveDialog(driver).Show(volumes, macVolumes: true);
 
