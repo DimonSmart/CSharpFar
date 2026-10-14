@@ -221,7 +221,9 @@ public sealed class NativePluginBootstrapTests : IDisposable
     {
         var bad = new ScriptPlugin(async (host, _) =>
         {
-            await Task.Run(() => host.Ui.ShowMessage("Invalid", "Off the UI thread"));
+            await Task.Factory.StartNew(
+                () => host.Ui.ShowMessage("Invalid", "Off the UI thread"),
+                CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
             Register(host, "bad", "Bad", "bad");
         });
         var good = new ScriptPlugin((host, _) =>
