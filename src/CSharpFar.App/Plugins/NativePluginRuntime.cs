@@ -146,7 +146,7 @@ internal sealed class NativePluginRuntime
             return await command.ExecuteAsync(context, cancellationToken)
                 ?? PluginCommandResult.Failed("Plugin command returned no result.");
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
             return PluginCommandResult.Cancelled();
         }
@@ -170,7 +170,7 @@ internal sealed class NativePluginRuntime
             var context = new ProviderContext(host.Application, host.Settings, host.Ui, host.Credentials, targetPanelSide);
             return PluginCommandResult.OpenPanel(await provider.OpenAsync(context, cancellationToken));
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
             return PluginCommandResult.Cancelled();
         }
