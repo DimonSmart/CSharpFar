@@ -15,6 +15,7 @@ internal sealed class NativePluginRuntime
     private readonly Func<PluginDescriptor, IPluginUiService> _uiFactory;
     private readonly Func<PluginDescriptor, IPluginCredentialService> _credentialFactory;
     private readonly Action<Exception>? _reportCleanupError;
+    private readonly Action<PluginDescriptor, Exception>? _reportInitializationError;
     private readonly string _demoRoot = Path.Combine(Path.GetTempPath(), "CSharpFar-Demo-Plugins", Guid.NewGuid().ToString("N"));
     private readonly Dictionary<string, Registration> _plugins = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PluginCommandAddress> _prefixes = new(StringComparer.OrdinalIgnoreCase);
@@ -29,13 +30,15 @@ internal sealed class NativePluginRuntime
         Func<PluginDescriptor, IPluginSettingsService> settingsFactory,
         Func<PluginDescriptor, IPluginUiService> uiFactory,
         Func<PluginDescriptor, IPluginCredentialService> credentialFactory,
-        Action<Exception>? reportCleanupError = null)
+        Action<Exception>? reportCleanupError = null,
+        Action<PluginDescriptor, Exception>? reportInitializationError = null)
     {
         _application = application ?? throw new ArgumentNullException(nameof(application));
         _settingsFactory = settingsFactory ?? throw new ArgumentNullException(nameof(settingsFactory));
         _uiFactory = uiFactory ?? throw new ArgumentNullException(nameof(uiFactory));
         _credentialFactory = credentialFactory ?? throw new ArgumentNullException(nameof(credentialFactory));
         _reportCleanupError = reportCleanupError;
+        _reportInitializationError = reportInitializationError;
     }
 
     public IReadOnlyList<PluginMenuRegistration> MenuItems => _menus.ToArray();
@@ -112,6 +115,11 @@ internal sealed class NativePluginRuntime
         }
         catch (Exception e)
         {
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                try { _reportInitializationError?.Invoke(descriptor, e); }
+                catch { /* Diagnostics must never affect a plugin outcome. */ }
+            }
             stage.Freeze();
             string? cleanupMessage = null;
             try
