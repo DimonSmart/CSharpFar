@@ -566,8 +566,25 @@ internal static class ApplicationServicesBuilder
                 Id = ProcessesAndPortsModuleIds.MenuActionId.ToString("D"), Title = "Processes and Ports",
             }, ports));
 
-        if (additionalPlugins is not null)
-            pluginComposition.AddRange(additionalPlugins);
+        void ReleaseFailedPreparation()
+        {
+            applicationUiLayers.Dispose();
+            directorySizes.Dispose();
+            quickViewDirectorySize.Dispose();
+            fileUsagePanel.Dispose();
+        }
+
+        try
+        {
+            if (additionalPlugins is not null)
+                pluginComposition.AddRange(additionalPlugins);
+        }
+        catch
+        {
+            pluginRuntime.Abort();
+            ReleaseFailedPreparation();
+            throw;
+        }
 
         // The final assembly closes over shared services, so both factories reuse
         // exactly the same preparation and finalization pipeline.
@@ -711,6 +728,6 @@ internal static class ApplicationServicesBuilder
         }
 
         return new PreparedApplicationServices(
-            pluginRuntime, pluginComposition, pluginFailures, diagnosticLog, Finish);
+            pluginRuntime, pluginComposition, pluginFailures, diagnosticLog, Finish, ReleaseFailedPreparation);
     }
 }
