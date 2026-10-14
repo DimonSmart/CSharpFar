@@ -20,8 +20,8 @@ Git history is the source for deleted or previous document versions.
 | IDD-0008 | spec | Menu bar, popup rendering, and shadows |  |  |
 | IDD-0009 | spec | Open panel item |  |  |
 | IDD-0010 | spec | File operations |  |  |
-| IDD-0012 | spec | Search feature |  |  |
-| IDD-0013 | spec | Dynamic function key bar |  |  |
+| IDD-0012 | spec | Search feature | Virtual result snapshots; edit and delete referenced items without making the results source writable |  |
+| IDD-0013 | spec | Dynamic function key bar | Availability follows command capabilities, including search-results F4/F8 |  |
 | IDD-0014 | spec | Quick View Panel |  |  |
 | IDD-0016 | adr | Viewport-bound console rendering |  |  |
 | IDD-0017 | spec | Current-console program launch |  |  |
@@ -66,8 +66,6 @@ Git history is the source for deleted or previous document versions.
 | IDD-0075 | spec | Destination templates | Explicit per-source destination path evaluation for file operations |  |
 | IDD-0076 | spec | macOS Homebrew distribution | Formula and Cask installation/upgrade paths |  |
 | IDD-0077 | spec | macOS application bundle | Finder/Applications bundle over terminal UI |  |
-| IDD-0078 | spec | Search result item editing | `F4` edits the referenced item while the virtual panel structure remains read-only | IDD-0012 Edit restriction; IDD-0013 F4 availability restriction |
-| IDD-0079 | spec | Search result item deletion | `F8` deletes referenced items and reconciles the virtual result list without re-running search | IDD-0012 Delete restriction; IDD-0013 F8 availability restriction; IDD-0078 Delete restriction |
 | IDD-0080 | spec | File Usage panel | Local-file usage and lock diagnostics with safe owner release |  |
 | IDD-0081 | spec | Runtime diagnostics | Opt-in in-memory tracing and safe copyable diagnostic report |  |
 | IDD-0082 | spec | macOS install and self-update | Recommended Homebrew Cask installer and guarded About self-update | IDD-0076/IDD-0077 distribution workflow clarification |
