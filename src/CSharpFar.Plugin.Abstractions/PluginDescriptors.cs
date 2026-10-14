@@ -28,6 +28,8 @@ public sealed record PluginMenuItemDescriptor
     public required string Title { get; init; }
     public required string CommandId { get; init; }
     public char? HotKey { get; init; }
+    /// <summary>Optional stable action identity retained for existing application routes.</summary>
+    public Guid? ActionId { get; init; }
     public PluginMenuPlacement Placement { get; init; } = PluginMenuPlacement.Plugins;
 }
 

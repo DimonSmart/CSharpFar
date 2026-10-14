@@ -21,6 +21,7 @@ public sealed class FtpModule : ICSharpFarPlugin
         host.RegisterMenuItem(new PluginMenuItemDescriptor
         {
             Id = FtpModuleIds.MenuActionId.ToString("D"),
+            ActionId = FtpModuleIds.MenuActionId,
             Title = "FTP/FTPS...",
             HotKey = 'F',
             CommandId = "open-connections",
@@ -28,6 +29,7 @@ public sealed class FtpModule : ICSharpFarPlugin
         host.RegisterMenuItem(new PluginMenuItemDescriptor
         {
             Id = FtpModuleIds.DiskActionId.ToString("D"),
+            ActionId = FtpModuleIds.DiskActionId,
             Title = "FTP/FTPS",
             CommandId = "open-connections",
             Placement = PluginMenuPlacement.Disk,

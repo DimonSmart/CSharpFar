@@ -78,6 +78,15 @@ internal sealed class NativePluginRuntime
             await plugin.InitializeAsync(host, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             stage.Validate(_prefixes);
+            var existingActionIds = _menus
+                .Where(menu => menu.Item.ActionId.HasValue)
+                .Select(menu => menu.Item.ActionId!.Value)
+                .ToHashSet();
+            foreach (var item in stage.Menus)
+            {
+                if (item.ActionId == Guid.Empty || (item.ActionId is { } actionId && !existingActionIds.Add(actionId)))
+                    throw new InvalidOperationException($"Duplicate or empty plugin action GUID for menu item '{item.Id}'.");
+            }
 
             // A registration becomes visible only after initialization and validation succeed.
             _plugins.Add(descriptor.Id, stage);

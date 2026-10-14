@@ -61,8 +61,8 @@ internal sealed class NativeModuleCatalog(NativePluginRuntime plugins)
 
     private static Guid ActionId(PluginMenuRegistration registration)
     {
-        if (Guid.TryParse(registration.Item.Id, out Guid legacyActionId))
-            return legacyActionId;
+        if (registration.Item.ActionId is { } existingActionId)
+            return existingActionId;
 
         // Stable action identity for a plugin-local menu ID without prescribing GUID IDs to plugins.
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(

@@ -26,6 +26,7 @@ public sealed class ProcessesAndPortsModule(IProcessesAndPortsPlatformService pl
         host.RegisterMenuItem(new PluginMenuItemDescriptor
         {
             Id = ProcessesAndPortsModuleIds.MenuActionId.ToString("D"),
+            ActionId = ProcessesAndPortsModuleIds.MenuActionId,
             Title = "Processes and Ports...",
             CommandId = "open",
             HotKey = 'P',

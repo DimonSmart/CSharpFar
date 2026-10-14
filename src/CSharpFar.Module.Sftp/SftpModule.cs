@@ -21,6 +21,7 @@ public sealed class SftpModule : ICSharpFarPlugin
         host.RegisterMenuItem(new PluginMenuItemDescriptor
         {
             Id = SftpModuleIds.MenuActionId.ToString("D"),
+            ActionId = SftpModuleIds.MenuActionId,
             Title = "SFTP...",
             HotKey = 'S',
             CommandId = "open-connections",
@@ -28,6 +29,7 @@ public sealed class SftpModule : ICSharpFarPlugin
         host.RegisterMenuItem(new PluginMenuItemDescriptor
         {
             Id = SftpModuleIds.DiskActionId.ToString("D"),
+            ActionId = SftpModuleIds.DiskActionId,
             Title = "SFTP",
             CommandId = "open-connections",
             Placement = PluginMenuPlacement.Disk,
