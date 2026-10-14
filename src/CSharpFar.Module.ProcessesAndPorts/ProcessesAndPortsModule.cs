@@ -1,13 +1,39 @@
 using System.Net.NetworkInformation;
 using CSharpFar.Core.Models;
 using CSharpFar.Module.Abstractions;
+using CSharpFar.Plugin.Abstractions;
 using CSharpFar.Platform.Abstractions;
 
 namespace CSharpFar.Module.ProcessesAndPorts;
 
-public sealed class ProcessesAndPortsModule(IProcessesAndPortsPlatformService platform)
+public sealed class ProcessesAndPortsModule(IProcessesAndPortsPlatformService platform) : ICSharpFarPlugin
 {
     private readonly IProcessesAndPortsPlatformService _platform = platform ?? throw new ArgumentNullException(nameof(platform));
+    public ValueTask InitializeAsync(IPluginHost host, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(host);
+        host.RegisterCommand(new PluginCommandDescriptor
+        {
+            Id = "open",
+            Title = "Processes and Ports",
+            ExecuteAsync = (context, _) => ValueTask.FromResult(
+                ModulePluginBridge.ToCommandResult(
+                    context.Origin == PluginCommandOrigin.CommandLine
+                        ? OpenFromCommandLine(context.TargetPanelSide, context.RawCommandLine ?? "ports")
+                        : OpenFromMenu(context.TargetPanelSide))),
+        });
+        host.RegisterMenuItem(new PluginMenuItemDescriptor
+        {
+            Id = ProcessesAndPortsModuleIds.MenuActionId.ToString("D"),
+            Title = "Processes and Ports...",
+            CommandId = "open",
+            HotKey = 'P',
+        });
+        host.RegisterCommandPrefix("ports", "open");
+        return ValueTask.CompletedTask;
+    }
+
     private ModuleStartupInfo? _startupInfo;
 
     public void Initialize(ModuleStartupInfo startupInfo) => _startupInfo = startupInfo ?? throw new ArgumentNullException(nameof(startupInfo));

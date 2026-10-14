@@ -1,11 +1,44 @@
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Module.Abstractions;
+using CSharpFar.Plugin.Abstractions;
 
 namespace CSharpFar.Module.Ftp;
 
-public sealed class FtpModule
+public sealed class FtpModule : ICSharpFarPlugin
 {
+    public ValueTask InitializeAsync(IPluginHost host, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(host);
+        host.RegisterCommand(new PluginCommandDescriptor
+        {
+            Id = "open-connections",
+            Title = "FTP/FTPS connections",
+            ExecuteAsync = (context, _) => ValueTask.FromResult(
+                ModulePluginBridge.ToCommandResult(OpenFromMenu(context.TargetPanelSide))),
+        });
+        host.RegisterMenuItem(new PluginMenuItemDescriptor
+        {
+            Id = FtpModuleIds.MenuActionId.ToString("D"),
+            Title = "FTP/FTPS...",
+            HotKey = 'F',
+            CommandId = "open-connections",
+        });
+        host.RegisterMenuItem(new PluginMenuItemDescriptor
+        {
+            Id = FtpModuleIds.DiskActionId.ToString("D"),
+            Title = "FTP/FTPS",
+            CommandId = "open-connections",
+            Placement = PluginMenuPlacement.Disk,
+        });
+        host.RegisterCommandPrefix("ftp", "open-connections");
+        host.RegisterCommandPrefix("ftps", "open-connections");
+        host.RegisterPanelProvider(new ModuleConnectionPanelProvider(
+            "connections", "FTP/FTPS", OpenFromMenu));
+        return ValueTask.CompletedTask;
+    }
+
     private ModuleStartupInfo? _startupInfo;
     private IFtpConnectionStore? _connectionStore;
 

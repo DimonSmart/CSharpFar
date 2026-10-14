@@ -1,11 +1,43 @@
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Module.Abstractions;
+using CSharpFar.Plugin.Abstractions;
 
 namespace CSharpFar.Module.Sftp;
 
-public sealed class SftpModule
+public sealed class SftpModule : ICSharpFarPlugin
 {
+    public ValueTask InitializeAsync(IPluginHost host, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(host);
+        host.RegisterCommand(new PluginCommandDescriptor
+        {
+            Id = "open-connections",
+            Title = "SFTP connections",
+            ExecuteAsync = (context, _) => ValueTask.FromResult(
+                ModulePluginBridge.ToCommandResult(OpenFromMenu(context.TargetPanelSide))),
+        });
+        host.RegisterMenuItem(new PluginMenuItemDescriptor
+        {
+            Id = SftpModuleIds.MenuActionId.ToString("D"),
+            Title = "SFTP...",
+            HotKey = 'S',
+            CommandId = "open-connections",
+        });
+        host.RegisterMenuItem(new PluginMenuItemDescriptor
+        {
+            Id = SftpModuleIds.DiskActionId.ToString("D"),
+            Title = "SFTP",
+            CommandId = "open-connections",
+            Placement = PluginMenuPlacement.Disk,
+        });
+        host.RegisterCommandPrefix("sftp", "open-connections");
+        host.RegisterPanelProvider(new ModuleConnectionPanelProvider(
+            "connections", "SFTP", OpenFromMenu));
+        return ValueTask.CompletedTask;
+    }
+
     private ModuleStartupInfo? _startupInfo;
     private ISftpConnectionStore? _connectionStore;
 

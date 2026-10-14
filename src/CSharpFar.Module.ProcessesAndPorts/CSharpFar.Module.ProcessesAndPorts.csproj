@@ -6,6 +6,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CSharpFar.Core\CSharpFar.Core.csproj" />
+    <ProjectReference Include="..\CSharpFar.Plugin.Abstractions\CSharpFar.Plugin.Abstractions.csproj" />
     <ProjectReference Include="..\CSharpFar.Console\CSharpFar.Console.csproj" />
     <ProjectReference Include="..\CSharpFar.Ui\CSharpFar.Ui.csproj" />
     <ProjectReference Include="..\CSharpFar.Module.Abstractions\CSharpFar.Module.Abstractions.csproj" />
