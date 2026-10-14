@@ -1,4 +1,5 @@
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 
 namespace CSharpFar.App.Commands;
 
@@ -9,10 +10,17 @@ internal static class SearchResultsDeleteSupport
         if (sources.Count <= 1)
             return sources;
 
-        return sources
-            .Where((source, index) => !sources.Where((_, otherIndex) => otherIndex != index)
-                .Any(candidate => IsSameOrDescendant(source, candidate)))
-            .ToList();
+        var roots = new List<string>(sources.Count);
+        foreach (string source in sources)
+        {
+            if (roots.Any(root => IsSameOrDescendant(source, root)))
+                continue;
+
+            roots.RemoveAll(root => IsSameOrDescendant(root, source));
+            roots.Add(source);
+        }
+
+        return roots;
     }
 
     public static void Reconcile(
@@ -51,17 +59,18 @@ internal static class SearchResultsDeleteSupport
         string normalizedPath = TrimTrailingSeparators(path);
         string normalizedRoot = TrimTrailingSeparators(root);
 
-        if (string.Equals(normalizedPath, normalizedRoot, StringComparison.OrdinalIgnoreCase))
+        StringComparer comparer = LocalFileSystemPathComparer.Current;
+        if (comparer.Equals(normalizedPath, normalizedRoot))
             return true;
 
-        if (!normalizedPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase) ||
-            normalizedPath.Length <= normalizedRoot.Length)
-        {
+        if (normalizedPath.Length <= normalizedRoot.Length)
             return false;
-        }
 
         char separator = normalizedPath[normalizedRoot.Length];
-        return separator == Path.DirectorySeparatorChar || separator == Path.AltDirectorySeparatorChar;
+        if (separator != Path.DirectorySeparatorChar && separator != Path.AltDirectorySeparatorChar)
+            return false;
+
+        return comparer.Equals(normalizedPath[..normalizedRoot.Length], normalizedRoot);
     }
 
     private static string TrimTrailingSeparators(string path) =>
