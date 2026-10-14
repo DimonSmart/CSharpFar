@@ -17,8 +17,21 @@ public sealed class FilePanelSourceRegistry : IFilePanelSourceRegistry
 
     public void Add(IFilePanelSource source)
     {
+        if (!TryAdd(source))
+            throw new InvalidOperationException($"Panel source '{source.SourceId}' is already registered.");
+    }
+
+    public bool TryAdd(IFilePanelSource source)
+    {
         ArgumentNullException.ThrowIfNull(source);
-        _sources[source.SourceId] = source;
+        return _sources.TryAdd(source.SourceId, source);
+    }
+
+    public bool RemoveIfSame(PanelSourceId sourceId, IFilePanelSource source)
+    {
+        if (!_sources.TryGetValue(sourceId, out var existing) || !ReferenceEquals(existing, source))
+            return false;
+        return _sources.Remove(sourceId);
     }
 
     public IFilePanelSource GetSource(PanelSourceId sourceId) =>

@@ -1,96 +1,72 @@
+using System.Security.Cryptography;
+using System.Text;
+using CSharpFar.App.Plugins;
 using CSharpFar.Core.Models;
-using CSharpFar.Module.Abstractions;
+using CSharpFar.Plugin.Abstractions;
 
 namespace CSharpFar.App.Modules;
 
-internal sealed class NativeModuleCatalog
+/// <summary>Application menu routing projection; the plugin runtime is the only registration registry.</summary>
+internal sealed class NativeModuleCatalog(NativePluginRuntime plugins)
 {
-    private readonly List<ModuleMenuProjection> _menuItems = [];
-    private readonly List<ModuleMenuProjection> _diskMenuItems = [];
-    private readonly Dictionary<Guid, Func<PanelSide, ModuleActionResult>> _menuActions = [];
-    private readonly Dictionary<Guid, Func<PanelSide, ModuleActionResult>> _diskMenuActions = [];
-    private readonly Dictionary<string, Func<string, PanelSide, ModuleActionResult>> _commandActions =
-        new(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyList<ModuleMenuProjection> MenuItems =>
+        Project(PluginMenuPlacement.Plugins);
 
-    public IReadOnlyList<ModuleMenuProjection> MenuItems => _menuItems;
+    public IReadOnlyList<ModuleMenuProjection> DiskMenuItems =>
+        Project(PluginMenuPlacement.Disk);
 
-    public IReadOnlyList<ModuleMenuProjection> DiskMenuItems => _diskMenuItems;
+    public IReadOnlyCollection<string> CommandPrefixes => plugins.CommandPrefixes;
 
-    public IReadOnlyCollection<string> CommandPrefixes => _commandActions.Keys;
+    public ValueTask<PluginCommandResult> OpenFromMenu(Guid actionId, PanelSide panelSide) =>
+        InvokeMenu(actionId, PluginMenuPlacement.Plugins, PluginCommandOrigin.PluginsMenu, panelSide);
 
-    public void AddMenuAction(
-        ModuleMenuProjection item,
-        Func<PanelSide, ModuleActionResult> action) =>
-        AddAction(_menuItems, _menuActions, item, action, "menu");
-
-    public void AddDiskMenuAction(
-        ModuleMenuProjection item,
-        Func<PanelSide, ModuleActionResult> action) =>
-        AddAction(_diskMenuItems, _diskMenuActions, item, action, "disk menu");
-
-    public void AddCommandPrefix(
-        string prefix,
-        Func<string, PanelSide, ModuleActionResult> action)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
-        ArgumentNullException.ThrowIfNull(action);
-
-        if (_commandActions.ContainsKey(prefix))
-            throw new InvalidOperationException($"Duplicate native module command prefix '{prefix}'.");
-
-        _commandActions.Add(prefix, action);
-    }
-
-    public ModuleActionResult OpenFromMenu(Guid actionId, PanelSide panelSide) =>
-        _menuActions.TryGetValue(actionId, out var action)
-            ? action(panelSide)
-            : ModuleActionResult.Failed($"Module menu action '{actionId:D}' is not registered.");
-
-    public ModuleActionResult OpenFromDiskMenu(Guid actionId, PanelSide panelSide) =>
-        _diskMenuActions.TryGetValue(actionId, out var action)
-            ? action(panelSide)
-            : ModuleActionResult.Failed($"Module disk action '{actionId:D}' is not registered.");
+    public ValueTask<PluginCommandResult> OpenFromDiskMenu(Guid actionId, PanelSide panelSide) =>
+        InvokeMenu(actionId, PluginMenuPlacement.Disk, PluginCommandOrigin.DiskMenu, panelSide);
 
     public bool TryOpenFromCommandLine(
-        string commandLine,
-        PanelSide panelSide,
-        out ModuleActionResult result)
+        string commandLine, PanelSide panelSide, out ValueTask<PluginCommandResult> result)
     {
-        string prefix = GetCommandPrefix(commandLine);
-        if (!_commandActions.TryGetValue(prefix, out var action))
+        if (!plugins.TryResolvePrefix(commandLine, out var address, out string arguments))
         {
-            result = ModuleActionResult.NoPanel();
+            result = default;
             return false;
         }
 
-        result = action(commandLine, panelSide);
+        result = plugins.ExecuteAsync(address, PluginCommandOrigin.CommandLine,
+            panelSide, commandLine, arguments);
         return true;
     }
 
-    private static void AddAction(
-        List<ModuleMenuProjection> items,
-        Dictionary<Guid, Func<PanelSide, ModuleActionResult>> actions,
-        ModuleMenuProjection item,
-        Func<PanelSide, ModuleActionResult> action,
-        string actionKind)
+    private ValueTask<PluginCommandResult> InvokeMenu(
+        Guid actionId, PluginMenuPlacement placement, PluginCommandOrigin origin, PanelSide side)
     {
-        if (actions.ContainsKey(item.ActionId))
-            throw new InvalidOperationException($"Duplicate native module {actionKind} action '{item.ActionId:D}'.");
-
-        items.Add(item);
-        actions.Add(item.ActionId, action);
-    }
-
-    private static string GetCommandPrefix(string commandLine)
-    {
-        int index = 0;
-        while (index < commandLine.Length &&
-               commandLine[index] != ':' &&
-               !char.IsWhiteSpace(commandLine[index]))
+        foreach (var item in plugins.MenuItems)
         {
-            index++;
+            if (item.Item.Placement == placement && ActionId(item) == actionId)
+            {
+                return plugins.ExecuteAsync(
+                    new PluginCommandAddress(item.PluginId, item.Item.CommandId), origin, side);
+            }
         }
 
-        return commandLine[..index];
+        return ValueTask.FromResult(PluginCommandResult.Failed(
+            $"Plugin menu action '{actionId:D}' is not registered."));
+    }
+
+    private IReadOnlyList<ModuleMenuProjection> Project(PluginMenuPlacement placement) =>
+        plugins.MenuItems
+            .Where(item => item.Item.Placement == placement)
+            .Select(item => new ModuleMenuProjection(ActionId(item), item.Item.Title, item.Item.HotKey))
+            .ToArray();
+
+    private static Guid ActionId(PluginMenuRegistration registration)
+    {
+        if (Guid.TryParse(registration.Item.Id, out Guid legacyActionId))
+            return legacyActionId;
+
+        // Stable action identity for a plugin-local menu ID without prescribing GUID IDs to plugins.
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(
+            registration.PluginId + "/" + registration.Item.Id));
+        return new Guid(hash.AsSpan(0, 16));
     }
 }

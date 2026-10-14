@@ -9,6 +9,7 @@ using CSharpFar.App.Highlighting;
 using CSharpFar.App.Input;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
+using CSharpFar.App.Plugins;
 using CSharpFar.App.Panels;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
@@ -28,6 +29,7 @@ using CSharpFar.Module.Ftp;
 using CSharpFar.Module.ProcessesAndPorts;
 using CSharpFar.Module.Sftp;
 using CSharpFar.Platform.Abstractions;
+using CSharpFar.Plugin.Abstractions;
 using CSharpFar.Shell;
 using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
@@ -383,17 +385,62 @@ internal static class ApplicationServicesBuilder
             Fields = formFields,
             Dialogs = dialogs,
         };
-        var moduleCatalog = ModuleCatalogFactory.Create(
-            enableBuiltInNetworkModules ? sftpModule ?? new SftpModule() : null,
-            enableBuiltInNetworkModules ? ftpModule ?? new FtpModule() : null,
-            new ProcessesAndPortsModule(processesAndPorts ?? new UnsupportedProcessesAndPortsPlatformService()),
-            new ModuleStartupInfo
+        var moduleStartup = new ModuleStartupInfo
+        {
+            Ui = moduleUiServices,
+            Settings = new ModuleSettingsService(effectiveConfigDirectory),
+            Credentials = credentialStore,
+            Panels = new ApplicationModulePanelHost(callbacks),
+        };
+
+        var pluginApplication = new ApplicationPluginContext(
+            effectiveRunOptions.Mode == ApplicationRunMode.Demo ? PluginRunMode.Demo : PluginRunMode.Normal,
+            () => session.Panels.ActiveSide,
+            () => session.Panels.ActiveSide == PanelSide.Left
+                ? session.Panels.Left.CurrentDirectory : session.Panels.Right.CurrentDirectory);
+        var pluginUi = new ApplicationPluginUi(moduleUiServices);
+        var pluginRuntime = new NativePluginRuntime(
+            pluginApplication,
+            _ => new ApplicationPluginSettings(effectiveConfigDirectory),
+            _ => pluginUi,
+            descriptor => new ApplicationPluginCredentials(credentialStore, descriptor.Id));
+
+        // Only the composition root knows which built-in implementations are enabled.
+        var pluginComposition = new List<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>();
+        if (enableBuiltInNetworkModules)
+        {
+            var sftp = sftpModule ?? new SftpModule();
+            sftp.Initialize(moduleStartup);
+            pluginComposition.Add((
+                new PluginDescriptor { Id = SftpModuleIds.ModuleId.ToString("D"), Title = "SFTP" }, sftp));
+
+            var ftp = ftpModule ?? new FtpModule();
+            ftp.Initialize(moduleStartup);
+            pluginComposition.Add((
+                new PluginDescriptor { Id = FtpModuleIds.ModuleId.ToString("D"), Title = "FTP/FTPS" }, ftp));
+        }
+
+        var ports = new ProcessesAndPortsModule(
+            processesAndPorts ?? new UnsupportedProcessesAndPortsPlatformService());
+        ports.Initialize(moduleStartup);
+        pluginComposition.Add((
+            new PluginDescriptor
             {
-                Ui = moduleUiServices,
-                Settings = new ModuleSettingsService(effectiveConfigDirectory),
-                Credentials = credentialStore,
-                Panels = new ApplicationModulePanelHost(callbacks),
-            });
+                Id = ProcessesAndPortsModuleIds.MenuActionId.ToString("D"), Title = "Processes and Ports",
+            }, ports));
+
+        foreach (var (descriptor, plugin) in pluginComposition)
+        {
+            var registration = pluginRuntime.RegisterAsync(descriptor, plugin);
+            if (!registration.IsCompleted)
+                throw new InvalidOperationException(
+                    $"Plugin '{descriptor.Id}' uses asynchronous initialization, which requires an async bootstrap.");
+            var outcome = registration.Result;
+            if (!outcome.Success)
+                throw new InvalidOperationException(outcome.Error);
+        }
+        pluginRuntime.Seal();
+        var moduleCatalog = new NativeModuleCatalog(pluginRuntime);
         var modulePanelOpener = new ModulePanelOpener(
             moduleCatalog,
             effectiveSourceRegistry,
