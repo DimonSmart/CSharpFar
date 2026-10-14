@@ -14,6 +14,7 @@ internal sealed class NativePluginRuntime
     private readonly Func<PluginDescriptor, IPluginSettingsService> _settingsFactory;
     private readonly Func<PluginDescriptor, IPluginUiService> _uiFactory;
     private readonly Func<PluginDescriptor, IPluginCredentialService> _credentialFactory;
+    private readonly Action<Exception>? _reportCleanupError;
     private readonly string _demoRoot = Path.Combine(Path.GetTempPath(), "CSharpFar-Demo-Plugins", Guid.NewGuid().ToString("N"));
     private readonly Dictionary<string, Registration> _plugins = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PluginCommandAddress> _prefixes = new(StringComparer.OrdinalIgnoreCase);
@@ -27,12 +28,14 @@ internal sealed class NativePluginRuntime
         IPluginApplicationContext application,
         Func<PluginDescriptor, IPluginSettingsService> settingsFactory,
         Func<PluginDescriptor, IPluginUiService> uiFactory,
-        Func<PluginDescriptor, IPluginCredentialService> credentialFactory)
+        Func<PluginDescriptor, IPluginCredentialService> credentialFactory,
+        Action<Exception>? reportCleanupError = null)
     {
         _application = application ?? throw new ArgumentNullException(nameof(application));
         _settingsFactory = settingsFactory ?? throw new ArgumentNullException(nameof(settingsFactory));
         _uiFactory = uiFactory ?? throw new ArgumentNullException(nameof(uiFactory));
         _credentialFactory = credentialFactory ?? throw new ArgumentNullException(nameof(credentialFactory));
+        _reportCleanupError = reportCleanupError;
     }
 
     public IReadOnlyList<PluginMenuRegistration> MenuItems => _menus.ToArray();
@@ -118,6 +121,7 @@ internal sealed class NativePluginRuntime
             catch (Exception cleanupError)
             {
                 cleanupMessage = cleanupError.Message;
+                ReportCleanupError(cleanupError);
             }
             if (cancellationToken.IsCancellationRequested)
                 throw new OperationCanceledException("Plugin bootstrap was cancelled.", e, cancellationToken);
@@ -153,7 +157,7 @@ internal sealed class NativePluginRuntime
             foreach (var registration in _plugins.Values)
             {
                 try { await registration.DisposeProvidersAsync(); }
-                catch { /* Attempt every independent registration's cleanup. */ }
+                catch (Exception error) { ReportCleanupError(error); }
             }
             _plugins.Clear();
             _prefixes.Clear();
@@ -167,9 +171,15 @@ internal sealed class NativePluginRuntime
         if (Directory.Exists(_demoRoot))
         {
             try { Directory.Delete(_demoRoot, recursive: true); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
+            catch (IOException error) { ReportCleanupError(error); }
+            catch (UnauthorizedAccessException error) { ReportCleanupError(error); }
         }
+    }
+
+    private void ReportCleanupError(Exception error)
+    {
+        try { _reportCleanupError?.Invoke(error); }
+        catch { /* Diagnostics must not change the outcome of cleanup. */ }
     }
 
     public bool TryResolvePrefix(string commandLine, out PluginCommandAddress address, out string arguments)
