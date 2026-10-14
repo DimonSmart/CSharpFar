@@ -18,7 +18,9 @@ internal sealed class NativePluginRuntime
     private readonly Dictionary<string, Registration> _plugins = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PluginCommandAddress> _prefixes = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<PluginMenuRegistration> _menus = [];
+    private readonly object _stateGate = new();
     private bool _sealed;
+    private bool _aborted;
     private readonly SemaphoreSlim _registrationGate = new(1, 1);
 
     public NativePluginRuntime(
@@ -45,6 +47,7 @@ internal sealed class NativePluginRuntime
         try
         {
             EnsureMutable();
+            cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(descriptor.Id) ||
                 !descriptor.Id.All(ch => char.IsAsciiLetterOrDigit(ch) || ch is '-' or '_' or '.') ||
                 descriptor.Id is "." or ".." || string.IsNullOrWhiteSpace(descriptor.Title))
@@ -78,40 +81,96 @@ internal sealed class NativePluginRuntime
             await plugin.InitializeAsync(host, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             stage.Validate(_prefixes);
-            var existingActionIds = _menus
-                .Where(menu => menu.Item.ActionId.HasValue)
-                .Select(menu => menu.Item.ActionId!.Value)
-                .ToHashSet();
-            foreach (var item in stage.Menus)
+            // The same state lock protects Seal/Abort and the final publication.
+            // An initializer completing after bootstrap failure can never commit.
+            lock (_stateGate)
             {
-                if (item.ActionId == Guid.Empty || (item.ActionId is { } actionId && !existingActionIds.Add(actionId)))
-                    throw new InvalidOperationException($"Duplicate or empty plugin action GUID for menu item '{item.Id}'.");
-            }
+                cancellationToken.ThrowIfCancellationRequested();
+                EnsureMutable();
+                var actionIds = _menus
+                    .Select(menu => PluginMenuActionIds.Get(menu.PluginId, menu.Item))
+                    .ToHashSet();
+                foreach (var item in stage.Menus)
+                {
+                    var actionId = PluginMenuActionIds.Get(descriptor.Id, item);
+                    if (actionId == Guid.Empty || !actionIds.Add(actionId))
+                        throw new InvalidOperationException(
+                            $"Duplicate or empty plugin action GUID for menu item '{item.Id}'.");
+                }
 
-            // A registration becomes visible only after initialization and validation succeed.
-            _plugins.Add(descriptor.Id, stage);
-            foreach (var prefix in stage.Prefixes)
-                _prefixes.Add(prefix.Key, new PluginCommandAddress(descriptor.Id, prefix.Value));
-            foreach (var item in stage.Menus)
-                _menus.Add(new PluginMenuRegistration(descriptor.Id, item));
-            stage.Freeze();
+                stage.Freeze();
+                _plugins.Add(descriptor.Id, stage);
+                foreach (var prefix in stage.Prefixes)
+                    _prefixes.Add(prefix.Key, new PluginCommandAddress(descriptor.Id, prefix.Value));
+                foreach (var item in stage.Menus)
+                    _menus.Add(new PluginMenuRegistration(descriptor.Id, item));
+            }
             return new(true);
         }
         catch (Exception e)
         {
+            stage.Freeze();
+            string? cleanupMessage = null;
             try
             {
                 await stage.DisposeProvidersAsync();
             }
             catch (Exception cleanupError)
             {
-                return new(false, $"Plugin '{descriptor.Title}' ({descriptor.Id}): {e.Message}. Cleanup: {cleanupError.Message}");
+                cleanupMessage = cleanupError.Message;
             }
-            return new(false, $"Plugin '{descriptor.Title}' ({descriptor.Id}): {e.Message}");
+            if (cancellationToken.IsCancellationRequested)
+                throw new OperationCanceledException("Plugin bootstrap was cancelled.", e, cancellationToken);
+            return new(false, $"Plugin '{descriptor.Title}' ({descriptor.Id}): {e.Message}" +
+                (cleanupMessage is null ? "" : $". Cleanup: {cleanupMessage}"));
         }
     }
 
-    public void Seal() => _sealed = true;
+    public void Seal()
+    {
+        lock (_stateGate)
+        {
+            EnsureMutable();
+            _sealed = true;
+        }
+    }
+
+    public void Abort()
+    {
+        lock (_stateGate)
+        {
+            _aborted = true;
+            _sealed = true;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Abort();
+        await _registrationGate.WaitAsync();
+        try
+        {
+            foreach (var registration in _plugins.Values)
+            {
+                try { await registration.DisposeProvidersAsync(); }
+                catch { /* Attempt every independent registration's cleanup. */ }
+            }
+            _plugins.Clear();
+            _prefixes.Clear();
+            _menus.Clear();
+        }
+        finally
+        {
+            _registrationGate.Release();
+        }
+
+        if (Directory.Exists(_demoRoot))
+        {
+            try { Directory.Delete(_demoRoot, recursive: true); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
 
     public bool TryResolvePrefix(string commandLine, out PluginCommandAddress address, out string arguments)
     {
@@ -182,7 +241,7 @@ internal sealed class NativePluginRuntime
 
     private void EnsureMutable()
     {
-        if (_sealed) throw new InvalidOperationException("Plugin initialization is closed.");
+        if (_sealed || _aborted) throw new InvalidOperationException("Plugin initialization is closed.");
     }
 
     private sealed class Registration(PluginDescriptor descriptor)
@@ -217,13 +276,24 @@ internal sealed class NativePluginRuntime
         public void Freeze() => Frozen = true;
         public async ValueTask DisposeProvidersAsync()
         {
+            List<Exception>? failures = null;
             foreach (var provider in Providers.Values)
             {
-                if (provider is IAsyncDisposable asyncDisposable)
-                    await asyncDisposable.DisposeAsync();
-                else if (provider is IDisposable disposable)
-                    disposable.Dispose();
+                try
+                {
+                    if (provider is IAsyncDisposable asyncDisposable)
+                        await asyncDisposable.DisposeAsync();
+                    else if (provider is IDisposable disposable)
+                        disposable.Dispose();
+                }
+                catch (Exception error)
+                {
+                    (failures ??= []).Add(error);
+                }
             }
+            Providers.Clear();
+            if (failures is not null)
+                throw new AggregateException("Plugin provider cleanup failed.", failures);
         }
     }
 
