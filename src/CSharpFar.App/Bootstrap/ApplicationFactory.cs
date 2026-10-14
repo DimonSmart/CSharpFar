@@ -7,6 +7,7 @@ using CSharpFar.Core.Services;
 using CSharpFar.Module.Ftp;
 using CSharpFar.Module.Sftp;
 using CSharpFar.Platform.Abstractions;
+using CSharpFar.Plugin.Abstractions;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App.Bootstrap;
@@ -42,7 +43,8 @@ public static class ApplicationFactory
         ApplicationRunOptions? runOptions = null,
         IProcessesAndPortsPlatformService? processesAndPorts = null,
         IFileUsagePlatformService? fileUsage = null,
-        PlatformKind? platform = null)
+        PlatformKind? platform = null,
+        IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>? additionalPlugins = null)
     {
         var services = ApplicationServicesBuilder.Create(
             screen,

@@ -19,6 +19,7 @@ internal sealed class NativePluginRuntime
     private readonly Dictionary<string, PluginCommandAddress> _prefixes = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<PluginMenuRegistration> _menus = [];
     private bool _sealed;
+    private readonly SemaphoreSlim _registrationGate = new(1, 1);
 
     public NativePluginRuntime(
         IPluginApplicationContext application,
@@ -40,12 +41,28 @@ internal sealed class NativePluginRuntime
     {
         ArgumentNullException.ThrowIfNull(descriptor);
         ArgumentNullException.ThrowIfNull(plugin);
-        EnsureMutable();
-        if (string.IsNullOrWhiteSpace(descriptor.Id) || string.IsNullOrWhiteSpace(descriptor.Title))
-            return new(false, "Plugin ID and title are required.");
-        if (_plugins.ContainsKey(descriptor.Id))
-            return new(false, $"Plugin '{descriptor.Id}' is already registered.");
+        await _registrationGate.WaitAsync(cancellationToken);
+        try
+        {
+            EnsureMutable();
+            if (string.IsNullOrWhiteSpace(descriptor.Id) ||
+                !descriptor.Id.All(ch => char.IsAsciiLetterOrDigit(ch) || ch is '-' or '_' or '.') ||
+                descriptor.Id is "." or ".." || string.IsNullOrWhiteSpace(descriptor.Title))
+                return new(false, "Plugin ID must be a safe single path component and title must not be empty.");
+            if (_plugins.ContainsKey(descriptor.Id))
+                return new(false, $"Plugin '{descriptor.Id}' is already registered.");
 
+            return await RegisterCoreAsync(descriptor, plugin, cancellationToken);
+        }
+        finally
+        {
+            _registrationGate.Release();
+        }
+    }
+
+    private async ValueTask<PluginInitializationResult> RegisterCoreAsync(
+        PluginDescriptor descriptor, ICSharpFarPlugin plugin, CancellationToken cancellationToken)
+    {
         var stage = new Registration(descriptor);
         try
         {
@@ -73,7 +90,14 @@ internal sealed class NativePluginRuntime
         }
         catch (Exception e)
         {
-            await stage.DisposeProvidersAsync();
+            try
+            {
+                await stage.DisposeProvidersAsync();
+            }
+            catch (Exception cleanupError)
+            {
+                return new(false, $"Plugin '{descriptor.Title}' ({descriptor.Id}): {e.Message}. Cleanup: {cleanupError.Message}");
+            }
             return new(false, $"Plugin '{descriptor.Title}' ({descriptor.Id}): {e.Message}");
         }
     }

@@ -68,7 +68,8 @@ internal static class ApplicationServicesBuilder
         IProcessesAndPortsPlatformService? processesAndPorts = null,
         IFileUsagePlatformService? fileUsage = null,
         IUriLauncher? uriLauncher = null,
-        IApplicationUpdateInstaller? applicationUpdateInstaller = null)
+        IApplicationUpdateInstaller? applicationUpdateInstaller = null,
+        IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>? additionalPlugins = null)
     {
         var effectiveRunOptions = runOptions ?? ApplicationRunOptions.Normal;
         IDiagnosticLog diagnosticLog = effectiveRunOptions.DiagnosticsEnabled
@@ -428,6 +429,9 @@ internal static class ApplicationServicesBuilder
             {
                 Id = ProcessesAndPortsModuleIds.MenuActionId.ToString("D"), Title = "Processes and Ports",
             }, ports));
+
+        if (additionalPlugins is not null)
+            pluginComposition.AddRange(additionalPlugins);
 
         foreach (var (descriptor, plugin) in pluginComposition)
         {
