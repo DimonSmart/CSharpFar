@@ -51,6 +51,8 @@ public static class ApplicationBootstrap
             settings.History.MaxDirectoryHistoryItems,
             settings.History.MaxFileHistoryItems);
 
+        try
+        {
         var application = ApplicationFactory.Create(
             renderer,
             fs,
@@ -76,8 +78,6 @@ public static class ApplicationBootstrap
             fileUsage: platform.FileUsage,
             platform: platform.Platform);
 
-        try
-        {
             application.Run();
 
             if (CaptureLastPanelDirectories(
