@@ -7,4 +7,5 @@ internal enum DiagnosticCategory
     ApplicationUpdate,
     Terminal,
     FileSystem,
+    Plugin,
 }
