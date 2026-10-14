@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using CSharpFar.App.Plugins;
 using CSharpFar.Core.Models;
 using CSharpFar.Plugin.Abstractions;
@@ -42,7 +40,7 @@ internal sealed class NativeModuleCatalog(NativePluginRuntime plugins)
     {
         foreach (var item in plugins.MenuItems)
         {
-            if (item.Item.Placement == placement && ActionId(item) == actionId)
+            if (item.Item.Placement == placement && PluginMenuActionIds.Get(item.PluginId, item.Item) == actionId)
             {
                 return plugins.ExecuteAsync(
                     new PluginCommandAddress(item.PluginId, item.Item.CommandId), origin, side);
@@ -56,17 +54,7 @@ internal sealed class NativeModuleCatalog(NativePluginRuntime plugins)
     private IReadOnlyList<ModuleMenuProjection> Project(PluginMenuPlacement placement) =>
         plugins.MenuItems
             .Where(item => item.Item.Placement == placement)
-            .Select(item => new ModuleMenuProjection(ActionId(item), item.Item.Title, item.Item.HotKey))
+            .Select(item => new ModuleMenuProjection(PluginMenuActionIds.Get(item.PluginId, item.Item), item.Item.Title, item.Item.HotKey))
             .ToArray();
 
-    private static Guid ActionId(PluginMenuRegistration registration)
-    {
-        if (registration.Item.ActionId is { } existingActionId)
-            return existingActionId;
-
-        // Stable action identity for a plugin-local menu ID without prescribing GUID IDs to plugins.
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(
-            registration.PluginId + "/" + registration.Item.Id));
-        return new Guid(hash.AsSpan(0, 16));
-    }
 }

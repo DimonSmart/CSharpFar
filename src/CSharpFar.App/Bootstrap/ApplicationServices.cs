@@ -7,6 +7,7 @@ using CSharpFar.App.Input;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
 using CSharpFar.App.Panels;
+using CSharpFar.App.Plugins;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.App.UserMenu;
@@ -67,4 +68,7 @@ internal sealed class ApplicationServices
     public required ApplicationInputDispatcher ApplicationInputDispatcher { get; init; }
     public required MouseInputContext MouseInputContext { get; init; }
     public Action? SaveSettings { get; init; }
+    public NativePluginRuntime? PluginRuntime { get; init; }
+    public ApplicationPluginUi? PluginUi { get; init; }
+    public IReadOnlyList<string> StartupPluginErrors { get; init; } = [];
 }

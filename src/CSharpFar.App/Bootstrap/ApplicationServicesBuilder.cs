@@ -71,6 +71,141 @@ internal static class ApplicationServicesBuilder
         IApplicationUpdateInstaller? applicationUpdateInstaller = null,
         IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>? additionalPlugins = null)
     {
+        return Prepare(
+            screen,
+            fs,
+            shell,
+            fileOps,
+            history,
+            settings,
+            userMenu,
+            saveSettings,
+            volumeService,
+            volumeInfoService,
+            changeWatcher,
+            locationService,
+            mountPointService,
+            fileLauncher,
+            searchService,
+            sourceRegistry,
+            credentialStore,
+            sftpModule,
+            ftpModule,
+            enableBuiltInNetworkModules,
+            configDirectory,
+            clipboard,
+            terminalScreenMode,
+            fileMetadata,
+            fileAttributesDialogFactory,
+            runOptions,
+            processesAndPorts,
+            fileUsage,
+            uriLauncher,
+            applicationUpdateInstaller,
+            additionalPlugins).BuildSynchronously();
+    }
+
+    public static Task<ApplicationServices> CreateAsync(
+        ScreenRenderer screen,
+        IFileSystemService fs,
+        IShellService shell,
+        IFileOperationService fileOps,
+        IHistoryStore? history = null,
+        AppSettingsAlias? settings = null,
+        UserMenuStore? userMenu = null,
+        Action? saveSettings = null,
+        IVolumeService? volumeService = null,
+        IVolumeInfoService? volumeInfoService = null,
+        IFileSystemChangeWatcher? changeWatcher = null,
+        IFileSystemLocationService? locationService = null,
+        IVolumeMountPointService? mountPointService = null,
+        IFileLauncher? fileLauncher = null,
+        ISearchService? searchService = null,
+        FilePanelSourceRegistry? sourceRegistry = null,
+        ICredentialStore? credentialStore = null,
+        SftpModule? sftpModule = null,
+        FtpModule? ftpModule = null,
+        bool enableBuiltInNetworkModules = true,
+        string? configDirectory = null,
+        ITextClipboard? clipboard = null,
+        ITerminalScreenMode? terminalScreenMode = null,
+        IFileMetadataService? fileMetadata = null,
+        Func<IFileAttributesDialog>? fileAttributesDialogFactory = null,
+        ApplicationRunOptions? runOptions = null,
+        IProcessesAndPortsPlatformService? processesAndPorts = null,
+        IFileUsagePlatformService? fileUsage = null,
+        IUriLauncher? uriLauncher = null,
+        IApplicationUpdateInstaller? applicationUpdateInstaller = null,
+        IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>? additionalPlugins = null,
+        CancellationToken cancellationToken = default)
+    {
+        return Prepare(
+            screen,
+            fs,
+            shell,
+            fileOps,
+            history,
+            settings,
+            userMenu,
+            saveSettings,
+            volumeService,
+            volumeInfoService,
+            changeWatcher,
+            locationService,
+            mountPointService,
+            fileLauncher,
+            searchService,
+            sourceRegistry,
+            credentialStore,
+            sftpModule,
+            ftpModule,
+            enableBuiltInNetworkModules,
+            configDirectory,
+            clipboard,
+            terminalScreenMode,
+            fileMetadata,
+            fileAttributesDialogFactory,
+            runOptions,
+            processesAndPorts,
+            fileUsage,
+            uriLauncher,
+            applicationUpdateInstaller,
+            additionalPlugins).BuildAsynchronously(cancellationToken);
+    }
+
+    private static PreparedApplicationServices Prepare(
+        ScreenRenderer screen,
+        IFileSystemService fs,
+        IShellService shell,
+        IFileOperationService fileOps,
+        IHistoryStore? history = null,
+        AppSettingsAlias? settings = null,
+        UserMenuStore? userMenu = null,
+        Action? saveSettings = null,
+        IVolumeService? volumeService = null,
+        IVolumeInfoService? volumeInfoService = null,
+        IFileSystemChangeWatcher? changeWatcher = null,
+        IFileSystemLocationService? locationService = null,
+        IVolumeMountPointService? mountPointService = null,
+        IFileLauncher? fileLauncher = null,
+        ISearchService? searchService = null,
+        FilePanelSourceRegistry? sourceRegistry = null,
+        ICredentialStore? credentialStore = null,
+        SftpModule? sftpModule = null,
+        FtpModule? ftpModule = null,
+        bool enableBuiltInNetworkModules = true,
+        string? configDirectory = null,
+        ITextClipboard? clipboard = null,
+        ITerminalScreenMode? terminalScreenMode = null,
+        IFileMetadataService? fileMetadata = null,
+        Func<IFileAttributesDialog>? fileAttributesDialogFactory = null,
+        ApplicationRunOptions? runOptions = null,
+        IProcessesAndPortsPlatformService? processesAndPorts = null,
+        IFileUsagePlatformService? fileUsage = null,
+        IUriLauncher? uriLauncher = null,
+        IApplicationUpdateInstaller? applicationUpdateInstaller = null,
+        IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>? additionalPlugins = null)
+    {
         var effectiveRunOptions = runOptions ?? ApplicationRunOptions.Normal;
         IDiagnosticLog diagnosticLog = effectiveRunOptions.DiagnosticsEnabled
             ? new InMemoryDiagnosticLog()
@@ -404,7 +539,10 @@ internal static class ApplicationServicesBuilder
             pluginApplication,
             _ => new ApplicationPluginSettings(effectiveConfigDirectory),
             _ => pluginUi,
-            descriptor => new ApplicationPluginCredentials(credentialStore, descriptor.Id));
+            descriptor => new ApplicationPluginCredentials(credentialStore, descriptor.Id),
+            error => diagnosticLog.WriteException(DiagnosticCategory.Plugin, error, "Plugin provider cleanup"),
+            (descriptor, error) => diagnosticLog.WriteException(
+                DiagnosticCategory.Plugin, error, $"Plugin '{descriptor.Id}' initialization"));
 
         // Only the composition root knows which built-in implementations are enabled.
         var pluginComposition = new List<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>();
@@ -430,20 +568,31 @@ internal static class ApplicationServicesBuilder
                 Id = ProcessesAndPortsModuleIds.MenuActionId.ToString("D"), Title = "Processes and Ports",
             }, ports));
 
-        if (additionalPlugins is not null)
-            pluginComposition.AddRange(additionalPlugins);
-
-        foreach (var (descriptor, plugin) in pluginComposition)
+        void ReleaseFailedPreparation()
         {
-            var registration = pluginRuntime.RegisterAsync(descriptor, plugin);
-            if (!registration.IsCompleted)
-                throw new InvalidOperationException(
-                    $"Plugin '{descriptor.Id}' uses asynchronous initialization, which requires an async bootstrap.");
-            var outcome = registration.Result;
-            if (!outcome.Success)
-                throw new InvalidOperationException(outcome.Error);
+            applicationUiLayers.Dispose();
+            directorySizes.Dispose();
+            quickViewDirectorySize.Dispose();
+            fileUsagePanel.Dispose();
         }
-        pluginRuntime.Seal();
+
+        try
+        {
+            if (additionalPlugins is not null)
+                pluginComposition.AddRange(additionalPlugins);
+        }
+        catch
+        {
+            pluginRuntime.Abort();
+            ReleaseFailedPreparation();
+            throw;
+        }
+
+        // The final assembly closes over shared services, so both factories reuse
+        // exactly the same preparation and finalization pipeline.
+        var pluginFailures = new List<string>();
+        ApplicationServices Finish()
+        {
         var moduleCatalog = new NativeModuleCatalog(pluginRuntime);
         var pluginUiActions = new PluginUiActionQueue(autoRefresh.WakeInputLoop);
         var modulePanelOpener = new ModulePanelOpener(
@@ -574,6 +723,13 @@ internal static class ApplicationServicesBuilder
             ApplicationInputDispatcher = applicationInputDispatcher,
             MouseInputContext = mouseInputContext,
             SaveSettings = saveSettings,
+            PluginRuntime = pluginRuntime,
+            PluginUi = pluginUi,
+            StartupPluginErrors = pluginFailures.ToArray(),
         };
+        }
+
+        return new PreparedApplicationServices(
+            pluginRuntime, pluginComposition, pluginFailures, diagnosticLog, Finish, ReleaseFailedPreparation);
     }
 }

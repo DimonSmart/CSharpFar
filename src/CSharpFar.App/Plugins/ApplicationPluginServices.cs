@@ -16,11 +16,36 @@ internal sealed class ApplicationPluginContext(
 
 internal sealed class ApplicationPluginUi(ModuleUiServices ui) : IPluginUiService
 {
-    public void ShowMessage(string title, string message) => ui.ShowMessage(title, message);
-    public string? Input(string title, string prompt, string? initialText = null) =>
-        ui.Input(title, prompt, initialText);
-    public int? ShowMenu(string title, IReadOnlyList<string> items, int selected) =>
-        ui.ShowMenu(title, items, selected);
+    private int _uiThreadId = Environment.CurrentManagedThreadId;
+
+    // Called by Application.Run on the thread that actually owns the input loop.
+    public void BindToCurrentThread() => _uiThreadId = Environment.CurrentManagedThreadId;
+
+    private void EnsureUiThread()
+    {
+        if (Environment.CurrentManagedThreadId != _uiThreadId)
+            throw new InvalidOperationException(
+                "Modal plugin UI is only available on the terminal thread. " +
+                "During asynchronous initialization, defer dialogs until a command runs.");
+    }
+
+    public void ShowMessage(string title, string message)
+    {
+        EnsureUiThread();
+        ui.ShowMessage(title, message);
+    }
+
+    public string? Input(string title, string prompt, string? initialText = null)
+    {
+        EnsureUiThread();
+        return ui.Input(title, prompt, initialText);
+    }
+
+    public int? ShowMenu(string title, IReadOnlyList<string> items, int selected)
+    {
+        EnsureUiThread();
+        return ui.ShowMenu(title, items, selected);
+    }
 }
 
 internal sealed class ApplicationPluginSettings(string configDirectory) : IPluginSettingsService
