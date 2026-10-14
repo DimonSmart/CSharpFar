@@ -44,11 +44,12 @@ internal sealed class PreparedApplicationServices(
         catch
         {
             runtime.Abort();
-            cancellation.Cancel();
+            // Cancellation callbacks belong to arbitrary plugin code. Do not execute
+            // them synchronously on the terminal/bootstrap thread.
+            Task cancellationCompletion = RequestCancellationAsync(cancellation);
             ReleasePreparedResources();
-            // The pending in-process plugin cannot be forcibly stopped. Its final
-            // outcome is observed, and runtime ownership is cleaned up when it ends.
-            _ = ObserveAndDisposeAsync(pending, cancellation);
+            // The pending task is observed and owned resources are eventually released.
+            _ = ObserveAndDisposeAsync(pending, cancellation, cancellationCompletion);
             throw;
         }
     }
@@ -129,8 +130,16 @@ internal sealed class PreparedApplicationServices(
         }
     }
 
+    private static async Task RequestCancellationAsync(CancellationTokenSource source)
+    {
+        try { await source.CancelAsync().ConfigureAwait(false); }
+        catch { /* Plugin cancellation callbacks must not hide the original error. */ }
+    }
+
     private async Task ObserveAndDisposeAsync(
-        Task<PluginInitializationResult>? pending, CancellationTokenSource? cancellation = null)
+        Task<PluginInitializationResult>? pending,
+        CancellationTokenSource? cancellation = null,
+        Task? cancellationCompletion = null)
     {
         try
         {
@@ -146,6 +155,8 @@ internal sealed class PreparedApplicationServices(
                 try { diagnostics.WriteException(DiagnosticCategory.Plugin, error, "Bootstrap cleanup"); }
                 catch { }
             }
+            if (cancellationCompletion is not null)
+                await cancellationCompletion.ConfigureAwait(false);
             cancellation?.Dispose();
         }
     }
