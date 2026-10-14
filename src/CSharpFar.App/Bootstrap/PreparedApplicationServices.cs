@@ -10,11 +10,12 @@ internal sealed class PreparedApplicationServices(
     IReadOnlyList<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)> composition,
     List<string> failures,
     IDiagnosticLog diagnostics,
-    Func<ApplicationServices> finish)
+    Func<ApplicationServices> finish,
+    Action releaseFailedPreparation)
 {
     public ApplicationServices BuildSynchronously()
     {
-        using var cancellation = new CancellationTokenSource();
+        var cancellation = new CancellationTokenSource();
         Task<PluginInitializationResult>? pending = null;
         try
         {
@@ -36,15 +37,18 @@ internal sealed class PreparedApplicationServices(
             }
 
             runtime.Seal();
-            return finish();
+            var completed = finish();
+            cancellation.Dispose();
+            return completed;
         }
         catch
         {
             runtime.Abort();
             cancellation.Cancel();
+            ReleasePreparedResources();
             // The pending in-process plugin cannot be forcibly stopped. Its final
             // outcome is observed, and runtime ownership is cleaned up when it ends.
-            _ = ObserveAndDisposeAsync(pending);
+            _ = ObserveAndDisposeAsync(pending, cancellation);
             throw;
         }
     }
@@ -76,6 +80,7 @@ internal sealed class PreparedApplicationServices(
         catch
         {
             runtime.Abort();
+            ReleasePreparedResources();
             if (pending is { IsCompleted: false })
                 _ = ObserveAndDisposeAsync(pending);
             else
@@ -114,7 +119,18 @@ internal sealed class PreparedApplicationServices(
         catch { /* Diagnostic transport must never influence composition. */ }
     }
 
-    private async Task ObserveAndDisposeAsync(Task<PluginInitializationResult>? pending)
+    private void ReleasePreparedResources()
+    {
+        try { releaseFailedPreparation(); }
+        catch (Exception error)
+        {
+            try { diagnostics.WriteException(DiagnosticCategory.Plugin, error, "Bootstrap cleanup"); }
+            catch { }
+        }
+    }
+
+    private async Task ObserveAndDisposeAsync(
+        Task<PluginInitializationResult>? pending, CancellationTokenSource? cancellation = null)
     {
         try
         {
@@ -125,7 +141,12 @@ internal sealed class PreparedApplicationServices(
         finally
         {
             try { await runtime.DisposeAsync().ConfigureAwait(false); }
-            catch { /* Best-effort teardown after a failed bootstrap. */ }
+            catch (Exception error)
+            {
+                try { diagnostics.WriteException(DiagnosticCategory.Plugin, error, "Bootstrap cleanup"); }
+                catch { }
+            }
+            cancellation?.Dispose();
         }
     }
 }
