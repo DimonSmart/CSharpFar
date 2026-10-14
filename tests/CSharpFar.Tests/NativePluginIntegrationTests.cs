@@ -74,13 +74,13 @@ public sealed class NativePluginIntegrationTests
     {
         int wakeCount = 0;
         int calledOn = 0;
-        int ownerThread = Environment.CurrentManagedThreadId;
         var queue = new PluginUiActionQueue(() => Interlocked.Increment(ref wakeCount));
         await Task.Run(() => queue.Post(() => calledOn = Environment.CurrentManagedThreadId));
         Assert.Equal(0, calledOn);
         Assert.Equal(1, wakeCount);
+        int drainThread = Environment.CurrentManagedThreadId;
         queue.Drain();
-        Assert.Equal(ownerThread, calledOn);
+        Assert.Equal(drainThread, calledOn);
     }
 
     private sealed class IndependentPlugin(VirtualPanelSource source) : ICSharpFarPlugin
