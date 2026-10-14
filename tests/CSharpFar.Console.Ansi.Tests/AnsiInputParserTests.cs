@@ -910,17 +910,26 @@ public sealed class AnsiInputParserTests
     [Fact]
     public void RawReader_FocusOutDeliversPlainResetBeforeNextCommand()
     {
-        string bytes =
-            "\x1b[?0u\x1b[?1;2c\x1b[?27u" +
-            "\x1b[57441;2:1u\x1b[O\x1b[Ia";
+        // Protocol negotiation and user input are separate phases. A prebuffered
+        // user event can otherwise be consumed by a timing-sensitive probe.
+        const string protocolReplies = "\x1b[?0u\x1b[?1;2c\x1b[?27u";
+        const string userInput = "\x1b[57441;2:1u\x1b[O\x1b[Ia";
+        using var input = new MemoryStream();
+        input.Write(Encoding.ASCII.GetBytes(protocolReplies));
+        input.Position = 0;
         using var reader = new UnixRawTerminalInputReader(
-            new StreamAnsiInputByteReader(
-                new MemoryStream(Encoding.ASCII.GetBytes(bytes)), null),
+            new StreamAnsiInputByteReader(input, null),
             () => new CSharpFar.Console.Models.ConsoleSize(80, 25),
             () => { },
             _ => { },
             new FakeTerminalInputMode(),
             enhancedKeyboardRequested: true);
+
+        Assert.True(reader.KeyboardProtocol.CanTrackStandaloneModifiers);
+        long readPosition = input.Position;
+        input.Position = input.Length;
+        input.Write(Encoding.ASCII.GetBytes(userInput));
+        input.Position = readPosition;
 
         Assert.True(reader.TryReadInput(true, out var down));
         Assert.Equal(ConsoleModifiers.Shift, Assert.IsType<ModifierKeyConsoleInputEvent>(down).Modifiers);
