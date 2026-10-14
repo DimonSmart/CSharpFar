@@ -11,6 +11,7 @@ using CSharpFar.App.Input;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
 using CSharpFar.App.Panels;
+using CSharpFar.App.Plugins;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.App.UserMenu;
@@ -61,6 +62,9 @@ public sealed class Application
     private readonly CommandLineCommandExecutor _commandLineCommandExecutor;
     private readonly ExternalConsoleCommandRunner _externalConsoleCommandRunner;
     private readonly AppSettingsAlias _settings;
+    private readonly NativePluginRuntime? _pluginRuntime;
+    private readonly ApplicationPluginUi? _pluginUi;
+    private readonly IReadOnlyList<string> _startupPluginErrors;
     private readonly Action? _saveSettings;
     private readonly ITextClipboard _clipboard;
 
@@ -157,6 +161,9 @@ public sealed class Application
     internal Application(ApplicationServices services)
     {
         _screen = services.Screen;
+        _pluginRuntime = services.PluginRuntime;
+        _pluginUi = services.PluginUi;
+        _startupPluginErrors = services.StartupPluginErrors;
         _ctrl = services.PanelController;
         _commandHistoryNavigator = services.CommandHistoryNavigator;
         _commandCompletionController = services.CommandCompletionController;
@@ -285,7 +292,30 @@ public sealed class Application
 
     public void Run()
     {
-        _runtime.Run();
+        _pluginUi?.BindToCurrentThread();
+        bool notified = false;
+        void ShowStartupFailures()
+        {
+            if (notified || _startupPluginErrors.Count == 0)
+                return;
+            notified = true;
+            _pluginUi?.ShowMessage(
+                "Plugin initialization",
+                $"{_startupPluginErrors.Count} plugin(s) could not be initialized:\n" +
+                string.Join("\n", _startupPluginErrors));
+        }
+
+        _runtime.ApplicationInputRequested += ShowStartupFailures;
+        try
+        {
+            _runtime.Run();
+        }
+        finally
+        {
+            _runtime.ApplicationInputRequested -= ShowStartupFailures;
+            if (_pluginRuntime is not null)
+                _pluginRuntime.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
     }
 
     private void StartWatchingInitialPanels()
