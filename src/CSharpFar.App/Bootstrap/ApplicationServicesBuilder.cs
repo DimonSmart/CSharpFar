@@ -706,5 +706,9 @@ internal static class ApplicationServicesBuilder
             PluginRuntime = pluginRuntime,
             StartupPluginErrors = pluginFailures.ToArray(),
         };
+        }
+
+        return new PreparedApplicationServices(
+            pluginRuntime, pluginComposition, pluginFailures, diagnosticLog, Finish);
     }
 }
