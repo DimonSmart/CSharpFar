@@ -540,7 +540,9 @@ internal static class ApplicationServicesBuilder
             _ => new ApplicationPluginSettings(effectiveConfigDirectory),
             _ => pluginUi,
             descriptor => new ApplicationPluginCredentials(credentialStore, descriptor.Id),
-            error => diagnosticLog.WriteException(DiagnosticCategory.Plugin, error, "Plugin provider cleanup"));
+            error => diagnosticLog.WriteException(DiagnosticCategory.Plugin, error, "Plugin provider cleanup"),
+            (descriptor, error) => diagnosticLog.WriteException(
+                DiagnosticCategory.Plugin, error, $"Plugin '{descriptor.Id}' initialization"));
 
         // Only the composition root knows which built-in implementations are enabled.
         var pluginComposition = new List<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>();
