@@ -20,6 +20,7 @@ internal sealed class ModulePanelOpener
     private readonly Func<PanelSide, FilePanelState> _getPanelState;
     private readonly Action<PanelSide> _setActiveSide;
     private readonly Action<bool> _setQuickView;
+    private readonly Action<Action>? _postToUi;
 
     public ModulePanelOpener(
         NativeModuleCatalog moduleCatalog,
@@ -31,7 +32,8 @@ internal sealed class ModulePanelOpener
         Func<AppSettingsAlias.PanelOptionsSettings> panelOptions,
         Func<PanelSide, FilePanelState> getPanelState,
         Action<PanelSide> setActiveSide,
-        Action<bool> setQuickView)
+        Action<bool> setQuickView,
+        Action<Action>? postToUi = null)
     {
         _moduleCatalog = moduleCatalog;
         _sourceRegistry = sourceRegistry;
@@ -41,6 +43,7 @@ internal sealed class ModulePanelOpener
         _getPanelState = getPanelState;
         _setActiveSide = setActiveSide;
         _setQuickView = setQuickView;
+        _postToUi = postToUi;
     }
 
     public ApplicationCommandResult OpenMenuItem(Guid actionId, PanelSide activeSide) =>
@@ -61,15 +64,36 @@ internal sealed class ModulePanelOpener
     private ApplicationCommandResult HandleInvocation(
         ValueTask<PluginCommandResult> invocation, PanelSide targetSide)
     {
-        // The current application dispatch interface is synchronous. Never synchronously wait for
-        // unfinished tasks on the UI thread or execute terminal modal dialogs on worker threads.
-        if (!invocation.IsCompleted)
+        if (invocation.IsCompleted)
+            return HandleOpenResult(invocation.Result, targetSide);
+
+        if (_postToUi is null)
         {
-            _dialogs.Message("Plugin", "This asynchronous plugin command requires an asynchronous application dispatcher.");
+            _dialogs.Message("Plugin", "Asynchronous plugin commands require a UI completion queue.");
             return ApplicationCommandResult.Rendered();
         }
 
-        return HandleOpenResult(invocation.Result, targetSide);
+        _ = CompleteAsync(invocation, targetSide);
+        return ApplicationCommandResult.Rendered();
+    }
+
+    private async Task CompleteAsync(ValueTask<PluginCommandResult> invocation, PanelSide targetSide)
+    {
+        PluginCommandResult result;
+        try
+        {
+            result = await invocation.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            result = PluginCommandResult.Cancelled();
+        }
+        catch (Exception e)
+        {
+            result = PluginCommandResult.Failed(e.Message);
+        }
+
+        _postToUi!(() => HandleOpenResult(result, targetSide));
     }
 
     public void OpenPanel(PanelSide panelSide, IModulePanel panel) =>

@@ -1,5 +1,6 @@
 using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.Menu;
+using CSharpFar.App.Plugins;
 using CSharpFar.App.Panels;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
@@ -37,7 +38,11 @@ internal static class ApplicationRuntimeBuilder
                 StartWatchingInitialPanels = () => callbacks.StartWatchingInitialPanels(),
                 RestoreTerminal = () => callbacks.RestoreTerminal(),
                 ResetWaitToken = autoRefresh.ResetWaitToken,
-                ProcessPendingRefreshes = autoRefresh.ProcessPendingRefreshes,
+                ProcessPendingRefreshes = () =>
+                {
+                    autoRefresh.ProcessPendingRefreshes();
+                    pluginUiActions?.Drain();
+                },
                 DisposeRuntimeState = () =>
                 {
                     directorySizes.Dispose();

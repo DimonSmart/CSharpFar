@@ -441,6 +441,7 @@ internal static class ApplicationServicesBuilder
         }
         pluginRuntime.Seal();
         var moduleCatalog = new NativeModuleCatalog(pluginRuntime);
+        var pluginUiActions = new PluginUiActionQueue(autoRefresh.WakeInputLoop);
         var modulePanelOpener = new ModulePanelOpener(
             moduleCatalog,
             effectiveSourceRegistry,
@@ -451,7 +452,8 @@ internal static class ApplicationServicesBuilder
             () => callbacks.PanelOptions(),
             side => callbacks.GetPanelState(side),
             side => callbacks.SetActiveSide(side),
-            quickView => callbacks.SetQuickView(quickView));
+            quickView => callbacks.SetQuickView(quickView),
+            pluginUiActions.Post);
         var workspaceModeController = new ApplicationWorkspaceModeController(
             screen,
             session,
@@ -522,7 +524,8 @@ internal static class ApplicationServicesBuilder
             autoRefresh,
             quickViewDirectorySize,
             fileUsagePanel,
-            directorySizes);
+            directorySizes,
+            pluginUiActions);
 
         return new ApplicationServices
         {
