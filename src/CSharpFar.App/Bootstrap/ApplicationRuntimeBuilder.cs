@@ -23,7 +23,8 @@ internal static class ApplicationRuntimeBuilder
         PanelAutoRefreshService autoRefresh,
         QuickViewDirectorySizeController quickViewDirectorySize,
         FileUsagePanelController fileUsagePanel,
-        PanelDirectorySizeCoordinator directorySizes)
+        PanelDirectorySizeCoordinator directorySizes,
+        PluginUiActionQueue? pluginUiActions = null)
     {
         return new ApplicationRuntime(
             composition,
