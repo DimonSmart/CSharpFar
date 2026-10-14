@@ -704,6 +704,7 @@ internal static class ApplicationServicesBuilder
             MouseInputContext = mouseInputContext,
             SaveSettings = saveSettings,
             PluginRuntime = pluginRuntime,
+            PluginUi = pluginUi,
             StartupPluginErrors = pluginFailures.ToArray(),
         };
         }
