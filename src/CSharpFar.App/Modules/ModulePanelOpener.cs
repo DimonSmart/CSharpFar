@@ -1,6 +1,7 @@
 using CSharpFar.App.Commands;
 using CSharpFar.Console;
 using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
 using CSharpFar.Module.Abstractions;
@@ -110,14 +111,22 @@ internal sealed class ModulePanelOpener
         {
             if (!ReferenceEquals(source, existing))
             {
-                DisposeUnused(source);
-                _dialogs.Message("Plugin", "This panel source is already registered. The existing panel was not changed.");
-                return;
+                if (existing is IReusableFilePanelSource reusable && reusable.CanReuse(source))
+                {
+                    DisposeUnused(source);
+                    source = existing;
+                }
+                else
+                {
+                    DisposeUnused(source);
+                    _dialogs.Message("Plugin", "This panel source is already in use with different connection settings.");
+                    return;
+                }
             }
         }
         else
         {
-            newlyRegistered = _sourceRegistry.TryAdd(source);
+            newlyRegistered = _sourceRegistry.TryAddOwned(source);
             if (!newlyRegistered)
             {
                 DisposeUnused(source);

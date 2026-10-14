@@ -7,7 +7,7 @@ using Renci.SshNet.Common;
 
 namespace CSharpFar.Module.Sftp;
 
-public sealed class SftpFilePanelSource : IModulePanel
+public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource
 {
     private static readonly char[] ProviderPathSeparators = ['/'];
     private readonly SftpConnectionInfo _connection;
@@ -39,6 +39,11 @@ public sealed class SftpFilePanelSource : IModulePanel
             CurrentDirectory = NormalizePath(_connection.RemoteRootPath),
             ShortcutData = $"{_connection.Username}@{_connection.Host}:{_connection.Port}",
         };
+
+    public bool CanReuse(IFilePanelSource candidate) =>
+        candidate is SftpFilePanelSource other &&
+        _connection == other._connection &&
+        string.Equals(_password, other._password, StringComparison.Ordinal);
 
     public void Dispose()
     {

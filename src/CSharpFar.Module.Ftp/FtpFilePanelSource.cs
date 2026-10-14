@@ -10,7 +10,7 @@ using FluentFTP.Exceptions;
 
 namespace CSharpFar.Module.Ftp;
 
-public sealed class FtpFilePanelSource : IModulePanel
+public sealed class FtpFilePanelSource : IModulePanel, IReusableFilePanelSource
 {
     private static readonly char[] ProviderPathSeparators = ['/', '\\'];
     private readonly FtpConnectionInfo _connection;
@@ -42,6 +42,11 @@ public sealed class FtpFilePanelSource : IModulePanel
             CurrentDirectory = NormalizePath(_connection.RemoteRootPath),
             ShortcutData = $"{_connection.Username}@{_connection.Host}:{_connection.Port}",
         };
+
+    public bool CanReuse(IFilePanelSource candidate) =>
+        candidate is FtpFilePanelSource other &&
+        _connection == other._connection &&
+        string.Equals(_password, other._password, StringComparison.Ordinal);
 
     public void Dispose()
     {

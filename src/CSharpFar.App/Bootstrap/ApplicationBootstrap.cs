@@ -76,14 +76,21 @@ public static class ApplicationBootstrap
             fileUsage: platform.FileUsage,
             platform: platform.Platform);
 
-        application.Run();
-
-        if (CaptureLastPanelDirectories(
-                settings,
-                application.Session.Panels.Left,
-                application.Session.Panels.Right))
+        try
         {
-            settingsStore.Save();
+            application.Run();
+
+            if (CaptureLastPanelDirectories(
+                    settings,
+                    application.Session.Panels.Left,
+                    application.Session.Panels.Right))
+            {
+                settingsStore.Save();
+            }
+        }
+        finally
+        {
+            panelSources.DisposeOwnedSources();
         }
     }
 
@@ -120,31 +127,38 @@ public static class ApplicationBootstrap
             settings.History.MaxFileHistoryItems);
         string configDirectory = settingsStore.ConfigDirectory;
 
-        ApplicationFactory.Create(
-                renderer,
-                fs,
-                new DemoModeServices.DisabledShellService(),
-                fileOps,
-                history,
-                settings,
-                new UserMenuStore(configDirectory),
-                saveSettings: null,
-                volumeService: new DemoModeServices.DemoVolumeService(),
-                volumeInfoService: null,
-                changeWatcher: null,
-                locationService: null,
-                mountPointService: null,
-                fileLauncher: new DemoModeServices.DisabledFileLauncher(),
-                searchService: new DemoModeServices.DisabledSearchService(),
-                sourceRegistry: panelSources,
-                credentialStore: new DemoModeServices.EmptyCredentialStore(),
-                enableBuiltInNetworkModules: false,
-                configDirectory: configDirectory,
-                terminalScreenMode: platform.TerminalScreenMode,
-                runOptions: runOptions,
-                processesAndPorts: new DemoModeServices.DemoProcessesAndPortsPlatformService(),
-                fileUsage: new UnsupportedFileUsagePlatformService("File Usage is unavailable in demo sessions."),
-                platform: platform.Platform)
-            .Run();
+        try
+        {
+            ApplicationFactory.Create(
+                    renderer,
+                    fs,
+                    new DemoModeServices.DisabledShellService(),
+                    fileOps,
+                    history,
+                    settings,
+                    new UserMenuStore(configDirectory),
+                    saveSettings: null,
+                    volumeService: new DemoModeServices.DemoVolumeService(),
+                    volumeInfoService: null,
+                    changeWatcher: null,
+                    locationService: null,
+                    mountPointService: null,
+                    fileLauncher: new DemoModeServices.DisabledFileLauncher(),
+                    searchService: new DemoModeServices.DisabledSearchService(),
+                    sourceRegistry: panelSources,
+                    credentialStore: new DemoModeServices.EmptyCredentialStore(),
+                    enableBuiltInNetworkModules: false,
+                    configDirectory: configDirectory,
+                    terminalScreenMode: platform.TerminalScreenMode,
+                    runOptions: runOptions,
+                    processesAndPorts: new DemoModeServices.DemoProcessesAndPortsPlatformService(),
+                    fileUsage: new UnsupportedFileUsagePlatformService("File Usage is unavailable in demo sessions."),
+                    platform: platform.Platform)
+                .Run();
+        }
+        finally
+        {
+            panelSources.DisposeOwnedSources();
+        }
     }
 }
