@@ -83,7 +83,7 @@ public sealed class NativePluginBootstrapTests : IDisposable
     {
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var disposed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var stageProvider = new DisposableProvider(() => disposed.TrySetResult());
+        var stageProvider = new DisposableProvider("owned", () => disposed.TrySetResult());
         var slow = new ScriptPlugin(async (host, _) =>
         {
             Register(host, "late", "Late", "late");
@@ -195,6 +195,67 @@ public sealed class NativePluginBootstrapTests : IDisposable
         Assert.Contains(Catalog(app).MenuItems, item => item.Text == "After");
     }
 
+    [Fact]
+    public async Task RejectedStageDisposesOtherProvidersWhenOneDisposerFails()
+    {
+        bool secondDisposed = false;
+        var runtime = new NativePluginRuntime(
+            new TestContext(), _ => new TestSettings(), _ => new TestUi(), _ => new TestCredentials());
+        var broken = new ScriptPlugin((host, _) =>
+        {
+            host.RegisterPanelProvider(new DisposableProvider("bad", () =>
+                throw new IOException("dispose failed")));
+            host.RegisterPanelProvider(new DisposableProvider("good", () => secondDisposed = true));
+            throw new InvalidOperationException("registration failed");
+        });
+
+        var result = await runtime.RegisterAsync(Descriptor("failed"), broken);
+        Assert.False(result.Success);
+        Assert.True(secondDisposed);
+        Assert.Empty(runtime.MenuItems);
+        await runtime.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task AsyncInitializerModalFromForeignThreadFailsWithoutPublishing()
+    {
+        var bad = new ScriptPlugin(async (host, _) =>
+        {
+            await Task.Run(() => host.Ui.ShowMessage("Invalid", "Off the UI thread"));
+            Register(host, "bad", "Bad", "bad");
+        });
+        var good = new ScriptPlugin((host, _) =>
+        {
+            Register(host, "good", "Good", "good");
+            return ValueTask.CompletedTask;
+        });
+
+        var app = await CreateAsync([(Descriptor("bad"), bad), (Descriptor("good"), good)]);
+        Assert.DoesNotContain(Catalog(app).MenuItems, item => item.Text == "Bad");
+        Assert.Contains(Catalog(app).MenuItems, item => item.Text == "Good");
+    }
+
+    [Fact]
+    public async Task SealWhileInitializerPendingDoesNotAllowLateCommit()
+    {
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var runtime = new NativePluginRuntime(
+            new TestContext(), _ => new TestSettings(), _ => new TestUi(), _ => new TestCredentials());
+        var plugin = new ScriptPlugin(async (host, _) =>
+        {
+            await ready.Task;
+            Register(host, "late", "Late", "late");
+        });
+
+        var pending = runtime.RegisterAsync(Descriptor("late"), plugin);
+        Assert.False(pending.IsCompleted);
+        runtime.Seal();
+        ready.SetResult();
+        Assert.False((await pending).Success);
+        Assert.Empty(runtime.MenuItems);
+        await runtime.DisposeAsync();
+    }
+
     public void Dispose() => Directory.Delete(_root, recursive: true);
 
     private Application Create(IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)> plugins)
@@ -295,9 +356,9 @@ public sealed class NativePluginBootstrapTests : IDisposable
         public void DeletePassword(string id) { }
     }
 
-    private sealed class DisposableProvider(Action dispose) : IPanelProvider, IDisposable
+    private sealed class DisposableProvider(string id, Action dispose) : IPanelProvider, IDisposable
     {
-        public string Id => "owned";
+        public string Id => id;
         public string Title => "Owned";
         public ValueTask<PluginPanelOpenRequest> OpenAsync(IPanelProviderContext context, CancellationToken token) =>
             throw new NotSupportedException();
