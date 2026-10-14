@@ -105,7 +105,10 @@ internal sealed class PreparedApplicationServices(
         if (!result.Success)
             RecordFailure(descriptor.Id, result.Error ?? "Initialization failed.");
         else if (diagnostics.IsEnabled)
-            diagnostics.Write(DiagnosticCategory.Plugin, $"Plugin '{descriptor.Id}' initialized.");
+        {
+            try { diagnostics.Write(DiagnosticCategory.Plugin, $"Plugin '{descriptor.Id}' initialized."); }
+            catch { /* Logging must not affect a successful registration. */ }
+        }
     }
 
     private void RecordFailure(string pluginId, string reason)
