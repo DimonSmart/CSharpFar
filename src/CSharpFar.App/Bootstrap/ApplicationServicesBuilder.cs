@@ -606,7 +606,9 @@ internal static class ApplicationServicesBuilder
             side => callbacks.GetPanelState(side),
             side => callbacks.SetActiveSide(side),
             quickView => callbacks.SetQuickView(quickView),
-            pluginUiActions.Post);
+            pluginUiActions.Post,
+            error => diagnosticLog.WriteException(
+                DiagnosticCategory.Plugin, error, "Rejected plugin panel source cleanup"));
         var workspaceModeController = new ApplicationWorkspaceModeController(
             screen,
             session,

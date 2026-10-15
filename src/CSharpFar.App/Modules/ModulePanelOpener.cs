@@ -16,7 +16,8 @@ internal sealed class ModulePanelOpener
     private readonly NativeModuleCatalog _moduleCatalog;
     private readonly FilePanelSourceRegistry _sourceRegistry;
     private readonly PanelController _controller;
-    private readonly DialogService _dialogs;
+    private readonly Action<string, string> _showMessage;
+    private readonly PluginPanelSourceCleanup _cleanup;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
     private readonly Func<PanelSide, FilePanelState> _getPanelState;
     private readonly Action<PanelSide> _setActiveSide;
@@ -34,12 +35,15 @@ internal sealed class ModulePanelOpener
         Func<PanelSide, FilePanelState> getPanelState,
         Action<PanelSide> setActiveSide,
         Action<bool> setQuickView,
-        Action<Action>? postToUi = null)
+        Action<Action>? postToUi = null,
+        Action<Exception>? reportCleanupError = null,
+        Action<string, string>? showMessage = null)
     {
         _moduleCatalog = moduleCatalog;
         _sourceRegistry = sourceRegistry;
         _controller = controller;
-        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
+        _showMessage = showMessage ?? (dialogs ?? throw new ArgumentNullException(nameof(dialogs))).Message;
+        _cleanup = new PluginPanelSourceCleanup(reportCleanupError);
         _panelOptions = panelOptions;
         _getPanelState = getPanelState;
         _setActiveSide = setActiveSide;
@@ -70,7 +74,7 @@ internal sealed class ModulePanelOpener
 
         if (_postToUi is null)
         {
-            _dialogs.Message("Plugin", "Asynchronous plugin commands require a UI completion queue.");
+            _showMessage("Plugin", "Asynchronous plugin commands require a UI completion queue.");
             return ApplicationCommandResult.Rendered();
         }
 
@@ -113,13 +117,13 @@ internal sealed class ModulePanelOpener
             {
                 if (existing is IReusableFilePanelSource reusable && reusable.CanReuse(source))
                 {
-                    DisposeUnused(source);
+                    _cleanup.Discard(source);
                     source = existing;
                 }
                 else
                 {
-                    DisposeUnused(source);
-                    _dialogs.Message("Plugin", "This panel source is already in use with different connection settings.");
+                    _cleanup.Discard(source);
+                    _showMessage("Plugin", "This panel source is already in use with different connection settings.");
                     return;
                 }
             }
@@ -129,8 +133,8 @@ internal sealed class ModulePanelOpener
             newlyRegistered = _sourceRegistry.TryAddOwned(source);
             if (!newlyRegistered)
             {
-                DisposeUnused(source);
-                _dialogs.Message("Plugin", "Unable to register plugin panel source.");
+                _cleanup.Discard(source);
+                _showMessage("Plugin", "Unable to register plugin panel source.");
                 return;
             }
         }
@@ -142,12 +146,9 @@ internal sealed class ModulePanelOpener
             preserveOnError: true);
         if (!loaded)
         {
-            if (newlyRegistered)
-            {
-                _sourceRegistry.RemoveIfSame(source.SourceId, source);
-                DisposeUnused(source);
-            }
-            _dialogs.Message("Plugin", "Unable to open plugin panel. The existing panel was not changed.");
+            if (newlyRegistered && _sourceRegistry.RemoveIfSame(source.SourceId, source))
+                _cleanup.Discard(source);
+            _showMessage("Plugin", "Unable to open plugin panel. The existing panel was not changed.");
             return;
         }
 
@@ -165,22 +166,12 @@ internal sealed class ModulePanelOpener
                 OpenPanel(targetSide, result.Panel!);
                 break;
             case PluginCommandResultKind.Failed:
-                _dialogs.Message("Plugin", result.Error ?? "Plugin operation failed.");
+                _showMessage("Plugin", result.Error ?? "Plugin operation failed.");
                 break;
         }
         return ApplicationCommandResult.Rendered();
     }
 
-    private static void DisposeUnused(CSharpFar.Core.Abstractions.IFilePanelSource source)
-    {
-        if (source is IAsyncDisposable asyncDisposable)
-        {
-            var dispose = asyncDisposable.DisposeAsync();
-            if (!dispose.IsCompleted)
-                throw new InvalidOperationException("Asynchronous source disposal requires an async lifecycle.");
-            dispose.GetAwaiter().GetResult();
-        }
-        else if (source is IDisposable disposable)
-            disposable.Dispose();
-    }
+    /// <summary>Finish rejected-source cleanup after the input loop stops.</summary>
+    public Task AwaitPendingCleanupsAsync() => _cleanup.AwaitPendingAsync();
 }

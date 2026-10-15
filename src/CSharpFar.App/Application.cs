@@ -313,8 +313,17 @@ public sealed class Application
         finally
         {
             _runtime.ApplicationInputRequested -= ShowStartupFailures;
-            if (_pluginRuntime is not null)
-                _pluginRuntime.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            try
+            {
+                // The input loop has stopped; complete rejected-source cleanup
+                // before shutting down the plugin runtime and its live providers.
+                _modulePanelOpener.AwaitPendingCleanupsAsync().GetAwaiter().GetResult();
+            }
+            finally
+            {
+                if (_pluginRuntime is not null)
+                    _pluginRuntime.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
         }
     }
 
