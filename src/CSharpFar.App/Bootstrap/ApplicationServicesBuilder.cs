@@ -680,7 +680,8 @@ internal static class ApplicationServicesBuilder
             quickViewDirectorySize,
             fileUsagePanel,
             directorySizes,
-            pluginUiActions);
+            pluginUiActions,
+            modulePanelOpener.CleanupUnusedTemporarySources);
 
         return new ApplicationServices
         {
