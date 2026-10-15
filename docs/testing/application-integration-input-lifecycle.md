@@ -1,4 +1,33 @@
-# IDD-0072 - Application integration test input lifecycle specification
+# Application integration test input lifecycle
+
+> **Engineering/testing documentation, not product intent.**
+> This content was previously tracked as `IDD-0072`. It specifies how
+> integration tests schedule input while modal and temporary UI runs.
+> The normative behavior (modal isolation, routed input and
+> non-consumption of future parent input) remains in
+> [IDD-0067](../../.idd/intent/IDD-0067.spec-ui-layer-composition-and-modal-resize.md).
+> The original `IDD-0072` revision is retained in Git history.
+
+## Implementation landmarks
+
+- The production main loop in `src/CSharpFar.App/ApplicationRuntime.cs`
+  signals `ApplicationInputRequested` before attempting another
+  top-level input read. `Application` exposes this notification
+  internally, without adding it to the public API.
+- `tests/CSharpFar.Tests/TestInfrastructure/ApplicationTestRunBuilder.cs`
+  uses `WaitForApplicationReady()` and `ExitWhenApplicationReady()`
+  to queue later top-level inputs only after the preceding top-level
+  input and any nested synchronous modal handling have returned.
+- The test runner also requires the fake driver's pending input count
+  to be zero before satisfying a readiness barrier. Thus the initial
+  pre-read notification cannot skip over scripted inputs already queued.
+- `tests/CSharpFar.Tests/ApplicationTestRunBuilderTests.cs`
+  covers the pending-input barrier. Integration tests for search
+  progress and file operations exercise post-modal exit behavior.
+- This readiness hook is a testing synchronization aid, not a new
+  application command, an interactive feature, or a public extension API.
+
+## Engineering contract (formerly IDD-0072)
 
 ## Intent
 

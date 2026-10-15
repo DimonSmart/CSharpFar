@@ -8,6 +8,9 @@ intent, ADRs, or active spikes.
 
 Git history is the source for deleted or previous document versions.
 
+The test-only input readiness contract formerly recorded in IDD-0072 lives in
+[application integration input lifecycle](../../docs/testing/application-integration-input-lifecycle.md).
+
 | Document | Role | Area | Notes | Replaces |
 | --- | --- | --- | --- | --- |
 | IDD-0001 | spec | CSharpFar file manager | User menu and native plugins are owned by IDD-0083 and IDD-0061 |  |
@@ -60,7 +63,6 @@ Git history is the source for deleted or previous document versions.
 | IDD-0066 | spec | Folder and file-set comparison |  |  |
 | IDD-0067 | spec | UI layer composition and modal resize | Stable frame, routing and resize guarantees; implementation reference in docs/architecture/ |  |
 | IDD-0071 | spec | Transactional UI frame commit and resize regression coverage |  |  |
-| IDD-0072 | spec | Application integration test input lifecycle |  |  |
 | IDD-0073 | spec | Processes and Ports | Local endpoint diagnostics module |  |
 | IDD-0074 | spec | FAR-compatible wildcard destination names | Destination name transformation for file operations |  |
 | IDD-0075 | spec | Destination templates | Explicit per-source destination path evaluation for file operations |  |
