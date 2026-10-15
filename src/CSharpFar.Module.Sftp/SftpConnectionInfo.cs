@@ -10,5 +10,4 @@ public sealed record SftpConnectionInfo
     public string RemoteRootPath { get; init; } = "/";
     public string? CredentialId { get; init; }
     public string? ExpectedHostKeyFingerprint { get; init; }
-    public bool ShowInDriveSelection { get; init; } = true;
 }

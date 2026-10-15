@@ -30,5 +30,4 @@ public sealed record FtpConnectionInfo
     public string? ExpectedTlsCertificateFingerprint { get; init; }
     public int? ActiveModeLocalPortFrom { get; init; }
     public int? ActiveModeLocalPortTo { get; init; }
-    public bool ShowInDriveSelection { get; init; } = true;
 }

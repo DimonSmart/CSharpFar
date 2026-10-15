@@ -66,7 +66,6 @@ internal sealed class SftpConnectionDialog
             fields.Text(new TextFieldOptions(connection?.RemoteRootPath ?? "/", SftpTextHistoryIds.RemoteRoot)),
             FormControls.CheckBox("Save connection", request.SaveConnectionByDefault),
             FormControls.CheckBox("Save password", connection?.CredentialId is not null && request.SavedPassword is not null),
-            FormControls.CheckBox("Show in drive menu", connection?.ShowInDriveSelection ?? true),
             FormControls.CheckBox("Trust host key"),
             request.AllowTemporaryConnection);
 
@@ -111,7 +110,7 @@ internal sealed class SftpConnectionDialog
                     SftpConnectionDialogResult? candidate = BuildResult(
                         request,
                         state.ConnectionName.Text.Trim(), state.Host.Text.Trim(), state.Port.Text.Trim(), state.UserName.Text.Trim(), state.Password.Text,
-                        state.RemoteRoot.Text.Trim(), state.SaveConnection.Value, state.SavePassword.Value, state.ShowInDrive.Value,
+                        state.RemoteRoot.Text.Trim(), state.SaveConnection.Value, state.SavePassword.Value,
                         state.TrustHostKey.Value ? hostKeyFingerprint : null);
                     if (candidate is null)
                     {
@@ -156,8 +155,6 @@ internal sealed class SftpConnectionDialog
         if (state.AllowTemporaryConnection)
             rows.Add(state.SaveConnection);
         rows.Add(state.SavePassword);
-        if (!state.AllowTemporaryConnection || state.SaveConnection.Value)
-            rows.Add(state.ShowInDrive);
         if (!string.IsNullOrWhiteSpace(hostKeyFingerprint))
         {
             rows.Add(FormControls.Value("Host key:", () => hostKeyFingerprint));
@@ -168,7 +165,7 @@ internal sealed class SftpConnectionDialog
 
     private static SftpConnectionDialogResult? BuildResult(
         SftpConnectionDialogRequest request, string connectionName, string host, string portText, string userName, string password,
-        string remoteRoot, bool saveConnection, bool savePassword, bool showInDrive, string? hostKeyFingerprint)
+        string remoteRoot, bool saveConnection, bool savePassword, string? hostKeyFingerprint)
     {
         if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(userName) || string.IsNullOrEmpty(password) ||
             string.IsNullOrWhiteSpace(remoteRoot) || !int.TryParse(portText, out int port) || port is <= 0 or > 65535)
@@ -191,13 +188,12 @@ internal sealed class SftpConnectionDialog
             RemoteRootPath = remoteRoot,
             CredentialId = credentialId,
             ExpectedHostKeyFingerprint = hostKeyFingerprint,
-            ShowInDriveSelection = showInDrive,
         }, password, saveConnection, savePassword, request.Connection?.CredentialId);
     }
 
     private sealed record SftpFormState(TextField ConnectionName, TextField Host, TextField Port,
         TextField UserName, TextField Password, TextField RemoteRoot, CheckBoxRow SaveConnection,
-        CheckBoxRow SavePassword, CheckBoxRow ShowInDrive, CheckBoxRow TrustHostKey,
+        CheckBoxRow SavePassword, CheckBoxRow TrustHostKey,
         bool AllowTemporaryConnection)
     {
         public void AcceptHistory()

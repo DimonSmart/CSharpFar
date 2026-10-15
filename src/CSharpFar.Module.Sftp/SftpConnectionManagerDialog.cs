@@ -73,9 +73,6 @@ internal sealed class SftpConnectionManagerDialog
             _ => null,
         };
 
-    private static string FormatConnection(SftpConnectionInfo connection)
-    {
-        string marker = connection.ShowInDriveSelection ? "*" : " ";
-        return $"{marker} {connection.DisplayName}  {connection.Username}@{connection.Host}:{connection.Port}";
-    }
+    private static string FormatConnection(SftpConnectionInfo connection) =>
+        $"{connection.DisplayName}  {connection.Username}@{connection.Host}:{connection.Port}";
 }

@@ -415,15 +415,39 @@ public sealed class Spec029SftpProviderTests : IDisposable
                 RemoteRootPath = "/",
                 CredentialId = "cred1",
                 ExpectedHostKeyFingerprint = "AA:BB",
-                ShowInDriveSelection = false,
             },
         ]);
 
         string metadata = File.ReadAllText(Path.Combine(_tempDir, "connections.json"));
         Assert.DoesNotContain("secret-password", metadata, StringComparison.Ordinal);
         Assert.Contains("\"CredentialId\"", metadata, StringComparison.Ordinal);
-        Assert.Contains("\"ShowInDriveSelection\": false", metadata, StringComparison.Ordinal);
-        Assert.False(store.Load().Single().ShowInDriveSelection);
+        Assert.DoesNotContain("\"ShowInDriveSelection\"", metadata, StringComparison.Ordinal);
+        Assert.Equal("cred1", store.Load().Single().CredentialId);
+    }
+
+    [Fact]
+    public void SftpConnectionStore_LegacyDriveSettingIsIgnoredAndRemovedOnSave()
+    {
+        Directory.CreateDirectory(_tempDir);
+        string path = Path.Combine(_tempDir, "connections.json");
+        File.WriteAllText(path, """
+            [
+              {
+                "Id": "legacy",
+                "DisplayName": "Legacy SFTP",
+                "Host": "example.test",
+                "Username": "user",
+                "ShowInDriveSelection": false
+              }
+            ]
+            """);
+        var store = new SftpConnectionStore(_tempDir);
+
+        var connections = store.Load();
+        Assert.Single(connections);
+        Assert.Equal("Legacy SFTP", connections[0].DisplayName);
+        store.Save(connections);
+        Assert.DoesNotContain("\"ShowInDriveSelection\"", File.ReadAllText(path), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -818,8 +842,13 @@ public sealed class Spec029SftpProviderTests : IDisposable
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        driver.EnqueueInput(LeftMouse(17, 16));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeReadInput = currentDriver =>
+        {
+            currentDriver.BeforeReadInput = null;
+            var row = currentDriver.WriteRecords.Last(r => r.Text.Contains("Save password", StringComparison.Ordinal));
+            currentDriver.EnqueueInput(LeftMouse(row.X + 1, row.Y));
+            currentDriver.EnqueueKey(Key(ConsoleKey.F10));
+        };
 
         var result = CreateSftpDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new SftpConnectionDialogRequest(
@@ -830,7 +859,8 @@ public sealed class Spec029SftpProviderTests : IDisposable
             _ => SftpConnectionDialogValidationResult.Accepted());
 
         Assert.NotNull(result);
-        Assert.False(result.Connection.ShowInDriveSelection);
+        Assert.True(result.SavePassword);
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Show in drive menu", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1023,7 +1053,6 @@ public sealed class Spec029SftpProviderTests : IDisposable
             Username = "user",
             RemoteRootPath = "/",
             ExpectedHostKeyFingerprint = "AA:BB",
-            ShowInDriveSelection = true,
         };
 
     private FileOperationService CreateProviderCopyService(out MemoryPanelSource remote)

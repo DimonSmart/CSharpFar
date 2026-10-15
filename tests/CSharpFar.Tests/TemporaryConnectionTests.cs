@@ -36,7 +36,7 @@ public sealed class TemporaryConnectionTests
     }
 
     [Fact]
-    public void SftpQuickConnect_DoesNotPersistHistoryOrShowDriveFlag()
+    public void SftpQuickConnect_DoesNotPersistHistoryOrExposeDriveSetting()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         driver.EnqueueKey(Key(ConsoleKey.F10));
@@ -57,7 +57,7 @@ public sealed class TemporaryConnectionTests
     }
 
     [Fact]
-    public void FtpQuickConnect_DoesNotPersistHistoryOrShowDriveFlag()
+    public void FtpQuickConnect_DoesNotPersistHistoryOrExposeDriveSetting()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         driver.EnqueueKey(Key(ConsoleKey.F10));

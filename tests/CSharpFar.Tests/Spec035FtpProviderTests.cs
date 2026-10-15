@@ -63,7 +63,6 @@ public sealed class Spec035FtpProviderTests : IDisposable
             {
                 CredentialId = "ftp-cred1",
                 ExpectedTlsCertificateFingerprint = "AA:BB",
-                ShowInDriveSelection = false,
             },
         ]);
 
@@ -71,8 +70,33 @@ public sealed class Spec035FtpProviderTests : IDisposable
         Assert.DoesNotContain("secret-password", metadata, StringComparison.Ordinal);
         Assert.Contains("\"CredentialId\"", metadata, StringComparison.Ordinal);
         Assert.Contains("\"SecurityMode\": 1", metadata, StringComparison.Ordinal);
-        Assert.Contains("\"ShowInDriveSelection\": false", metadata, StringComparison.Ordinal);
-        Assert.False(store.Load().Single().ShowInDriveSelection);
+        Assert.DoesNotContain("\"ShowInDriveSelection\"", metadata, StringComparison.Ordinal);
+        Assert.Equal("ftp-cred1", store.Load().Single().CredentialId);
+    }
+
+    [Fact]
+    public void FtpConnectionStore_LegacyDriveSettingIsIgnoredAndRemovedOnSave()
+    {
+        Directory.CreateDirectory(_tempDir);
+        string path = Path.Combine(_tempDir, "ftp-connections.json");
+        File.WriteAllText(path, """
+            [
+              {
+                "Id": "legacy",
+                "DisplayName": "Legacy FTP",
+                "Host": "example.test",
+                "Username": "user",
+                "ShowInDriveSelection": false
+              }
+            ]
+            """);
+        var store = new FtpConnectionStore(_tempDir);
+
+        var connections = store.Load();
+        Assert.Single(connections);
+        Assert.Equal("Legacy FTP", connections[0].DisplayName);
+        store.Save(connections);
+        Assert.DoesNotContain("\"ShowInDriveSelection\"", File.ReadAllText(path), StringComparison.Ordinal);
     }
 
     [Theory]
@@ -240,7 +264,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
         RunReadScript(driver,
-            d => ClickRowByText(d, "Show in drive menu"),
+            d => ClickRowByText(d, "Save password"),
             d => d.EnqueueKey(Key(ConsoleKey.F10)));
 
         var result = new FtpConnectionDialog(new DialogService(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
@@ -252,7 +276,8 @@ public sealed class Spec035FtpProviderTests : IDisposable
             _ => FtpConnectionDialogValidationResult.Accepted());
 
         Assert.NotNull(result);
-        Assert.False(result.Connection.ShowInDriveSelection);
+        Assert.True(result.SavePassword);
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Show in drive menu", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1097,7 +1122,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             d => d.EnqueueKey(Printable('o')),
             d => d.EnqueueKey(Printable('s')),
             d => d.EnqueueKey(Printable('t')),
-            d => ClickRowByText(d, "Show in drive menu"),
+            d => ClickRowByText(d, "Save password"),
             d => d.EnqueueKey(Key(ConsoleKey.F10)));
 
         var result = new FtpConnectionDialog(new DialogService(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
@@ -1106,7 +1131,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
 
         Assert.NotNull(result);
         Assert.Equal("resized-host", result.Connection.Host);
-        Assert.False(result.Connection.ShowInDriveSelection);
+        Assert.True(result.SavePassword);
         Assert.True(cursorWasInHostInputAfterResize, cursorDiagnostic);
     }
 

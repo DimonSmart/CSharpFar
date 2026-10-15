@@ -73,11 +73,8 @@ internal sealed class FtpConnectionManagerDialog
             _ => null,
         };
 
-    private static string FormatConnection(FtpConnectionInfo connection)
-    {
-        string marker = connection.ShowInDriveSelection ? "*" : " ";
-        return $"{marker} {SecurityLabel(connection.SecurityMode)} {connection.DisplayName}  {connection.Username}@{connection.Host}:{connection.Port}";
-    }
+    private static string FormatConnection(FtpConnectionInfo connection) =>
+        $"{SecurityLabel(connection.SecurityMode)} {connection.DisplayName}  {connection.Username}@{connection.Host}:{connection.Port}";
 
     private static string SecurityLabel(FtpConnectionSecurityMode mode) =>
         mode switch
