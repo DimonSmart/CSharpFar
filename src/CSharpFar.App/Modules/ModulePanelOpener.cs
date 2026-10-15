@@ -172,6 +172,13 @@ internal sealed class ModulePanelOpener
         return ApplicationCommandResult.Rendered();
     }
 
+    /// <summary>Retire temporary sources after neither panel needs them and operations have finished.</summary>
+    public void CleanupUnusedTemporarySources() =>
+        _sourceRegistry.RemoveUnusedTemporarySources(
+            _getPanelState(PanelSide.Left).SourceId,
+            _getPanelState(PanelSide.Right).SourceId,
+            _cleanup.Discard);
+
     /// <summary>Finish rejected-source cleanup after the input loop stops.</summary>
     public Task AwaitPendingCleanupsAsync() => _cleanup.AwaitPendingAsync();
 }
