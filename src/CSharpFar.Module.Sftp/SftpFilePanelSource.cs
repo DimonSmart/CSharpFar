@@ -7,12 +7,13 @@ using Renci.SshNet.Common;
 
 namespace CSharpFar.Module.Sftp;
 
-public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource, ITemporaryFilePanelSource
+public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource, ITemporaryFilePanelSource, IFilePanelSourceActivation
 {
     private static readonly char[] ProviderPathSeparators = ['/'];
     private readonly SftpConnectionInfo _connection;
     private readonly string _password;
     public bool IsTemporary { get; }
+    private Action? _onPanelOpened;
     private readonly Func<SftpConnectionInfo, string, bool> _acceptHostKey;
     private readonly Action<SftpConnectionInfo, string>? _acceptedHostKey;
 
@@ -21,11 +22,13 @@ public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource
         string password,
         Func<SftpConnectionInfo, string, bool>? acceptHostKey = null,
         Action<SftpConnectionInfo, string>? acceptedHostKey = null,
-        bool isTemporary = false)
+        bool isTemporary = false,
+        Action? onPanelOpened = null)
     {
         _connection = connection;
         _password = password;
         IsTemporary = isTemporary;
+        _onPanelOpened = onPanelOpened;
         _acceptHostKey = acceptHostKey ?? ((_, _) => false);
         _acceptedHostKey = acceptedHostKey;
     }
@@ -47,6 +50,8 @@ public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource
         candidate is SftpFilePanelSource other &&
         _connection == other._connection &&
         string.Equals(_password, other._password, StringComparison.Ordinal);
+
+    public void OnPanelOpened() => Interlocked.Exchange(ref _onPanelOpened, null)?.Invoke();
 
     public void Dispose()
     {
