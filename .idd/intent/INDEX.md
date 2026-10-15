@@ -34,8 +34,8 @@ is non-normative engineering history.
 | IDD-0017 | spec | Current-console program launch |  |  |
 | IDD-0018 | spec | Command history completion |  |  |
 | IDD-0019 | spec | Reliable copy resume |  |  |
-| IDD-0020 | spec | Unified window scrollbars |  |  |
-| IDD-0021 | spec | Scrollbar mouse interaction |  |  |
+| IDD-0020 | spec | Unified window scrollbars | Shared right-border rendering; pointer interaction owned by IDD-0021 |  |
+| IDD-0021 | spec | Scrollbar mouse interaction | Arrows, track paging and thumb drag; committed routing per IDD-0062/0067 |  |
 | IDD-0022 | spec | Hidden console history scroll |  |  |
 | IDD-0027 | spec | Far command-line shortcuts |  |  |
 | IDD-0028 | spec | Panel and hidden command-line workspace modes |  |  |
@@ -45,7 +45,7 @@ is non-normative engineering history.
 | IDD-0033 | spec | Viewer Encoding Selection |  |  |
 | IDD-0034 | spec | Panel quick search |  |  |
 | IDD-0035 | spec | FTP and FTPS file system provider |  |  |
-| IDD-0036 | spec | Application icon |  |  |
+| IDD-0036 | spec | Application icon | Windows host executable icon; common source artwork shared with macOS bundle IDD-0077 |  |
 | IDD-0038 | spec | History-enabled text input | Persistent field history and transient popup semantics; implementation reference in docs/architecture/history-text-input-implementation-reference.md |  |
 | IDD-0046 | spec | Built-in text editor | Stable editor behavior; implementation history in docs/architecture/editor-implementation-reference.md |  |
 | IDD-0048 | spec | Create new file dialog |  |  |
