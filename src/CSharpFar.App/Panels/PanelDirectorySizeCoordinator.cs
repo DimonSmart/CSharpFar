@@ -253,11 +253,14 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
             return;
 
         session.WorkerRunning = true;
-        _ = Task.Run(() => ProcessQueueAsync(session));
+        // Acquire before scheduling so a UI navigation cannot retire this source first.
+        IDisposable usage = _sources.AcquireUsage(session.Source.SourceId);
+        _ = Task.Run(() => ProcessQueueAsync(session, usage));
     }
 
-    private async Task ProcessQueueAsync(PanelDirectorySizeSession session)
+    private async Task ProcessQueueAsync(PanelDirectorySizeSession session, IDisposable usage)
     {
+        using var lease = usage;
         while (true)
         {
             QueuedOperation operation;
