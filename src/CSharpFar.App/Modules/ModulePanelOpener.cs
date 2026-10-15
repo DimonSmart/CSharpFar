@@ -153,6 +153,15 @@ internal sealed class ModulePanelOpener
         }
 
         _controller.SetSourceDisplay(state, request.Title, showCurrentItemFullPath: true);
+        try
+        {
+            // Persist opt-in connection settings only after initial panel loading succeeded.
+            (source as IFilePanelSourceActivation)?.OnPanelOpened();
+        }
+        catch (Exception ex)
+        {
+            _showMessage("Plugin", $"Panel opened, but connection settings could not be saved: {ex.Message}");
+        }
         _setQuickView(false);
         _setActiveSide(panelSide);
     }
