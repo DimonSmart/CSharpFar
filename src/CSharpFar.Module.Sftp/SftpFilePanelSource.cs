@@ -7,11 +7,12 @@ using Renci.SshNet.Common;
 
 namespace CSharpFar.Module.Sftp;
 
-public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource
+public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource, ITemporaryFilePanelSource
 {
     private static readonly char[] ProviderPathSeparators = ['/'];
     private readonly SftpConnectionInfo _connection;
     private readonly string _password;
+    public bool IsTemporary { get; }
     private readonly Func<SftpConnectionInfo, string, bool> _acceptHostKey;
     private readonly Action<SftpConnectionInfo, string>? _acceptedHostKey;
 
@@ -19,10 +20,12 @@ public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource
         SftpConnectionInfo connection,
         string password,
         Func<SftpConnectionInfo, string, bool>? acceptHostKey = null,
-        Action<SftpConnectionInfo, string>? acceptedHostKey = null)
+        Action<SftpConnectionInfo, string>? acceptedHostKey = null,
+        bool isTemporary = false)
     {
         _connection = connection;
         _password = password;
+        IsTemporary = isTemporary;
         _acceptHostKey = acceptHostKey ?? ((_, _) => false);
         _acceptedHostKey = acceptedHostKey;
     }
