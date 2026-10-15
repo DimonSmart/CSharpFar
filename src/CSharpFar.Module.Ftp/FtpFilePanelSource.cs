@@ -10,12 +10,13 @@ using FluentFTP.Exceptions;
 
 namespace CSharpFar.Module.Ftp;
 
-public sealed class FtpFilePanelSource : IModulePanel, IReusableFilePanelSource, ITemporaryFilePanelSource
+public sealed class FtpFilePanelSource : IModulePanel, IReusableFilePanelSource, ITemporaryFilePanelSource, IFilePanelSourceActivation
 {
     private static readonly char[] ProviderPathSeparators = ['/', '\\'];
     private readonly FtpConnectionInfo _connection;
     private readonly string _password;
     public bool IsTemporary { get; }
+    private Action? _onPanelOpened;
     private readonly Func<FtpConnectionInfo, string, bool> _acceptCertificate;
     private readonly Action<FtpConnectionInfo, string>? _acceptedCertificate;
 
@@ -24,11 +25,13 @@ public sealed class FtpFilePanelSource : IModulePanel, IReusableFilePanelSource,
         string password,
         Func<FtpConnectionInfo, string, bool>? acceptCertificate = null,
         Action<FtpConnectionInfo, string>? acceptedCertificate = null,
-        bool isTemporary = false)
+        bool isTemporary = false,
+        Action? onPanelOpened = null)
     {
         _connection = connection;
         _password = password;
         IsTemporary = isTemporary;
+        _onPanelOpened = onPanelOpened;
         _acceptCertificate = acceptCertificate ?? ((_, _) => false);
         _acceptedCertificate = acceptedCertificate;
     }
@@ -50,6 +53,8 @@ public sealed class FtpFilePanelSource : IModulePanel, IReusableFilePanelSource,
         candidate is FtpFilePanelSource other &&
         _connection == other._connection &&
         string.Equals(_password, other._password, StringComparison.Ordinal);
+
+    public void OnPanelOpened() => Interlocked.Exchange(ref _onPanelOpened, null)?.Invoke();
 
     public void Dispose()
     {
