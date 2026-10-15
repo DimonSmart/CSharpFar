@@ -53,12 +53,12 @@ Git history is the source for deleted or previous document versions.
 | IDD-0059 | spec | Panel cursor normalization |  |  |
 | IDD-0060 | spec | File rename operation |  |  |
 | IDD-0061 | spec | Native plugin system |  |  |
-| IDD-0062 | spec | Console UI component library |  |  |
+| IDD-0062 | spec | Console UI component library | Stable reusable UX and boundaries; implementation reference in docs/architecture/ |  |
 | IDD-0063 | spec | File attributes dialog |  |  |
 | IDD-0064 | spec | Unix terminal input |  |  |
 | IDD-0065 | spec | Debian/Ubuntu APT distribution and installation |  |  |
 | IDD-0066 | spec | Folder and file-set comparison |  |  |
-| IDD-0067 | spec | UI layer composition and modal resize |  |  |
+| IDD-0067 | spec | UI layer composition and modal resize | Stable frame, routing and resize guarantees; implementation reference in docs/architecture/ |  |
 | IDD-0071 | spec | Transactional UI frame commit and resize regression coverage |  |  |
 | IDD-0072 | spec | Application integration test input lifecycle |  |  |
 | IDD-0073 | spec | Processes and Ports | Local endpoint diagnostics module |  |

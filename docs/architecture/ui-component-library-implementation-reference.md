@@ -1,0 +1,1659 @@
+# Engineering reference — Reusable console UI implementation details
+
+> **Non-normative engineering record.** This file preserves the complete
+> previous `IDD-0062` text as of commit `bccb3a9e66273ff6a8cb5f3c5169f3c1fbce2b31`, including implementation
+> details, public/private API sketches and regression checklists.
+> Authoritative behavioral requirements now live in
+> [`IDD-0062`](../../.idd/intent/IDD-0062.spec-console-ui-component-library.md). Treat any conflicting or
+> obsolete implementation detail below as historical, not as a requirement
+> to keep an old class or workaround. Git also preserves the prior revision.
+
+---
+
+# IDD-0062 - Console UI component library specification
+
+Related:
+- IDD-0001
+- IDD-0002
+- IDD-0008
+- IDD-0020
+- IDD-0021
+- IDD-0038
+
+## Goal
+
+CSharpFar.Ui is a reusable console UI component library that can be consumed
+by another application from source or as a binary package. New dialog and popup UI should use standard
+components, or extend them, instead of reimplementing local frame, list,
+scrollbar, button, text input, or dropdown mechanics.
+
+The repository includes an independently runnable sample application that uses
+the reusable console and UI stack as an external consumer. The sample is
+executable documentation and integration evidence for building a complete
+console application without depending on the CSharpFar file-manager product or
+its domain and platform layers.
+
+The project does not introduce an external UI framework and does not turn the
+file manager into a generic TUI framework. It maintains a narrow reusable
+library of console UI components. It is publish-ready as a coordinated first
+beta package family, without declaring a stable 1.0 public API release.
+
+## Boundaries
+
+The reusable stack is a coordinated package family with the public identities
+`DimonSmart.Terminal` and `DimonSmart.Terminal.Ui`, released together at
+version `0.1.0-beta.1`. The terminal package contains the separately built
+`CSharpFar.Console`, `CSharpFar.Console.Ansi`, and `CSharpFar.Console.Windows`
+assemblies; backends do not have public package identities. The UI package
+depends on the terminal package and legitimate UI-owned infrastructure only.
+Neither package has a dependency on a CSharpFar product assembly. Source
+project, assembly, namespace, and internal friend-contract identities remain
+unchanged. A consumer selects one terminal package, and startup chooses the
+Windows backend on Windows or the ANSI backend on Linux and macOS without
+loading platform-specific code on an unsupported platform.
+
+Both public packages identify their MIT license, source repository, authors,
+consumer-oriented description and tags, and package README. The repository
+contains the standard MIT license text using its existing metadata owner. API
+baselines make unshipped public-contract additions explicit until the first
+released API is marked shipped.
+
+The sample remains source-integrated by default and is also a binary package
+consumer when `UseDimonSmartTerminalPackages=true`. In that mode it references
+only `DimonSmart.Terminal.Ui` from a repository-local feed, receives the
+terminal package transitively, and has no reusable-stack project reference.
+Automated package verification inspects package contents and dependency
+metadata, then restores and builds this mode so accidental fallback to source
+references fails. The same verification runs in supported Windows, Linux, and
+macOS CI environments. Packages are built and verified locally; publication is
+a separate release operation.
+
+`CSharpFar.Console` owns only platform-neutral console contracts and reusable
+models. Production platform implementations live in sibling backend assemblies.
+`CSharpFar.Console.Windows` and `CSharpFar.Console.Ansi` depend on
+`CSharpFar.Console` and do not depend on each other. `CSharpFar.Ui` depends only
+on `CSharpFar.Console`; application or platform bootstrap selects the concrete
+production backend for the current OS.
+
+Ordinary standalone consumers may create standard form fields with
+`FormFieldFactory()`, which supplies application-scoped in-memory history, and
+construct `DialogService` directly from `UiCompositionHost` plus that factory.
+`FormFieldFactory(ITextFieldHistoryProvider)` and
+`DialogService(ModalDialogHost, FormFieldFactory)` remain public advanced paths
+for custom history and explicit modal composition. `ScrollStateCalculator`,
+field-owned ID state, and the ID-based `FormFieldFactory.Text` overload are
+implementation details rather than public contracts.
+
+Application and module assemblies consume standard form controls only through
+the compact semantic API exposed by `CSharpFar.Ui`, primarily `FormControls`.
+They do not receive friend-assembly access to UI implementation details.
+Control factories accept application identity, semantic values, availability,
+and stable presentation choices, but not raw layout, rendering-style, frame,
+controller, or input-result objects. The UI library maps semantic presentation
+choices to the active theme. Implementation state, layout, frames, snapshots,
+and routing/input results remain internal unless a distinct semantic
+application scenario requires their public exposure.
+
+Standard forms use `DialogService.Form` for their modal lifecycle. A form event
+exposes semantic event kind, command, key when applicable, and a typed semantic
+source-control reference. Ordinary application code identifies value changes
+through that reference (or an equivalent typed predicate), rather than a
+row-ID string. Source-row and focused-row IDs remain available only for
+explicit semantic identities and advanced scenarios; forms do not receive
+layout, focus indexes, targets, frames, or routing state. Standard Tab,
+Shift+Tab, and ordinary Enter traversal belong to the form runtime. Low-level
+modal and form hosts remain available for surfaces whose custom rendering or
+lifecycle cannot be expressed by the standard form API.
+
+The public reusable boundary intentionally includes the composition, rendering,
+input-routing, modal-hosting, scrolling, and menu/popup contracts needed to
+author a complete custom UI surface. Form-grid geometry/navigation and
+composite-form frame/snapshot types remain implementation details and do not
+appear in public signatures. Module UI services and module-help implementation
+belong to the module subsystem rather than `CSharpFar.Ui`.
+
+Composite modal dialogs use the semantic `DialogService.Composite` API when a
+dialog combines form controls, one routed main-content component, an optional
+status line, and footer actions. The composition host owns dialog layout,
+committed child frames, interaction-frame composition, routed dispatch, focus
+order, and resize recovery. Applications supply domain state, form rows,
+content, status text, semantic commands, and event handling; they do not
+calculate rectangles or route child targets. The standard table is one
+supported content component, but the composition contract remains narrow and
+does not create a widget tree or a parallel modal lifecycle.
+
+Standard and composite modal dialogs share one declarative sizing policy. A
+dialog is fixed by default, preserving its preferred presentation size subject
+to the existing viewport bounds. A dialog may independently opt into width,
+height, or two-axis expansion; an opted-in axis uses the available viewport
+with its declared outer margin, but never becomes smaller than its preferred
+size before ordinary viewport constraint applies. Preferred dimensions remain
+the normal useful presentation size, rather than becoming minimum dimensions.
+The policy is resolved once through shared dialog layout logic for both form
+and composite dialog options, so a viewport recovery render gives child form
+and content components their new bounds without dialog-specific resize events.
+
+Standard and composite dialogs select a shared semantic appearance: Standard,
+Popup, or Warning. The UI library resolves each appearance through
+`UiTheme.Current`; applications request an appearance rather than supplying
+palette or color parameters. Popup appearance renders its frame and outer
+background with the menu-popup palette so its chrome and routed content form
+one visual surface.
+
+Long-running modal operations use the semantic `DialogService.Operation` API.
+Applications provide the asynchronous operation, semantic refresh policy,
+presentation state, routed content and commands. The UI runtime owns periodic
+wake scheduling, completion wake-up, cancellation plumbing, task observation,
+modal lifecycle, committed frames, routing, and resize behavior. A semantic
+operation transition may continue unchanged, request cancellation, refresh the
+presentation, or complete the dialog. Closing an operation dialog before the
+operation naturally completes requests cancellation and waits for observed
+cleanup; operation faults, cancellation, and UI faults remain distinguishable,
+and a UI fault remains the primary failure. The operation API is a modal UI
+lifecycle, not a workflow, reactive, MVVM, or generic state-machine framework.
+
+Warning and other structured dialogs use semantic dialog appearance and
+standard form/content primitives. Appearance roles, including warning and
+error, resolve through `UiTheme.Current`. Applications supply informational
+rows, semantic alignment, controls, and buttons; they do not implement frame
+geometry, rendering styles, interaction frames, routing, or a modal loop merely
+to obtain custom text layout or warning presentation.
+
+Reusable components must not reference CSharpFar.Core, CSharpFar.App, platform
+implementations, or application modules. Allowed dependencies are
+`CSharpFar.Console`, .NET runtime/BCL, and UI-owned small infrastructure such
+as the `TextCopy` clipboard adapter. UI-owned components and state include
+generic text editing, selection, scrolling, menus, dialogs, presentation, and
+layout. Application consumers translate their domain state and actions at the
+UI boundary.
+
+The production Windows and ANSI console backends are part of the same reusable
+boundary and must not depend on CSharpFar.Core or the file-manager application
+layers. A sample consumer may reference only `CSharpFar.Console`,
+`CSharpFar.Console.Windows`, `CSharpFar.Console.Ansi`, `CSharpFar.Ui`, and their
+non-product infrastructure dependencies. It uses public semantic UI APIs and
+the production console backend selected for the current OS; it receives no
+friend access, copied modal or rendering infrastructure, custom sample terminal
+driver, or raw-ANSI substitute for standard controls.
+
+The independent sample presents its controls through coherent application
+workflows rather than a control gallery. Its data and operations may be
+deterministic and in-memory, but it exercises a complete application lifecycle,
+adaptive main surface, keyboard and mouse interaction, theme selection, and
+the representative reusable list, table, form, scrolling, menu, dialog, and
+background-operation capabilities. It restores terminal state after normal
+exit and failures supported by the backend. The sample does not establish a
+stable UI API, package distribution, persistence, network access, or a general
+application framework.
+
+Allowed UI building blocks include `ScreenRenderer`,
+`PopupRenderer`, `DialogFrameRenderer`, `ModalDialogRenderer`,
+`ScrollBarRenderer`, `UiTheme`, `ConsolePalette`, palette styles, and console input event
+types.
+
+Components must not directly know about file panels, FTP/SFTP domain models,
+command execution, filesystem operations, or application services. Domain
+dialogs may remain thin wrappers that prepare items, format rows, define
+buttons, and translate component results into domain actions.
+
+## Routed component authoring
+
+Reusable interactive components describe their logical state, calculate one
+immutable frame, render from that frame, publish interaction metadata, and
+route input against the matching committed frame. Geometry, visibility,
+scrollbar bounds, and other routing data are calculated once for the frame;
+rendering and input handling do not independently recreate that geometry.
+
+Rendering is not interaction handling. It renders the calculated frame and
+does not perform mouse hit testing, change focus or mouse capture, or publish
+runtime interaction state directly. A routed adapter publishes its content and
+scrollbar hit regions, and any genuine focus or cursor metadata, through a
+`UiInteractionFragment`. Input accepts the committed frame and route context;
+when the route already identifies the adapter target, the adapter does not
+repeat hit testing to identify the same control. Mutable frame-dependent state
+is applied only after a successful frame commit, so rejected attempts cannot
+change selection, scrolling, dragging, focus, or interaction targets.
+
+Primitive components own narrow reusable mechanics such as selectable list or
+viewport state. Routed adapters add standard target publication, route
+ownership, focus participation where applicable, and composition mouse
+capture. A consumer extends an existing narrow primitive or routed adapter
+when its semantic model fits before introducing local list, scrollbar, capture,
+or target-routing glue. Components remain narrow and do not form a general
+widget hierarchy, control tree, layout tree, or retained-mode UI framework.
+
+A routed component may be non-focusable when it is an overlay whose keyboard
+ownership belongs to its enclosing layer. Such a component still publishes
+mouse targets and uses standard capture/release, but does not publish a focus
+entry or request focus on mouse interaction. Keyboard acceptance from an owner
+layer is an explicit adapter policy, not an application-specific exception in
+the composition lifecycle.
+
+Composite components derive related target IDs from one `UiTargetScope` where
+that expresses a coherent local target group. Isolated semantic targets and
+dynamic target-to-action mappings remain direct IDs when a scope would obscure
+their meaning.
+
+Authoring a routed component follows this short sequence: keep logical component
+state; calculate an immutable frame; render from that frame; build its interaction
+fragment; commit the frame stably; apply the committed frame; then route input
+against that committed frame and route context; finally translate the component
+result into a semantic application action. A composite routes a targeted child
+first, falls back to standard focus traversal only when the child does not handle
+the input, then applies application-specific fallback. A standard routed list is
+  created from a `ScrollableListState<T>` and explicit list and scrollbar target IDs
+  when its ordinary list semantics fit the surface.
+
+`IUiCanvas` may create an absolute-coordinate clipped drawing view for a child
+rendering boundary. Clipping only limits drawing cells; it does not create a
+component, layout node, interaction target, focus entry, capture state, hit-test
+region, or frame lifecycle. Clipped text preserves terminal-cell boundaries and
+clipped boxes show only the visible part of their original border geometry.
+
+Component tests cover meaningful routing contracts: committed-frame geometry,
+focusable and non-focusable interaction policies, wheel and keyboard ownership,
+and centralized scrollbar capture/release. Layer tests use a small test-only
+composition host when they require real committed-frame, routing, capture, or
+resize behavior; simple renderer and component tests continue to use
+`UiTestRender`.
+
+## UI test infrastructure
+
+UI tests use three standard levels: `UiTestRender` for renderer-only component
+tests, `UiLayerTestHost` for one routed layer and its real committed
+frame/focus/capture lifecycle, and `UiTestHost` for composition, modal, and
+surface integration scenarios. Tests of `UiCompositionHost` and comparable
+runtime infrastructure may construct those objects directly when explicit
+lifecycle setup is part of the contract. Consumer tests do not duplicate
+composition setup or create local layer-to-surface adapters when the standard
+test hosts express the scenario.
+
+## Single Source Of Truth For UI Theme
+
+CSharpFar uses one application-wide console UI theme for reusable UI
+components. `UiTheme.Current` is the single source of truth for component
+colors and visual roles.
+
+Reusable UI components do not receive `ConsolePalette` through every method,
+constructor, `Show`, `Render`, or helper call. They read visual roles from
+`UiTheme.Current` or from style/helper objects derived from `UiTheme.Current`.
+
+`ConsolePalette` is the reusable theme model. It contains only generic console
+UI roles whose names and semantics apply to an arbitrary application, including
+ordinary foreground and background roles. File-panel, file, directory,
+file-usage, directory-shortcut, module, and other CSharpFar product roles are
+owned by the product layer and composed with the reusable palette there.
+Product-specific presets such as `FarClassic` likewise remain outside
+`CSharpFar.Ui`; the reusable palette registry exposes only generic presets.
+
+`UiTheme` may be initialized once from application startup state. Components
+only read the current theme. They do not change it, and the product does not
+support multiple simultaneous themes or runtime theme switching as a reusable
+component feature.
+
+Helper style classes such as `DialogStyles` or `PaletteStyles` may exist
+only as adapters over `UiTheme.Current` or over an explicitly supplied palette
+for non-component application renderers. They must not define a second
+independent style system.
+
+Forbidden reusable-component style patterns:
+
+- hardcoded `ConsoleColor` values inside ordinary component rendering;
+- independent static style classes that are not derived from `UiTheme.Current`;
+- `ConsolePalette` parameters on ordinary component constructors, `Show`,
+  `Render`, or helper methods;
+- ignored compatibility parameters such as `_ = palette`.
+
+`ConsolePalette.DisabledControlForeground` is the semantic foreground role for
+disabled dialog and input controls. Components derive a disabled input style
+from that foreground and the current ordinary or focused input background; menu
+disabled roles are not reused for non-menu controls. Ordinary component and
+dialog rendering does not hardcode disabled `ConsoleColor` values.
+
+Tests for reusable components should verify that component APIs do not require
+palette threading and should cover behavior that depends on theme-backed
+rendering through `UiTheme.Current`.
+
+## Clipboard Dependency
+
+Reusable text input uses the `ITextClipboard` abstraction for copy and paste
+behavior. `CSharpFar.Ui` may keep a small `TextCopy`-based adapter as the
+default platform clipboard implementation for internal controls. Component
+logic must depend on `ITextClipboard`, not directly on `TextCopy` APIs.
+
+## Internal UI Contracts
+
+Form rows use the immutable row layout from the accepted form frame for
+rendering, cursor placement, pointer routing, and transient-overlay anchors.
+Focused keyboard input is delivered directly to its focused row; unfocused
+keyboard handling is an explicit internal capability for controls such as button
+bars. Row identity remains owned by the form router and is added to a handled
+semantic result there.
+
+Standard labeled form rows share the form's resolved label column unless a row
+explicitly opts into per-row presentation. The column is measured in terminal
+cells, is recomputed for each accepted layout, and leaves a non-negative usable
+control area at narrow widths. Disabled reasons remain visible in the control
+area where possible and never replace a label that may be clipped.
+
+Standard interactive form controls expose `Enabled` and `DisabledReason` with
+one common contract. A disabled control is unfocusable, ignores keyboard and
+pointer input, renders with the disabled presentation, and shows a non-empty
+reason only while disabled. Re-enabling restores its ordinary presentation and
+input behavior.
+
+Transient form overlays are supplied by a small controller owned by the row.
+Every composite frame has one typed immutable component-state snapshot; an
+optional overlay owns its published child targets, so a closed frame cannot
+contain child targets. Form interaction targets use separate row, body-scrollbar,
+and composite-child frame types; their validity does not depend on null fields or
+sentinel row indexes. Primary row input is handled by the row before its
+controller handles overlay-specific input. Keyboard overlay handling is an
+optional controller capability. The form host treats history and dropdown
+overlays uniformly and does not know their individual interaction rules.
+
+Selectable choice and list controls keep valid selection state separate from
+their presentation and routed surface. Empty selections and missing selected
+values are rejected unless a valid fallback is explicitly supplied. Assigning
+the currently selected valid choice is a successful no-op; selection APIs do
+not conflate whether a value exists with whether state changed. Choice layout,
+rendering, and input share one calculated presentation so only visible options
+can render, receive a marker, or be selected by pointer input. Reusable list
+configuration expresses confirmation, focus, and keyboard-routing intent as
+immutable semantic options rather than unrelated boolean switches.
+
+Choice state and layout collections are immutable snapshots and do not expose
+their mutable backing arrays. Duplicate equal choice values select the first
+matching option under the configured comparer.
+
+List state owns items, normalized selection, and scroll position without
+depending on rendering, style, or console-input types. A committed list frame
+is a validated immutable rendering and hit-testing snapshot, and list input
+uses that same frame rather than relying on a preliminary lifecycle call.
+Dropdown input returns one semantic result that distinguishes unhandled input,
+opening, preview changes, commit with or without a value change, and cancellation.
+Presentation receives styles and empty-state text explicitly. Form-row input
+contexts contain only ordinary row data; row-owned overlay controllers receive
+their viewport-specific data through their own committed interaction path.
+
+Reusable dialogs derive their routed target scope per instance. Dialog button
+and list action identities are opaque values, and invalid action configurations
+are rejected when the dialog is constructed.
+
+Reusable form grids separate immutable topology, calculated cell geometry, and
+mutable focus position. Keyboard navigation depends only on topology and enabled
+cells, so it works before rendering and is unaffected by rejected or resized
+render attempts. Calculated geometry is used only for rendering, cursor
+placement, and pointer routing. Grids support uneven columns, pointer selection,
+directional navigation, and Tab traversal that leaves the grid at its boundary.
+Disabled cells are skipped by navigation and use the standard disabled
+presentation.
+
+Popup rendering options select chrome and styles only. A popup receives one
+explicit committed scrollbar frame when it has a scrollbar; it does not accept
+competing scrollbar-state representations.
+
+## Standard Components
+
+- `ScreenRenderer`: buffered high-level rendering surface over the console
+  driver.
+- `PopupRenderer`, `DialogFrameRenderer`, and `ModalDialogRenderer`: shared
+  popup and dialog frame rendering, borders, content bounds, shadows, and
+  underlay restoration support.
+- `ScrollBarRenderer` and `VerticalScrollbarController`: shared right-border
+  vertical scrollbar rendering and mouse interaction. The controller is the
+  sole stateful standard scrollbar interaction primitive.
+- `SingleLineTextInput` and its history binding: reusable one-line editable
+  text fields, optional duplicate-free history suggestions, and history
+  dropdown behavior. History-enabled controls obtain persistent values from
+  the shared application registry, while each field instance owns its transient
+  popup state, including matching, selection, open state, scrolling, scrollbar
+  interaction, and geometry.
+- `FunctionKeyBar`: reusable bottom-row function key bar rendering, F1-F12
+  slot layout, mouse hit testing, and key-number to `ConsoleKey` mapping.
+- `FunctionKeyBarController` and `FunctionKeyBarAction<T>`: shared
+  interactive function-key bar surface that renders executable actions and maps
+  mouse activation of a rendered slot to the caller-owned action descriptor.
+  Disabled function-key actions are not rendered as disabled visual items; they
+  are omitted from the bar and are not mouse-activatable.
+  The local controller supports rendering and local hit testing without routed
+  metadata; the routed controller always has an interaction target and
+  publishes its interaction fragment.
+- `DialogButtonBar`: shared dialog button layout, keyboard focus, activation,
+  pointer-press state, and mouse activation. Button rendering uses the active
+  UI theme by default so ordinary callers do not repeat standard dialog button
+  styles.
+- `ChoiceDialog`: shared modal dialog for choosing one action from a small set
+  of buttons using keyboard or mouse.
+- `SingleLineInputDialog`: shared modal dialog for one-line text entry with
+  validation, optional history, and standard dialog buttons.
+- `CheckBoxLine`, `TriStateCheckBoxLine`, `ChoiceSelection<T>`, and `ChoiceModel<T>`: shared
+  primitives for focused option rows, checkbox toggling, mixed-state checkbox
+  toggling, simple choice cycling, keyboard handling, and mouse hit testing.
+- Form-grid layout and enabled-grid navigation: internal grid mechanics for
+  committed cell geometry and navigation among enabled cells. Checkbox and
+  tri-state checkbox grids, including the file-permission editor, use these
+  mechanics instead of local matrix navigation.
+- `SearchOptionsDialog` or equivalent form primitives: shared search/find
+  dialog mechanics for text entry, history, checkbox options, validation,
+  focus-row navigation, and button activation.
+- `UiCompositionHost`: shared UI-thread composition owner for the active
+  full-screen surface, overlays, stable-frame retry, and stable viewport.
+- `UiInteractionFragment`: immutable composable interaction metadata from a
+  child UI component. It contains ordered hit regions and focus entries only;
+  default focus and keyboard targets remain decisions of the enclosing layer.
+- `UiInteractionFrameBuilder`: designated builder for composing a layer's
+  immutable interaction frame from fragments and layer-owned targets. It keeps
+  insertion order: later hit regions have higher priority under reverse-order
+  hit testing. It does not perform layout, clipping, routing, or focus
+  management. Composite surfaces use it instead of copying collections from a
+  child interaction frame. Interaction frames are created through the standard
+  builder rather than by application code constructing frame objects directly.
+- `ModalDialogHost`: shared modal overlay and input host built on
+  `UiCompositionHost`.
+- `ModalDialogHost.Run`: shared lifecycle runner for ordinary synchronous modal
+  dialogs. An ordinary domain dialog describes rendering for the current state,
+  handling of one semantic input, completion with an explicit result or close
+  action, optional logical preparation before explicit render, and optional
+  committed-frame application. Ordinary dialogs do not own a private
+  `Render -> ReadInput` loop.
+- `ModalDialogHost` also owns the standard timed interactive modal lifecycle for
+  modal surfaces that need routed input, committed frames, periodic wake events,
+  external wake signals, background-operation updates, and completion without a
+  user input event. A timed modal dialog describes its next wake deadline, an
+  optional external signal that requests wake handling without cancelling the
+  runner, its wake transition against the last committed frame, rendering for
+  current logical state, routed input, and completion result. Periodic deadlines
+  and an external completion signal may be combined so background completion is
+  observed immediately while periodic updates continue. The shared runner
+  performs initial render, input pumping, wake handling, post-input rendering,
+  resize recovery, and stable-frame commit publication. Standard timed modal UI
+  must use this runner instead of implementing a private polling/render/input
+  loop.
+- `InteractiveLayerRunner`: internal shared routed interactive lifecycle for
+  modal overlays and temporary full-screen surfaces. Placement selects overlay
+  or temporary-surface registration; it does not select a different input,
+  wake, render, completion, focus, or cleanup loop. The runner owns one
+  composition input pump per active layer, invokes semantic handlers after
+  routed dispatch, and clears pending semantic input before the layer is
+  removed. `UiCompositionHost` and `UiLayer` remain the source of truth for
+  stable-frame commits and restoration of the lower composition. It is runtime
+  infrastructure, not an application-level escape hatch. Handling an input
+  event does not by itself require rendering: routed invalidation and semantic
+  invalidation are combined with OR, and one input produces at most one
+  post-input composition render. An unchanged continuation produces no render;
+  a focus request requires a new committed frame; and completion produces no
+  intermediate frame before the layer closes. Resize recovery remains
+  independent of post-input invalidation.
+- Selection is exposed to application and module code through
+  `DialogService.Select`. It accepts semantic selection options, including
+  title, items, item text, initial selection, visible-row and width limits,
+  border presentation, selection-change notification, and an optional reusable
+  text filter. A filtered selection may supply search text distinct from display
+  text; otherwise item text is searched. Matching is case-insensitive substring
+  matching and updates as the filter changes. The UI implementation owns filter
+  input, projection, list layout, rendering, focus, scrolling, pointer routing,
+  and modal completion; application code does not construct its implementation
+  directly. Filtering never changes public index semantics:
+  `SelectionListDialogResult.SelectedIndex` and `SelectionChanged` always use
+  indexes in the caller's original `Items`. A still-visible selection is
+  preserved, otherwise the first match is selected, and no match means no
+  selection. Enter cannot confirm an empty filtered projection; `Esc` and
+  `F10` cancel normally.
+- `DropdownSelect<T>`: combobox-like selector state and popup rendering with
+  keyboard navigation, mouse selection, scrollbar support, and cancel without
+  committing a preview selection.
+- `ScrollableListState<T>`, `ScrollableListFrame`, `ScrollableListRenderer`, and
+  `ScrollableListInputController`: low-level selectable-list primitives. State owns
+  an immutable item snapshot and normalizes selection and scroll position; frames
+  are immutable validated attempt snapshots; rendering does not mutate state; and
+  input consumes the committed frame. `DropdownSelect<T>` and command-history
+  completion may use these primitives as an escape hatch for genuinely specialized
+  surfaces. Ordinary selectable lists use `ListView<T>` instead. An application popup that displays an ordinary selectable,
+  scrollable list uses the shared list primitives and does not separately implement
+  selection or viewport normalization, wheel navigation, or scrollbar
+  interaction through `VerticalScrollbarController`; neither the list nor its
+  callers retain raw drag state. Containers continue
+  to own dialog or popup layout, framing, theme-to-style selection, focus and
+  button orchestration, and confirm/cancel policy.
+- `ScrollableViewport`: reusable non-selectable vertical-scroll primitive for
+  text and other indexed content. It owns the first visible index, delegates
+  scrollbar pointer lifecycle to `VerticalScrollbarController`, calculates an
+  immutable committed frame, exposes the standard scroll state, and handles
+  keyboard, wheel, and scrollbar mouse input.
+  It does not store or render content, own focus or target IDs, or choose dialog
+  completion policy. `ModuleHelpDialog` and the text area of `MessageDialog`
+  use it instead of local ordinary-scroll implementations. Unlike the
+  selectable-list primitives rooted in `ScrollableListState<T>`, it has no
+  selected item or selection behavior.
+- `RoutedScrollableViewport`: routed adapter for `ScrollableViewport` in
+  dialogs and surfaces. It owns standard content and scrollbar target
+  publication, route ownership, committed-frame input routing, semantic-result
+  conversion to `UiInputResult`, and scrollbar mouse capture/release. It does
+  not render content, own focus, layout, dialog policy, or application data.
+  It exposes the ordinary viewport state, frame calculation and commit,
+  interaction publication, and standard scrollbar rendering that routed
+  consumers need without exposing the underlying primitive. Standard scrollbar
+  rendering uses geometry and scroll state from the calculated frame; consumers
+  may retain separate content and scrollbar rendering where their frame requires
+  it. Specialized renderers may use scroll state directly when that is part of
+  their own rendering semantics.
+  A routed consumer supplies keyboard ownership through its enclosing
+  interaction frame; the adapter does not globally intercept scroll keys.
+- `RoutedScrollableList<T>`: low-level routed selectable-list adapter. It owns target
+  publication, route ownership, input routing, focus-on-click, and scrollbar
+  capture/release. Presentation is passed explicitly for rendering and the adapter
+  does not duplicate state operations; ordinary consumers use its state and a
+  `ScrollableListFrame` directly.
+  A component routes input to the selected child first. If that child leaves a
+  `Tab` or `Shift+Tab` key unhandled, the enclosing composite may use the
+  standard focus-traversal fallback, which requests next or previous focus from
+  the committed focus frame without selecting a target itself. Component-owned
+  Tab behavior remains eligible to handle the key before that fallback.
+  Standard scrollbar rendering is available from its calculated frame for
+  specialized consumers that need it.
+- `ListView<T>`: reusable one-column selectable list component. It owns the
+  low-level list state, routed targets, immutable frame calculation, standard
+  theme-backed rendering, scrollbar integration, interaction publication, and
+  input routing. Consumers provide items, item text, empty text, and a semantic
+  interaction policy; they use selection and item-replacement operations without
+  managing viewport rows, target IDs, styles, or low-level state synchronization.
+  It preserves a selected item by an optional identity key when items are replaced.
+  Its public API uses semantic behavior and appearance choices, and a semantic
+  frame, rather than low-level routed-list options, targets, or frames.
+- `TableList<T>`: reusable adaptive selectable table component. It owns its
+  immutable item snapshot, selection and scroll state, component-local routed
+  targets, list-frame calculation, scrollbar geometry and rendering, interaction
+  publication, and standard list input routing. Its public frame exposes only
+  table bounds, header and body bounds, calculated visible column geometry, selection, scroll position, and viewport
+  rows; it does not expose routed-list, target, or scrollbar implementation
+  details. Column definitions express fixed, flexible (preferred and minimum),
+  and optional (preferred, minimum, and collapse priority) widths. A frame first
+  fits preferred widths, then shrinks flexible and optional columns to their
+  minima, then hides optional columns by collapse priority; rendering and input
+  both use that committed layout, including at
+  very narrow viewport widths. Consumers supply table data and semantic column
+  definitions and appearance; standard rendering is theme-backed and requires
+  no palette or cell-style plumbing. Consumers then
+  retain domain-specific keyboard behavior and confirmation policy after the
+  component leaves an event unhandled. It remains a composable surface component
+  and does not introduce a general widget or container hierarchy.
+- `ListAppearance`: the semantic visual role for standard selectable lists and
+  tables. `Menu` maps normal, selected, emphasized, selected-emphasized, border,
+  and scrollbar visuals to the corresponding menu theme roles. `Dialog` maps
+  them to dialog and focused-input roles. Application and module code choose an
+  appearance, never raw cell styles or palettes; every surface uses one coherent
+  appearance for its list/table and frame.
+- `ScrollableFormDialog` and form rows (`FormRow`, `LabelRow`,
+  `TextInputRow`, `TextInputWithButtonsRow`, `CheckBoxRow`, `TriStateCheckBoxRow`,
+  `ChoiceFormRow<T>`, `CompactChoiceFormRow<T>`, `CheckBoxColumnsRow`,
+  reusable multi-line choice rows, `SeparatorRow`, `SpacerRow`,
+  `ButtonRow`): shared form-dialog host and row model for dialog body layout,
+  focus-row navigation, body scrolling, scrollbar rendering, wheel scrolling,
+  target metadata, routed dispatch to row targets, and generic
+  `FormInputResult` values. `ScrollableFormDialog.Render` returns an immutable
+  committed form frame that contains viewport, body/footer geometry, effective
+  scroll position, row target mappings, scrollbar targets, overlay targets, and
+  cursor metadata. The matching `UiInteractionFrame` exposes form rows,
+  scrollbars, and row-owned overlays as targets inside one modal layer; form
+  rows are not separate UI layers and target IDs are local to the modal layer
+  instance. Form target frames use typed variants: a row target always owns a row and its
+  layout, a body scrollbar target never fabricates a row or row index, and a
+  composite-child target always owns a row target and an open composite frame.
+  Routing pattern-matches those variants; it does not infer meaning from null
+  fields or sentinel indices.
+  may declare a stable non-empty ID, a semantic role, and whether Enter on that
+  row submits the owning dialog. Standard focusable controls support ordinary
+  ID-less construction and receive independent internal runtime targets; an
+  explicit ID remains available only where application logic needs a stable
+  semantic reference. Typed focus targets do not disclose runtime identity,
+  layout, rendering, routing, or focus state. Application dialogs use explicit
+  row IDs only for such references and `SubmitOnEnter` for declarative Enter
+  submission; they must not use numeric focus indexes as application-level
+  control identity.
+  A routed row result carries the source row's semantic ID when the event was
+  handled by that row, including a composite row; events without a semantic row
+  source leave that value absent. This semantic result metadata is for dialog
+  policy and does not replace routed `UiTargetId` values in the interaction
+  architecture.
+  Focus belongs exclusively to the enclosing interactive layer. Child components
+  receive only read-only focus state and build focus entries, a default target,
+  and cursor placement; they do not create, retain, clear, commit, or directly
+  mutate focus. Numeric focus indexes, when exposed, are derived views
+  of the focused target and are not an independent source of truth. Duplicate
+  non-empty row IDs are rejected when rows are installed.
+  Standard input/button/dropdown application dialogs are assembled from routed
+  form rows with stable row IDs. The dialog-specific class owns domain state,
+  validation, result construction, and high-level submit/cancel handling; it
+  does not own focus indexes, button focus indexes, text cursor placement, or
+  mouse hit testing for ordinary controls.
+  Application code must not use the removed
+  compatibility model based on `bodyRowCount`, `focusRowCount`, static
+  focus/scroll helpers, or virtual-row helper APIs. Recreated text-row
+  representations preserve their field-owned input and per-field history popup
+  state through the owning `TextField`; row wrappers do not own an independent
+  input or history lifecycle. `ButtonRow` is the reusable button-bar row; a
+  dialog may render it in a fixed footer row when the body itself must remain a
+  scrollable region. Fixed footer buttons are still part of the dialog keyboard
+  focus cycle unless a specific dialog documents a non-focusable footer.
+  `CompactChoiceFormRow<T>` is the reusable one-line labeled choice row for
+  compact forms that need the current value rendered as `Label: Value` while
+  retaining standard choice keyboard, mouse, and cursor behavior.
+  `CheckBoxColumnsRow` is the reusable composite row for compact groups of
+  checkbox options. It arranges checkbox rows in explicit columns, owns
+  row-internal keyboard and mouse focus, skips disabled checkbox rows, exposes
+  one form-row focus target, and keeps all rendered and hit-tested checkbox
+  cells within the row bounds at small widths.
+  `TextInputWithButtonsRow` is the reusable row for a labeled single-line input
+  with a small `DialogButtonBar` action group on the same row. Form input is
+  delivered through target routing: keyboard input goes to the focused target,
+  mouse input goes to the hit target, captured mouse input goes only to the
+  captured target, and layer routes handle form-wide fallbacks such as wheel
+  scrolling and Escape. Body scrollbar drag and history-dropdown scrollbar drag
+  use composition mouse capture; local drag state stores geometry only and does
+  not decide event ownership. Cursor placement is published through
+  `UiFocusEntry.Cursor`; `ScrollableFormDialog` does not directly set the
+  console cursor.
+  `TextField` is the single owner of its text buffer, optional history binding,
+  masking invariant, input width, Enter submission policy, and reusable
+  form-input control. Ordinary, labeled, and input-with-buttons row
+  representations consume that same control and do not recreate it or require
+  consumers to repeat its configuration. A row wrapper cannot weaken masking,
+  and one field has only one active visual representation in a form.
+  `TextInputWithButtonsRow` accepts the high-level field and participates in the
+  common history composite instead of disabling or independently implementing
+  history. Internal field ID state may be carried only for form-row identity
+  propagation; it is not a consumer contract. Activating an adjacent button
+  reports only that button's ID, so application routing combines row and button
+  identities without a composite command string. Low-level buffer construction
+  is UI-infrastructure detail rather than an application-facing row API.
+  Each target frame separates complete layout bounds from mouse-active hit
+  bounds: layout bounds remain available to rendering, focus, and row input
+  context, while hit bounds contain only the visible active portion. A
+  focusable target may have no hit region. Row, footer, and scrollbar hit
+  regions are clipped to their visible areas; hidden and border-only portions
+  are never mouse targets. Interaction regions follow visual stacking order, so
+  an overlay receives a click before content beneath it, and transient
+  history-overlay targets are published only when the overlay is rendered.
+  Explicit row IDs and anonymous-row identities use distinct target namespaces;
+  anonymous identity stays stable for one row object without retaining removed
+  rows. Form Enter submission is implicit only after an unhandled form route on
+  a focused submit-on-Enter row; Enter handled by a row remains row-owned.
+  Standard form-dialog policy centralizes explicit submit results, F10, and
+  this implicit Enter behavior. It centralizes cancel results as well, without
+  adding a second Escape path when routed infrastructure already yields cancel.
+  Domain dialogs retain validation rules, command-specific handling, and result
+  construction. For an ordinary submit/cancel form, `DialogService.Form` also
+  provides a semantic submit callback: it closes on cancel with the standard
+  cancellation result, calls the callback only on submit, and accepts either a
+  successful result or an invalid result with an error and optional typed focus
+  target. The UI runtime owns the transient validation error, clears it after
+  any confirmed form-control value change, keeps the form open after an invalid
+  result, and renders that error through its standard footer presentation.
+  Successful semantic submit commits the history of every history-enabled
+  `TextField` currently represented by the form body or footer; cancel,
+  validation failure, value changes, and completion through the advanced event
+  API never commit history automatically. Application code supplies ordinary
+  validation as C# in the callback and does not enumerate history fields or
+  maintain error state. The event-handler overload remains the advanced API for
+  dynamic side effects, custom commands, or non-standard completion.
+  Standard modal-form layouts provide a body-only layout and a body-plus-footer
+  layout. The latter reserves its requested footer height at the bottom of the
+  modal content and never produces negative body geometry at small sizes.
+  Ordinary two-row form footers can be assembled from a dynamic error label and
+  a reusable button row. Standard dialog-button factories distinguish default,
+  additional action, and cancel roles without changing the primary button
+  model. A standard submit key is considered only when routed input was not
+  handled; an explicit submit result always remains submit.
+  `FormControls` is the canonical application-facing API for creating standard
+  label, separator, spacer, error, text, checkbox, tri-state checkbox, choice,
+  compact-choice, dropdown, and button rows. Constructors for standard row types
+  are not part of the application-facing API. A standard row type may remain
+  public when application or module code needs to read or change its semantic
+  state, but its construction does not expose raw rendering styles or other
+  rendering-specific parameters. Interactive row identities are supplied when
+  the control is created.
+  Application dialogs do not assemble low-level checkbox, choice, or dropdown
+  primitives, assign row identities after construction, or select domain values
+  through indexes. Choice and dropdown selection is value-based, supports an
+  explicit comparer, rejects an absent selected value unless the caller supplies
+  an explicit valid fallback, and rejects empty choices.
+  A form may set layout options once for its rows. Inline labeled rows use an
+  automatically measured shared label column by default, based on terminal cell
+  widths and constrained so a usable control area remains at narrow sizes. A
+  form may deliberately choose per-row or fixed label layout for a specialized
+  surface. Inline button groups measure their own available button area and
+  retain non-negative layout and accurate hit testing after resize.
+  A form may also set cursor policy once: ordinary control behavior, text-inputs
+  only, or hidden. Disabled standard controls never receive focus, input,
+  overlay activation, or cursor placement regardless of that policy. Standard
+  interactive rows expose a consistent enabled state and optional disabled
+  reason, preserve their value while disabled, render through the disabled
+  style, and become interactive again when enabled. The disabled reason is
+  presented and clipped by the common form-row presentation rather than
+  reconstructed by an application dialog.
+  `TextField` retains enabled state and an optional disabled reason across all
+  of its row representations. A disabled input-with-buttons row also disables
+  its adjacent actions and history interaction. Form field factories may create
+  form-scoped text-field defaults, such as width and Enter submission, without
+  mutable global state; individual fields may override those defaults and
+  masked fields never acquire history.
+  The tri-state checkbox component uses a UI-owned checked, unchecked, or
+  indeterminate state and has no dependency on application file-metadata types.
+  Its toggle behavior is `Indeterminate -> Checked`, `Unchecked -> Checked`,
+  and `Checked -> Unchecked`.
+  `SpacerRow` represents blank form space: it is non-focusable, has positive
+  height, clears its bounds with the form style, and neither draws a separator
+  nor handles input. `SeparatorRow` represents a visible separator only.
+  Row-owned dropdown popups are part of the committed form interaction frame:
+  the committed `ScrollableFormFrame` contains the complete dropdown component
+  frame for the row, including field bounds, popup bounds, content bounds,
+  scrollbar bounds, visible content rows, selected index, scroll position,
+  open-or-closed state, and the cancel baseline that was confirmed before the
+  popup opened. Open state is input-visible committed state; input handling
+  must not infer it from later mutable component fields. Every routed form
+  input target, including unrelated rows, footer buttons, body scrollbars,
+  outside clicks, focus traversal keys, and programmatic focus requests, begins
+  from the dropdown lifecycle in the last committed form frame. Restoration of
+  that committed lifecycle happens before outside-click detection, ordinary
+  target routing, and focus-transition cancellation. Temporary dropdown
+  selection while the popup is open is not a domain value. Mutable open flags,
+  temporary selection, and overlay scrollbar drag state are not sources of
+  routing decisions after a rejected render attempt. Escape, outside click,
+  focus loss, and other transient cancellation restore the committed cancel
+  baseline, while confirmation is the only path that can publish a value
+  change.
+  Popup rows and interactive scrollbars publish hit regions only when rendered,
+  and the primary row target, popup target, and scrollbar target refer to the
+  same logical dropdown component frame. Mouse wheel, mouse selection,
+  keyboard navigation, confirm/cancel, overlay rendering, and scrollbar
+  interaction route through that committed frame. Dialog code and form input
+  handlers do not recalculate dropdown popup geometry, content geometry,
+  scrollbar geometry, visible row count, selected index, or scroll position
+  while handling input. Popup hit bounds alone are not a sufficient committed
+  dropdown snapshot.
+  Row-owned transient overlays are exclusive to the currently focused row. A
+  focus transition away from a row closes that row's transient overlay before
+  the new focus is committed and cancels any unconfirmed temporary selection or
+  overlay scrollbar drag. A committed form frame must not contain a hidden open
+  row-owned overlay for an unfocused row.
+  Manual body scrolling by wheel, body scrollbar click, or body scrollbar drag
+  changes the form viewport without changing focus and must not be undone merely
+  to keep the previously focused row visible. Focus-driven navigation and focus
+  requests make the focused target visible, but a manually scrolled focused row
+  may remain focused while outside the body viewport. An off-screen focused row
+  keeps its focus identity but publishes no mouse hit region, cursor placement,
+  or row-owned overlay until it becomes visible again.
+- `DialogActionController`: internal standard action-footer component for
+  simple button-based modal dialogs. It composes a `ButtonRow` as the fixed
+  footer of a `ScrollableFormDialog`, renders that footer, publishes its
+  interaction fragment, routes form input, and translates submit/cancel results
+  through stable `DialogButton.Id` values into an internal action outcome. It
+  does not own dialog layout, dialog text rendering, a viewport, or a modal
+  lifecycle. Simple modal dialogs keep their content layout and domain result
+  mapping while using this component for standard action-button mechanics.
+
+### Fixed footer rows
+
+`ScrollableFormDialog` may divide its rows into a scrollable body and a fixed
+footer. Fixed footer controls are ordinary `IFormRow` instances and standard
+footer buttons use `ButtonRow`; a standard footer must not have a separate
+rendering or input path in application dialog code.
+
+Body and footer rows form one focus scope. `FocusedRowId`, focused role,
+`TryFocus`, `IsFocused`, `IsFocusedOnSubmitRow`, Tab, Shift+Tab, Up, Down, Home,
+End, and mouse focus apply across both areas. Footer rows remain outside body
+scroll position and body scrollbar calculations. Page navigation scrolls and
+navigates the body; from the footer, PageUp returns to the last focusable body
+row when one exists and PageDown keeps footer focus.
+
+The form host renders footer rows through the normal row pipeline in an
+explicit fixed footer bounds and routes their keyboard and mouse input through
+the normal row handlers. A footer with rows requires footer bounds. Duplicate
+non-empty row IDs are rejected across body and footer together. Dialog-specific
+global keys such as F10 remain the responsibility of the application dialog.
+Application dialogs process semantic `FormInputResult` values after routed
+dispatch has completed; validation, normalization, submit/cancel completion,
+domain callbacks, and nested dialogs do not run inside form target routing.
+Button activation reports the activated button ID without assigning special
+meaning to a particular ID string. A button may declare an explicit submit or
+cancel role; the enclosing dialog maps other IDs to domain actions. Escape
+cancellation remains a distinct form result.
+When such work requires a different control to receive focus, it returns a
+post-dispatch focus request to the enclosing session. The request is resolved
+against the next accepted interaction frame, scrolls a form target into view,
+is not consumed by a rejected render, and is ignored safely when the target is
+absent or disabled.
+
+Do not implement standard footer buttons as a separate input or rendering path
+unless the dialog has explicitly documented non-standard behavior.
+
+Application-level controls that are not generic components, such as the command
+line, top menu, panels, panel quick search, viewer, editor, and progress
+surfaces, may keep specialized orchestration. When they need a reusable
+primitive listed above, they should use the shared component. The top menu is
+an application-specific composite layer: its committed layout publishes stable
+semantic pointer targets alongside ordered hit regions. `UiInteractionFrame` is
+the sole source for selecting a menu target. `TopMenuController` performs only
+semantic menu state transitions and must not repeat coordinate hit testing.
+Overlapping menu targets rely on insertion order and reverse-order hit testing:
+item rows and the scrollbar are inserted after their containing surfaces.
+An open top-menu dropdown retains an explicit first-visible-item state. Layout
+normalizes that retained viewport and keeps the selected item visible without
+mutating logical state during rendering; scrollbar operations publish their
+calculated viewport only after the matching frame commits.
+
+## Reuse Rule
+
+Do not write a local component implementation when a standard component already
+matches the responsibility or can be reasonably extended.
+
+New local dialog code must not manually reimplement:
+
+1. dialog frame rendering;
+2. popup background, border, shadow, or underlay handling;
+3. right-border scrollbar rendering or scrollbar mouse hit testing;
+4. cursor, selected index, `scrollTop`, PageUp, PageDown, Home, or End behavior
+   for an ordinary list;
+5. mouse row selection for an ordinary list;
+6. dialog button bar layout and activation;
+7. single-line text editing;
+8. dropdown or combobox-like selection;
+9. function key bar rendering or mouse hit testing;
+10. simple multi-button choice dialogs;
+11. checkbox option rows;
+12. single-line input dialogs;
+13. ordinary form focus-row navigation for dialogs.
+14. ordinary form body mouse hit testing;
+15. ordinary form body scroll state or scrollbar drag state;
+16. magic virtual-row switches for standard form rows.
+17. creation of a footer-only form for action buttons, button interaction-frame
+   composition, routed button-form dispatch, selected-button lookup by ID, or
+   standard submit/cancel translation for a simple modal dialog.
+
+If behavior varies, extend the standard component or add a new component in
+`CSharpFar.Ui` with a narrow responsibility.
+
+## Keyboard Behavior
+
+Reusable list-like controls must use predictable keyboard behavior:
+
+- Up and Down move selection by one item.
+- PageUp and PageDown move selection by one visible page.
+- Home and End move to the first and last item.
+- Enter confirms the selected item or activates the focused button.
+- Space activates buttons and opens or confirms dropdowns where that matches
+  the control role.
+- Escape cancels the modal dialog or closes an open dropdown without committing
+  a preview selection.
+- Tab moves focus between body/list and button areas in dialogs that expose
+  buttons.
+- Enter and Space activate the focused button when keyboard focus is on a
+  button row or fixed footer button area.
+- The visible console cursor follows keyboard focus. Text input focus places
+  the cursor inside the focused input. Focused checkbox and choice rows place
+  it inside the active `[ ]` or `( )` marker. Rows that do not provide a cursor
+  position, including focused button areas, hide it explicitly.
+- A choice rendered across multiple visual lines remains one focusable control.
+  Left and Right move through the whole choice list, the cursor follows the
+  selected marker across lines, Tab leaves the entire control, and mouse hit
+  testing applies to every rendered line.
+
+## Mouse Behavior
+
+Reusable controls support basic mouse interaction by default unless the control
+documents why mouse input cannot apply:
+
+- On backends that support passive pointer tracking, an unpressed pointer move
+  is represented as a move with no mouse button. Passive movement is distinct
+  from a drag and does not inherit a previously pressed button.
+- The main application screen may register an explicit single-line text region
+  for hover reveal. When its text exceeds the registered region, sustained
+  pointer hover reveals the complete value through a horizontal sliding
+  viewport; leaving the region, changing its stable content target, or covering
+  it with a modal or higher layer immediately restores its ordinary truncated
+  presentation. Text that fits never animates.
+- At most one registered text region may reveal at a time. Hovering a different
+  region cancels and restores the preceding one.
+- Hover reveal is opt-in for interactive text regions; truncating ordinary
+  static dialog text does not by itself make it animated.
+- Text reveal advances and clips at terminal-cell boundaries, preserving Unicode
+  scalar and wide-character display boundaries. Its final position shows the
+  end of the value without overscrolling into empty space.
+- Passive pointer movement and text reveal only redraw when their visible state
+  changes. Animation work is coordinated with the UI event loop and does not
+  create an independent rendering loop.
+
+- clicking a list row selects it;
+- scrolling the mouse wheel over a selectable list moves selection by one item
+  in the wheel direction and keeps the selected item visible; it does not move
+  the viewport independently of selection;
+- mouse wheel inside an open selectable dropdown belongs to that dropdown,
+  moves its selection while keeping it visible, and must not fall through to
+  the owning form's body scrolling;
+- double-clicking a list row may activate the list default action;
+- pressing the left mouse button over an enabled button gives that button a
+  visible pressed appearance and captures the pointer for the button row;
+- releasing the left mouse button over the same enabled button activates it;
+  releasing elsewhere cancels activation and clears the pressed appearance;
+- clicking a function key bar slot activates the same function key behavior as
+  the matching keyboard key in the owning surface;
+- main screen, editor, viewer, and other screens that display an interactive
+  function-key bar must route mouse activation through
+  `FunctionKeyBarController` or an equivalent `CSharpFar.Ui` controller, not
+  by locally recalculating slots or directly calling `FunctionKeyBar.TryHitTest`;
+- clicking a checkbox row toggles that checkbox;
+- clicking a dropdown field opens the dropdown;
+- clicking a dropdown row selects and commits it;
+- clicking outside an open dropdown closes it without committing preview
+  navigation;
+- clicking an open history dropdown arrow owned by the focused input closes the
+  dropdown as the same row-owned toggle action; the outside-click pre-processing
+  does not close it before the owning row receives the arrow click.
+- closing a transient history dropdown from any mouse route invalidates the
+  frame even when the underlying target does not otherwise handle the event.
+- scrollbar clicks and drags use shared scrollbar interaction where scrollbars
+  are shown.
+- complex form dialogs describe their body as rows and use
+  `ScrollableFormDialog` for rendering visible rows, focus movement, row hit
+  testing, keyboard dispatch, mouse dispatch, wheel scrolling, body scroll
+  normalization, scrollbar rendering, and body scrollbar mouse interaction.
+
+Passive pointer tracking is enabled only while an application screen needs it.
+When CSharpFar leaves that screen or returns control to the terminal's ordinary
+main screen, every enabled mouse-tracking mode is disabled so normal terminal
+text selection remains available.
+
+## Scrollbar Behavior
+
+Scrollable window-like components use the shared right-border vertical scrollbar.
+The scrollbar appears only when content exceeds the visible rows unless a
+component explicitly opts into drawing a disabled scrollbar. Rendering replaces
+the right border segment and must not reduce the content width merely to reserve
+an inner scrollbar column.
+
+Standard vertical scrollbar pointer interaction has one reusable owner:
+`VerticalScrollbarController`. It owns scrollbar hit testing, track clicks, thumb
+drag start, pointer offset inside the thumb, drag move, release, committed drag
+geometry rebase after accepted frames, and cancellation when the scrollbar
+disappears or becomes non-interactive.
+
+The controller accepts immutable scrollbar frame data derived from the last
+accepted render frame and returns semantic input results. It does not render,
+store target IDs, know about panels, editors, selection, cursor behavior, or
+domain models, and it does not directly change domain scroll position. Domain
+components own only the meaning of the returned first-visible index, such as an
+editor line, panel scroll offset, or viewport index.
+
+Scrollable viewport components, the built-in editor, and main application file
+panels use `VerticalScrollbarController` for pointer lifecycle. A single mouse
+event is processed by the controller once; capture/release requests and domain
+scroll application are derived from that same semantic result. Input handling
+must not recalculate scrollbar geometry or run a second scrollbar hit test after
+routing has produced the semantic result.
+
+Scrollbar geometry follows the common committed-frame lifecycle. Rendering may
+calculate candidate scrollbar frames, but new drag geometry is published only
+when the frame is accepted. Rejected render attempts preserve the previous
+committed drag geometry. Accepted resize rebases active drag state to the
+accepted scrollbar geometry. Accepted disappearance or loss of interactivity
+clears local drag state while the composition host remains responsible for the
+actual mouse capture lifecycle.
+
+## Popup And Dialog Rendering
+
+Framed popups and modal dialogs use shared renderers for borders, titles,
+content fill, optional shadow, clipping, and content bounds. Popup and dialog
+rendering must stay inside the console viewport.
+
+Controls that temporarily draw over existing UI are overlays registered through
+the shared `ModalDialogHost`. A dialog renderer draws only its own layer inside
+the already open composition frame; it must not capture/restore the underlay,
+open a frame, run a local resize loop, or accept a `RenderUnderlay` callback.
+Reusable dialogs accept `ModalDialogHost`; production `Show(ScreenRenderer)`
+and raw-screen constructor paths are prohibited. Their input is obtained from
+the shared modal runner, and layout comes from the current render context.
+
+Ordinary synchronous modal dialogs use `ModalDialogHost.Run` instead of
+manually repeating an overlay session loop. The runner performs initial render
+before input, gives handlers only semantic input paired with the committed
+frame from the same input cycle, and redraws once after a continuing transition.
+`prepareRender` runs outside the render transaction and may rebuild logical row
+sets or other derived state, but it does not read viewport geometry or render.
+`applyCommittedFrame` synchronizes frame-dependent logical state only for
+committed frames.
+
+Standard polling modal UI, including progress dialogs with background work and
+timed redraw, uses the shared timed interactive
+runner. Full-screen editor/viewer/application surfaces are not ordinary modal
+dialog loops.
+
+Timed modal dialogs that display changing collections use standard reusable
+list components with immutable committed snapshots. A domain dialog may replace
+the component's logical item snapshot outside rendering and may preserve
+selection through an application-neutral item identity key, but input routing
+uses only geometry, item snapshots, scrollbar state, and targets from the last
+committed frame.
+
+## Adding Or Extending Components
+
+When a new UI need appears:
+
+1. Check this spec and existing `CSharpFar.Ui` components.
+2. Prefer configuring or extending an existing component when the responsibility
+   matches.
+3. Add a new component only when the responsibility is distinct and reusable.
+4. Keep public API free of application-specific models where practical.
+5. Put domain adaptation in a thin wrapper outside the component.
+6. Add tests for state transitions, keyboard behavior, mouse behavior, and
+   basic rendering when the project already tests similar rendering surfaces.
+
+## Internal Audit Note
+
+Standard render-only components are components whose normal responsibility is
+visual output and deterministic layout only, such as `ScreenRenderer`,
+`PopupRenderer`, `DialogFrameRenderer`, `ModalDialogRenderer`, and
+`ScrollBarRenderer`.
+
+Standard interactive components are components whose normal responsibility
+includes input or mouse handling in addition to rendering. They include
+`FunctionKeyBarController`, `DialogButtonBar`, `SingleLineTextInput`,
+`CheckBoxLine`, `TriStateCheckBoxLine`, `ChoiceSelection<T>`, `ChoiceModel<T>`,
+`ScrollableFormDialog`, form rows,
+`SelectionListDialog<T>`, `ListWithButtonsDialog<T>`, `DropdownSelect<T>`,
+`VerticalScrollbarController`.
+
+`FunctionKeyBar` itself remains the low-level render and slot-layout primitive.
+Screens that expose the bottom function-key bar as an interactive surface use
+the controller layer with caller-owned actions. The UI library returns the
+selected action descriptor; application, editor, or viewer code decides how to
+execute it.
+
+Function-key action availability is binary for the visible bar. An action whose
+caller marks it disabled or non-executable must be treated as absent from the
+rendered function-key bar, not as a visible disabled item. Mouse activation
+returns actions only for rendered enabled slots.
+
+The main application mouse router, built-in editor, and built-in viewer must
+not contain their own function-key bar slot hit testing. Conflict dialogs use
+`CheckBoxLine` for the remembered-choice row. Multi-target attribute dialogs
+use `TriStateCheckBoxLine` for checked, unchecked, and mixed attribute states.
+File-operation dialogs use `CheckBoxLine` for checkbox rows and `ChoiceModel<T>` segmented rendering for
+access-rights and existing-file conflict rows instead of local option hit
+testing. A visually multi-line existing-file choice is one reusable focusable
+form row, not multiple form rows sharing state. Search, search-options, and file-operation dialogs use
+`ScrollableFormDialog` and form rows for body rendering, focus-row navigation,
+body scroll, row hit testing, standard row keyboard and mouse dispatch, and
+scrollbar dispatch; they keep only domain-specific initial state, labels,
+validation, result construction, and the fixed footer placement of their
+reusable `ButtonRow` where applicable. File-operation dialog footer buttons are
+fixed outside the scrollable body but remain inside the dialog focus scope:
+keyboard focus can move between the form body and the footer buttons, Enter or
+Space activates the focused footer button, Escape cancels through the host
+result, and mouse clicks can activate the fixed footer buttons.
+
+New dialog or popup UI must not introduce local button bars, checkbox rows,
+choice rows, scrollbar mouse handling, or form-row hit testing when an existing
+`CSharpFar.Ui` component can be used or extended. If a new reusable UI pattern
+is needed, `CSharpFar.Ui` is extended first and application code consumes that
+pattern afterward.
+
+## UI capability boundaries
+
+Architectural UI boundaries are expressed through API capability, visibility,
+and ownership, rather than by tests that inspect production source code.
+
+Components receive read-only focus state. The enclosing runtime layer owns
+focus requests, focused-target resolution, and stable-frame focus commit.
+Components request transitions through routed input results and publish cursor
+metadata in focus entries; the runtime applies cursor placement only after an
+accepted frame.
+
+Render callbacks receive a drawing-only canvas. They cannot read input, manage
+frames, change cursor state, or access console-driver and physical-console
+operations. Input is owned by the common application, composition, and
+interactive-runner lifecycle.
+
+Ordinary modal UI uses the common modal runner and has no raw input session.
+Temporary interactive surfaces use the shared interactive-surface host; temporary
+render-only layers and raw composition scopes are runtime implementation details.
+Standard interaction metadata is assembled through the designated builder API.
+Metadata object constructors are not public application API; callers compose
+focus frames and interaction fragments through the builder surface.
+
+The library supplies standard UI components for common mechanics. Their use is a
+design rule supported by intent and review, not by source inspection, reflection,
+or custom architecture-rule tests.
+
+## Console text cell width
+
+Console UI layout and rendering measure text in terminal cells rather than
+UTF-16 code units. Shared text metrics define the width, truncation, fitting,
+and conversion between UTF-16 indexes and cell offsets used by reusable UI
+components and the renderer.
+
+Wide Unicode scalars occupy two cells; combining and format characters do not
+consume an additional cell. Rendering never truncates a scalar or writes a
+wide scalar into only one buffer cell. Buffered rendering preserves this cell
+mapping across frame diffs so subsequent layout, cursor placement, and mouse
+coordinates continue to refer to terminal cells.
+
+## Acceptance Criteria
+
+- `CSharpFar.Ui` is the internal solution project that owns reusable console UI
+  components.
+- Application and module assemblies use the semantic public `CSharpFar.Ui`
+  form API without friend access to UI internals. Standard-control factories do
+  not expose raw layout, rendering, frame, controller, or input-result
+  configuration; theme-specific rendering remains UI-owned.
+- Standard interactive form controls consistently honor `Enabled` and
+  `DisabledReason`: disabled controls cannot receive focus or input, use the
+  disabled presentation, show a non-empty reason only while disabled, and
+  regain normal presentation and interaction when re-enabled.
+- Reusable UI text fitting, single-line input viewport calculations, and
+  buffered screen rendering use shared terminal-cell width semantics. CJK and
+  wide emoji do not overrun their layout bounds, and combining marks do not
+  create extra layout cells or split their scalar value during truncation.
+- `UiTheme.Current` is the single source of truth for reusable component colors
+  and visual roles.
+- The public reusable palette exposes only generic UI roles and generic presets;
+  CSharpFar-specific roles and `FarClassic` are composed and selected by the
+  product layer without changing the established product colors.
+- Reusable components do not thread `ConsolePalette` through ordinary component
+  methods.
+- Ordinary form rows select their semantic standard styles themselves. Application dialogs use the high-level text-field factory for standard inputs; low-level text-input primitives remain available for specialized surfaces.
+- `TextField` owns its buffer, history binding, masking, width, Enter submission
+  policy, and reusable input control. Field-owned ID state is internal to
+  form-row identity propagation and is not a public consumer contract. The form
+  runtime creates runtime identity. Ordinary, labeled, and input-with-buttons
+  rows inherit the field configuration without duplicating it, and no row
+  wrapper can render a masked field as plain text.
+- One `TextField` contributes one active visual representation to a
+  form; selecting a labeled or input-with-buttons representation does not
+  create a second independent input or pre-create an unused row.
+- Standard focusable form controls, including text fields, checkboxes, choices,
+  and dropdowns, can be constructed without an explicit ID and remain usable as
+  typed focus targets and typed event sources. Stable row identities remain
+  available through the advanced form-row APIs where semantic row references
+  are required; `FormFieldFactory.Text` has no public ID-based overload.
+- For an unhandled Enter on an ordinary single-line text field that does not
+  submit on Enter, the form requests the next focusable control using its
+  standard traversal. A control's own Enter handling and `SubmitOnEnter` take
+  precedence. This fallback does not change checkbox, choice, dropdown,
+  button-row, or custom-control Enter semantics.
+- Ordinary application dialogs rely on standard Tab, Shift+Tab, and text-field
+  Enter traversal and do not encode control order or ordinary event sources
+  through raw keys, row IDs, or focus-request handling. Typed focus and source
+  references remain available for validation and other non-standard transitions.
+- Basic rendering, popup/frame, scrollbar, text input, button bar, selection
+  list, list-with-buttons, and dropdown primitives live in or are owned by the
+  UI library.
+- Ordinary application and module dialogs use the `DialogService` façade for
+  selection, search options, and forms whenever the semantic APIs express their
+  scenario. Direct modal hosting remains available only for genuinely custom
+  composition or lifecycle behavior.
+- Selection preserves initial selection, keyboard and mouse confirmation,
+  cancellation, scrolling, width/height presentation limits, border choice,
+  and selection-change notification through the façade.
+- Reusable child-layout bounds remain contained by their parent bounds at every
+  viewport size, and a precomputed modal layout remains the authoritative
+  geometry for that render attempt's rendering and interaction metadata.
+- History, directory history, file history, user menu, module menu, and encoding
+  selection use the shared selection-list component or a shared list component.
+- FTP and SFTP connection manager dialogs share list-plus-buttons mechanics and
+  keep only domain-specific formatting and action mapping in wrappers.
+- The create-file dialog uses `DropdownSelect<T>` for the code page selector
+  instead of local dropdown state and hit testing.
+- Dropdown committed frames include open-or-closed state and the cancel baseline
+  for temporary popup selection; rejected render attempts preserve the entire
+  committed dropdown lifecycle, not only geometry or list scroll state. The
+  next routed input uses that committed lifecycle for any target, not only for
+  input routed directly to the dropdown.
+- Row-owned transient overlays do not survive focus transitions. After focus
+  moves to another row, no committed form interaction frame publishes popup or
+  scrollbar targets for the previous row's overlay.
+- Form semantic input distinguishes transient overlay changes from confirmed
+  domain value changes. Opening or closing a dropdown is not a value change;
+  only confirmed selection of a different value reports a value change.
+- Dialog submit behavior uses confirmed control values. It must not read a
+  temporary dropdown selection from an open popup as the submitted domain value.
+  A rejected dropdown domain value cannot be published by clicking a neighboring
+  row, activating a footer button, or moving focus programmatically.
+- New reusable components have focused tests for keyboard, mouse, scrollbar, and
+  state transitions.
+- `ListView<T>` and `TableList<T>` verification covers their semantic menu and
+  dialog appearances with a distinctive theme, proving normal, selected,
+  header, border, and scrollbar cells use the intended visual role. Drive and
+  selection dialogs use the menu appearance; processes-and-ports and standard
+  list-with-actions dialogs use the dialog appearance.
+- `TableList<T>` verification covers preferred and minimum-width layout,
+  optional-column shrinking and collapse priority, fixed columns, narrow-to-wide
+  reflow, scrollbar reservation, right alignment, terminal-cell clipping,
+  duplicate headers, and preserved selection identity. Processes-and-ports
+  integration verification covers its narrow and wide table behavior.
+- Dialog sizing verification covers fixed, width-only, height-only, and
+  two-axis policies; preferred and minimum constraints; viewport limiting at
+  very small sizes; and a later committed viewport render with changed bounds.
+- Shared list primitives have focused tests for selection and scroll normalization,
+  keyboard and wheel navigation, row and scrollbar mouse input, confirmation
+  policy, empty-state rendering, selected-row styling, and scroll-state
+  creation.
+- `VerticalScrollbarController` has focused tests for track clicks, thumb drag,
+  pointer capture/release signaling, movement outside bounds, accepted resize
+  rebase, rejected-render preservation, scrollbar disappearance, non-interactive
+  scrollbars, and clamped positions.
+- `ScrollableViewport` has focused tests for committed-frame normalization,
+  keyboard and wheel scrolling, and scrollbar drag lifecycle. Its consumers use
+  the committed content and scrollbar bounds for routed input and composition
+  mouse capture.
+- `RoutedScrollableViewport` has focused tests for committed interaction
+  metadata, content and scrollbar route ownership, scrollbar capture/release,
+  invalidation only when scrolling changes position, frame-based standard
+  scrollbar rendering, and absent-scrollbar behavior. Ordinary routed
+  viewport consumers use this adapter instead of repeating target publication,
+  route checks, result conversion, capture glue, primitive access, or standard
+  scrollbar rendering setup.
+- `RoutedScrollableList<T>` uses the state and immutable list frame without
+  duplicating list state operations. Its standard
+  scrollbar rendering uses the calculated list frame and does not render a
+  scrollbar for non-scrollable content.
+- `UiLayout` provides a small set of pure geometry operations for reusable
+  component and dialog layout. Child rectangles derived from parent bounds,
+  including zero-area results in very small viewports, remain contained within
+  those bounds. It is not a general layout framework.
+- `UiTargetScope` derives readable, deterministic related target IDs from one
+  stable component or dialog scope. It does not register targets or create a
+  runtime target hierarchy.
+- Composite dialogs use one `UiTargetScope` for coherent dialog, content, and
+  scrollbar target groups; isolated or dynamic semantic targets remain direct
+  IDs when a scope would obscure their meaning.
+- Standard modal dialogs use `ModalDialogRenderer` as the source of truth for
+  outer, frame, and content bounds instead of reconstructing those rectangles.
+  When a dialog precomputes a modal layout, that layout is authoritative for
+  rendering and related semantic interaction geometry for the render attempt.
+  Insufficient space collapses optional interactive regions to zero area rather
+  than creating synthetic one-cell hit regions outside available modal content.
+  Committed frames remain the source for routed input.
+- Ordinary modal dialogs backed by `ScrollableFormDialog` use `ModalFormHost`
+  instead of manually wiring `ModalDialogRenderer`, `ModalDialogHost.RunInteractive`,
+  form interaction-frame publication, and form routing. This convenience host
+  remains a narrow composition layer; it does not introduce a widget, control,
+  or general layout tree.
+- `ModalFormHost` is the canonical composition path for ordinary modal forms.
+  Specialized dialogs with their own rendering or content composition may use
+  `ModalDialogHost` directly; this exception does not apply to ordinary form
+  lifecycle boilerplate.
+- `FormDialogs` is the internal implementation behind `DialogService.Form` for
+  ordinary modal forms. It accepts semantic window options, dynamic body rows, an optional
+  semantic footer, and a semantic event handler. It owns the standard modal
+  layout, form row installation before each render, committed-frame lifecycle,
+  routing, focus, scrolling, and transient overlays by delegating to
+  `ModalFormHost` and `ScrollableFormDialog`. Application and module code use
+  `DialogService.Form` for ordinary forms and do not receive layout, frame,
+  routed-input, render-preparation, or modal-loop result objects. A handler can continue,
+  complete with a result, or request focus after validation fails. A handler
+  normally identifies focus targets and ordinary event sources with typed
+  control references; the stable form-row ID overload and `SourceRowId` remain
+  available for advanced scenarios. Ordinary controls and button rows are
+  anonymous unless application behavior consumes a stable row identity.
+  `FormControls.OkCancel()` creates
+  the standard anonymous OK/Cancel row; its command identities, labels, hotkeys,
+  default action, and cancel role belong to the UI library. `FormControls.Buttons`
+  remains the API for non-standard action sets, and its overload without a row ID
+  also creates an anonymous row. The
+  public focus-target contract is a minimal marker and does not expose runtime
+  identity, layout, rendering, routing, or focus-state details. A footer reserves its rendered row height beneath the
+  scrollable body; without one, the body uses all content space. The low-level
+  `ModalFormHost` remains available for custom layout or composition scenarios.
+- The standard-submit overload accepts a semantic success-or-invalid submit
+  result and returns the successful value or the standard cancellation result.
+  It adds the standard validation-error footer itself and discovers
+  history-enabled text fields from the current declarative body and footer
+  rows. It does not introduce a fluent form builder or a validation framework.
+- `FormDialogOptions` can express ordinary form layout preferences and a
+  dynamic form theme. Standard forms derive their natural window size from the
+  current body and footer rows when no preferred width or height is supplied.
+  Natural measurement uses terminal-cell text metrics, includes title, shared
+  label column, controls, footer, dialog chrome, and minimum constraints, and
+  remains bounded by the available screen. Explicit preferred dimensions are
+  layout overrides, subject to the same minimum and screen bounds. Standard
+  controls supply their own natural width when they can stretch, so application
+  code need not provide technical widths merely to make a form measurable. The
+  façade applies the selected theme for each rendered form frame without
+  exposing render-scope lifecycle details to application code.
+- Form and composite dialog options expose the same fixed-by-default adaptive
+  sizing choices and margins. Width-only, height-only, and two-axis choices
+  affect only their selected axes; all resulting dimensions remain constrained
+  by the current viewport, including very small viewports.
+- Ordinary `FormControls` factories are ID-less. Explicit string row identities
+  are kept in a clearly advanced API for stable semantic identity, including
+  source-row or focused-row ID scenarios. Typed control references remain the
+  ordinary way for application code to observe and focus controls.
+- `DialogService` is the single application-level façade for standard modal
+  dialogs. An ordinary standalone consumer may pair `new FormFieldFactory()`
+  with `new DialogService(uiHost, fields)` without constructing history or
+  modal-host infrastructure. Custom history providers and an explicit
+  `ModalDialogHost` remain public advanced paths. The façade owns the modal host
+  and form-field dependencies and exposes message, confirmation, single-line
+  input, choice, selection, search options, ordinary forms, composite and
+  operation dialogs, and standard list operations. `ModuleUiServices.Dialogs`
+  exposes this façade. Its low-level modal-dialog access remains available as an
+  explicit escape hatch for custom composition or lifecycle scenarios, not as
+  the ordinary form path.
+- Module startup continues to provide its UI services through the module-owned
+  contract, while the reusable UI assembly contains no module-specific service
+  or help-dialog API.
+- A reusable search-options dialog is reached through `DialogService`; editor,
+  viewer, and other standard consumers do not construct it with modal or form
+  infrastructure. Domain dialogs may translate the semantic result into domain
+  state, validation, or actions, but do not recreate standard dialog plumbing.
+- New composite controls derive related `UiTargetId` values from one stable
+  component scope instead of repeating string prefixes manually.
+- The built-in editor and main application panels use shared vertical scrollbar
+  semantic results for scroll application and mouse capture/release; they do not
+  own parallel scrollbar drag state or perform a second hit test for the same
+  mouse event.
+- Empty selectable lists consistently use selected index `-1` and first visible
+  index `0`, including state returned by shared scrollbar mouse handling.
+- `SelectionListDialog<T>` and `ListWithButtonsDialog<T>` compose `ListView<T>`
+  for ordinary list state, navigation, rendering, row hit testing, scrollbar
+  mouse handling, and selection-preserving refresh while
+  preserving their existing public behavior, layout, visual style, focus,
+  button, popup placement, and confirm/cancel behavior.
+- Optional `SelectionListDialog<T>` filtering is owned by the selection
+  component rather than its consumers. Verification covers printable filter
+  input and Backspace, case-insensitive matching, independent search text,
+  selection preservation/fallback, zero matches, and original-item index
+  reporting after filtering. Non-filtered `DialogService.Select` behavior
+  remains unchanged.
+- Updating a selection dialog's empty-list message updates the message rendered
+  by its composed list; there is one owner for that semantic state.
+- `SearchProgressDialog` and file-operation progress use the standard operation
+  lifecycle. They retain only domain progress state, content projection,
+  cancellation confirmation, conflict resolution, and result mapping; neither
+  owns timed wake scheduling, completion signals, operation cancellation tokens,
+  task observation, modal frames, routing, or resize recovery.
+- Standard list-plus-actions dialogs are available through `DialogService.List`.
+  Consumers supply semantic items, item text, actions, default and delete action
+  identities, empty-state text, and a semantic action handler. The handler may
+  leave the dialog open unchanged, request redisplay after changing its item
+  source, or close with a result. The component owns list/button focus,
+  routing, scrolling, scrollbar, layout, and modal lifetime; it is not a
+  generic widget container.
+- A standard list-plus-actions dialog has one modal lifetime. A semantic action
+  that continues without change keeps its items, selection, scroll position,
+  and committed frame. A refresh rereads its item source, reconciles selection
+  and scroll state, and redraws the existing modal layer. Only close or cancel
+  ends that modal lifetime, so a child dialog can close back to the same parent
+  list.
+- History selection presents the most recently recorded command, file, and
+  directory first while preserving the history store's chronological storage
+  semantics. History and user-menu selection retain their standard width and
+  visible-row limits through `DialogService.Select`.
+- `TableList<T>` owns adaptive column layout, headers, separators, clipping,
+  selected-row presentation, and scrollbar integration. It is not an
+  editable data grid and has no generic binding, cell widgets, sorting, or
+  column manipulation. Column identity is independent from displayed header
+  text, so duplicate headers remain valid. Fixed and minimum widths reject
+  invalid values, and calculated column geometry is used identically for header
+  and row rendering.
+- `TableListDefinition<T>` can semantically declare section breaks between
+  adjacent logical items. A declared break renders a non-selectable presentation
+  row using the active table border style and the calculated visible column
+  geometry. Section rows are not logical items: they cannot be selected,
+  focused, targeted, or returned, and logical item indexes remain unchanged.
+  They consume viewport height and participate in scrolling, scrollbar,
+  mouse, resize, selection-visibility, item replacement, and committed-frame
+  behavior.
+- Replacing `TableList<T>` items preserves a still-present selected value, or a
+  supplied identity match, and preserves the viewport as far as possible. When
+  the prior selection disappears, selection falls back to the nearest valid
+  logical index. Public selection indexes remain logical indexes; invalid
+  selection requests retain their established invalid-index behavior and do not
+  silently select the first item. Section rows are inert for pointer input and
+  never receive focus, selection, confirmation, or item targeting. Keyboard,
+  wheel, and scrollbar navigation moves only among logical selectable items
+  while correctly scrolling past section rows.
+- Standard labelled text, dropdown, and choice controls associate the label
+  with the focusable control. A declared mnemonic transfers focus to that
+  associated enabled control through component routing. Duplicate mnemonics are
+  deterministic and button hotkeys remain independent.
+- Main application, editor, and viewer function-key bar mouse activation use one
+  shared `CSharpFar.Ui` controller model.
+- Main application function-key bar routing is covered through the committed
+  application surface target frame, target-specific handler, and shared
+  function-key bar controller rendering model.
+- Editor function-key bar rendering and mouse handling build actions through a
+  single helper rather than duplicate lists.
+- Disabled function-key actions are omitted visually and cannot be activated by
+  mouse.
+- Shared choice components have focused tests for valid and missing value
+  selection, no-op reassignment, keyboard movement, simple-row click,
+  segmented and multiline rendering bounds, segmented click selection, outside
+  clicks, clipped markers, empty choice lists, and single-item lists.
+- `TriStateCheckBoxLine` has focused tests proving `[ ]`, `[x]`, and `[-]`
+  state transitions, including `Indeterminate -> Checked`.
+- Form-row tests cover value-based standard-control construction, explicit
+  fallback validation, shared cell-width label alignment, narrow layout,
+  measured inline buttons, form cursor policy, and representative disabled
+  behavior including re-enabling.
+- Form-dialog behavioral tests exercise the real `ModalFormHost` lifecycle for
+  title-only, ordinary and labeled rows, footer buttons, checkbox-column and
+  tri-state-matrix rows, explicit field widths, Unicode cell widths, minimum
+  constraints, explicit preferred overrides, viewport-constrained scrolling,
+  and stable dialog width while typing or changing a compact choice.
+  They prove F10 submits only after an unhandled route while an
+  explicit submit result remains submit.
+- High-level form-dialog tests cover body-only and footer layouts, semantic
+  submit and cancel completion, validation that keeps the form open and can
+  request focus by typed focusable control reference or stable row ID, and body
+  rows rebuilt from changed control values.
+- Standard-submit form tests cover successful completion and history commit,
+  cancellation without invoking submit or committing history, validation errors
+  with and without typed focus targets, error clearing after a value change,
+  and current text-field registration after dynamic row rebuilds. The advanced
+  event API remains covered as an escape hatch and does not auto-commit history.
+- High-level form-dialog tests cover semantic layout and dynamic-theme options;
+  `DialogService` tests cover delegation to the standard form façade.
+- Search and file-operation dialogs use `ScrollableFormDialog` or equivalent
+  form-host primitives instead of owning local form-engine state.
+- Search-options dialogs use `ScrollableFormDialog` and reusable form rows
+  instead of owning local form-engine state.
+- `ScrollableFormDialog` does not expose the removed legacy body/focus row
+  helper API to application or dialog code.
+- `ScrollableFormDialog` has no compatibility focus scope or render path that
+  commits focus; only the enclosing interactive layer commits the focus frame.
+- `ScrollableFormDialog` exposes the focused row ID and role, reports whether
+  the focused row submits on Enter, resolves a focus target by stable row ID,
+  and can select initial focus before its first committed frame.
+- Application dialogs do not use numeric `FocusIndex` values for behavior when
+  a row ID, role, or `SubmitOnEnter` expresses the control identity or intent.
+- Duplicate non-empty form-row IDs are rejected when rows are installed.
+- Recreated `TextInputRow` instances preserve required long-lived interaction
+  state through an explicit state object.
+- File-operation dialog fixed footer buttons are part of keyboard focus even
+  though they are outside the scrollable body; keyboard and mouse activation
+  both use reusable button-row behavior.
+- Standard dialog buttons use the shared theme-backed rendering and pointer
+  press lifecycle. Ordinary button rows and composite controls do not duplicate
+  standard button style selection, press hit testing, or activation-on-release
+  behavior.
+- Button IDs are opaque action identities. In particular, an ID named
+  `cancel` does not implicitly change the form result kind; only an explicit
+  button role may do so, and dialog policy maps activated IDs to outcomes after
+  routed dispatch.
+- Fixed footer rows use ordinary `IFormRow` instances, render in explicit fixed
+  footer bounds, and do not affect body scrolling or its scrollbar.
+- Form semantic focus APIs, duplicate-ID validation, and keyboard focus
+  navigation cover body and footer rows as one scope.
+- Application dialogs with standard footer buttons do not keep a separate
+  footer-focus state or call footer row rendering and input handlers directly.
+- Form-dialog cursor placement follows focus and is applied centrally after
+  rows, overlays, and scrollbars render. Focused text inputs show the cursor in
+  the input; focused checkbox and choice rows show it inside the active marker;
+  focused rows without a cursor placement hide it, so a cursor never remains at
+  the previous input position.
+- A multi-line choice row contributes one focusable control, supports keyboard
+  and mouse selection across all its lines, and reports the selected marker's
+  cursor position on the line where that marker is rendered.
+- Standard interactive components expose render, applicable keyboard handling,
+  applicable mouse handling, predictable hit testing, and testable state.
+- Screens do not manually implement mouse hit testing for standard components.
+- New application and module modal dialogs use the shared `ModalDialogHost`;
+  they do not create a private modal stack or use local screen snapshots.
+- Reusable dialogs have no production raw-screen overload, private frame/input
+  lifecycle, snapshot restoration, or underlay-rendering callback.
+- Ordinary synchronous modal dialogs use the shared modal runner and do not own
+  a local `Render -> ReadInput` lifecycle loop.
+- Standard timed modal dialogs use the shared timed interactive runner and do
+  not own a local `Render -> poll/wait -> ReadInput` lifecycle loop.
+- Modal dialogs expose no raw modal-session or raw input API to application
+  code.
+- Persistent application overlays are registered only during UI startup through
+  an explicit persistent-overlay registration API, before the first committed
+  composition frame. Temporary surfaces and modal overlays remain runtime-owned
+  implementation details.
+- Modal overlays and interactive temporary full-screen surfaces use the same
+  shared runner. Neither public host owns an independent input/wake/render loop;
+  closing either placement clears capture and restores the lower composition.
+- The independently runnable sample builds and runs against only the reusable
+  console/Windows/ANSI/UI dependency stack, uses public semantic APIs, and
+  demonstrates a coherent application main surface plus representative modal,
+  scrolling, selection, form, theme, and background-operation scenarios.
+- Starting, interacting with, resizing, and exiting the sample requires no
+  file-manager assembly, installed external command, repository, network, or
+  persisted configuration, and terminal state is restored on exit.
+- Project and assembly dependency checks prevent the sample, UI library, and
+  production Windows and ANSI backends from acquiring dependencies on
+  CSharpFar.Core, CSharpFar.App, platform implementations, modules, filesystem,
+  or shell assemblies.
+- The public UI surface retains legitimate advanced composition, canvas and
+  rendering, interaction routing, modal composition, scrolling, and menu/popup
+  extension contracts. It excludes form-grid and composite-form runtime
+  machinery, module services, product palette semantics, and product-specific
+  dialog-style naming.
+
+## Verification
+
+Focused component verification covers reusable state transitions, meaningful
+keyboard and mouse behavior, cursor ownership, clipped or absent hit bounds, and
+important empty or single-item boundaries. Choice-row verification owns choice
+cycling, segmented hit testing, clipping, and unsupported mouse input. Compact
+choice form-row verification owns only the adapter contract between that
+component and form infrastructure: result-kind conversion, form bounds passed to
+mouse handling, and cursor publication.
+
+Dialog façade verification covers empty and initially selected selection lists,
+keyboard, pointer, scrolling, presentation limits, border choice, and
+selection-change notification. It covers search-options delegation.
+
+Public form API verification covers the semantic factory surface, non-public
+implementation types and constructors, absence of application friend access to
+UI internals, and absence of raw layout or rendering types in factory
+signatures. Disabled-control verification covers focus, keyboard and pointer
+rejection, disabled presentation and reason visibility, and re-enabling across
+the standard checkbox, tri-state checkbox, choice, and dropdown rows.
+
+Public-boundary verification inventories exported types and member signatures.
+It proves that `ScrollStateCalculator`, field-owned ID state, and the ID-based
+`FormFieldFactory.Text` overload are not public; that the simple
+`FormFieldFactory()` and `DialogService(UiCompositionHost, FormFieldFactory)`
+constructors are public; and that custom-history and explicit-`ModalDialogHost`
+constructors remain available. It also proves that form-grid and composite-form
+runtime families, module UI services, product-specific palette roles and
+presets, and product-specific dialog-style names are absent, while the
+documented advanced reusable extension contracts remain available. Dependency
+verification proves that `CSharpFar.Ui`
+depends only on the console/reusable infrastructure boundary and that module and
+product layers depend inward on it.
+
+Focused form verification covers semantic focused-row identity, stable row IDs
+where explicitly requested, independent anonymous runtime targets, typed focus
+and source references, and the stable-ID escape hatch. It covers ordinary
+single-line text-field Enter traversal across enabled body and footer controls,
+skipping disabled controls, and standard Tab and Shift+Tab traversal, while
+preserving submit-on-Enter, composite-overlay, and button-row Enter handling.
+It covers typed sources for anonymous text, checkbox, choice, and dropdown
+controls across dynamic row rebuilds, while source-row identity remains
+available for explicitly named row and composite-row keyboard and mouse results.
+It also covers
+declarative Enter submission, centralized submit and cancel policy, duplicate-ID rejection, body/footer focus
+behavior, footer rendering and routing through ordinary rows, overlay target
+ordering, row-owned transient overlay lifecycle, dropdown committed-frame
+publication, rollback after rejected render attempts, and confirmed-value
+publication only after committed selection.
+It also covers `TextField` configuration inheritance across ordinary, labeled,
+and input-with-buttons rows. Masked-field rendering checks prove that
+the original buffer remains intact, secret text is absent from the canvas,
+mask characters are visible, no history is requested, and row construction
+cannot weaken masking or create an independent input.
+It also covers the standard button press lifecycle: visible press on pointer
+down, capture while held, activation only on matching release, cancellation on
+release elsewhere, and opaque button IDs.
+Layout verification covers body-only and footer layouts, including requested
+footer heights and small content bounds. Focused reusable-row verification
+covers blank spacer rendering and non-interaction, while button-factory checks
+cover their standard model roles.
+It also covers post-dispatch focus requests across dynamic rows, scrolling, and
+rejected render attempts.
+Form-action verification covers the standard anonymous OK/Cancel row, including
+its default submit action, cancel role, Enter submission, cancel selection, and
+multiple anonymous button rows in one form; explicit button-row identities
+remain available for semantic application scenarios.
+
+Focused list, scrollbar, dialog, and application-dialog verification covers the
+critical reusable invariants at the highest stable level that still diagnoses
+failures clearly: selection and scroll normalization, wheel and scrollbar mouse
+handling, fixed footer integration, and application dialogs delegating standard
+control mechanics instead of reimplementing them.
+Top-menu verification covers committed semantic target routing, target priority
+for top items and scrollbar over their containing surfaces, modal outside-click
+handling, retained viewport normalization, and scrollbar capture without
+duplicate controller hit testing. Focused scrollbar interaction verification
+covers track clicks and drag capture through the shared scrollbar mechanics.
+Text-dialog verification also covers scrolling a long message through its body
+and scrollbar through committed targets, keyboard scrolling of long messages
+with buttons, preservation of button activation after scrolling, and scrollbar
+mouse capture for module help.
+
+Focused routed-viewport verification covers committed content and optional
+scrollbar hit regions, route ownership for hit and captured input, scrollbar
+drag capture lifecycle, and result invalidation semantics. It does not duplicate
+the primitive's own scrolling and scrollbar algorithms.
+
+Focused interactive-layer verification covers conditional post-input rendering:
+routed and semantic invalidation combine into at most one render, unchanged
+continuations do not render, focus changes commit a new frame, completion has
+no intermediate render, and resize recovery remains independent.
+
+Focused layout verification covers centered and inset bounds at small viewport
+boundaries, body/footer separation, deterministic scoped target naming, and
+agreement between a standard modal dialog's calculated layout and the layout
+used while rendering. It covers contained zero-area geometry, optional
+scrollbars and list targets disappearing when their content collapses, and
+ordinary modal behavior returning after a larger committed viewport.
+
+Composite-dialog verification covers header, content, optional status, and
+footer layout at ordinary and narrow viewports; resize publication without stale
+routing; Tab and Shift+Tab traversal across the sections; routed keyboard and
+mouse content input; disabled actions; semantic hotkeys, cancellation, and
+content confirmation. It also verifies selection preservation when content
+items are replaced, semantic dialog appearance, and at most one post-input
+render for one semantic change.
+
+Operation-dialog verification covers immediate and periodic completion, fault
+and cancellation outcomes, cancellation refusal, simultaneous timer and
+completion wakes, semantic presentation refresh, resize, nested modal dialogs,
+selection and scroll preservation across refresh, and dynamic footer enablement.
+It also proves that early UI completion and UI faults cancel and observe the
+background operation without masking the primary UI fault. Structured-dialog
+verification covers theme-backed warning appearance, aligned informational
+rows, button mnemonics, default and cancel behavior, and narrow-viewport
+rendering; file-conflict and operation-cancellation wrappers use this path.
+
+Independent-consumer verification builds the sample executable directly and as
+part of the solution, checks its project and assembly dependency closure, and
+exercises the meaningful in-memory state transitions separately from terminal
+rendering. A real-terminal walkthrough verifies startup, keyboard and mouse
+navigation, resize recovery, representative dialogs and operations, normal and
+cancelled paths, and terminal restoration.
