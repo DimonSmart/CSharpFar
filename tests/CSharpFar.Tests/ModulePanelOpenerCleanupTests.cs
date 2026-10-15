@@ -215,6 +215,28 @@ public sealed class ModulePanelOpenerCleanupTests
         Assert.Equal(1, source.DisposeCalls);
     }
 
+    [Fact]
+    public void ConnectionSettingsCommit_RunsOnlyAfterSuccessfulPanelLoad()
+    {
+        var rejectedFixture = new Fixture();
+        var rejected = new ActivationSource { FailLoad = true };
+        rejectedFixture.Opener.OpenPanel(PanelSide.Right, Request(rejected));
+        Assert.Equal(0, rejected.ActivationCalls);
+        Assert.False(rejectedFixture.Registry.TryGetSource(rejected.SourceId, out _));
+
+        var openedFixture = new Fixture();
+        var opened = new ActivationSource();
+        openedFixture.Opener.OpenPanel(PanelSide.Right, Request(opened));
+        Assert.Equal(1, opened.ActivationCalls);
+        Assert.Equal(opened.SourceId, openedFixture.State.SourceId);
+    }
+
+    private sealed class ActivationSource : SyncSource, IFilePanelSourceActivation
+    {
+        public int ActivationCalls { get; private set; }
+        public void OnPanelOpened() => ActivationCalls++;
+    }
+
     private static void DisposeSource(IFilePanelSource source) => ((IDisposable)source).Dispose();
 
     private sealed class TemporarySource : SyncSource, ITemporaryFilePanelSource
