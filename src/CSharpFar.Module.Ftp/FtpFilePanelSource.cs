@@ -10,11 +10,12 @@ using FluentFTP.Exceptions;
 
 namespace CSharpFar.Module.Ftp;
 
-public sealed class FtpFilePanelSource : IModulePanel, IReusableFilePanelSource
+public sealed class FtpFilePanelSource : IModulePanel, IReusableFilePanelSource, ITemporaryFilePanelSource
 {
     private static readonly char[] ProviderPathSeparators = ['/', '\\'];
     private readonly FtpConnectionInfo _connection;
     private readonly string _password;
+    public bool IsTemporary { get; }
     private readonly Func<FtpConnectionInfo, string, bool> _acceptCertificate;
     private readonly Action<FtpConnectionInfo, string>? _acceptedCertificate;
 
@@ -22,10 +23,12 @@ public sealed class FtpFilePanelSource : IModulePanel, IReusableFilePanelSource
         FtpConnectionInfo connection,
         string password,
         Func<FtpConnectionInfo, string, bool>? acceptCertificate = null,
-        Action<FtpConnectionInfo, string>? acceptedCertificate = null)
+        Action<FtpConnectionInfo, string>? acceptedCertificate = null,
+        bool isTemporary = false)
     {
         _connection = connection;
         _password = password;
+        IsTemporary = isTemporary;
         _acceptCertificate = acceptCertificate ?? ((_, _) => false);
         _acceptedCertificate = acceptedCertificate;
     }
