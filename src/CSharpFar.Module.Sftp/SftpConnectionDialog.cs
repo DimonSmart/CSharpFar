@@ -122,6 +122,7 @@ internal sealed class SftpConnectionDialog
                     SftpConnectionDialogValidationResult validation = validate(candidate);
                     if (validation.IsAccepted)
                     {
+                        if (candidate.SaveConnection)
                         state.AcceptHistory();
                         return FormDialogOutcome<SftpConnectionDialogResult?>.Complete(candidate);
                     }
@@ -155,7 +156,8 @@ internal sealed class SftpConnectionDialog
         if (state.AllowTemporaryConnection)
             rows.Add(state.SaveConnection);
         rows.Add(state.SavePassword);
-        rows.Add(state.ShowInDrive);
+        if (!state.AllowTemporaryConnection || state.SaveConnection.Value)
+            rows.Add(state.ShowInDrive);
         if (!string.IsNullOrWhiteSpace(hostKeyFingerprint))
         {
             rows.Add(FormControls.Value("Host key:", () => hostKeyFingerprint));
