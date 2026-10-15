@@ -121,22 +121,27 @@ public sealed class TemporaryConnectionTests
     private static void ClickThenSubmit(FakeConsoleDriver driver, string label)
     {
         int step = 0;
-        driver.BeforeReadInput = d =>
+        Action<FakeConsoleDriver>? beforeRead = null;
+        beforeRead = d =>
         {
             if (step++ == 0)
+            {
                 Click(d, label);
+                d.BeforeReadInput = beforeRead;
+            }
             else
                 d.EnqueueKey(Key(ConsoleKey.F10));
         };
+        driver.BeforeReadInput = beforeRead;
     }
 
     private static void Click(FakeConsoleDriver driver, string label)
     {
         var text = driver.WriteRecords.Last(r => r.Text.Contains(label, StringComparison.Ordinal));
         driver.EnqueueInput(new MouseConsoleInputEvent(
-            text.X + 1, text.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+            text.X + text.Text.IndexOf(label, StringComparison.Ordinal) + 1, text.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
         driver.EnqueueInput(new MouseConsoleInputEvent(
-            text.X + 1, text.Y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
+            text.X + text.Text.IndexOf(label, StringComparison.Ordinal) + 1, text.Y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
     }
 
     private static DialogService Dialogs(FakeConsoleDriver driver) =>
