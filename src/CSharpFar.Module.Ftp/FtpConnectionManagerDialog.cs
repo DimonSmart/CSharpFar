@@ -6,6 +6,7 @@ namespace CSharpFar.Module.Ftp;
 internal enum FtpConnectionManagerAction
 {
     Connect,
+    QuickConnect,
     Create,
     Edit,
     Delete,
@@ -49,6 +50,7 @@ internal sealed class FtpConnectionManagerDialog
         hasConnections
             ? [
                 DialogButton.Default("connect", "Connect", 'O'),
+                DialogButton.Action("quick-connect", "Quick connect...", 'Q'),
                 DialogButton.Action("create", "New", 'N'),
                 DialogButton.Action("edit", "Edit", 'E'),
                 DialogButton.Action("delete", "Delete", 'D'),
@@ -56,6 +58,7 @@ internal sealed class FtpConnectionManagerDialog
             ]
             : [
                 DialogButton.Default("create", "New", 'N'),
+                DialogButton.Action("quick-connect", "Quick connect...", 'Q'),
                 DialogButton.Cancel(),
             ];
 
@@ -63,6 +66,7 @@ internal sealed class FtpConnectionManagerDialog
         result.ActionId switch
         {
             "connect" when result.SelectedItem is not null => new(FtpConnectionManagerAction.Connect, result.SelectedItem),
+            "quick-connect" => new(FtpConnectionManagerAction.QuickConnect, null),
             "create" => new(FtpConnectionManagerAction.Create, null),
             "edit" when result.SelectedItem is not null => new(FtpConnectionManagerAction.Edit, result.SelectedItem),
             "delete" when result.SelectedItem is not null => new(FtpConnectionManagerAction.Delete, result.SelectedItem),
