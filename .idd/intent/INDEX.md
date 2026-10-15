@@ -45,7 +45,7 @@ The test-only input readiness contract formerly recorded in IDD-0072 lives in
 | IDD-0038 | spec | History-enabled text input |  |  |
 | IDD-0046 | spec | Built-in text editor | Stable editor behavior; implementation history in docs/architecture/editor-implementation-reference.md |  |
 | IDD-0048 | spec | Create new file dialog |  |  |
-| IDD-0049 | spec | Editor Far editing commands |  |  |
+| IDD-0049 | spec | Editor Far editing commands | Current key bindings and selection semantics; historical implementation reference in docs/architecture/ |  |
 | IDD-0050 | spec | Editor TextMate syntax highlighting |  |  |
 | IDD-0051 | spec | Editor Unicode scalar cursor behavior |  |  |
 | IDD-0052 | spec | Viewer Far Hotkeys |  |  |
