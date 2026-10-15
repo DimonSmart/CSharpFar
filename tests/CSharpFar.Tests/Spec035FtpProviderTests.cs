@@ -1138,6 +1138,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(Key(ConsoleKey.RightArrow));
+        driver.EnqueueKey(Key(ConsoleKey.RightArrow));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
         var result = new FtpConnectionManagerDialog(CreateDialogs(ModalTestHost.Create(screen))).Show([TestConnection()]);
