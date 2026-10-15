@@ -24,7 +24,8 @@ internal static class ApplicationRuntimeBuilder
         QuickViewDirectorySizeController quickViewDirectorySize,
         FileUsagePanelController fileUsagePanel,
         PanelDirectorySizeCoordinator directorySizes,
-        PluginUiActionQueue? pluginUiActions = null)
+        PluginUiActionQueue? pluginUiActions = null,
+        Action? cleanupTemporarySources = null)
     {
         return new ApplicationRuntime(
             composition,
@@ -34,6 +35,7 @@ internal static class ApplicationRuntimeBuilder
             new ApplicationRuntimeContext
             {
                 IsRunning = () => session.App.Running,
+                CleanupUnusedTemporarySources = () => cleanupTemporarySources?.Invoke(),
                 WaitToken = () => autoRefresh.WaitToken,
                 CaptureUnderlay = () => callbacks.CaptureUnderlay(),
                 StartWatchingInitialPanels = () => callbacks.StartWatchingInitialPanels(),
