@@ -3,6 +3,7 @@ using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.FileMasks;
 using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 
 namespace CSharpFar.FileSystem;
 
@@ -97,6 +98,9 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(conflictResolver);
+        using var sourceUsage = (_sources as FilePanelSourceRegistry)?.AcquireUsage(
+            (request.SourceLocations ?? []).Select(location => location.SourceId)
+                .Append(request.DestinationLocation?.SourceId ?? PanelSourceId.Local).ToArray());
 
         var state = new OperationState(request.Kind, progress, request.PauseController);
 
@@ -140,6 +144,9 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
     public FileOperationPlan BuildPlan(FileOperationRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        using var sourceUsage = (_sources as FilePanelSourceRegistry)?.AcquireUsage(
+            (request.SourceLocations ?? []).Select(location => location.SourceId)
+                .Append(request.DestinationLocation?.SourceId ?? PanelSourceId.Local).ToArray());
         ValidateAccessibleSources(request);
 
         if (UsesProviderLocations(request))
