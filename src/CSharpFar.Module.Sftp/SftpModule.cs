@@ -87,6 +87,15 @@ public sealed class SftpModule : ICSharpFarPlugin
 
             switch (result.Action)
             {
+                case SftpConnectionManagerAction.QuickConnect:
+                    if (ShowConnectionEditor(null, saveConnectionByDefault: false, allowTemporaryConnection: true) is { } quick)
+                    {
+                        var opened = OpenConnection(side, quick.Connection, quick.Password, isTemporary: !quick.SaveConnection);
+                        if (opened.Kind == ModuleActionResultKind.OpenedPanel && quick.SaveConnection)
+                            SaveConnectionResult(quick);
+                        return opened;
+                    }
+                    break;
                 case SftpConnectionManagerAction.Create:
                     if (ShowConnectionEditor(null, saveConnectionByDefault: true, allowTemporaryConnection: false) is { } created)
                         SaveConnectionResult(created);
@@ -134,10 +143,10 @@ public sealed class SftpModule : ICSharpFarPlugin
         return OpenConnection(side, connection, password);
     }
 
-    private ModuleActionResult OpenConnection(PanelSide side, SftpConnectionInfo connection, string password)
+    private ModuleActionResult OpenConnection(PanelSide side, SftpConnectionInfo connection, string password, bool isTemporary = false)
     {
         _ = side;
-        return ModuleActionResult.OpenedPanel(new SftpFilePanelSource(connection, password));
+        return ModuleActionResult.OpenedPanel(new SftpFilePanelSource(connection, password, isTemporary: isTemporary));
     }
 
     private SftpConnectionDialogResult? ShowConnectionEditor(
