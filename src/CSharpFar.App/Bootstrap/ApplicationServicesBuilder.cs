@@ -603,7 +603,7 @@ internal static class ApplicationServicesBuilder
             dialogs,
             () => session.App.Palette,
             () => callbacks.PanelOptions(),
-            side => callbacks.GetPanelState(side),
+            side => side == PanelSide.Left ? session.Panels.Left : session.Panels.Right,
             side => callbacks.SetActiveSide(side),
             quickView => callbacks.SetQuickView(quickView),
             pluginUiActions.Post,
