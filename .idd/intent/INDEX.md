@@ -10,7 +10,7 @@ Git history is the source for deleted or previous document versions.
 
 | Document | Role | Area | Notes | Replaces |
 | --- | --- | --- | --- | --- |
-| IDD-0001 | spec | CSharpFar file manager |  |  |
+| IDD-0001 | spec | CSharpFar file manager | User menu and native plugins are owned by IDD-0083 and IDD-0061 |  |
 | IDD-0002 | adr | Render buffering strategy |  |  |
 | IDD-0003 | spec | Display modes, palettes, and settings menu |  |  |
 | IDD-0004 | spec | Column navigation, Ctrl+O command line, and resize behavior |  |  |
@@ -69,3 +69,4 @@ Git history is the source for deleted or previous document versions.
 | IDD-0080 | spec | File Usage panel | Local-file usage and lock diagnostics with safe owner release |  |
 | IDD-0081 | spec | Runtime diagnostics | Opt-in in-memory tracing and safe copyable diagnostic report |  |
 | IDD-0082 | spec | macOS install and self-update | Recommended Homebrew Cask installer and guarded About self-update | IDD-0076/IDD-0077 distribution workflow clarification |
+| IDD-0083 | spec | User menu | F2 command selection, Options editor, platform filters, placeholders, and user-menu.json persistence |  |
