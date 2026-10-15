@@ -63,6 +63,7 @@ internal sealed class ApplicationRuntime
                     _composition.CancelHoverMarquee();
                     _context.ResetWaitToken();
                     _context.ProcessPendingRefreshes();
+                    _context.CleanupUnusedTemporarySources();
                     if (_context.IsRunning() && _context.IsPanelsMode())
                     {
                         _applicationSurface.RequestRender(ApplicationRenderPart.Full);
@@ -91,6 +92,8 @@ internal sealed class ApplicationRuntime
 
                 if (_applicationSurface.TryTakeInput(out var applicationInput))
                     applicationRequest = _context.HandleApplicationInput(applicationInput);
+
+                _context.CleanupUnusedTemporarySources();
 
                 bool shouldRender =
                     menuCommandRequest.ShouldRender ||
@@ -131,6 +134,7 @@ internal sealed class ApplicationRuntimeContext
     public required Action ResetWaitToken { get; init; }
     public required Action ProcessPendingRefreshes { get; init; }
     public required Action DisposeRuntimeState { get; init; }
+    public Action CleanupUnusedTemporarySources { get; init; } = static () => { };
     public required Func<ApplicationUiInputPacket, ApplicationRuntimeRenderRequest> HandleApplicationInput { get; init; }
     public Func<bool> IsPanelsMode { get; init; } = () => true;
     public TryTakeMenuCommand TryTakeMenuCommand { get; init; } = static (out MenuCommandRequest request) =>
