@@ -144,7 +144,8 @@ internal sealed class FtpConnectionDialog
                 var validation = validate(candidate);
                 if (validation.IsAccepted)
                 {
-                    state.AcceptHistory();
+                    if (candidate.SaveConnection)
+                        state.AcceptHistory();
                     return FormDialogOutcome<FtpConnectionDialogResult?>.Complete(candidate);
                 }
                 if (validation.CertificateFingerprint is not null)
@@ -172,7 +173,7 @@ internal sealed class FtpConnectionDialog
             FormControls.Text("Remote root:", state.RemoteRoot),
         };
         if (state.AllowTemporaryConnection) rows.Add(state.SaveConnection);
-        rows.Add(state.SavePassword); rows.Add(state.ShowInDrive); rows.Add(state.Security); rows.Add(state.DataMode); rows.Add(state.DataTls);
+        rows.Add(state.SavePassword); if (!state.AllowTemporaryConnection || state.SaveConnection.Value) rows.Add(state.ShowInDrive); rows.Add(state.Security); rows.Add(state.DataMode); rows.Add(state.DataTls);
         if (state.DataMode.Value == FtpDataConnectionMode.Active) rows.Add(FormControls.Text("Active ports:", state.ActivePorts));
         rows.Add(FormControls.Value("TLS cert:", () => state.Security.Value == FtpConnectionSecurityMode.PlainFtp ? "(plain FTP has no TLS certificate)" : string.IsNullOrWhiteSpace(fingerprint) ? "(press F10 to read certificate)" : fingerprint));
         rows.Add(state.TrustCertificate);
