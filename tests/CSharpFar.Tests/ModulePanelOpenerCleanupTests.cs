@@ -158,6 +158,23 @@ public sealed class ModulePanelOpenerCleanupTests
     }
 
     [Fact]
+    public void TemporarySource_ShutdownWaitsForInFlightOperationToReleaseSource()
+    {
+        var registry = new FilePanelSourceRegistry([]);
+        var source = new TemporarySource();
+        Assert.True(registry.TryAddOwned(source));
+        var operation = registry.AcquireUsage(source.SourceId);
+
+        registry.DisposeOwnedSources();
+        Assert.Equal(0, source.DisposeCalls);
+        Assert.True(registry.TryGetSource(source.SourceId, out _));
+
+        operation.Dispose();
+        Assert.Equal(1, source.DisposeCalls);
+        Assert.False(registry.TryGetSource(source.SourceId, out _));
+    }
+
+    [Fact]
     public void TemporarySource_TwoIdenticalEndpointsCanHaveIndependentIdentities()
     {
         var registry = new FilePanelSourceRegistry([]);
