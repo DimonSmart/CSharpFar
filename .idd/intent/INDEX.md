@@ -11,6 +11,10 @@ Git history is the source for deleted or previous document versions.
 The test-only input readiness contract formerly recorded in IDD-0072 lives in
 [application integration input lifecycle](../../docs/testing/application-integration-input-lifecycle.md).
 
+The durable frame-commit contract formerly recorded in IDD-0071 is now owned
+by IDD-0067; the [frame lifecycle test reference](../../docs/testing/transactional-ui-frame-commit-reference.md)
+is non-normative engineering history.
+
 | Document | Role | Area | Notes | Replaces |
 | --- | --- | --- | --- | --- |
 | IDD-0001 | spec | CSharpFar file manager | User menu and native plugins are owned by IDD-0083 and IDD-0061 |  |
@@ -61,8 +65,7 @@ The test-only input readiness contract formerly recorded in IDD-0072 lives in
 | IDD-0064 | spec | Unix terminal input |  |  |
 | IDD-0065 | spec | Debian/Ubuntu APT distribution and installation |  |  |
 | IDD-0066 | spec | Folder and file-set comparison |  |  |
-| IDD-0067 | spec | UI layer composition and modal resize | Stable frame, routing and resize guarantees; implementation reference in docs/architecture/ |  |
-| IDD-0071 | spec | Transactional UI frame commit and resize regression coverage |  |  |
+| IDD-0067 | spec | UI layer composition and modal resize | Owns frame-commit guarantees formerly in IDD-0071; testing reference in docs/testing/ |  |
 | IDD-0073 | spec | Processes and Ports | Local endpoint diagnostics module |  |
 | IDD-0074 | spec | FAR-compatible wildcard destination names | Destination name transformation for file operations |  |
 | IDD-0075 | spec | Destination templates | Explicit per-source destination path evaluation for file operations |  |

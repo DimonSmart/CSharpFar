@@ -1,3 +1,16 @@
+# Transactional UI frame commit - historical engineering and regression reference
+
+> **Non-normative engineering documentation.** The complete former
+> `IDD-0071` text is retained below from revision `00ef03b661914e604e3cd1a6a651b9aa904a3b95`.
+> The authoritative current composition, input routing, stable-frame
+> and resize guarantees belong to
+> [IDD-0067](../../.idd/intent/IDD-0067.spec-ui-layer-composition-and-modal-resize.md).
+> The original frame lifecycle, helper-level callbacks and exact test
+> runner sequences below explain historical test coverage; they are
+> not a separate active product specification.
+
+---
+
 # IDD-0071 - Transactional UI frame commit and resize regression coverage specification
 
 Related:
