@@ -91,10 +91,10 @@ public sealed class FtpModule : ICSharpFarPlugin
                 case FtpConnectionManagerAction.QuickConnect:
                     if (ShowConnectionEditor(null, saveConnectionByDefault: false, allowTemporaryConnection: true) is { } quick)
                     {
-                        var opened = OpenConnection(side, quick.Connection, quick.Password, isTemporary: !quick.SaveConnection);
-                        if (opened.Kind == ModuleActionResultKind.OpenedPanel && quick.SaveConnection)
-                            SaveConnectionResult(quick);
-                        return opened;
+                        return OpenConnection(
+                            side, quick.Connection, quick.Password,
+                            isTemporary: !quick.SaveConnection,
+                            onPanelOpened: quick.SaveConnection ? () => SaveConnectionResult(quick) : null);
                     }
                     break;
                 case FtpConnectionManagerAction.Create:
@@ -144,10 +144,12 @@ public sealed class FtpModule : ICSharpFarPlugin
         return OpenConnection(side, connection, password);
     }
 
-    private static ModuleActionResult OpenConnection(PanelSide side, FtpConnectionInfo connection, string password, bool isTemporary = false)
+    private static ModuleActionResult OpenConnection(
+        PanelSide side, FtpConnectionInfo connection, string password,
+        bool isTemporary = false, Action? onPanelOpened = null)
     {
         _ = side;
-        return ModuleActionResult.OpenedPanel(new FtpFilePanelSource(connection, password, isTemporary: isTemporary));
+        return ModuleActionResult.OpenedPanel(new FtpFilePanelSource(connection, password, isTemporary: isTemporary, onPanelOpened: onPanelOpened));
     }
 
     private FtpConnectionDialogResult? ShowConnectionEditor(
