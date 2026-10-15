@@ -6,6 +6,7 @@ namespace CSharpFar.Module.Sftp;
 internal enum SftpConnectionManagerAction
 {
     Connect,
+    QuickConnect,
     Create,
     Edit,
     Delete,
@@ -49,6 +50,7 @@ internal sealed class SftpConnectionManagerDialog
         hasConnections
             ? [
                 DialogButton.Default("connect", "Connect", 'O'),
+                DialogButton.Action("quick-connect", "Quick connect...", 'Q'),
                 DialogButton.Action("create", "New", 'N'),
                 DialogButton.Action("edit", "Edit", 'E'),
                 DialogButton.Action("delete", "Delete", 'D'),
@@ -56,6 +58,7 @@ internal sealed class SftpConnectionManagerDialog
             ]
             : [
                 DialogButton.Default("create", "New", 'N'),
+                DialogButton.Action("quick-connect", "Quick connect...", 'Q'),
                 DialogButton.Cancel(),
             ];
 
@@ -63,6 +66,7 @@ internal sealed class SftpConnectionManagerDialog
         result.ActionId switch
         {
             "connect" when result.SelectedItem is not null => new(SftpConnectionManagerAction.Connect, result.SelectedItem),
+            "quick-connect" => new(SftpConnectionManagerAction.QuickConnect, null),
             "create" => new(SftpConnectionManagerAction.Create, null),
             "edit" when result.SelectedItem is not null => new(SftpConnectionManagerAction.Edit, result.SelectedItem),
             "delete" when result.SelectedItem is not null => new(SftpConnectionManagerAction.Delete, result.SelectedItem),
