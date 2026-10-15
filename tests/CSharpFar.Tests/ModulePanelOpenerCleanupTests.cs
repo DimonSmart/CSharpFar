@@ -118,6 +118,110 @@ public sealed class ModulePanelOpenerCleanupTests
         Assert.Equal(1, incoming.DisposeCalls);
     }
 
+
+    [Fact]
+    public void TemporarySource_IsReleasedOnlyAfterNeitherPanelReferencesIt()
+    {
+        var registry = new FilePanelSourceRegistry([]);
+        var source = new TemporarySource();
+        Assert.True(registry.TryAddOwned(source));
+
+        registry.RemoveUnusedTemporarySources(source.SourceId, PanelSourceId.Local, DisposeSource);
+        Assert.True(registry.TryGetSource(source.SourceId, out _));
+        Assert.Equal(0, source.DisposeCalls);
+
+        registry.RemoveUnusedTemporarySources(PanelSourceId.Local, PanelSourceId.Local, DisposeSource);
+        Assert.False(registry.TryGetSource(source.SourceId, out _));
+        Assert.Equal(1, source.DisposeCalls);
+
+        registry.DisposeOwnedSources();
+        Assert.Equal(1, source.DisposeCalls);
+    }
+
+    [Fact]
+    public void TemporarySource_ActiveOperationLeaseDelaysRetirement()
+    {
+        var registry = new FilePanelSourceRegistry([]);
+        var source = new TemporarySource();
+        Assert.True(registry.TryAddOwned(source));
+        var operation = registry.AcquireUsage(source.SourceId);
+
+        registry.RemoveUnusedTemporarySources(PanelSourceId.Local, PanelSourceId.Local, DisposeSource);
+        Assert.True(registry.TryGetSource(source.SourceId, out _));
+        Assert.Equal(0, source.DisposeCalls);
+
+        operation.Dispose();
+        Assert.False(registry.TryGetSource(source.SourceId, out _));
+        Assert.Equal(1, source.DisposeCalls);
+        operation.Dispose();
+        Assert.Equal(1, source.DisposeCalls);
+    }
+
+    [Fact]
+    public void TemporarySource_TwoIdenticalEndpointsCanHaveIndependentIdentities()
+    {
+        var registry = new FilePanelSourceRegistry([]);
+        var first = new TemporarySource { SourceId = new PanelSourceId("plugin:test:temporary-1") };
+        var second = new TemporarySource { SourceId = new PanelSourceId("plugin:test:temporary-2") };
+        Assert.True(registry.TryAddOwned(first));
+        Assert.True(registry.TryAddOwned(second));
+
+        registry.RemoveUnusedTemporarySources(first.SourceId, PanelSourceId.Local, DisposeSource);
+        Assert.True(registry.TryGetSource(first.SourceId, out _));
+        Assert.False(registry.TryGetSource(second.SourceId, out _));
+        Assert.Equal(1, second.DisposeCalls);
+
+        registry.RemoveUnusedTemporarySources(PanelSourceId.Local, PanelSourceId.Local, DisposeSource);
+        Assert.Equal(1, first.DisposeCalls);
+    }
+
+    [Fact]
+    public void PermanentSource_RemainsRegisteredAfterTemporaryCleanup()
+    {
+        var registry = new FilePanelSourceRegistry([]);
+        var saved = new SyncSource();
+        Assert.True(registry.TryAddOwned(saved));
+        registry.RemoveUnusedTemporarySources(PanelSourceId.Local, PanelSourceId.Local, DisposeSource);
+        Assert.Same(saved, registry.GetSource(saved.SourceId));
+        Assert.Equal(0, saved.DisposeCalls);
+        registry.DisposeOwnedSources();
+        Assert.Equal(1, saved.DisposeCalls);
+    }
+
+    [Fact]
+    public void TemporarySource_OpenFailureLeavesNoRegistration()
+    {
+        var fixture = new Fixture();
+        var source = new TemporarySource { FailLoad = true };
+        fixture.Opener.OpenPanel(PanelSide.Right, Request(source));
+
+        Assert.False(fixture.Registry.TryGetSource(source.SourceId, out _));
+        Assert.Equal(1, source.DisposeCalls);
+        Assert.Equal(fixture.InitialLocation, fixture.State.CurrentLocation);
+    }
+
+    [Fact]
+    public void TemporarySource_PanelOpenerReleasesAfterLeavingRemotePanel()
+    {
+        var fixture = new Fixture();
+        var source = new TemporarySource();
+        fixture.Opener.OpenPanel(PanelSide.Right, Request(source));
+        Assert.True(fixture.Registry.TryGetSource(source.SourceId, out _));
+
+        fixture.State.CurrentDirectory = Path.GetTempPath();
+        fixture.Opener.CleanupUnusedTemporarySources();
+
+        Assert.False(fixture.Registry.TryGetSource(source.SourceId, out _));
+        Assert.Equal(1, source.DisposeCalls);
+    }
+
+    private static void DisposeSource(IFilePanelSource source) => ((IDisposable)source).Dispose();
+
+    private sealed class TemporarySource : SyncSource, ITemporaryFilePanelSource
+    {
+        public bool IsTemporary => true;
+    }
+
     private static PluginPanelOpenRequest Request(IFilePanelSource source) => new()
     {
         Source = source, InitialDirectory = "/", Title = "Test panel",
@@ -153,7 +257,7 @@ public sealed class ModulePanelOpenerCleanupTests
     {
         public bool AllowReuse { get; init; }
         public bool FailLoad { get; init; }
-        public PanelSourceId SourceId => new("plugin:test:connections");
+        public PanelSourceId SourceId { get; init; } = new("plugin:test:connections");
         public string DisplayName => "Test";
         public PanelProviderCapabilities Capabilities => PanelProviderCapabilities.Enumerate;
         public IReadOnlyCollection<char> PathSeparators => ['/'];
@@ -195,7 +299,7 @@ public sealed class ModulePanelOpenerCleanupTests
         public void FailDisposal(Exception error) => _completion.SetException(error);
     }
 
-    private sealed class SyncSource : PanelSource, IDisposable
+    private class SyncSource : PanelSource, IDisposable
     {
         public int DisposeCalls { get; private set; }
         public void Dispose() => DisposeCalls++;
