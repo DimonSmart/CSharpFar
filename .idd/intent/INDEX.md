@@ -40,7 +40,7 @@ Git history is the source for deleted or previous document versions.
 | IDD-0035 | spec | FTP and FTPS file system provider |  |  |
 | IDD-0036 | spec | Application icon |  |  |
 | IDD-0038 | spec | History-enabled text input |  |  |
-| IDD-0046 | spec | Built-in text editor |  |  |
+| IDD-0046 | spec | Built-in text editor | Stable editor behavior; implementation history in docs/architecture/editor-implementation-reference.md |  |
 | IDD-0048 | spec | Create new file dialog |  |  |
 | IDD-0049 | spec | Editor Far editing commands |  |  |
 | IDD-0050 | spec | Editor TextMate syntax highlighting |  |  |
