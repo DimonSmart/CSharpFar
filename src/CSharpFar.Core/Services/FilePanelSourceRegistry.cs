@@ -145,26 +145,38 @@ public sealed class FilePanelSourceRegistry : IFilePanelSourceRegistry
             dispose(source);
     }
 
-    /// <summary>Release the remaining plugin-owned sources at session shutdown.</summary>
+    /// <summary>Release sources at shutdown, deferring active temporary work until its last lease ends.</summary>
     public void DisposeOwnedSources()
     {
-        IFilePanelSource[] sources;
+        var released = new List<IFilePanelSource>();
         lock (_gate)
         {
-            sources = _ownedSources.ToArray();
-            _ownedSources.Clear();
-            _activeUses.Clear();
-            _pendingRetirement.Clear();
-            foreach (var source in sources)
-                _sources.Remove(source.SourceId);
+            foreach (var source in _ownedSources.ToArray())
+            {
+                var id = source.SourceId;
+                if (source is ITemporaryFilePanelSource { IsTemporary: true } &&
+                    _activeUses.GetValueOrDefault(id) > 0)
+                {
+                    _pendingRetirement[id] = DisposeSource;
+                    continue;
+                }
+                _sources.Remove(id);
+                _ownedSources.Remove(source);
+                _pendingRetirement.Remove(id);
+                _activeUses.Remove(id);
+                released.Add(source);
+            }
         }
-        foreach (var source in sources)
-        {
-            if (source is IAsyncDisposable asyncDisposable)
-                asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            else if (source is IDisposable disposable)
-                disposable.Dispose();
-        }
+        foreach (var source in released)
+            DisposeSource(source);
+    }
+
+    private static void DisposeSource(IFilePanelSource source)
+    {
+        if (source is IAsyncDisposable asyncDisposable)
+            asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        else if (source is IDisposable disposable)
+            disposable.Dispose();
     }
 
     public IFilePanelSource GetSource(PanelSourceId sourceId) =>
