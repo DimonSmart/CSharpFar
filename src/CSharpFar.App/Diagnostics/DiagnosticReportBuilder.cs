@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.Updates;
+using CSharpFar.Shell;
 
 namespace CSharpFar.App.Diagnostics;
 
@@ -88,6 +89,19 @@ internal sealed class DiagnosticReportBuilder
             builder.AppendLine($"Modifier tracking status: {terminal.ModifierKeyTracking.Status}");
         }
         builder.AppendLine();
+
+        if (OperatingSystem.IsMacOS() && MacOsExecutablePathProvider.CurrentDiagnostics is { } path)
+        {
+            builder.AppendLine("macOS child process PATH");
+            builder.AppendLine("------------------------");
+            builder.AppendLine($"Mode: {Safe(path.Mode)}");
+            builder.AppendLine($"Source: {Safe(path.Source)}");
+            builder.AppendLine($"Login shell: {Safe(path.Shell)}");
+            builder.AppendLine($"Probe succeeded: {Value(path.ShellSucceeded)}");
+            builder.AppendLine($"Fallback reason: {Safe(path.FallbackReason)}");
+            builder.AppendLine($"Initialization duration: {path.ElapsedMilliseconds} ms");
+            builder.AppendLine();
+        }
 
         builder.AppendLine("Recent events");
         builder.AppendLine("-------------");

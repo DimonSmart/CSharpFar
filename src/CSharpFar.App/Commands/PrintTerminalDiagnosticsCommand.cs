@@ -4,6 +4,7 @@ using CSharpFar.App.State;
 using CSharpFar.Console.Input;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
+using CSharpFar.Shell;
 
 namespace CSharpFar.App.Commands;
 
@@ -32,6 +33,16 @@ internal sealed class PrintTerminalDiagnosticsCommand : IApplicationCommand
             global::System.Console.WriteLine($"Timestamp: {DateTimeOffset.Now:O}");
             WriteEnvironmentDiagnostics(global::System.Console.Out);
             WritePrivilegeDiagnostics(global::System.Console.Out);
+            if (OperatingSystem.IsMacOS() && MacOsExecutablePathProvider.CurrentDiagnostics is { } path)
+            {
+                global::System.Console.WriteLine("macOS child PATH:");
+                global::System.Console.WriteLine($"  Mode: {path.Mode}");
+                global::System.Console.WriteLine($"  Source: {path.Source}");
+                global::System.Console.WriteLine($"  Login shell: {path.Shell}");
+                global::System.Console.WriteLine($"  Shell probe succeeded: {Value(path.ShellSucceeded)}");
+                global::System.Console.WriteLine($"  Fallback reason: {path.FallbackReason ?? "none"}");
+                global::System.Console.WriteLine($"  Initialization duration: {path.ElapsedMilliseconds} ms");
+            }
             global::System.Console.WriteLine("Process:");
             global::System.Console.WriteLine($"  OS: {RuntimeInformation.OSDescription}");
             global::System.Console.WriteLine($"  Framework: {RuntimeInformation.FrameworkDescription}");

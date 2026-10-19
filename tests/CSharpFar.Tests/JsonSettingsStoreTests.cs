@@ -157,7 +157,8 @@ public class JsonSettingsStoreTests : IDisposable
             """{"shell":{"executable":"/bin/zsh","argumentsFormat":"-lc"},"ui":{"palette":"Custom"}}""");
 
         var store = new JsonSettingsStore(configDir);
-        Assert.Equal("appendStandard", store.Settings.Shell.MacOsPathMode);
+        Assert.Equal("auto", store.Settings.Shell.MacOsPathMode);
+        Assert.Equal(1, store.Settings.Shell.MacOsPathMigrationVersion);
         Assert.Equal("-lc", store.Settings.Shell.ArgumentsFormat);
         store.Settings.Shell.MacOsPathMode = "inherited";
         store.Save();
@@ -166,6 +167,38 @@ public class JsonSettingsStoreTests : IDisposable
         Assert.Equal("inherited", reloaded.Settings.Shell.MacOsPathMode);
         Assert.Equal("-lc", reloaded.Settings.Shell.ArgumentsFormat);
         Assert.Equal("Custom", reloaded.Settings.Ui.Palette);
+    }
+
+    [Fact]
+    public void LegacySavedAppendStandardMigratesOnlyOnceAndExplicitOptOutPersists()
+    {
+        string configDir = Path.Combine(_tempDir, "legacy-append");
+        Directory.CreateDirectory(configDir);
+        string file = Path.Combine(configDir, "settings.json");
+        File.WriteAllText(file, """{"shell":{"macOsPathMode":"appendStandard"}}""");
+
+        var initial = new JsonSettingsStore(configDir);
+        Assert.Equal("auto", initial.Settings.Shell.MacOsPathMode);
+        string migratedJson = File.ReadAllText(file);
+        Assert.Contains("\"macOsPathMigrationVersion\"", migratedJson);
+        _ = new JsonSettingsStore(configDir);
+        Assert.Equal(migratedJson, File.ReadAllText(file));
+
+        initial.Settings.Shell.MacOsPathMode = "appendStandard";
+        initial.Save();
+        var optedOut = new JsonSettingsStore(configDir);
+        Assert.Equal("appendStandard", optedOut.Settings.Shell.MacOsPathMode);
+        Assert.Equal(1, optedOut.Settings.Shell.MacOsPathMigrationVersion);
+    }
+
+    [Fact]
+    public void LegacyInheritedModeRemainsInherited()
+    {
+        string configDir = Path.Combine(_tempDir, "legacy-inherited");
+        Directory.CreateDirectory(configDir);
+        File.WriteAllText(Path.Combine(configDir, "settings.json"),
+            """{"shell":{"macOsPathMode":"inherited"}}""");
+        Assert.Equal("inherited", new JsonSettingsStore(configDir).Settings.Shell.MacOsPathMode);
     }
 
     [Fact]

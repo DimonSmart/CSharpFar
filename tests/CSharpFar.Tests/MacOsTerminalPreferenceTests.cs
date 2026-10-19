@@ -3,6 +3,7 @@ using System.Text.Json;
 using CSharpFar.App.Settings;
 using CSharpFar.Core.Models;
 using CSharpFar.Host.MacOs;
+using CSharpFar.Shell;
 
 namespace CSharpFar.Tests;
 
@@ -171,6 +172,7 @@ public sealed class MacOsTerminalLauncherTests
         {
             Assert.EndsWith("kitty", only.FileName, StringComparison.Ordinal);
             Assert.Equal(["--directory", Home, "--session", "none", Executable], only.ArgumentList);
+            Assert.Equal("1", only.Environment[MacOsExecutablePathProvider.FinderLaunchEnvironmentVariable]);
         }
         else
         {

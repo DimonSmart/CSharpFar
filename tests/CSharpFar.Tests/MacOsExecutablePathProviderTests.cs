@@ -85,18 +85,18 @@ public sealed class MacOsExecutablePathProviderTests
     }
 
     [Fact]
-    public void UnknownModeWarnsExactlyOnceAndUsesInherited()
+    public void UnknownModeWarnsExactlyOnceAndUsesAppendStandard()
     {
         var messages = new List<string>();
         var provider = Create("/bin", mode: "unexpected", report: messages.Add);
-        Assert.Null(provider.GetPath());
-        Assert.Null(provider.GetPath());
+        Assert.Equal("/bin:/opt/homebrew/bin:/usr/local/bin:/opt/homebrew/sbin:/usr/local/sbin", provider.GetPath());
+        Assert.Equal(provider.GetPath(), provider.GetPath());
         Assert.Single(messages);
         Assert.Contains("shell.macOsPathMode", messages[0]);
     }
 
     [Fact]
-    public void ComputesPathOnEachCallWithoutChangingGlobalEnvironment()
+    public void ComputesPathOnceWithoutChangingGlobalEnvironment()
     {
         string? current = Environment.GetEnvironmentVariable("PATH");
         string? inherited = "/bin";
@@ -104,7 +104,7 @@ public sealed class MacOsExecutablePathProviderTests
             () => inherited, _ => false, Candidates);
         Assert.Equal("/bin", provider.GetPath());
         inherited = "/usr/bin";
-        Assert.Equal("/usr/bin", provider.GetPath());
+        Assert.Equal("/bin", provider.GetPath());
         Assert.Equal(current, Environment.GetEnvironmentVariable("PATH"));
     }
 }

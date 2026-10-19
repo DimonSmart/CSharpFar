@@ -90,7 +90,7 @@ csharpfar
 
 Self-contained Windows, Linux, macOS Apple Silicon, and macOS Intel builds are published on the [GitHub Releases](https://github.com/DimonSmart/CSharpFar/releases) page. macOS releases include both portable CLI archives and `CSharpFar.app` archives.
 
-For Homebrew details, packaged releases, manual APT setup and building from source, see [Installation](docs/installation.md).
+For Homebrew details, packaged releases, manual APT setup and building from source, see [Installation](docs/installation.md). On macOS, Finder launches automatically import the user's shell PATH once (configurable via `shell.macOsPathMode`); see the [macOS PATH guide](docs/installation.md#cli-command-path-and-unix-shell-options).
 
 ## Documentation
 

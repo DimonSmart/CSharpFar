@@ -3,6 +3,7 @@ using System.Xml;
 using System.Xml.Linq;
 using CSharpFar.App.Settings;
 using CSharpFar.Core.Models;
+using CSharpFar.Shell;
 
 namespace CSharpFar.Host.MacOs;
 
@@ -150,6 +151,7 @@ internal sealed class MacOsTerminalLauncher
         info.ArgumentList.Add("--session");
         info.ArgumentList.Add("none");
         info.ArgumentList.Add(csharpfarExecutable);
+        info.Environment[MacOsExecutablePathProvider.FinderLaunchEnvironmentVariable] = "1";
         return TryLaunch(info, "Kitty");
     }
 

@@ -131,6 +131,24 @@ public sealed class JsonSettingsStore
             AppSettings settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions)
                 ?? throw new InvalidDataException("Settings file does not contain a JSON object: " + _filePath);
             settings.Application ??= new AppSettings.ApplicationSettings();
+            settings.Shell ??= new AppSettings.ShellSettings();
+
+            // Legacy files serialized appendStandard as their default. Its explicit
+            // and implicit uses cannot be distinguished; migrate it only once.
+            using (JsonDocument document = JsonDocument.Parse(json))
+            {
+                bool migrated = document.RootElement.ValueKind == JsonValueKind.Object &&
+                    document.RootElement.TryGetProperty("shell", out JsonElement shell) &&
+                    shell.ValueKind == JsonValueKind.Object &&
+                    !shell.TryGetProperty("macOsPathMigrationVersion", out _);
+                if (migrated)
+                {
+                    if (settings.Shell.MacOsPathMode == "appendStandard")
+                        settings.Shell.MacOsPathMode = "auto";
+                    settings.Shell.MacOsPathMigrationVersion = 1;
+                    WriteFile(settings);
+                }
+            }
             return settings;
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException)

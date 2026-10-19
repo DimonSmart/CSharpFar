@@ -123,6 +123,7 @@ $terminalLauncher = @'
 set -euo pipefail
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 cd "$HOME"
+export CSHARPFAR_FINDER_LAUNCH=1
 exec "$script_dir/csharpfar"
 '@
 
