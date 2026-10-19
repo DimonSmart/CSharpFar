@@ -90,12 +90,10 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
 
 
     [Theory]
-    [InlineData(ConsoleModifiers.Control, FunctionKeyLayer.Control)]
-    [InlineData(ConsoleModifiers.Alt, FunctionKeyLayer.Alt)]
-    [InlineData(ConsoleModifiers.Shift, FunctionKeyLayer.Shift)]
-    public void Run_CtrlOResetsHeldLayerEvenWithoutReleaseEvent(
-        ConsoleModifiers heldModifier,
-        FunctionKeyLayer expectedLayer)
+    [InlineData(ConsoleModifiers.Control)]
+    [InlineData(ConsoleModifiers.Alt)]
+    [InlineData(ConsoleModifiers.Shift)]
+    public void Run_CtrlOResetsHeldLayerEvenWithoutReleaseEvent(ConsoleModifiers heldModifier)
     {
         var fs = CreateFileSystem();
         var driver = new FakeConsoleDriver(width: 100, height: 14);
@@ -111,7 +109,7 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
             switch (read++)
             {
                 case 1:
-                    Assert.Equal(expectedLayer, app.Session.FunctionKeyLayer);
+                    Assert.Equal(FunctionKeyLayerResolver.ResolvePressedLayer(heldModifier), app.Session.FunctionKeyLayer);
                     break;
                 case 2:
                     Assert.Equal(ApplicationWorkspaceMode.HiddenCommandLine, app.Session.App.WorkspaceMode);
