@@ -1,5 +1,6 @@
 using CSharpFar.App;
 using CSharpFar.App.FunctionKeys;
+using CSharpFar.App.State;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Core.Abstractions;
