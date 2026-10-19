@@ -1830,6 +1830,7 @@ CSharpFar.Ui.UiCompositionHost.CancelHoverMarquee() -> bool
 CSharpFar.Ui.UiCompositionHost.DispatchInput(CSharpFar.Console.Input.ConsoleInputEvent! input) -> CSharpFar.Ui.UiInputResult
 CSharpFar.Ui.UiCompositionHost.HandleHoverWake() -> bool
 CSharpFar.Ui.UiCompositionHost.HasViewportChanged() -> bool
+CSharpFar.Ui.UiCompositionHost.InvalidateObservedModifiers() -> void
 CSharpFar.Ui.UiCompositionHost.LastObservedModifiers.get -> System.ConsoleModifiers
 CSharpFar.Ui.UiCompositionHost.LastStableViewport.get -> CSharpFar.Console.Models.ConsoleViewport?
 CSharpFar.Ui.UiCompositionHost.ModalLayerClosed -> System.Action<System.ConsoleModifiers>?
