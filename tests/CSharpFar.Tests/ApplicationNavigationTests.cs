@@ -727,7 +727,7 @@ public sealed class ApplicationNavigationTests : IDisposable
 
         var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
         int read = 0;
-        driver.BeforeReadInput = current =>
+        OnEveryRead(driver, current =>
         {
             switch (read++)
             {
@@ -748,7 +748,7 @@ public sealed class ApplicationNavigationTests : IDisposable
                     AssertNoHiddenModifierSideEffects(current);
                     break;
             }
-        };
+        });
 
         app.Run();
 
@@ -956,7 +956,7 @@ public sealed class ApplicationNavigationTests : IDisposable
             surface.CommittedFrame.FunctionKeyBar);
         Assert.NotEmpty(bar.Actions);
         Assert.All(bar.Actions, action => Assert.Equal(FunctionKeyLayer.Plain, action.Layer));
-        ApplicationFunctionKeyHit quit = Assert.Single(bar.Actions.Where(action => action.Key == ConsoleKey.F10));
+        ApplicationFunctionKeyHit quit = Assert.Single(bar.Actions, action => action.Key == ConsoleKey.F10);
         Assert.True(surface.CommittedInteractionFrame.TryHitTest(quit.Bounds.X, quit.Bounds.Y, out var region));
         Assert.Equal(ApplicationTargetIds.FunctionKeyAction(FunctionKeyLayer.Plain, ConsoleKey.F10), region.Target);
 
@@ -1602,6 +1602,18 @@ public sealed class ApplicationNavigationTests : IDisposable
         }
 
         return rows;
+    }
+
+    // FakeConsoleDriver consumes read hooks once, so explicitly rearm after each read.
+    private static void OnEveryRead(FakeConsoleDriver driver, Action<FakeConsoleDriver> callback)
+    {
+        driver.BeforeReadInput = Check;
+
+        void Check(FakeConsoleDriver current)
+        {
+            callback(current);
+            current.BeforeReadInput = Check;
+        }
     }
 
     private static void BeforeEachRead(FakeConsoleDriver driver, params Action<FakeConsoleDriver>[] actions)

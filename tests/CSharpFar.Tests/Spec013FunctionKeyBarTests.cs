@@ -105,7 +105,7 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
 
         var app = CreateApp(fs, driver);
         int read = 0;
-        driver.BeforeReadInput = _ =>
+        OnEveryRead(driver, _ =>
         {
             switch (read++)
             {
@@ -122,7 +122,7 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
                     Assert.Contains("1Help", driver.GetRow(13));
                     break;
             }
-        };
+        });
 
         app.Run();
         Assert.Equal(4, read);
@@ -144,7 +144,7 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
 
         var app = CreateApp(fs, driver);
         int read = 0;
-        driver.BeforeReadInput = _ =>
+        OnEveryRead(driver, _ =>
         {
             switch (read++)
             {
@@ -174,7 +174,7 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
                     Assert.Contains("1Help", driver.GetRow(13));
                     break;
             }
-        };
+        });
 
         app.Run();
 
@@ -198,7 +198,7 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
         int read = 0;
         int writesAfterControl = 0;
         int writesAfterRelease = 0;
-        driver.BeforeReadInput = _ =>
+        OnEveryRead(driver, _ =>
         {
             switch (read++)
             {
@@ -218,7 +218,7 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
                     Assert.Equal(writesAfterRelease, driver.WriteAtCallCount);
                     break;
             }
-        };
+        });
 
         app.Run();
         Assert.Equal(6, read);
@@ -235,11 +235,11 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
 
         var app = CreateApp(fs, driver);
         int read = 0;
-        driver.BeforeReadInput = _ =>
+        OnEveryRead(driver, _ =>
         {
             read++;
             Assert.Equal(FunctionKeyLayer.Plain, app.Session.FunctionKeyLayer);
-        };
+        });
 
         app.Run();
         Assert.Equal(3, read);
@@ -405,6 +405,18 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
         }
 
         return new string(row);
+    }
+
+    // FakeConsoleDriver consumes read hooks once, so explicitly rearm after each read.
+    private static void OnEveryRead(FakeConsoleDriver driver, Action<FakeConsoleDriver> callback)
+    {
+        driver.BeforeReadInput = Check;
+
+        void Check(FakeConsoleDriver current)
+        {
+            callback(current);
+            current.BeforeReadInput = Check;
+        }
     }
 
     private static ConsoleKeyInfo CtrlO() =>
