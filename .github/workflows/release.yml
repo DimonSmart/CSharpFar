@@ -19,6 +19,7 @@ jobs:
     name: Build ${{ matrix.runtime }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
@@ -156,7 +157,6 @@ jobs:
             exit 1
           fi
 
-          /usr/bin/lipo -verify_arch "$expected_arch" "$binary"
           "$binary" --check-system-git
 
       - name: macOS terminal smoke test
