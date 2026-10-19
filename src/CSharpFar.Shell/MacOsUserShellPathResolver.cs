@@ -40,7 +40,7 @@ internal sealed class MacOsUserShellPathResolver
                 "unknown", watch);
         }
 
-        if (!Path.IsPathFullyQualified(shell) ||
+        if (!shell.StartsWith("/", StringComparison.Ordinal) ||
             Path.GetFileName(shell) is not ("zsh" or "bash"))
             return Failure("unsupported login shell", shell, watch);
 
