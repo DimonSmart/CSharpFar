@@ -86,16 +86,17 @@ internal sealed class KeyboardInputRouter
         ConsoleModifiers modifiers,
         ApplicationUiFrame? frame)
     {
-        if (frame?.Mode == ApplicationWorkspaceMode.HiddenCommandLine)
-        {
+        if (!_context.SetFunctionKeyLayer(modifiers))
             return ApplicationInputHandlingResult.NotHandled;
-        }
 
-        return _context.SetFunctionKeyLayer(modifiers)
+        return frame?.Mode == ApplicationWorkspaceMode.Panels
             ? ApplicationInputHandlingResult.FromHandled(
-                true,
-                ApplicationRenderPart.FunctionKeyBar)
-            : ApplicationInputHandlingResult.NotHandled;
+                shouldRender: true,
+                renderParts: ApplicationRenderPart.FunctionKeyBar,
+                resumesHiddenInteraction: false)
+            : ApplicationInputHandlingResult.FromHandled(
+                shouldRender: false,
+                resumesHiddenInteraction: false);
     }
 
 }

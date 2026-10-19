@@ -88,6 +88,164 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
         Assert.Equal(string.Empty, GetCommandLine(app).Text);
     }
 
+
+    [Theory]
+    [InlineData(ConsoleModifiers.Control, FunctionKeyLayer.Control)]
+    [InlineData(ConsoleModifiers.Alt, FunctionKeyLayer.Alt)]
+    [InlineData(ConsoleModifiers.Shift, FunctionKeyLayer.Shift)]
+    public void Run_CtrlOResetsHeldLayerEvenWithoutReleaseEvent(
+        ConsoleModifiers heldModifier,
+        FunctionKeyLayer expectedLayer)
+    {
+        var fs = CreateFileSystem();
+        var driver = new FakeConsoleDriver(width: 100, height: 14);
+        driver.EnqueueInput(new ModifierKeyConsoleInputEvent(heldModifier));
+        driver.EnqueueKey(CtrlO());
+        driver.EnqueueKey(CtrlO());
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(fs, driver);
+        int read = 0;
+        driver.BeforeReadInput = _ =>
+        {
+            switch (read++)
+            {
+                case 1:
+                    Assert.Equal(expectedLayer, app.Session.FunctionKeyLayer);
+                    break;
+                case 2:
+                    Assert.Equal(ApplicationWorkspaceMode.HiddenCommandLine, app.Session.App.WorkspaceMode);
+                    Assert.Equal(FunctionKeyLayer.Plain, app.Session.FunctionKeyLayer);
+                    break;
+                case 3:
+                    Assert.Equal(ApplicationWorkspaceMode.Panels, app.Session.App.WorkspaceMode);
+                    Assert.Equal(FunctionKeyLayer.Plain, app.Session.FunctionKeyLayer);
+                    Assert.Contains("1Help", driver.GetRow(13));
+                    break;
+            }
+        };
+
+        app.Run();
+        Assert.Equal(4, read);
+        Assert.Equal(FunctionKeyLayer.Plain, app.Session.FunctionKeyLayer);
+    }
+
+    [Fact]
+    public void Run_ReleaseInHiddenWorkspaceAndNewPanelModifierKeepBarSynchronized()
+    {
+        var fs = CreateFileSystem();
+        var driver = new FakeConsoleDriver(width: 100, height: 14);
+        driver.EnqueueInput(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Control));
+        driver.EnqueueKey(CtrlO());
+        driver.EnqueueInput(new ModifierKeyConsoleInputEvent(default));
+        driver.EnqueueKey(CtrlO());
+        driver.EnqueueInput(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Control));
+        driver.EnqueueInput(new ModifierKeyConsoleInputEvent(default));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(fs, driver);
+        int read = 0;
+        driver.BeforeReadInput = _ =>
+        {
+            switch (read++)
+            {
+                case 1:
+                    Assert.Equal(FunctionKeyLayer.Control, app.Session.FunctionKeyLayer);
+                    break;
+                case 2:
+                    Assert.Equal(ApplicationWorkspaceMode.HiddenCommandLine, app.Session.App.WorkspaceMode);
+                    Assert.Equal(FunctionKeyLayer.Plain, app.Session.FunctionKeyLayer);
+                    break;
+                case 3:
+                    var release = Assert.IsType<ModifierKeyConsoleInputEvent>(driver.LastDequeuedInput);
+                    Assert.Equal(default(ConsoleModifiers), release.Modifiers);
+                    Assert.Equal(FunctionKeyLayer.Plain, app.Session.FunctionKeyLayer);
+                    break;
+                case 4:
+                    Assert.Equal(ApplicationWorkspaceMode.Panels, app.Session.App.WorkspaceMode);
+                    Assert.Equal(FunctionKeyLayer.Plain, app.Session.FunctionKeyLayer);
+                    Assert.Contains("1Help", driver.GetRow(13));
+                    break;
+                case 5:
+                    Assert.Equal(FunctionKeyLayer.Control, app.Session.FunctionKeyLayer);
+                    Assert.Contains("SortNm", driver.GetRow(13));
+                    break;
+                case 6:
+                    Assert.Equal(FunctionKeyLayer.Plain, app.Session.FunctionKeyLayer);
+                    Assert.Contains("1Help", driver.GetRow(13));
+                    break;
+            }
+        };
+
+        app.Run();
+
+        Assert.Equal(7, read);
+        Assert.Equal(string.Empty, GetCommandLine(app).Text);
+    }
+
+    [Fact]
+    public void Run_RepeatedModifierEventsDoNotCauseRedundantBarWrites()
+    {
+        var fs = CreateFileSystem();
+        var driver = new FakeConsoleDriver(width: 100, height: 14);
+        driver.EnqueueInput(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Control));
+        driver.EnqueueInput(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Control));
+        driver.EnqueueInput(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Control));
+        driver.EnqueueInput(new ModifierKeyConsoleInputEvent(default));
+        driver.EnqueueInput(new ModifierKeyConsoleInputEvent(default));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(fs, driver);
+        int read = 0;
+        int writesAfterControl = 0;
+        int writesAfterRelease = 0;
+        driver.BeforeReadInput = _ =>
+        {
+            switch (read++)
+            {
+                case 1:
+                    writesAfterControl = driver.WriteAtCallCount;
+                    Assert.True(writesAfterControl > 0);
+                    break;
+                case 2:
+                case 3:
+                    Assert.Equal(writesAfterControl, driver.WriteAtCallCount);
+                    break;
+                case 4:
+                    writesAfterRelease = driver.WriteAtCallCount;
+                    Assert.True(writesAfterRelease > writesAfterControl);
+                    break;
+                case 5:
+                    Assert.Equal(writesAfterRelease, driver.WriteAtCallCount);
+                    break;
+            }
+        };
+
+        app.Run();
+        Assert.Equal(6, read);
+    }
+
+    [Fact]
+    public void Run_CtrlOChordWithoutStandaloneModifierNeverSetsHeldLayer()
+    {
+        var fs = CreateFileSystem();
+        var driver = new FakeConsoleDriver(width: 100, height: 14);
+        driver.EnqueueKey(CtrlO());
+        driver.EnqueueKey(CtrlO());
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(fs, driver);
+        int read = 0;
+        driver.BeforeReadInput = _ =>
+        {
+            read++;
+            Assert.Equal(FunctionKeyLayer.Plain, app.Session.FunctionKeyLayer);
+        };
+
+        app.Run();
+        Assert.Equal(3, read);
+    }
+
     [Fact]
     public void Run_SearchResultsPanelKeyBarShowsAllowedAndHidesCapabilityBlockedCommands()
     {
@@ -249,6 +407,9 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
 
         return new string(row);
     }
+
+    private static ConsoleKeyInfo CtrlO() =>
+        new('\u000f', ConsoleKey.O, shift: false, alt: false, control: true);
 
     private static ConsoleKeyInfo Key(ConsoleKey key, bool control = false, bool alt = false) =>
         new('\0', key, shift: false, alt: alt, control: control);

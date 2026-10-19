@@ -1,5 +1,6 @@
 using System.Reflection;
 using CSharpFar.App;
+using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Input;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
@@ -720,26 +721,49 @@ public sealed class ApplicationNavigationTests : IDisposable
         driver.TryScrollViewportToBottom();
         driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
         driver.EnqueueInput(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Control));
+        driver.EnqueueInput(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Alt));
+        driver.EnqueueInput(new ModifierKeyConsoleInputEvent(default));
         driver.EnqueueKey(Key(ConsoleKey.F10));
-        driver.BeforeReadInput = d =>
-        {
-            d.BeforeReadInput = afterHide =>
-            {
-                afterHide.SetViewportOrigin(0, 4);
-                afterHide.ClearRecordedOperations();
-                afterHide.BeforeReadInput = afterModifier =>
-                {
-                    Assert.Equal(4, afterModifier.GetViewport().Top);
-                    Assert.Equal(0, afterModifier.TryScrollViewportToBottomCallCount);
-                    Assert.Equal(0, afterModifier.WriteAtCallCount);
-                    Assert.Equal(0, afterModifier.ClearRegionCallCount);
-                    Assert.DoesNotContain("Capture", afterModifier.OperationLog);
-                };
-            };
-        };
 
         var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
+        int read = 0;
+        driver.BeforeReadInput = current =>
+        {
+            switch (read++)
+            {
+                case 1:
+                    current.SetViewportOrigin(0, 4);
+                    current.ClearRecordedOperations();
+                    break;
+                case 2:
+                    Assert.Equal(FunctionKeyLayer.Control, app.Session.FunctionKeyLayer);
+                    AssertNoHiddenModifierSideEffects(current);
+                    break;
+                case 3:
+                    Assert.Equal(FunctionKeyLayer.Alt, app.Session.FunctionKeyLayer);
+                    AssertNoHiddenModifierSideEffects(current);
+                    break;
+                case 4:
+                    Assert.Equal(FunctionKeyLayer.Plain, app.Session.FunctionKeyLayer);
+                    AssertNoHiddenModifierSideEffects(current);
+                    break;
+            }
+        };
+
         app.Run();
+
+        Assert.Equal(5, read);
+        Assert.Equal(string.Empty, GetCommandLine(app).Text);
+
+        void AssertNoHiddenModifierSideEffects(FakeConsoleDriver current)
+        {
+            Assert.Equal(ApplicationWorkspaceMode.HiddenCommandLine, app.Session.App.WorkspaceMode);
+            Assert.Equal(4, current.GetViewport().Top);
+            Assert.Equal(0, current.TryScrollViewportToBottomCallCount);
+            Assert.Equal(0, current.WriteAtCallCount);
+            Assert.Equal(0, current.ClearRegionCallCount);
+            Assert.DoesNotContain("Capture", current.OperationLog);
+        }
     }
 
     [Fact]
@@ -887,6 +911,58 @@ public sealed class ApplicationNavigationTests : IDisposable
 
         Assert.Equal(ApplicationWorkspaceMode.Panels, app.Session.App.WorkspaceMode);
         Assert.Equal(PanelSide.Right, GetActiveSide(app));
+    }
+
+
+    [Fact]
+    public void HandleKey_CtrlOResetsModalModifierSnapshotAndCommitsPlainMouseTargets()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+        var driver = new FakeConsoleDriver(width: 100, height: 14);
+        var app = CreateApp(fs, driver, _tempDir);
+
+        Render(app);
+        var composition = (UiCompositionHost)(typeof(Application).GetField(
+            "_composition", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?.GetValue(app) ?? throw new InvalidOperationException("Composition host not found."));
+        var dispatcher = (ApplicationInputDispatcher)(typeof(Application).GetField(
+            "_applicationInputDispatcher", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?.GetValue(app) ?? throw new InvalidOperationException("Input dispatcher not found."));
+        ApplicationUiSurface surface = GetApplicationSurface(app);
+
+        composition.DispatchInput(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Control));
+        Assert.True(surface.TryTakeInput(out var modifierPacket));
+        ApplicationRuntimeRenderRequest modifierRequest = dispatcher.Handle(modifierPacket);
+        Assert.True(modifierRequest.ShouldRender);
+        Assert.Equal(ApplicationRenderPart.FunctionKeyBar, modifierRequest.Parts);
+        surface.RequestRender(modifierRequest.Parts);
+        Render(app);
+
+        Assert.Equal(ConsoleModifiers.Control, composition.LastObservedModifiers);
+        Assert.Equal(FunctionKeyLayer.Control, app.Session.FunctionKeyLayer);
+        Assert.All(surface.CommittedFrame.FunctionKeyBar!.Actions,
+            action => Assert.Equal(FunctionKeyLayer.Control, action.Layer));
+
+        HandleKeyAndRender(app, Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        Assert.Equal(FunctionKeyLayer.Plain, app.Session.FunctionKeyLayer);
+        Assert.Equal(default(ConsoleModifiers), composition.LastObservedModifiers);
+
+        HandleKeyAndRender(app, Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        Assert.Equal(FunctionKeyLayer.Plain, app.Session.FunctionKeyLayer);
+        Assert.Equal(default(ConsoleModifiers), composition.LastObservedModifiers);
+
+        ApplicationFunctionKeyBarFrame bar = Assert.IsType<ApplicationFunctionKeyBarFrame>(
+            surface.CommittedFrame.FunctionKeyBar);
+        Assert.NotEmpty(bar.Actions);
+        Assert.All(bar.Actions, action => Assert.Equal(FunctionKeyLayer.Plain, action.Layer));
+        ApplicationFunctionKeyHit quit = Assert.Single(bar.Actions.Where(action => action.Key == ConsoleKey.F10));
+        Assert.True(surface.CommittedInteractionFrame.TryHitTest(quit.Bounds.X, quit.Bounds.Y, out var region));
+        Assert.Equal(ApplicationTargetIds.FunctionKeyAction(FunctionKeyLayer.Plain, ConsoleKey.F10), region.Target);
+
+        HandleKeyAndRender(app, Key(ConsoleKey.F9));
+        HandleKeyAndRender(app, Key(ConsoleKey.Escape));
+        Assert.Equal(FunctionKeyLayer.Plain, app.Session.FunctionKeyLayer);
     }
 
     [Theory]

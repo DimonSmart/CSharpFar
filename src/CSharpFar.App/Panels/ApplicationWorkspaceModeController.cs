@@ -1,4 +1,5 @@
 using CSharpFar.App.CommandLine;
+using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.Console;
@@ -62,5 +63,7 @@ internal sealed class ApplicationWorkspaceModeController
         _commandCompletionController.Hide(temporarily: false);
         _closeTopMenu();
         _commandHistoryNavigator.Reset();
+        _composition.InvalidateObservedModifiers();
+        _session.FunctionKeyLayer = FunctionKeyLayer.Plain;
     }
 }

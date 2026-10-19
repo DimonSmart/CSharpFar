@@ -168,6 +168,12 @@ public sealed class UiCompositionHost
     // A regular key chord never changes this value.
     public ConsoleModifiers LastObservedModifiers { get; private set; }
 
+    /// <summary>
+    /// Discards modifier telemetry that cannot be trusted across a terminal screen transition.
+    /// Does not change the input backend's physical-key tracking.
+    /// </summary>
+    public void InvalidateObservedModifiers() => LastObservedModifiers = default;
+
     public event Action<ConsoleModifiers>? ModalLayerClosed;
 
     public void SetRootSurface(IUiSurface surface)
