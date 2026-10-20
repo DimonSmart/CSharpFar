@@ -204,6 +204,16 @@ jobs:
           app="$RUNNER_TEMP/app-${{ matrix.runtime }}/CSharpFar.app"
           bundled="$app/Contents/Resources/csharpfar"
           published="$PUBLISH_DIR/csharpfar"
+          host="$app/Contents/MacOS/CSharpFarHost"
+          test -x "$host"
+          host_archs="$(/usr/bin/lipo -archs "$host")"
+          if [[ "$host_archs" != "$expected_arch" ]]; then
+            echo "::error::Desktop host architectures '$host_archs', expected '$expected_arch'"
+            exit 1
+          fi
+          # Finder starts a native AppKit process, not an external terminal.
+          /usr/bin/plutil -lint "$app/Contents/Info.plist"
+          /usr/bin/otool -L "$host"
           cmp "$published" "$bundled"
           /usr/bin/file "$bundled"
           bundled_archs="$(/usr/bin/lipo -archs "$bundled")"
