@@ -185,8 +185,12 @@ final class CSharpFarDesktopHost: NSObject, NSApplicationDelegate, NSWindowDeleg
         let edit = NSMenuItem()
         main.addItem(edit)
         let editMenu = NSMenu(title: "Edit")
-        editMenu.addItem(NSMenuItem(title: "Copy", action: #selector(copySelection(_:)), keyEquivalent: "c"))
-        editMenu.addItem(NSMenuItem(title: "Paste", action: #selector(pasteClipboard(_:)), keyEquivalent: "v"))
+        let copy = NSMenuItem(title: "Copy", action: #selector(copySelection(_:)), keyEquivalent: "c")
+        copy.target = self
+        editMenu.addItem(copy)
+        let paste = NSMenuItem(title: "Paste", action: #selector(pasteClipboard(_:)), keyEquivalent: "v")
+        paste.target = self
+        editMenu.addItem(paste)
         edit.submenu = editMenu
         NSApp.mainMenu = main
     }
