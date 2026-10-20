@@ -70,7 +70,7 @@ is non-normative engineering history.
 | IDD-0074 | spec | FAR-compatible wildcard destination names | Destination name transformation for file operations |  |
 | IDD-0075 | spec | Destination templates | Explicit per-source destination path evaluation for file operations |  |
 | IDD-0076 | spec | macOS Homebrew distribution | Formula and Cask installation/upgrade paths |  |
-| IDD-0077 | spec | macOS application bundle | Finder/Applications bundle over terminal UI |  |
+| IDD-0077 | spec | macOS application bundle | Standalone desktop terminal host, application identity, CLI compatibility |  |
 | IDD-0080 | spec | File Usage panel | Local-file usage and lock diagnostics with safe owner release |  |
 | IDD-0081 | spec | Runtime diagnostics | Opt-in in-memory tracing and safe copyable diagnostic report |  |
 | IDD-0082 | spec | macOS install and self-update | Recommended Homebrew Cask installer and guarded About self-update | IDD-0076/IDD-0077 distribution workflow clarification |
