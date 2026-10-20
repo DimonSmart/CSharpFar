@@ -13,7 +13,7 @@ public sealed class ApplicationDialogBoundaryTests
     [Fact]
     public void ApplicationAndModuleDialogs_DoNotDependOnLowLevelModalInfrastructure()
     {
-        string root = FindRepositoryRoot();
+        string root = RepositoryPaths.FindRoot();
         IEnumerable<string> applicationDialogs = Directory.EnumerateFiles(
             Path.Combine(root, "src", "CSharpFar.App", "Dialogs"),
             "*.cs",
@@ -45,7 +45,7 @@ public sealed class ApplicationDialogBoundaryTests
     public void ProcessesAndPortsDialog_UsesOnlySemanticDynamicTableApi()
     {
         string file = Path.Combine(
-            FindRepositoryRoot(),
+            RepositoryPaths.FindRoot(),
             "src",
             "CSharpFar.Module.ProcessesAndPorts",
             "ProcessesAndPortsDialog.cs");
@@ -70,16 +70,4 @@ public sealed class ApplicationDialogBoundaryTests
             + string.Join(", ", violations));
     }
 
-    private static string FindRepositoryRoot()
-    {
-        for (DirectoryInfo? directory = new(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
-        {
-            if (Directory.Exists(Path.Combine(directory.FullName, "src", "CSharpFar.App")))
-                return directory.FullName;
-        }
-
-        throw new DirectoryNotFoundException("The repository root was not found.");
-    }
 }

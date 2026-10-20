@@ -9,7 +9,7 @@ public sealed class FormControlApiArchitectureTests
     [Fact]
     public void Ui_Project_DoesNotReferenceApplicationAssemblies()
     {
-        string projectPath = FindRepositoryFile("src", "CSharpFar.Ui", "CSharpFar.Ui.csproj");
+        string projectPath = RepositoryPaths.FindFile("src", "CSharpFar.Ui", "CSharpFar.Ui.csproj");
         XDocument project = XDocument.Load(projectPath);
         string[] projectReferences = project.Descendants("ProjectReference")
             .Select(reference => (string?)reference.Attribute("Include"))
@@ -108,15 +108,4 @@ public sealed class FormControlApiArchitectureTests
         return type.IsGenericType && type.GetGenericArguments().Any(argument => ContainsImplementationType(argument, implementationTypes));
     }
 
-    private static string FindRepositoryFile(params string[] parts)
-    {
-        for (DirectoryInfo? directory = new(Environment.CurrentDirectory); directory is not null; directory = directory.Parent)
-        {
-            string candidate = Path.Combine([directory.FullName, .. parts]);
-            if (File.Exists(candidate))
-                return candidate;
-        }
-
-        throw new FileNotFoundException("The repository UI project was not found.");
-    }
 }

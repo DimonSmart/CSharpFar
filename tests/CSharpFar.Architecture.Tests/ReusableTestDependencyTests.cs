@@ -17,7 +17,7 @@ public sealed class ReusableTestDependencyTests
     [InlineData("CSharpFar.Architecture.Tests", "samples/CSharpFar.Ui.Demo", "src/CSharpFar.Console", "src/CSharpFar.Console.Ansi", "src/CSharpFar.Console.Windows", "src/CSharpFar.Ui")]
     public void ProjectReferences_MatchTheIsolatedBoundary(string projectName, params string[] allowed)
     {
-        string root = RepositoryRoot();
+        string root = RepositoryPaths.FindRoot();
         string projectDirectory = Path.Combine(root, "tests", projectName);
         XDocument project = XDocument.Load(Path.Combine(projectDirectory, projectName + ".csproj"));
         string[] references = project.Descendants("ProjectReference")
@@ -55,11 +55,4 @@ public sealed class ReusableTestDependencyTests
             .Select(attribute => attribute.AssemblyName)
             .Order(StringComparer.Ordinal));
 
-    private static string RepositoryRoot()
-    {
-        for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-            if (File.Exists(Path.Combine(directory.FullName, "CSharpFar.slnx")))
-                return directory.FullName;
-        throw new DirectoryNotFoundException("The repository root was not found.");
-    }
 }

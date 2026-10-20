@@ -10,7 +10,7 @@ public sealed class UiDemoDependencyBoundaryTests
     [Fact]
     public void Demo_ProjectAndAssemblyClosure_StayIndependent()
     {
-        string projectPath = FindRepositoryFile("samples", "CSharpFar.Ui.Demo", "CSharpFar.Ui.Demo.csproj");
+        string projectPath = RepositoryPaths.FindFile("samples", "CSharpFar.Ui.Demo", "CSharpFar.Ui.Demo.csproj");
         XDocument project = XDocument.Load(projectPath);
         string[] directProjects = ProjectReferences(projectPath, project).Select(path => Path.GetFileNameWithoutExtension(path)!).ToArray();
         Assert.Equal(["CSharpFar.Console", "CSharpFar.Console.Windows", "CSharpFar.Console.Ansi", "CSharpFar.Ui"], directProjects);
@@ -32,7 +32,7 @@ public sealed class UiDemoDependencyBoundaryTests
     [Fact]
     public void Demo_PackageMode_IsMutuallyExclusiveWithProjectReferences()
     {
-        XDocument project = XDocument.Load(FindRepositoryFile("samples", "CSharpFar.Ui.Demo", "CSharpFar.Ui.Demo.csproj"));
+        XDocument project = XDocument.Load(RepositoryPaths.FindFile("samples", "CSharpFar.Ui.Demo", "CSharpFar.Ui.Demo.csproj"));
         Assert.All(project.Descendants("ProjectReference"), reference =>
             Assert.Equal("'$(UseDimonSmartTerminalPackages)' != 'true'", reference.Parent?.Attribute("Condition")?.Value));
         Assert.Equal(["DimonSmart.Terminal.Ui"],
@@ -82,13 +82,4 @@ public sealed class UiDemoDependencyBoundaryTests
             .Replace('/', Path.DirectorySeparatorChar))
         .Select(include => Path.Combine(Path.GetDirectoryName(projectPath)!, include));
 
-    private static string FindRepositoryFile(params string[] parts)
-    {
-        for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            string candidate = Path.Combine([directory.FullName, .. parts]);
-            if (File.Exists(candidate)) return candidate;
-        }
-        throw new FileNotFoundException("The repository demo project was not found.");
-    }
 }

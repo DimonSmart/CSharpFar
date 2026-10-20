@@ -90,19 +90,6 @@ public sealed class ConsoleBackendArchitectureTests
         Assert.Equal("all", reference.Attribute("PrivateAssets")?.Value);
     }
 
-    private static XDocument LoadProject(params string[] parts) => XDocument.Load(FindRepositoryFile(parts));
+    private static XDocument LoadProject(params string[] parts) => XDocument.Load(RepositoryPaths.FindFile(parts));
 
-    private static string FindRepositoryFile(params string[] parts)
-    {
-        for (DirectoryInfo? directory = new(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
-        {
-            string candidate = Path.Combine([directory.FullName, .. parts]);
-            if (File.Exists(candidate))
-                return candidate;
-        }
-
-        throw new FileNotFoundException($"Repository file was not found: {Path.Combine(parts)}");
-    }
 }

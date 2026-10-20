@@ -21,7 +21,7 @@ public sealed class TransientUiBoundaryTests
     [InlineData("CommandCompletionLayer.cs")]
     public void MigratedTransientFeatures_DoNotOwnPopupPresentationPlumbing(string fileName)
     {
-        string root = FindRepositoryRoot();
+        string root = RepositoryPaths.FindRoot();
         string file = Path.Combine(root, "src", "CSharpFar.App", "Rendering", fileName);
         string source = File.ReadAllText(file);
 
@@ -35,16 +35,4 @@ public sealed class TransientUiBoundaryTests
             + string.Join(", ", violations));
     }
 
-    private static string FindRepositoryRoot()
-    {
-        for (DirectoryInfo? directory = new(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
-        {
-            if (Directory.Exists(Path.Combine(directory.FullName, "src", "CSharpFar.App")))
-                return directory.FullName;
-        }
-
-        throw new DirectoryNotFoundException("The repository root was not found.");
-    }
 }

@@ -22,21 +22,9 @@ public sealed class ApplicationPointerRoutingBoundaryTests
 
     private static string ReadAppSource(params string[] relativePath)
     {
-        string root = FindRepositoryRoot();
+        string root = RepositoryPaths.FindRoot();
         string[] path = [root, "src", "CSharpFar.App", .. relativePath];
         return File.ReadAllText(Path.Combine(path));
     }
 
-    private static string FindRepositoryRoot()
-    {
-        for (DirectoryInfo? directory = new(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
-        {
-            if (Directory.Exists(Path.Combine(directory.FullName, "src", "CSharpFar.App")))
-                return directory.FullName;
-        }
-
-        throw new DirectoryNotFoundException("The repository root was not found.");
-    }
 }

@@ -8,17 +8,16 @@ using CSharpFar.Core.Services;
 using CSharpFar.FileSystem;
 using CSharpFar.Tests.Fakes;
 
+using static CSharpFar.Tests.RemoteConnectionDialogTestFixture;
+
 namespace CSharpFar.Tests;
 
 public sealed class Spec029SftpProviderTests : IDisposable
 {
-    private readonly string _tempDir = Path.Combine(Path.GetTempPath(), "CSharpFar.Spec029." + Guid.NewGuid().ToString("N"));
+    private readonly RemoteConnectionTestWorkspace _workspace = new("CSharpFar.Spec029.");
+    private string _tempDir => _workspace.DirectoryPath;
 
-    public void Dispose()
-    {
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, recursive: true);
-    }
+    public void Dispose() => _workspace.Dispose();
 
     [Fact]
     public async Task FileOperationService_CopiesFromRemoteProviderToLocalDirectory()
@@ -453,7 +452,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_ShowsCursorInFocusedInputField()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         bool cursorWasVisibleBeforeInput = false;
         driver.BeforeReadInput = currentDriver =>
@@ -482,7 +481,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_TypingConnectionNameWithoutSaveConnectionRowDoesNotCrash()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         driver.EnqueueKey(Printable('n'));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
@@ -505,7 +504,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     {
         string connectionName = "escape-history-" + Guid.NewGuid().ToString("N");
         ITextFieldHistoryProvider historyRegistry = TextFieldHistoryTestProvider.Create();
-        var seedDriver = new FakeConsoleDriver(width: 100, height: 30);
+        var seedDriver = CreateDriver();
         seedDriver.EnqueueKey(Key(ConsoleKey.F10));
         var seedScreen = new ScreenRenderer(seedDriver);
         _ = CreateSftpDialog(ModalTestHost.Create(seedScreen), new FormFieldFactory(historyRegistry)).Show(
@@ -516,7 +515,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
                 AllowTemporaryConnection: true),
             _ => SftpConnectionDialogValidationResult.Accepted());
 
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         int inputReads = 0;
         Action<FakeConsoleDriver>? beforeRead = null;
@@ -555,7 +554,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         string host = "accepted-history-" + Guid.NewGuid().ToString("N") + ".test";
         const string password = "sftp-history-secret";
         ITextFieldHistoryProvider history = TextFieldHistoryTestProvider.Create();
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
         _ = CreateSftpDialog(ModalTestHost.Create(new ScreenRenderer(driver)), new FormFieldFactory(history)).Show(
@@ -574,7 +573,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     {
         string rejectedHost = "rejected-history-" + Guid.NewGuid().ToString("N") + ".test";
         ITextFieldHistoryProvider history = TextFieldHistoryTestProvider.Create();
-        var rejectedDriver = new FakeConsoleDriver(width: 100, height: 30);
+        var rejectedDriver = CreateDriver();
         rejectedDriver.EnqueueKey(Key(ConsoleKey.F10));
         rejectedDriver.EnqueueKey(Key(ConsoleKey.Escape));
 
@@ -582,7 +581,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
             new SftpConnectionDialogRequest(TestConnection() with { Host = rejectedHost }, "secret-password", true, true),
             _ => SftpConnectionDialogValidationResult.Error("rejected"));
 
-        var cancelDriver = new FakeConsoleDriver(width: 100, height: 30);
+        var cancelDriver = CreateDriver();
         cancelDriver.EnqueueKey(Key(ConsoleKey.Escape));
         _ = CreateSftpDialog(ModalTestHost.Create(new ScreenRenderer(cancelDriver)), new FormFieldFactory(history)).Show(
             new SftpConnectionDialogRequest(TestConnection() with { Host = "cancelled-history.test" }, "secret-password", true, true),
@@ -594,7 +593,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_EnterInTextInput_SubmitsForm()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Enter));
         int validationCalls = 0;
@@ -614,7 +613,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_ChangingHostClearsHostKeyFingerprint()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, shift: false, alt: false, control: false));
@@ -631,7 +630,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_SavePasswordEnablesSaveConnection()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         for (int i = 0; i < 7; i++)
             driver.EnqueueKey(Key(ConsoleKey.Tab));
@@ -650,7 +649,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_DisablingSaveConnectionDisablesSavePassword()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         for (int i = 0; i < 6; i++)
             driver.EnqueueKey(Key(ConsoleKey.Tab));
@@ -670,7 +669,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_DisablingSavePasswordKeepsSaveConnection()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         for (int i = 0; i < 7; i++)
             driver.EnqueueKey(Key(ConsoleKey.Tab));
@@ -689,7 +688,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_EnablingSaveConnectionDoesNotEnableSavePassword()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         for (int i = 0; i < 6; i++)
             driver.EnqueueKey(Key(ConsoleKey.Tab));
@@ -708,7 +707,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_ChangingPortClearsHostKeyFingerprint()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(Key(ConsoleKey.Tab));
@@ -726,7 +725,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_ValidationErrorKeepsDialogOpenAndPreservesInput()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
@@ -751,7 +750,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_HostKeyReviewRebuildPreservesTextState()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
@@ -773,7 +772,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_EndpointChangeDuringHostKeyReviewClearsFingerprintAndTrust()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.F10));
         driver.EnqueueKey(Key(ConsoleKey.Spacebar));
@@ -802,7 +801,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_MouseClickFocusesTextField()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         int readCount = 0;
         bool hostFieldFocused = false;
@@ -840,7 +839,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_MouseClickTogglesCheckboxField()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         driver.BeforeReadInput = currentDriver =>
         {
@@ -866,7 +865,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_ShiftTabMovesFocusBackwardToButtons()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(ShiftTab());
         driver.EnqueueKey(Key(ConsoleKey.Enter));
@@ -886,7 +885,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_ShortConsoleRendersBodyScrollbar()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        var driver = CreateDriver(height: 12);
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
@@ -906,7 +905,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_RebuildsHostKeyRowsAndFocusesTrustAfterValidation()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.F10));
         driver.EnqueueKey(Key(ConsoleKey.Spacebar));
@@ -932,7 +931,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionDialog_ResizePreservesInputAndContinuesInteraction()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         int readCount = 0;
         bool cursorWasInHostInputAfterResize = false;
@@ -984,7 +983,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionManagerDialog_NewButtonSupportsMouseClick()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         driver.BeforeReadInput = currentDriver =>
         {
@@ -1005,7 +1004,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionManagerDialog_DoubleClickConnectsSelectedConnection()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         var connection = TestConnection();
         driver.BeforeReadInput = currentDriver =>
@@ -1024,7 +1023,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     [Fact]
     public void SftpConnectionManagerDialog_ShiftTabMovesFocusBackwardToButtons()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var driver = CreateDriver();
         var screen = new ScreenRenderer(driver);
         var connection = TestConnection();
         driver.EnqueueKey(ShiftTab());
@@ -1037,11 +1036,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         Assert.Same(connection, result.Connection);
     }
 
-    private static SftpConnectionDialog CreateSftpDialog(ModalDialogHost modalDialogs, FormFieldFactory fields) =>
-        new(new DialogService(modalDialogs, fields), fields);
 
-    private static DialogService CreateDialogs(ModalDialogHost modalDialogs) =>
-        new(modalDialogs, new FormFieldFactory(TextFieldHistoryTestProvider.Create()));
 
     private static SftpConnectionInfo TestConnection() =>
         new()
@@ -1122,26 +1117,10 @@ public sealed class Spec029SftpProviderTests : IDisposable
             FileOperationConflictDecision.FromMode(decision);
     }
 
-    private static ConsoleKeyInfo Key(ConsoleKey key) =>
-        new('\0', key, shift: false, alt: false, control: false);
 
-    private static ConsoleKeyInfo ShiftTab() =>
-        new('\0', ConsoleKey.Tab, shift: true, alt: false, control: false);
 
-    private static ConsoleKeyInfo Printable(char ch) =>
-        new(ch, ConsoleKey.NoName, shift: false, alt: false, control: false);
 
-    private static MouseConsoleInputEvent LeftMouse(int x, int y) =>
-        new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
 
-    private static bool IsCursorInsideInputForLabel(FakeConsoleDriver driver, string label, out string diagnostic)
-    {
-        FakeConsoleDriver.WriteRecord labelRecord = driver.WriteRecords.Last(record =>
-            record.Text.Contains(label, StringComparison.Ordinal));
-        diagnostic = $"cursor=({driver.CursorX},{driver.CursorY}) visible={driver.CursorVisible}; label=({labelRecord.X},{labelRecord.Y})";
-        return driver.CursorVisible &&
-            driver.CursorY == labelRecord.Y;
-    }
 
     private sealed class MemoryPanelSource : IFilePanelSource
     {
