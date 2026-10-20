@@ -66,12 +66,6 @@ internal sealed class CSharpFarSettingsDialog
             "application.confirm-exit",
             "Confirm before exit",
             applicationConfirmExit);
-        var preferredTerminal = FormControls.CompactChoice(
-            "application.preferred-terminal",
-            "Preferred terminal",
-            MacOsTerminalPreference.Values,
-            MacOsTerminalPreference.Label,
-            MacOsTerminalPreference.Normalize(preferredMacOsTerminal));
         var leftViewMode = FormControls.CompactChoice(
             "panels.left-view-mode",
             "Left panel view",
@@ -151,11 +145,7 @@ internal sealed class CSharpFarSettingsDialog
             new SettingsPage(
                 "application",
                 "Application",
-                (isMacOs ?? OperatingSystem.IsMacOS())
-                    ? [confirmExit, preferredTerminal,
-                       FormControls.Label("Applies on the next app launch without a terminal."),
-                       FormControls.Label("If Kitty is unavailable, Terminal.app is used.")]
-                    : [confirmExit]),
+                [confirmExit]),
             new SettingsPage(
                 "panels",
                 "Panels",
@@ -218,7 +208,7 @@ internal sealed class CSharpFarSettingsDialog
             palette.Value,
             syntaxHighlighting.Value,
             syntaxTheme.Value.Name,
-            preferredTerminal.Value);
+            MacOsTerminalPreference.Normalize(preferredMacOsTerminal));
     }
 
     private static string ViewModeLabel(PanelViewMode mode) =>
