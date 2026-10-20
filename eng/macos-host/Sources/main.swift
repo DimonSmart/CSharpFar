@@ -51,6 +51,9 @@ final class CSharpFarDesktopHost: NSObject, NSApplicationDelegate, NSWindowDeleg
         // reduced environment. The PTY provides stdin, stdout, stderr and a
         // controlling terminal; the CLI handles command child foreground groups.
         var environment = ProcessInfo.processInfo.environment
+        // Mark GUI-owned PTY sessions for macOS user-shell PATH discovery.
+        // Direct terminal and SSH CLI sessions do not receive this hint.
+        environment["CSHARPFAR_FINDER_LAUNCH"] = "1"
         environment["TERM"] = "xterm-256color"
         environment["COLORTERM"] = "truecolor"
         if environment["LANG"] == nil { environment["LANG"] = "en_US.UTF-8" }

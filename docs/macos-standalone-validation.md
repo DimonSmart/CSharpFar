@@ -54,3 +54,27 @@ modifier lifecycle within the embedded desktop window separately.
 
 Record observed success, failure, OS/architecture, keyboard layout and window
 conditions when executing these tests. Do not mark unobserved cases as passed.
+
+## macOS user-shell PATH acceptance
+
+**Manual acceptance status: NOT EXECUTED.** Verify on Apple Silicon and Intel
+where available. The desktop PTY host marks the session for automatic PATH
+resolution; direct CLI/IDE/SSH launches must not run the login-shell probe.
+
+| Scenario | Desktop app | Direct CLI |
+| --- | --- | --- |
+| `pwsh` found only via `~/.zshrc` in `auto` | Not verified | Not verified |
+| PATH defined in `~/.zprofile` | Not verified | Not verified |
+| `ps:` / `pwsh:` prefixes and panel executable share PATH | Not verified | Not verified |
+| PATH ordering, duplicates, spaces and Unicode | Not verified | Not verified |
+| Broken/slow shell safely falls back within 3 seconds | Not verified | Not verified |
+| Explicit `appendStandard` and `inherited` skip the probe | Not verified | Not verified |
+| Legacy `appendStandard` migrates once; explicit choice persists | Not verified | Not verified |
+| PATH diagnostics report mode, source, shell and fallback without PATH data | Not verified | Not verified |
+
+Reproduce the original regression by installing PowerShell Preview with `pwsh`
+at `/usr/local/microsoft/powershell/7-preview/pwsh` and putting only that
+directory in `~/.zshrc` (not launchd PATH). Open CSharpFar.app from Finder
+and run `pwsh` and `pwsh: $PSVersionTable.PSVersion`. Confirm the PATH
+source is `user shell` and the shell is probed just once. Start the bundled
+CLI directly from an existing terminal and verify that it does not probe.

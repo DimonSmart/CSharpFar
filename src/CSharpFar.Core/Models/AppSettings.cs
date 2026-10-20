@@ -39,7 +39,8 @@ public sealed class AppSettings
     {
         public string Executable { get; set; } = "cmd.exe";
         public string ArgumentsFormat { get; set; } = "/c {0}";
-        public string MacOsPathMode { get; set; } = "appendStandard";
+        public string MacOsPathMode { get; set; } = "auto";
+        public int MacOsPathMigrationVersion { get; set; } = 1;
     }
 
     public sealed class PanelsSettings

@@ -132,21 +132,40 @@ Because the repository name does not use Homebrew's `homebrew-<tap>` naming conv
 
 ### CLI command PATH and Unix shell options
 
-CSharpFar may be launched from Finder, Dock, Kitty, or Terminal.app with a
+CSharpFar may be launched from Finder, Dock or an external terminal with a
 reduced `PATH`. On macOS, user-launched shell commands, registered
 PowerShell aliases (`ps:` / `pwsh:`), and executable files launched from
-panels receive a consistent `PATH`. Existing entries retain their order;
-only existing directories are appended, in this order:
-`/opt/homebrew/bin`, `/usr/local/bin`, `/opt/homebrew/sbin`,
-`/usr/local/sbin`. Missing `PATH` uses
-`/usr/bin:/bin:/usr/sbin:/sbin` before appending. The application process
-environment, system updaters, and file associations are not changed.
+panels receive one consistent effective `PATH`.
 
-The default `shell.macOsPathMode` is `appendStandard`, including for older
-settings files that lack this field. To opt out, edit `settings.json` and set
-`"macOsPathMode": "inherited"` under `"shell"`. Changes take effect after
-restarting CSharpFar. An unrecognized mode triggers a warning and behaves as
-`inherited`, without rewriting the file.
+The default `shell.macOsPathMode` is `auto`:
+- **Finder/Dock/Spotlight app launch:** load the user's `PATH` **once**
+  from the login interactive shell (supported: zsh/bash), including custom
+  directories defined in `~/.zshrc` or `~/.zprofile`. User PATH order wins;
+  missing inherited directories and existing Homebrew directories are appended.
+- **Direct CLI, IDE, or SSH launch:** do not run a shell probe; preserve the
+  inherited PATH and append missing existing Homebrew directories.
+- **Shell probe fails:** fall back to the inherited-plus-Homebrew policy after
+  a bounded attempt (up to 3 seconds). No terminal commands are blocked
+  indefinitely by a shell startup script.
+
+The other options are `appendStandard` (never probe, preserve inherited PATH
+verbatim, append existing `/opt/homebrew/bin`, `/usr/local/bin`,
+`/opt/homebrew/sbin`, `/usr/local/sbin` in that order) and `inherited`
+(never probe, do not override child PATH). If inherited PATH is missing,
+`appendStandard` uses `/usr/bin:/bin:/usr/sbin:/sbin` first. An unknown mode
+warns and falls back to `appendStandard`.
+
+Old settings files with `appendStandard` migrate **once** to `auto`.
+Earlier versions saved the old default value, so the migration cannot
+distinguish an explicit opt-out from the previous default. To retain the
+previous behavior, set `"macOsPathMode": "appendStandard"` **after**
+migration. `inherited` remains unchanged. The store records
+`shell.macOsPathMigrationVersion` to avoid repeated migrations.
+
+Changes take effect after restarting CSharpFar. The application process
+environment, system updaters, aliases/functions, and detached file
+associations are not changed. PATH probe diagnostics (without full PATH values)
+are available in the diagnostic report and terminal diagnostics.
 
 On macOS and Linux, `shell.argumentsFormat` specifies Unix shell flags
 rather than a command-line template. Supported examples are `-c`, `-lc`,
@@ -162,15 +181,17 @@ For example, to request a zsh login shell, configure:
 "shell": {
   "executable": "/bin/zsh",
   "argumentsFormat": "-lc",
-  "macOsPathMode": "appendStandard"
+  "macOsPathMode": "auto"
 }
 ```
 
 A login shell does not necessarily read interactive startup files:
 `zsh -lc` reads `.zprofile`, but not normally `.zshrc`. Use `-lic`
 only intentionally: startup scripts can expect an interactive terminal.
-The automatic macOS PATH policy does not initialize tools from custom
-version managers (nvm, mise, pyenv, etc.) or support shell aliases/functions.
+The auto PATH policy can resolve tools added to PATH by shell startup
+scripts (including version managers), but it does not import their other
+environment variables or shell aliases/functions. Startup scripts that require
+TTY input may fail and activate the documented fallback.
 Windows `cmd.exe` handling is unchanged.
 
 ### Standalone macOS application and CLI
