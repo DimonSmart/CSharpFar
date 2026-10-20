@@ -172,10 +172,16 @@ jobs:
         shell: pwsh
         run: |
           $appOutputDir = Join-Path $env:RUNNER_TEMP "app-${{ matrix.runtime }}"
-          $appDir = ./eng/packaging/build-macos-app.ps1 `
+          & ./eng/packaging/build-macos-app.ps1 `
             -PublishDir $env:PUBLISH_DIR `
             -Version $env:VERSION `
-            -OutputDir $appOutputDir
+            -OutputDir $appOutputDir | Out-Host
+
+          # Do not treat build-script diagnostic output as filesystem paths.
+          $appDir = Join-Path $appOutputDir 'CSharpFar.app'
+          if (-not (Test-Path -LiteralPath $appDir -PathType Container)) {
+            throw "macOS application bundle not found: $appDir"
+          }
 
           $appAssetName = "CSharpFar-$env:GITHUB_REF_NAME-${{ matrix.runtime }}-app.zip"
           $appAssetPath = Join-Path $env:RUNNER_TEMP $appAssetName

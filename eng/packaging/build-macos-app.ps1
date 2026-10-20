@@ -108,7 +108,8 @@ chmod +x $binaryTarget
 # portable CLI remains byte-for-byte unchanged in Contents/Resources.
 $hostPackage = Join-Path $PSScriptRoot '..' '..' 'eng' 'macos-host'
 $hostPackage = (Resolve-Path -LiteralPath $hostPackage).Path
-& swift build --package-path $hostPackage --configuration release
+# Build output is diagnostic; keep only the final bundle path on the success pipeline.
+& swift build --package-path $hostPackage --configuration release | Out-Host
 if ($LASTEXITCODE -ne 0) {
     throw 'Building the Swift desktop terminal host failed.'
 }
