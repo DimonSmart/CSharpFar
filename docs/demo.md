@@ -77,5 +77,7 @@ pwsh ./scripts/demo/generate-demo-assets.ps1 `
 The recorder is intentionally manual. Demo-asset generation is not part of the
 default build, test, or publish flow.
 
-Detailed requirements for the recorder and its constraints live in
-[`demo/requirements.md`](demo/requirements.md).
+The implementation is in `src/CSharpFar.DemoRecorder`; the canonical
+scenario is `scripts/demo/readme-demo.json`. The recorder captures committed
+application frames, renders PNG/GIF/MP4, checks that the source fixture is
+unchanged and keeps demo settings separate from the user's configuration.
