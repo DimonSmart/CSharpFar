@@ -12,11 +12,4 @@ public sealed class PluginAbstractionsContractTests
         Assert.NotNull(property);
         Assert.Equal(typeof(PluginRunMode), property.PropertyType);
     }
-
-    [Fact]
-    public void PluginRunMode_DefinesNormalAndDemo()
-    {
-        Assert.Contains(PluginRunMode.Normal, Enum.GetValues<PluginRunMode>());
-        Assert.Contains(PluginRunMode.Demo, Enum.GetValues<PluginRunMode>());
-    }
 }

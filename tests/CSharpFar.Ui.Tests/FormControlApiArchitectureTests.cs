@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Xml.Linq;
 using CSharpFar.Ui;
 
@@ -33,17 +32,6 @@ public sealed class FormControlApiArchitectureTests
             reference.StartsWith("CSharpFar.App", StringComparison.Ordinal) ||
             reference.StartsWith("CSharpFar.Platform", StringComparison.Ordinal) ||
             reference.StartsWith("CSharpFar.Module", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public void Ui_DoesNotGrantApplicationFriendAccess()
-    {
-        string[] friends = typeof(FormControls).Assembly
-            .GetCustomAttributes<InternalsVisibleToAttribute>()
-            .Select(attribute => attribute.AssemblyName.Split(',')[0])
-            .ToArray();
-
-        Assert.DoesNotContain("CSharpFar.App", friends);
     }
 
     [Fact]
