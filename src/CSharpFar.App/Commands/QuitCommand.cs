@@ -20,7 +20,7 @@ internal sealed class QuitCommand : IApplicationCommand
         ChoiceDialogResult result = context.Dialogs.Choice(new ChoiceDialogOptions
         {
             Title = "Exit CSharpFar",
-            Lines = ["Exit CSharpFar?"],
+            Lines = ["Are you sure?"],
             Buttons =
             [
                 DialogButton.Action("exit", "Exit", 'E'),
