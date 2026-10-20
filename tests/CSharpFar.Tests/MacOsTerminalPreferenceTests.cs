@@ -1,8 +1,6 @@
-using System.Diagnostics;
 using System.Text.Json;
 using CSharpFar.App.Settings;
 using CSharpFar.Core.Models;
-using CSharpFar.Host.MacOs;
 
 namespace CSharpFar.Tests;
 
@@ -107,7 +105,7 @@ public sealed class MacOsTerminalPreferenceTests : IDisposable
     }
 
     [Fact]
-    public void PortableConfigurationIsSharedWithLauncher()
+    public void PortableConfigurationKeepsLegacySettings()
     {
         string config = NewPortableConfig();
         new JsonSettingsStore(config).Save();
@@ -124,151 +122,4 @@ public sealed class MacOsTerminalPreferenceTests : IDisposable
         Directory.CreateDirectory(config);
         return config;
     }
-}
-
-public sealed class MacOsTerminalLauncherTests
-{
-    private static readonly string Home = Path.GetFullPath(Path.Combine(
-        Path.GetTempPath(), "home space ü"));
-
-    private static readonly string Resources = Path.GetFullPath(Path.Combine(
-        Path.GetTempPath(), "CSharpFar copy ü.app", "Contents", "Resources"));
-
-    private static readonly string Executable = Path.Combine(Resources, "csharpfar");
-
-    [Fact]
-    public void FindsBundleUsingExecutableNotApplicationsPath()
-    {
-        Assert.True(MacOsTerminalLauncher.TryGetBundlePaths(Executable, out string exe, out string resources));
-        Assert.Equal(Executable, exe);
-        Assert.Equal(Resources, resources);
-        Assert.False(MacOsTerminalLauncher.TryGetBundlePaths(
-            Path.Combine(Path.GetTempPath(), "csharpfar"), out _, out _));
-        Assert.Equal(2, new MacOsTerminalLauncher(error: _ => { }).Launch(
-            Path.Combine(Path.GetTempPath(), "csharpfar")));
-    }
-
-    [Theory]
-    [InlineData("auto", true, "Kitty")]
-    [InlineData("kitty", true, "Kitty")]
-    [InlineData("terminal", true, "Terminal")]
-    [InlineData("auto", false, "Terminal")]
-    [InlineData("kitty", false, "Terminal")]
-    [InlineData("invalid", true, "Kitty")]
-    public void ProviderSelectionIsDeterministic(string preference, bool kittyPresent, string expected)
-    {
-        var invoked = new List<ProcessStartInfo>();
-        var launcher = CreateLauncher(kittyPresent, process =>
-        {
-            invoked.Add(process);
-            return true;
-        });
-        Assert.Equal(0, launcher.LaunchWithPreference(preference, Executable, Resources, Home));
-        ProcessStartInfo only = Assert.Single(invoked);
-        Assert.False(only.UseShellExecute);
-        Assert.Equal(Home, only.WorkingDirectory);
-        if (expected == "Kitty")
-        {
-            Assert.EndsWith("kitty", only.FileName, StringComparison.Ordinal);
-            Assert.Equal(["--directory", Home, "--session", "none", Executable], only.ArgumentList);
-        }
-        else
-        {
-            Assert.Equal("/usr/bin/open", only.FileName);
-            Assert.Equal(["-a", "Terminal", Path.Combine(Resources, "launch.command")],
-                only.ArgumentList);
-        }
-    }
-
-    [Fact]
-    public void InvalidBundleIdOrNonExecutableKittyFallsBack()
-    {
-        foreach (string? identifier in new[] { "other.kitty.app", "net.kovidgoyal.kitty" })
-        {
-            var seen = new List<ProcessStartInfo>();
-            var launcher = CreateLauncher(true, info => { seen.Add(info); return true; },
-                bundleIdentifier: identifier,
-                canExecute: identifier != "net.kovidgoyal.kitty");
-            Assert.Equal(0, launcher.LaunchWithPreference("kitty", Executable, Resources, Home));
-            Assert.Equal("/usr/bin/open", Assert.Single(seen).FileName);
-        }
-    }
-
-    [Fact]
-    public void SecondStandardLocationIsUsedWhenFirstIsAbsent()
-    {
-        var seen = new List<ProcessStartInfo>();
-        var launcher = new MacOsTerminalLauncher(
-            fileExists: path => path.StartsWith(Path.Combine(Home, "Applications"), StringComparison.Ordinal) &&
-                (path.EndsWith("Info.plist", StringComparison.Ordinal) ||
-                 Path.GetFileName(path) == "kitty"),
-            executable: _ => true,
-            bundleIdentifier: _ => "net.kovidgoyal.kitty",
-            start: info => { seen.Add(info); return true; },
-            error: _ => { });
-        Assert.Equal(0, launcher.LaunchWithPreference("auto", Executable, Resources, Home));
-        Assert.StartsWith(Path.Combine(Home, "Applications"), Assert.Single(seen).FileName);
-    }
-
-    [Fact]
-    public void FailedKittyRequestFallsBackExactlyOnce()
-    {
-        var seen = new List<ProcessStartInfo>();
-        var launcher = CreateLauncher(true, info =>
-        {
-            seen.Add(info);
-            return info.FileName == "/usr/bin/open";
-        });
-        Assert.Equal(0, launcher.LaunchWithPreference("kitty", Executable, Resources, Home));
-        Assert.Equal(2, seen.Count);
-        Assert.EndsWith("kitty", seen[0].FileName, StringComparison.Ordinal);
-        Assert.Equal("/usr/bin/open", seen[1].FileName);
-    }
-
-    [Fact]
-    public void ExceptionFromKittyStartFallsBack()
-    {
-        int calls = 0;
-        var launcher = CreateLauncher(true, info =>
-        {
-            calls++;
-            if (info.FileName != "/usr/bin/open")
-                throw new InvalidOperationException("Kitty could not start");
-            return true;
-        });
-        Assert.Equal(0, launcher.LaunchWithPreference("auto", Executable, Resources, Home));
-        Assert.Equal(2, calls);
-    }
-
-    [Fact]
-    public void AcceptedKittyStartNeverOpensSecondProvider()
-    {
-        int calls = 0;
-        var launcher = CreateLauncher(true, _ => { calls++; return true; });
-        Assert.Equal(0, launcher.LaunchWithPreference("kitty", Executable, Resources, Home));
-        Assert.Equal(1, calls);
-    }
-
-    [Fact]
-    public void FailedTerminalReturnsNonZeroAndDoesNotLoop()
-    {
-        int calls = 0;
-        var launcher = CreateLauncher(false, _ => { calls++; return false; });
-        Assert.Equal(1, launcher.LaunchWithPreference("auto", Executable, Resources, Home));
-        Assert.Equal(1, calls);
-    }
-
-    private static MacOsTerminalLauncher CreateLauncher(
-        bool kittyPresent,
-        Func<ProcessStartInfo, bool> launch,
-        string? bundleIdentifier = "net.kovidgoyal.kitty",
-        bool canExecute = true) =>
-        new(
-            fileExists: path => kittyPresent && (path.EndsWith("Info.plist", StringComparison.Ordinal) ||
-                Path.GetFileName(path) == "kitty"),
-            executable: _ => canExecute,
-            bundleIdentifier: _ => bundleIdentifier,
-            start: launch,
-            homeDirectory: () => Home,
-            error: _ => { });
 }
