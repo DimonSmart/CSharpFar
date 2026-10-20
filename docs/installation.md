@@ -228,7 +228,7 @@ The desktop host embeds SwiftTerm and negotiates the Kitty keyboard protocol
 with the bundled CLI. The protocol does not require the Kitty application.
 Standalone modifier press/release, text input, focus changes, and IME should be
 verified on a real Mac, as described in
-[macOS standalone validation](macos-terminal-preference-validation.md).
+[macOS standalone validation](macos-standalone-validation.md).
 
 Portable CLI users can still use Kitty for enhanced keyboard reporting.
 CSharpFar requests profile **27**, which includes key press, repeat, release,
