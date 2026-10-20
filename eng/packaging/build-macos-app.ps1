@@ -104,6 +104,28 @@ $binaryTarget = Join-Path $resourcesDir 'csharpfar'
 Copy-Item -LiteralPath $binarySource -Destination $binaryTarget
 chmod +x $binaryTarget
 
+# Build the native AppKit/PTY host on the target macOS architecture. The
+# portable CLI remains byte-for-byte unchanged in Contents/Resources.
+$hostPackage = Join-Path $PSScriptRoot '..' '..' 'eng' 'macos-host'
+$hostPackage = (Resolve-Path -LiteralPath $hostPackage).Path
+& swift build --package-path $hostPackage --configuration release
+if ($LASTEXITCODE -ne 0) {
+    throw 'Building the Swift desktop terminal host failed.'
+}
+$hostBuildDir = Join-Path $hostPackage '.build' 'release'
+$hostSource = Join-Path $hostBuildDir 'CSharpFarHost'
+if (-not (Test-Path -LiteralPath $hostSource -PathType Leaf)) {
+    throw "Swift desktop host was not produced: $hostSource"
+}
+$hostTarget = Join-Path $macOsDir 'CSharpFarHost'
+Copy-Item -LiteralPath $hostSource -Destination $hostTarget
+chmod +x $hostTarget
+
+# SwiftPM resource bundles (including SwiftTerm's optional Metal shaders)
+# must accompany a standalone Swift executable after it leaves .build.
+Get-ChildItem -LiteralPath $hostBuildDir -Filter '*.bundle' -Directory -Recurse |
+    ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $resourcesDir -Recurse -Force }
+
 $launcher = @'
 #!/bin/zsh
 set -euo pipefail
@@ -111,26 +133,24 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 resources_dir="$(cd "$script_dir/../Resources" && pwd)"
 binary="$resources_dir/csharpfar"
 
-if (( $# > 0 )) || [[ -t 0 && -t 1 ]]; then
+# Real terminal launches and diagnostics stay CLI-only. Interactive Finder
+# launches pass all application arguments to the embedded terminal session.
+if [[ -t 0 && -t 1 ]]; then
     exec "$binary" "$@"
 fi
-
-exec "$binary" --launch-from-finder
-'@
-
-$terminalLauncher = @'
-#!/bin/zsh
-set -euo pipefail
-script_dir="$(cd "$(dirname "$0")" && pwd)"
-cd "$HOME"
-exec "$script_dir/csharpfar"
+if (( $# > 0 )); then
+    case "$1" in
+        --version|--self-test|--check-system-git|--check-terminal)
+            exec "$binary" "$@"
+            ;;
+    esac
+fi
+exec "$script_dir/CSharpFarHost" "$@"
 '@
 
 $launcherPath = Join-Path $macOsDir 'CSharpFar'
-$terminalLauncherPath = Join-Path $resourcesDir 'launch.command'
 Set-Content -LiteralPath $launcherPath -Value $launcher -Encoding utf8NoBOM
-Set-Content -LiteralPath $terminalLauncherPath -Value $terminalLauncher -Encoding utf8NoBOM
-chmod +x $launcherPath $terminalLauncherPath
+chmod +x $launcherPath
 
 Export-LargestPngFromIco -IcoPath $iconSource -PngPath $iconPngPath
 $iconSizes = @(
@@ -198,6 +218,24 @@ Set-Content -LiteralPath $infoPlistPath -Value $infoPlist -Encoding utf8NoBOM
 & /usr/bin/plutil -lint $infoPlistPath | Out-Host
 if ($LASTEXITCODE -ne 0) {
     throw 'Generated Info.plist is invalid.'
+}
+
+# Never ship a host of the wrong architecture or with non-system dylib dependencies.
+$expectedArch = if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'arm64' } else { 'x86_64' }
+$hostArch = (& /usr/bin/lipo -archs $hostTarget).Trim()
+if ($LASTEXITCODE -ne 0 -or $hostArch -ne $expectedArch) {
+    throw "Desktop host architecture '$hostArch' does not match '$expectedArch'."
+}
+$linkedLibraries = & /usr/bin/otool -L $hostTarget
+if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect desktop host dependencies.' }
+foreach ($line in ($linkedLibraries | Select-Object -Skip 1)) {
+    $library = ($line.Trim() -split '\\s+')[0]
+    if ($library -and
+        -not $library.StartsWith('/usr/lib/') -and
+        -not $library.StartsWith('/System/Library/') -and
+        -not $library.StartsWith('@rpath/')) {
+        throw "Desktop host has an unbundled dynamic library: $library"
+    }
 }
 
 $versionOutput = & $launcherPath --version
