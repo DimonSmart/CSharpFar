@@ -1,0 +1,54 @@
+name: macOS standalone host
+
+on:
+  push:
+    branches:
+      - codex/macos-standalone-host-spec
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            rid: osx-arm64
+            arch: arm64
+          - os: macos-15-intel
+            rid: osx-x64
+            arch: x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Test .NET application contracts
+        run: dotnet test CSharpFar.slnx --configuration Release
+      - name: Compile pinned SwiftTerm desktop host
+        run: swift build -c release --package-path eng/macos-host
+      - name: Package macOS bundle
+        shell: pwsh
+        run: |
+          dotnet publish src/CSharpFar.Host.MacOs/CSharpFar.Host.MacOs.csproj --configuration Release --runtime ${{ matrix.rid }} --self-contained true --output "${{ runner.temp }}/publish" /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:DebugType=None /p:DebugSymbols=false /p:Version=1.0.0
+          ./eng/packaging/build-macos-app.ps1 -PublishDir "${{ runner.temp }}/publish" -Version "1.0.0" -OutputDir "${{ runner.temp }}/bundle"
+      - name: Assert architecture, identity, CLI parity, diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="${{ runner.temp }}/bundle/CSharpFar.app"
+          cli="${{ runner.temp }}/publish/csharpfar"
+          bundled="$app/Contents/Resources/csharpfar"
+          native="$app/Contents/MacOS/CSharpFarHost"
+          cmp "$cli" "$bundled"
+          test -x "$native"
+          test "$(/usr/bin/lipo -archs "$native")" = "${{ matrix.arch }}"
+          test "$(/usr/bin/lipo -archs "$bundled")" = "${{ matrix.arch }}"
+          /usr/bin/plutil -lint "$app/Contents/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "com.dimonsmart.csharpfar"
+          "$app/Contents/MacOS/CSharpFar" --version
+          "$app/Contents/MacOS/CSharpFar" --check-system-git

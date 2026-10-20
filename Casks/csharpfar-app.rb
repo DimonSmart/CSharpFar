@@ -15,7 +15,7 @@ cask "csharpfar-app" do
   app "CSharpFar.app"
 
   caveats <<~EOS
-    CSharpFar is a terminal application. Opening CSharpFar.app launches it in Terminal.
+    CSharpFar.app contains its own terminal window; Kitty and Terminal.app are not required.
 
     The macOS application is currently unsigned and not notarized. On first launch,
     macOS may require using Open from the Finder context menu.

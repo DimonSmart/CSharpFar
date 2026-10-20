@@ -11,30 +11,22 @@ public sealed class MacOsTerminalSettingsUiTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void ApplicationPageOnlyDisplaysPreferenceOnMacOs(bool macOs)
+    public void ApplicationPageDoesNotExposeObsoleteProvider(bool macOs)
     {
         var driver = new FakeConsoleDriver(100, 28);
         string? frame = null;
-        driver.BeforeReadInput = current => frame ??= string.Join("\n",
+        driver.BeforeReadInput = current => frame ??= string.Join("\\n",
             Enumerable.Range(0, current.GetSize().Height).Select(current.GetRow));
         driver.EnqueueInput(Key(ConsoleKey.Escape));
 
-        var result = Show(driver, "kitty", macOs);
-        Assert.Null(result);
+        Assert.Null(Show(driver, "kitty", macOs));
         Assert.NotNull(frame);
-        if (macOs)
-        {
-            Assert.Contains("Preferred terminal", frame, StringComparison.Ordinal);
-            Assert.Contains("Kitty", frame, StringComparison.Ordinal);
-        }
-        else
-        {
-            Assert.DoesNotContain("Preferred terminal", frame, StringComparison.Ordinal);
-        }
+        Assert.DoesNotContain("Preferred terminal", frame, StringComparison.Ordinal);
+        Assert.DoesNotContain("Terminal.app", frame, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void MacOsSettingsSaveReturnsCanonicalPreference()
+    public void SavingOtherSettingsPreservesLegacyProviderValue()
     {
         var driver = new FakeConsoleDriver(100, 28);
         driver.EnqueueInput(Key(ConsoleKey.F10));

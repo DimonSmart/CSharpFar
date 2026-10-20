@@ -43,7 +43,7 @@ Homebrew selects the matching self-contained application archive automatically:
 - Apple Silicon (`arm64`) uses `CSharpFar-v<version>-osx-arm64-app.zip`;
 - Intel (`x86_64`) uses `CSharpFar-v<version>-osx-x64-app.zip`.
 
-The Cask installs `CSharpFar.app` into Applications. Opening the app starts CSharpFar in the terminal selected under **Options → Settings → Application → Preferred terminal**. The default is Automatic (Kitty if installed, otherwise Terminal.app).
+The Cask installs `CSharpFar.app` into Applications. Opening it from Finder, Dock, Spotlight, or Launchpad creates a CSharpFar-owned window with an embedded terminal and a real PTY; Kitty and Terminal.app are not required.
 
 A direct manual Cask installation does not automatically clear quarantine. Because the application is currently unsigned and not notarized, recent macOS versions may require the standard Gatekeeper workflow:
 
@@ -132,7 +132,7 @@ Because the repository name does not use Homebrew's `homebrew-<tap>` naming conv
 
 ### CLI command PATH and Unix shell options
 
-CSharpFar may be launched from Finder, Dock, Kitty, or Terminal.app with a
+CSharpFar may be launched from Finder, Dock or an external terminal with a
 reduced `PATH`. On macOS, user-launched shell commands, registered
 PowerShell aliases (`ps:` / `pwsh:`), and executable files launched from
 panels receive one consistent effective `PATH`.
@@ -194,34 +194,21 @@ environment variables or shell aliases/functions. Startup scripts that require
 TTY input may fail and activate the documented fallback.
 Windows `cmd.exe` handling is unchanged.
 
-### Choose the preferred macOS terminal
+### Standalone macOS application and CLI
 
-In CSharpFar, open **Options → Settings → Application → Preferred terminal**.
-Choose one of:
+The macOS application contains an AppKit desktop host and the same self-contained
+`csharpfar` CLI binary as the portable release. Finder and Dock start the
+embedded terminal; a direct CLI invocation in Kitty, Terminal.app, SSH, or
+another TTY stays in that terminal. Bundle executable diagnostics such as
+`--version` and `--check-system-git` run without opening a window.
 
-- **Automatic (recommended):** opens Kitty when a valid Kitty app is installed;
-  otherwise opens Terminal.app.
-- **Kitty:** prefers Kitty; if it is unavailable, falls back to Terminal.app
-  without changing the saved preference.
-- **Terminal.app:** always opens Apple's built-in Terminal.
+Existing `application.preferredMacOsTerminal` values in `settings.json` are
+preserved but ignored by the desktop host. The obsolete preference is no longer
+shown in settings. For testing a separate instance after update, use:
 
-Install Kitty separately from [the official Kitty site](https://sw.kovidgoyal.net/kitty/)
-or with `brew install --cask kitty`. The launcher searches only
-`/Applications/kitty.app` and `~/Applications/kitty.app`; it validates the
-bundle identity and executable permissions. Kitty installed in a custom
-location is not currently discovered.
-
-Save and close CSharpFar, then open `CSharpFar.app` from Finder, Dock or
-Spotlight. The preference is read from the existing `settings.json` on the
-next bundle launch. Saving does **not** move a running session between
-terminals. A malformed or unreadable settings file makes the launcher
-conservatively use Terminal.app, without rewriting the file. Normal UI startup
-may still reject other malformed settings.
-
-A direct `csharpfar` command inside Kitty, Terminal.app, SSH, an IDE terminal,
-or another interactive PTY remains in that terminal. Only opening the app
-bundle **without** a TTY or command-line arguments invokes provider selection.
-The command-line Formula and portable archives are unaffected.
+```bash
+open -n /Applications/CSharpFar.app
+```
 
 ### Terminal diagnostics for the macOS app
 
@@ -256,45 +243,18 @@ for typed CSharpFar commands. A nonzero exit status means the launch failed.
 This deliberately tests the macOS Git shim rather than any Homebrew Git.
 
 
-### Kitty terminal keyboard support on macOS
+### Enhanced keyboard reporting
 
-To get reliable standalone Shift/Control/Alt press and release events, select
-Kitty in the app's **Preferred terminal** setting and start it from Finder,
-or run the CLI executable from a Kitty terminal. For a Homebrew CLI installation:
+The desktop host embeds SwiftTerm and negotiates the Kitty keyboard protocol
+with the bundled CLI. The protocol does not require the Kitty application.
+Standalone modifier press/release, text input, focus changes, and IME should be
+verified on a real Mac, as described in
+[macOS standalone validation](macos-standalone-validation.md).
 
-```bash
-kitty -- csharpfar
-```
-
-Or run the app bundle's executable inside Kitty:
-
-```bash
-kitty -- /Applications/CSharpFar.app/Contents/Resources/csharpfar
-```
-
-CSharpFar negotiates Kitty keyboard flags **27**, including key press/repeat/
-release reporting, and checks the terminal's confirmed response. If a terminal
-only supports flags **25**, extended key chords continue to work, but standalone
-modifier lifecycle is not available. Legacy VT terminals have their usual
-keyboard limitations, including potentially indistinguishable Enter variants.
-
-For Option to behave as Alt, put the following in `kitty.conf`:
-
-```conf
-macos_option_as_alt left
-```
-
-Use `macos_option_as_alt both` if both Option keys should act as Alt.
-This changes how Option types special characters. Function keys may require
-Fn/Globe on Mac keyboards, and some shortcuts are intercepted by macOS or
-Kitty itself. CSharpFar does not alter Kitty configuration or require macOS
-Accessibility permissions.
-
-Verify the negotiated flags with `csharpfar --check-terminal`, and inspect
-raw modifier press and release events with `csharpfar --check-terminal
---input-lab`. Inspect the bottom function-key row in the running application:
-pressing and releasing each modifier should change and restore it without
-pressing any other key.
+Portable CLI users can still use Kitty for enhanced keyboard reporting.
+CSharpFar requests profile **27**, which includes key press, repeat, release,
+and standalone modifier information. A terminal that confirms only profile
+**25** does not provide the full modifier lifecycle.
 
 ## Releases
 
@@ -308,7 +268,7 @@ Published releases provide:
 - an unsigned `CSharpFar.app` ZIP archive for Intel Macs;
 - a Debian package for Linux.
 
-The macOS app bundles contain the same self-contained `csharpfar` executable as the CLI release plus macOS bundle metadata, application icon, and a launcher that opens the terminal UI in Kitty (when available and preferred) or Terminal.app from Finder.
+The macOS app bundles contain an AppKit/SwiftTerm terminal host and the same self-contained `csharpfar` executable as the CLI release, without requiring a separately installed terminal.
 
 See the [GitHub Releases](https://github.com/DimonSmart/CSharpFar/releases) page for available versions and checksums.
 
