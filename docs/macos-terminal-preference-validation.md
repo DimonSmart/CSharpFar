@@ -1,40 +1,56 @@
-# macOS preferred terminal — desktop acceptance matrix
+# macOS standalone desktop host — acceptance matrix
 
-The implementation and cross-platform automated contract tests are independent
-of a window server. The scenarios below require an actual macOS desktop session
-on Apple Silicon; verify Intel when available.
+The desktop host is an AppKit application embedding a SwiftTerm VT/PTY view.
+The CLI is a separate self-contained executable inside the app bundle.
+`IDD-0077` defines the intended behavior and `IDD-0084` records the
+SwiftTerm selection.
 
-**Status for this change:** NOT EXECUTED — this implementation was authored
-remotely and no macOS Finder/WindowServer or Kitty GUI session was available.
-Do not interpret a passing unit test, successful `Process.Start`, or a zero exit
-code from `/usr/bin/open` as proof that CSharpFar is interactive inside Kitty.
+**Manual acceptance status: NOT EXECUTED.** A macOS desktop/WindowServer
+session with user input and both supported architectures is required.
+Successful CLI checks, package compilation, or a successful macOS `open`
+request do **not** establish that the embedded terminal behaves correctly.
 
-Record separately whether (a) the expected terminal window opened and
-(b) CSharpFar was running and accepting keyboard input.
-
-| Scenario | Window opened | Interactive CSharpFar |
+| Scenario | Apple Silicon | Intel |
 | --- | --- | --- |
-| Automatic preference, Kitty installed | Not verified | Not verified |
-| Explicit Kitty preference, Kitty installed | Not verified | Not verified |
-| Terminal.app preference, Kitty installed | Not verified | Not verified |
-| Automatic, Kitty absent | Not verified | Not verified |
-| Kitty preference, Kitty absent (preference retained) | Not verified | Not verified |
-| Kitty already running (no duplicate or empty session) | Not verified | Not verified |
-| Kitty custom startup_session, `--session none` | Not verified | Not verified |
-| Kitty custom macos-launch-services-cmdline | Not verified | Not verified |
-| Bundle moved to directory with spaces/Unicode | Not verified | Not verified |
-| Kitty installed at `~/Applications/kitty.app` | Not verified | Not verified |
-| Existing TTY: bundle launcher with no arguments | Not verified | Not verified |
-| Direct binary in Kitty, Terminal, IDE, SSH | Not verified | Not verified |
-| CLI --version, --self-test, --check-terminal, input-lab | Not verified | Not verified |
-| Save vs Cancel, Finder/Dock/Spotlight subsequent launch | Not verified | Not verified |
-| Kitty installed/removed between app launches | Not verified | Not verified |
-| Homebrew in-app update and `open -n` relaunch | Not verified | Not verified |
-| Short session exit, focus, Dock icon and process lifecycle | Not verified | Not verified |
-| Kitty Ctrl+Enter, Shift+Enter, Ctrl+Shift+Enter, modifier lifecycle | Not verified | Not verified |
+| Open from Finder and Applications, identity in Dock and Cmd+Tab | Not verified | Not verified |
+| Launch from Spotlight and Launchpad | Not verified | Not verified |
+| Dock activation, pin/quit/reopen, normal second open | Not verified | Not verified |
+| Explicit second instance with `open -n` | Not verified | Not verified |
+| Kitty absent or independently running | Not verified | Not verified |
+| Legacy `preferredMacOsTerminal` values auto/kitty/terminal | Not verified | Not verified |
+| Panels, menus, dialogs, editor, viewer, file operations | Not verified | Not verified |
+| Unicode, combining text, IME commit and clipboard paste/copy | Not verified | Not verified |
+| Kitty profile 27 press/repeat/release, modifier-only events | Not verified | Not verified |
+| Focus loss while Shift/Alt/Control held, no stuck keys | Not verified | Not verified |
+| Mouse clicks, double-click, motion, wheel, dragging | Not verified | Not verified |
+| Ctrl+O terminal scrollback and main-screen selection | Not verified | Not verified |
+| Resize, maximize, fullscreen and display scale changes | Not verified | Not verified |
+| Large output and alternate-screen full-screen child | Not verified | Not verified |
+| Foreground Ctrl+C; shell and panels restored | Not verified | Not verified |
+| F10, Cmd+Q, window close with unsaved editor | Not verified | Not verified |
+| Close with running command: confirm or cancel | Not verified | Not verified |
+| Unexpected core exit, startup failure, no orphan processes | Not verified | Not verified |
+| Cask install, update and new standalone host relaunch | Not verified | Not verified |
 
-For smoke testing, use a real PTY for CLI checks, then launch the bundle
-without a TTY via Finder. The `Contents/MacOS/CSharpFar --version` packaging
-smoke test does **not** exercise provider selection. Do not assume a Kitty
-bundle placed outside the two recognized Applications directories is found:
-Launch Services discovery is out of scope for this version.
+Automated checks run in [macOS standalone host workflow](../.github/workflows/macos-standalone-host.yml)
+and in the tagged Release workflow. The automated checks are expected to verify:
+.NET regression tests; SwiftTerm source compilation on native arm64/x64 runners;
+bundle identifier, version, host and CLI architecture; CLI binary parity;
+no-window diagnostics and shell/PTY diagnostic behavior.
+
+Useful manual smoke commands:
+
+```bash
+/Applications/CSharpFar.app/Contents/MacOS/CSharpFar --version
+/Applications/CSharpFar.app/Contents/MacOS/CSharpFar --check-system-git
+/Applications/CSharpFar.app/Contents/Resources/csharpfar --check-terminal --input-lab
+open /Applications/CSharpFar.app
+open -n /Applications/CSharpFar.app
+```
+
+For input-laboratory checks use an actual interactive terminal session, not a
+Finder process without a TTY. Confirm the keyboard enhancement flags and
+modifier lifecycle within the embedded desktop window separately.
+
+Record observed success, failure, OS/architecture, keyboard layout and window
+conditions when executing these tests. Do not mark unobserved cases as passed.
