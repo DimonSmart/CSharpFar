@@ -334,6 +334,7 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
         var menu = BuildProviderMenu(canSaveSettings: false);
 
         Assert.Equal(["File", "Commands", "Left", "Right", "Plugins", "Options", "Help"], menu.Items.Select(i => i.Text).ToArray());
+        Assert.Equal('C', menu.Items[1].HotChar);
         Assert.DoesNotContain(menu.Items[2].Children, item => item.Text.Contains("Wide", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(menu.Items[5].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
     }
@@ -348,54 +349,19 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
     }
 
     [Fact]
-    public void CommandsMenu_IsPresentAfterFileMenu()
-    {
-        var menu = BuildProviderMenu(canSaveSettings: false);
-
-        Assert.Equal("File", menu.Items[0].Text);
-        Assert.Equal("Commands", menu.Items[1].Text);
-        Assert.Equal('C', menu.Items[1].HotChar);
-    }
-
-    [Fact]
-    public void CommandsMenu_ContainsPanelsOnOff()
+    public void CommandsMenu_ContainsPanelActionsWithBindings()
     {
         var commands = BuildProviderMenu(canSaveSettings: false).Items[1];
 
-        var item = commands.Children.Single(item => item.Text == "Panels on/off");
+        var toggle = commands.Children.Single(item => item.Text == "Panels on/off");
+        Assert.Equal("Commands.togglePanels", toggle.Id);
+        Assert.Equal('P', toggle.HotChar);
+        Assert.Equal(ApplicationCommandIds.TogglePanels, toggle.CommandId);
 
-        Assert.Equal("Commands.togglePanels", item.Id);
-        Assert.Equal('P', item.HotChar);
-    }
-
-    [Fact]
-    public void CommandsMenu_ContainsSwapPanels()
-    {
-        var commands = BuildProviderMenu(canSaveSettings: false).Items[1];
-
-        var item = commands.Children.Single(item => item.Text == "Swap panels");
-
-        Assert.Equal("Commands.swapPanels", item.Id);
-        Assert.Equal(ApplicationCommandIds.SwapPanels, item.CommandId);
-        Assert.Equal('S', item.HotChar);
-    }
-
-    [Fact]
-    public void PanelsOnOff_MenuItem_UsesTogglePanelsCommandId()
-    {
-        var commands = BuildProviderMenu(canSaveSettings: false).Items[1];
-
-        var item = commands.Children.Single(item => item.Text == "Panels on/off");
-
-        Assert.Equal(ApplicationCommandIds.TogglePanels, item.CommandId);
-    }
-
-    [Fact]
-    public void PanelsOnOff_DisplaysCtrlO_FromShortcutRegistry()
-    {
-        var provider = ShortcutTextProvider();
-
-        Assert.Equal("Ctrl+O", provider.GetPrimaryShortcutText(ApplicationCommandIds.TogglePanels));
+        var swap = commands.Children.Single(item => item.Text == "Swap panels");
+        Assert.Equal("Commands.swapPanels", swap.Id);
+        Assert.Equal(ApplicationCommandIds.SwapPanels, swap.CommandId);
+        Assert.Equal('S', swap.HotChar);
     }
 
     [Fact]

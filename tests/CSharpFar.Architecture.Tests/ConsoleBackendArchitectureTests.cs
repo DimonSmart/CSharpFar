@@ -30,13 +30,22 @@ public sealed class ConsoleBackendArchitectureTests
             framework.Value.Contains("-windows", StringComparison.OrdinalIgnoreCase));
     }
 
-    [Fact]
-    public void WindowsBackend_DependsOnlyOnConsole()
+    [Theory]
+    [InlineData("CSharpFar.Console.Windows")]
+    [InlineData("CSharpFar.Console.Ansi")]
+    public void Backends_DependOnlyOnConsole(string projectName)
     {
-        XDocument project = LoadProject("src", "CSharpFar.Console.Windows", "CSharpFar.Console.Windows.csproj");
+        XDocument project = LoadProject("src", projectName, projectName + ".csproj");
         Assert.Equal(["CSharpFar.Console"], ProjectReferenceNames(project));
         AssertOnlyDevelopmentApiAnalyzer(project);
-        Assert.Equal(["CSharpFar.Console"], ProductAssemblyReferences(typeof(SystemConsoleDriver).Assembly));
+
+        Assembly backend = projectName switch
+        {
+            "CSharpFar.Console.Windows" => typeof(SystemConsoleDriver).Assembly,
+            "CSharpFar.Console.Ansi" => typeof(AnsiTerminalConsoleDriver).Assembly,
+            _ => throw new ArgumentOutOfRangeException(nameof(projectName)),
+        };
+        Assert.Equal(["CSharpFar.Console"], ProductAssemblyReferences(backend));
     }
 
     [Fact]
@@ -50,8 +59,6 @@ public sealed class ConsoleBackendArchitectureTests
         Assert.NotSame(core, ansi);
         Assert.NotSame(windows, ansi);
         Assert.Equal("CSharpFar.Console.Windows", windows.GetName().Name);
-        Assert.Equal(["CSharpFar.Console"], ProductAssemblyReferences(windows));
-        Assert.Equal(["CSharpFar.Console"], ProductAssemblyReferences(ansi));
         Assert.Empty(ProductAssemblyReferences(core));
     }
 
