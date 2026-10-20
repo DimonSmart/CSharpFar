@@ -9,13 +9,16 @@ internal sealed class ApplicationFunctionKeyBarRenderer
 {
     private readonly IReadOnlyList<FunctionKeyBinding> _bindings;
     private readonly Func<string, bool> _canExecuteCommand;
+    private readonly Func<FunctionKeyBinding, string> _labelForBinding;
 
     public ApplicationFunctionKeyBarRenderer(
         IReadOnlyList<FunctionKeyBinding> bindings,
-        Func<string, bool> canExecuteCommand)
+        Func<string, bool> canExecuteCommand,
+        Func<FunctionKeyBinding, string>? labelForBinding = null)
     {
         _bindings = bindings;
         _canExecuteCommand = canExecuteCommand;
+        _labelForBinding = labelForBinding ?? (static binding => binding.Label);
     }
 
     public ApplicationFunctionKeyBarFrame? Render(IUiCanvas canvas, ConsoleSize size, FunctionKeyLayer layer)
@@ -28,7 +31,7 @@ internal sealed class ApplicationFunctionKeyBarRenderer
         var pointerActions = visibleBindings
             .Select(binding => new FunctionKeyBarAction<FunctionKeyBinding>(
                 binding.KeyNumber,
-                binding.Label,
+                _labelForBinding(binding),
                 binding))
             .ToArray();
         var controller = new FunctionKeyBarController<FunctionKeyBinding>();

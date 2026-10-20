@@ -28,8 +28,7 @@ internal sealed class DefaultFunctionKeyBindingProvider
             FunctionKeyCommandIds.Edit,
             FunctionKeyLayer.Plain,
             ConsoleKey.F4,
-            "Edit",
-            RunsWhenUnavailable: true),
+            "Edit"),
         new(
             FunctionKeyCommandIds.OpenCreateFile,
             FunctionKeyLayer.Shift,

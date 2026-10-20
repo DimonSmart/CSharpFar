@@ -43,7 +43,6 @@ public sealed class FunctionKeyBindingProviderTests
         var bindings = new DefaultFunctionKeyBindingProvider().GetBindings();
         string[] runnableWhenUnavailable =
         [
-            FunctionKeyCommandIds.Edit,
             FunctionKeyCommandIds.Copy,
             FunctionKeyCommandIds.RenameOrMove,
             FunctionKeyCommandIds.Rename,
@@ -55,6 +54,7 @@ public sealed class FunctionKeyBindingProviderTests
             Assert.True(Binding(bindings, commandId).RunsWhenUnavailable);
 
         Assert.False(Binding(bindings, FunctionKeyCommandIds.View).RunsWhenUnavailable);
+        Assert.False(Binding(bindings, FunctionKeyCommandIds.Edit).RunsWhenUnavailable);
     }
 
     [Fact]

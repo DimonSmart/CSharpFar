@@ -44,7 +44,11 @@ internal static class RenderingServicesFactory
         var clockRenderer = new ClockRenderer(() => session.App.Palette);
         var functionKeyBarRenderer = new ApplicationFunctionKeyBarRenderer(
             functionKeyBindingProvider.GetBindings(),
-            commandId => callbacks.CanExecuteFunctionKeyCommand(commandId));
+            commandId => callbacks.CanExecuteFunctionKeyCommand(commandId),
+            binding => binding.CommandId == FunctionKeyCommandIds.View &&
+                controller.CurrentItem(panelWorkspace.ActiveState) is { IsDirectory: true }
+                    ? "DirSz"
+                    : binding.Label);
         var commandLineRenderer = new ApplicationCommandLineRenderer(
             () => session.App.Palette);
         var shellUnderlay = new ShellUnderlayService(screen);

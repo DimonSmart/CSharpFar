@@ -270,6 +270,72 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
     }
 
     [Fact]
+    public void Run_F3LabelAndF4AvailabilityTrackCursor()
+    {
+        var fs = CreateFileSystem();
+        var driver = new FakeConsoleDriver(width: 100, height: 14);
+        driver.EnqueueKey(Key(ConsoleKey.UpArrow));
+        driver.EnqueueKey(Key(ConsoleKey.UpArrow));
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(fs, driver);
+        FilePanelState panel = GetLeftPanel(app);
+        panel.Items.Clear();
+        panel.Items.Add(new FilePanelItem
+        {
+            Name = "..",
+            FullPath = Path.GetDirectoryName(_root)!,
+            IsDirectory = true,
+            IsParentDirectory = true,
+        });
+        panel.Items.Add(new FilePanelItem
+        {
+            Name = "Folder",
+            FullPath = Path.Combine(_root, "Folder"),
+            IsDirectory = true,
+            Attributes = FileAttributes.Directory,
+        });
+        panel.Items.Add(new FilePanelItem
+        {
+            Name = "file.txt",
+            FullPath = Path.Combine(_root, "file.txt"),
+            IsDirectory = false,
+        });
+        panel.CursorIndex = 2;
+        panel.ContentKind = PanelContentKind.Source;
+        panel.ProviderCapabilities = PanelProviderCapabilities.LocalFileSystem;
+
+        int read = 0;
+        OnEveryRead(driver, current =>
+        {
+            string row = current.GetRow(13);
+            switch (read++)
+            {
+                case 0:
+                case 4:
+                    Assert.Contains("3View", row);
+                    Assert.Contains("4Edit", row);
+                    break;
+                case 1:
+                case 3:
+                    Assert.Contains("3DirSz", row);
+                    Assert.DoesNotContain("4Edit", row);
+                    break;
+                case 2:
+                    Assert.DoesNotContain("3View", row);
+                    Assert.DoesNotContain("3DirSz", row);
+                    Assert.DoesNotContain("4Edit", row);
+                    break;
+            }
+        });
+
+        app.Run();
+        Assert.Equal(5, read);
+    }
+
+    [Fact]
     public void Run_ControlFunctionKeyStillSortsActivePanel()
     {
         var fs = CreateFileSystem(

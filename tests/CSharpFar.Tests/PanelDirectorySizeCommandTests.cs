@@ -81,6 +81,45 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
     }
 
     [Fact]
+    public void F4_IsAvailableOnlyForEditableFiles()
+    {
+        var source = new ControlledSource(PanelProviderCapabilities.Enumerate | PanelProviderCapabilities.Edit);
+        var services = Services(source);
+        FilePanelState panel = PreparePanel(services, source, File(source, "/root/file.txt", 10));
+
+        Assert.True(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit, services.CommandContext));
+
+        panel.Items[0] = Dir(source, "/root/folder");
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit, services.CommandContext));
+
+        panel.Items[0] = Dir(source, "/root/link", FileAttributes.ReparsePoint);
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit, services.CommandContext));
+
+        panel.Items[0] = Mount(source, "/root/mount");
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit, services.CommandContext));
+
+        panel.Items[0] = new FilePanelItem
+        {
+            Name = "..",
+            FullPath = "/",
+            SourceId = source.SourceId,
+            IsDirectory = true,
+            IsParentDirectory = true,
+        };
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit, services.CommandContext));
+
+        panel.Items.Clear();
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit, services.CommandContext));
+
+        panel.Items.Add(File(source, "/root/file.txt", 10));
+        panel.ProviderCapabilities = PanelProviderCapabilities.Enumerate;
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit, services.CommandContext));
+
+        panel.ProviderCapabilities = PanelProviderCapabilities.SearchResults;
+        Assert.True(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit, services.CommandContext));
+    }
+
+    [Fact]
     public async Task RepeatedF3_DoesNotStartDuplicateScan()
     {
         var source = new ControlledSource(PanelProviderCapabilities.Enumerate) { BlockEnumeration = true };
