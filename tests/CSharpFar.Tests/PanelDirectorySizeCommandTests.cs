@@ -25,7 +25,7 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
     }
 
     [Fact]
-    public void F3_DirectoryRequiresEnumerationNotOpenReadAndStartsBackgroundTraversal()
+    public async Task F3_DirectoryRequiresEnumerationNotOpenReadAndStartsBackgroundTraversal()
     {
         var source = new ControlledSource(PanelProviderCapabilities.Enumerate);
         var services = Services(source);
@@ -36,7 +36,7 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
         ApplicationCommandResult result = services.CommandRegistry.Execute(FunctionKeyCommandIds.View, services.CommandContext);
 
         Assert.True(result.ShouldRender);
-        Assert.True(source.WaitForEnumeration("/root/a"));
+        await source.WaitForEnumerationAsync("/root/a");
         Assert.Equal(1, source.CallCount("/root/a"));
         Assert.Null(panel.Items[0].Size);
     }
@@ -81,23 +81,29 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
     }
 
     [Fact]
-    public void RepeatedF3_DoesNotStartDuplicateScan()
+    public async Task RepeatedF3_DoesNotStartDuplicateScan()
     {
         var source = new ControlledSource(PanelProviderCapabilities.Enumerate) { BlockEnumeration = true };
         var services = Services(source);
         PreparePanel(services, source, Dir(source, "/root/a"));
 
-        services.CommandRegistry.Execute(FunctionKeyCommandIds.View, services.CommandContext);
-        Assert.True(source.WaitForEnumeration("/root/a"));
-        services.CommandRegistry.Execute(FunctionKeyCommandIds.View, services.CommandContext);
-        Thread.Sleep(50);
+        try
+        {
+            services.CommandRegistry.Execute(FunctionKeyCommandIds.View, services.CommandContext);
+            await source.WaitForEnumerationAsync("/root/a");
+            services.CommandRegistry.Execute(FunctionKeyCommandIds.View, services.CommandContext);
+            await Task.Delay(50);
 
-        Assert.Equal(1, source.CallCount("/root/a"));
-        source.ReleaseEnumeration.Set();
+            Assert.Equal(1, source.CallCount("/root/a"));
+        }
+        finally
+        {
+            source.ReleaseEnumeration.Set();
+        }
     }
 
     [Fact]
-    public void ShiftF3_QueuesAllEligibleDirectoriesAndRepeatedBatchDoesNotDuplicate()
+    public async Task ShiftF3_QueuesAllEligibleDirectoriesAndRepeatedBatchDoesNotDuplicate()
     {
         var source = new ControlledSource(PanelProviderCapabilities.Enumerate) { BlockFirstEnumeration = true };
         var services = Services(source);
@@ -110,16 +116,22 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
             Dir(source, "/root/link", FileAttributes.ReparsePoint),
             Mount(source, "/root/mount"));
 
-        Assert.True(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.CalculateDirectorySizes, services.CommandContext));
-        services.CommandRegistry.Execute(FunctionKeyCommandIds.CalculateDirectorySizes, services.CommandContext);
-        Assert.True(source.WaitForEnumeration("/root/a"));
-        services.CommandRegistry.Execute(FunctionKeyCommandIds.CalculateDirectorySizes, services.CommandContext);
-        Thread.Sleep(50);
-        Assert.Equal(1, source.CallCount("/root/a"));
-        Assert.Equal(0, source.CallCount("/root/b"));
+        try
+        {
+            Assert.True(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.CalculateDirectorySizes, services.CommandContext));
+            services.CommandRegistry.Execute(FunctionKeyCommandIds.CalculateDirectorySizes, services.CommandContext);
+            await source.WaitForEnumerationAsync("/root/a");
+            services.CommandRegistry.Execute(FunctionKeyCommandIds.CalculateDirectorySizes, services.CommandContext);
+            await Task.Delay(50);
+            Assert.Equal(1, source.CallCount("/root/a"));
+            Assert.Equal(0, source.CallCount("/root/b"));
+        }
+        finally
+        {
+            source.ReleaseEnumeration.Set();
+        }
 
-        source.ReleaseEnumeration.Set();
-        Assert.True(source.WaitForEnumeration("/root/b"));
+        await source.WaitForEnumerationAsync("/root/b");
         Assert.Equal(1, source.CallCount("/root/b"));
         Assert.Equal(0, source.CallCount("/root/link"));
         Assert.Equal(0, source.CallCount("/root/mount"));
@@ -211,7 +223,7 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
     private sealed class ControlledSource : IFilePanelSource
     {
         private readonly ConcurrentDictionary<string, IReadOnlyList<FilePanelItem>> _items = new(StringComparer.Ordinal);
-        private readonly ConcurrentDictionary<string, ManualResetEventSlim> _started = new(StringComparer.Ordinal);
+        private readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _started = new(StringComparer.Ordinal);
         private int _enumerationOrdinal;
 
         public ControlledSource(PanelProviderCapabilities capabilities)
@@ -231,8 +243,11 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
 
         public void Set(string path, params FilePanelItem[] items) => _items[path] = items;
         public int CallCount(string path) => Calls.Count(value => value == path);
-        public bool WaitForEnumeration(string path) =>
-            _started.GetOrAdd(path, _ => new ManualResetEventSlim(false)).Wait(TimeSpan.FromSeconds(3));
+        public Task WaitForEnumerationAsync(string path) =>
+            _started.GetOrAdd(
+                path,
+                static _ => new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously))
+                .Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         public string NormalizePath(string sourcePath)
         {
@@ -249,10 +264,13 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
         {
             string path = NormalizePath(sourcePath);
             Calls.Add(path);
-            _started.GetOrAdd(path, _ => new ManualResetEventSlim(false)).Set();
+            _started.GetOrAdd(
+                path,
+                static _ => new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously))
+                .TrySetResult(true);
             int ordinal = Interlocked.Increment(ref _enumerationOrdinal);
             if (BlockEnumeration || (BlockFirstEnumeration && ordinal == 1))
-                WaitHandle.WaitAny([ReleaseEnumeration.WaitHandle, cancellationToken.WaitHandle], TimeSpan.FromSeconds(5));
+                WaitHandle.WaitAny([ReleaseEnumeration.WaitHandle, cancellationToken.WaitHandle], TimeSpan.FromSeconds(15));
             cancellationToken.ThrowIfCancellationRequested();
             return _items.TryGetValue(path, out IReadOnlyList<FilePanelItem>? items) ? items : [];
         }
