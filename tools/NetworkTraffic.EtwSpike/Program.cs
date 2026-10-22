@@ -141,6 +141,18 @@ internal static class Program
             if (pid is null or <= 0 || size is null or <= 0)
             {
                 report.InvalidPayloadEvents++;
+                if (!report.PayloadDiagnostics.ContainsKey(key))
+                {
+                    report.PayloadDiagnostics[key] = new PayloadDiagnostic
+                    {
+                        Names = [.. data.PayloadNames],
+                        PidRaw = ReadPayloadString(data, "PID"),
+                        SizeRaw = ReadPayloadString(data, "size"),
+                        PidValue = pid,
+                        SizeValue = size,
+                    };
+                }
+
                 return;
             }
 
@@ -272,6 +284,16 @@ internal static class Program
         public Dictionary<string, string> GeneratedTraffic { get; } = [];
         public Dictionary<string, EventCounter> EventTypes { get; } = [];
         public List<EventSample> Samples { get; } = [];
+        public Dictionary<string, PayloadDiagnostic> PayloadDiagnostics { get; } = [];
+    }
+
+    private sealed class PayloadDiagnostic
+    {
+        public string[] Names { get; set; } = [];
+        public string? PidRaw { get; set; }
+        public string? SizeRaw { get; set; }
+        public long? PidValue { get; set; }
+        public long? SizeValue { get; set; }
     }
 
     private sealed class EventCounter
