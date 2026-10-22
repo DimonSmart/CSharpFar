@@ -146,6 +146,10 @@ internal static class Program
                     report.PayloadDiagnostics[key] = new PayloadDiagnostic
                     {
                         Names = [.. data.PayloadNames],
+                        EventVersion = data.Version,
+                        EventDataLength = data.EventDataLength,
+                        ParserType = data.GetType().Name,
+                        HeaderProcessId = data.ProcessID, // diagnostic only; unsafe for attribution
                         PidRaw = ReadPayloadString(data, "PID"),
                         SizeRaw = ReadPayloadString(data, "size"),
                         PidValue = pid,
@@ -290,6 +294,10 @@ internal static class Program
     private sealed class PayloadDiagnostic
     {
         public string[] Names { get; set; } = [];
+        public int EventVersion { get; set; }
+        public int EventDataLength { get; set; }
+        public string ParserType { get; set; } = "";
+        public int HeaderProcessId { get; set; }
         public string? PidRaw { get; set; }
         public string? SizeRaw { get; set; }
         public long? PidValue { get; set; }
