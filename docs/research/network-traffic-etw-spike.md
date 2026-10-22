@@ -6,9 +6,9 @@ This is a research probe, **not** the requested end-user Network Traffic plugin.
 ## Hypothesis and limits
 
 An independent uniquely named, real-time kernel ETW session
-(\`TraceEventSession.EnableKernelProvider(NetworkTCPIP | Process)\`) might
+(`TraceEventSession.EnableKernelProvider(NetworkTCPIP | Process)`) might
 report TCP/UDP Send/Receive packet lengths and trustworthy process identities
-without owning the system's \`NT Kernel Logger\` or other sessions. Before a
+without owning the system's `NT Kernel Logger` or other sessions. Before a
 privileged collector or live UI is built, attribution must be demonstrated
 from reliable network-event data and the semantics of sizes must be understood.
 Never silently substitute the ETW **header** PID for a missing event-owned PID.
@@ -17,9 +17,9 @@ Never silently substitute the ETW **header** PID for a missing event-owned PID.
 
 Run on Windows 10/11 x64 with a .NET 10 SDK:
 
-\`\`\`powershell
+```powershell
 dotnet run --project tools/NetworkTraffic.EtwSpike/NetworkTraffic.EtwSpike.csproj -- --output etw-spike-result.json
-\`\`\`
+```
 
 Run under both normal and elevated tokens on actual Windows installations;
 the probe never elevates itself. It generates loopback TCP and UDP payloads
@@ -36,33 +36,39 @@ A passing application build does not mean this gate has passed.
 ## Empirical results — Windows 11, build 26100, hosted GitHub Actions
 
 - The initial prototype was rejected by TraceEvent: kernel provider activation
-  must precede access to \`session.Source\`. That probe initialization defect
+  must precede access to `session.Source`. That probe initialization defect
   was fixed, and the subsequent standalone session started successfully.
 - The fixed probe successfully generated TCP and UDP IPv4/IPv6 loopback data.
   The Windows runner emitted 530 network Send/Receive ETW events across
   the four protocol/direction combinations in IPv4 and IPv6, including
-  \`TcpIp/Send\`, \`TcpIp/Recv\`, \`UdpIp/Send\`, \`UdpIp/Recv\` and
-  the corresponding \`IPV6\` variants.
-- Recorded \`size\` fields matched individual submitted payload lengths in
+  `TcpIp/Send`, `TcpIp/Recv`, `UdpIp/Send`, `UdpIp/Recv` and
+  the corresponding `IPV6` variants.
+- Recorded `size` fields matched individual submitted payload lengths in
   sampled events (8,192 bytes TCP; 1,024 bytes UDP), but comprehensive byte
   semantics, retransmits and comparison with Resource Monitor remain unverified.
 - **Blocking mismatch:** all eight observed Send/Receive payload schemas
-  were reported as ETW version 2, **without a \`PID\` payload field**.
+  were reported as ETW version 2, **without a `PID` payload field**.
   Across 530 events the probe could not validate a single payload PID.
   The header ProcessID happened to match the generating process in this one
   loopback case; the specification expressly forbids treating this as proof
   of correct attribution under arbitrary network activity.
-- \`source.EventsLost\` was zero in this short run. That counter alone is not
+- `source.EventsLost` was zero in this short run. That counter alone is not
   a proof of no dropped buffers or kernel/logger loss, particularly under load.
+- A second run on the same Windows image recorded **520** network Send/Receive
+  events and approximate ETW delivery lag of **2.22 seconds on average** and
+  **2.52 seconds maximum** (using receipt UTC minus event UTC). These are
+  short-run illustrative values, not SLA bounds; background buffer cadence
+  may differ, and no collector monotonic-clock rate window has been tested.
 - The test did **not** validate normal-user privileges, UAC, independent
-  child processes, PID reuse, short-lived processes, event-delivery lag
-  statistics, VPN/proxy behavior, remote traffic, system trace session limits,
+  child processes, PID reuse, short-lived processes, delivery lag under
+  sustained or bursty load, VPN/proxy behavior, remote traffic, system trace session limits,
   alternate-SID elevation or crash/orphan cleanup.
 
 Evidence:
 
 - [First live kernel ETW observation](https://github.com/DimonSmart/CSharpFar/actions/runs/39775584111)
 - [Version-2 network event schema and missing PID](https://github.com/DimonSmart/CSharpFar/actions/runs/39776460071)
+- [Independent 520-event capture and delay statistics](https://github.com/DimonSmart/CSharpFar/actions/runs/39776983180)
 
 The original diagnostic incorrectly labeled events with missing PID as invalid
 payloads. The probe now counts **observed** events separately from events
