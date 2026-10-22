@@ -54,6 +54,9 @@ internal static class Program
         {
             // Intentionally avoid sensitive diagnostic payload, addresses and stack traces.
             report.Error = exception.GetType().Name;
+            report.ErrorDetail = exception.Message.Replace(report.SessionName, "[own-session]", StringComparison.OrdinalIgnoreCase);
+            report.InnerError = exception.InnerException?.GetType().Name;
+            report.InnerErrorCode = exception.InnerException?.HResult.ToString("X8", CultureInfo.InvariantCulture);
             report.ErrorCode = exception.HResult.ToString("X8", CultureInfo.InvariantCulture);
             return 2;
         }
@@ -71,15 +74,19 @@ internal static class Program
         // A fresh name is essential: never attach to, stop or reconfigure the kernel logger
         // or an existing trace session. StopOnDispose is a last-resort cleanup, not a
         // guarantee after process termination; orphan cleanup needs production design.
+        report.Stage = "CreateTraceSession";
         using var session = new TraceEventSession(report.SessionName) { StopOnDispose = true };
+        report.TraceSessionCreated = true;
         var source = session.Source;
         source.Kernel.All += data => Record(data, report);
 
+        report.Stage = "EnableKernelProvider";
         session.EnableKernelProvider(
             KernelTraceEventParser.Keywords.NetworkTCPIP |
             KernelTraceEventParser.Keywords.Process);
 
         report.SessionStarted = true;
+        report.Stage = "Collect";
         var reading = Task.Run(() => source.Process());
         try
         {
@@ -98,6 +105,7 @@ internal static class Program
             session.Stop();
             await reading.WaitAsync(TimeSpan.FromSeconds(10));
             report.EventsLost = source.EventsLost;
+            report.Stage = "Completed";
         }
     }
 
@@ -247,7 +255,12 @@ internal static class Program
         public string Os { get; set; } = "";
         public string SessionName { get; set; } = "";
         public int OwnPid { get; set; }
+        public bool TraceSessionCreated { get; set; }
         public bool SessionStarted { get; set; }
+        public string Stage { get; set; } = "NotStarted";
+        public string? ErrorDetail { get; set; }
+        public string? InnerError { get; set; }
+        public string? InnerErrorCode { get; set; }
         public string? Error { get; set; }
         public string? ErrorCode { get; set; }
         public long ObservedEvents { get; set; }
