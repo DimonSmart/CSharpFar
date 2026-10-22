@@ -134,6 +134,14 @@ internal static class Program
             if (direction == "Other")
                 return;
 
+            report.ObservedEvents++;
+            double delay = Math.Max(0,
+                (DateTime.UtcNow - data.TimeStamp.ToUniversalTime()).TotalMilliseconds);
+            report.DeliveryLagSampleCount++;
+            report.DeliveryLagMillisecondsTotal += delay;
+            report.MaximumDeliveryLagMilliseconds =
+                Math.Max(report.MaximumDeliveryLagMilliseconds, delay);
+
             // ProcessID in the ETW header can identify a different process.
             // The PID and size must come from this event's payload.
             long? pid = ReadPayloadInteger(data, "PID");
@@ -169,7 +177,6 @@ internal static class Program
 
             counter.Valid++;
             counter.PayloadSizeTotal += size.Value;
-            report.ObservedEvents++;
             if (pid == report.OwnPid)
                 report.OwnPidEvents++;
 
@@ -182,8 +189,7 @@ internal static class Program
                     SizeFromPayload = size.Value,
                     Family = addressFamily,
                     // Wall-clock difference is a diagnostic approximation, not a rate clock.
-                    DeliveryLagMilliseconds = Math.Max(0,
-                        (DateTime.UtcNow - data.TimeStamp.ToUniversalTime()).TotalMilliseconds),
+                    DeliveryLagMilliseconds = delay,
                 });
             }
         }
@@ -282,6 +288,9 @@ internal static class Program
         public string? Error { get; set; }
         public string? ErrorCode { get; set; }
         public long ObservedEvents { get; set; }
+        public long DeliveryLagSampleCount { get; set; }
+        public double DeliveryLagMillisecondsTotal { get; set; }
+        public double MaximumDeliveryLagMilliseconds { get; set; }
         public long OwnPidEvents { get; set; }
         public long InvalidPayloadEvents { get; set; }
         public int EventsLost { get; set; }
