@@ -77,15 +77,17 @@ internal static class Program
         report.Stage = "CreateTraceSession";
         using var session = new TraceEventSession(report.SessionName) { StopOnDispose = true };
         report.TraceSessionCreated = true;
-        var source = session.Source;
-        source.Kernel.All += data => Record(data, report);
-
+        // Accessing session.Source can start the ETW session prematurely.
+        // EnableKernelProvider MUST be the first activation operation.
         report.Stage = "EnableKernelProvider";
         session.EnableKernelProvider(
             KernelTraceEventParser.Keywords.NetworkTCPIP |
             KernelTraceEventParser.Keywords.Process);
 
         report.SessionStarted = true;
+        report.Stage = "RegisterHandlers";
+        var source = session.Source;
+        source.Kernel.All += data => Record(data, report);
         report.Stage = "Collect";
         var reading = Task.Run(() => source.Process());
         try
