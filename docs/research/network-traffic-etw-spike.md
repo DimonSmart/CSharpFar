@@ -27,8 +27,8 @@ PIDs and sizes, event names, lost events and approximate delivery lag. All
 generated traffic is local; no packet contents or endpoint addresses are logged.
 \`EventsLost\` is source-side loss only and may not cover every logger loss metric.
 
-The Windows CI build runs this experiment as a **non-blocking diagnostic** and
-uploads \`etw-spike-result.json\` as evidence. Success on a hosted CI image does
+The dedicated Windows GitHub Actions feasibility workflow runs the experiment
+independently of the application's cross-platform build and uploads \`etw-spike-result.json\` as evidence. Success on a hosted CI image does
 not establish success for an unprivileged local user, UAC flow, or portable ZIP.
 
 ## Go / No-Go criteria
@@ -51,6 +51,13 @@ latency/loss samples, known limits and the corresponding recommendation.
 ## Current result
 
 The authoring environment is Linux without .NET SDK or access to a Windows
-trace session. No live Windows ETW events, UAC behavior or loss counters were
-measured here. Do not represent this as a passing Windows integration test.
-Pending Windows observations, integration of this feature is blocked.
+trace session. A Windows GitHub Actions runner (Windows build 26100) initially failed with
+`The kernel provider must be enabled first and only once in a session`.
+TraceEvent source inspection showed the probe accessed `session.Source`
+before enabling the kernel provider. This ordering has been corrected.
+That first failure was a probe bug, not an ETW capability verdict.
+
+No verified live TCP/UDP events, UAC behavior or loss metrics are yet recorded.
+A successful automated observation would still require separate manual
+Windows validation of privileges, PID epochs, UAC and private-session cleanup.
+Pending the full evidence, product integration remains blocked.

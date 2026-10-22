@@ -45,18 +45,3 @@ jobs:
       - name: Verify reusable packages
         shell: pwsh
         run: ./eng/verify-reusable-packages.ps1
-
-      - name: Network Traffic ETW feasibility probe (non-blocking)
-        if: runner.os == 'Windows'
-        continue-on-error: true
-        shell: pwsh
-        run: dotnet run --project tools/NetworkTraffic.EtwSpike/NetworkTraffic.EtwSpike.csproj --configuration Release -- --output etw-spike-result.json
-
-      - name: Upload ETW feasibility evidence
-        if: runner.os == 'Windows' && always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: network-traffic-etw-spike
-          path: etw-spike-result.json
-          if-no-files-found: warn
-

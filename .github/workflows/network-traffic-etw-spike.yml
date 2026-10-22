@@ -1,0 +1,33 @@
+name: Network Traffic ETW Feasibility
+
+on:
+  push:
+    branches:
+      - feature/network-traffic-etw-spike
+    paths:
+      - "tools/NetworkTraffic.EtwSpike/**"
+      - ".github/workflows/network-traffic-etw-spike.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Experimental ETW capture (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Execute real ETW feasibility probe
+        shell: pwsh
+        run: dotnet run --project tools/NetworkTraffic.EtwSpike/NetworkTraffic.EtwSpike.csproj --configuration Release -- --output etw-spike-result.json
+      - name: Upload diagnostic evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: network-traffic-etw-spike
+          path: etw-spike-result.json
+          if-no-files-found: warn
