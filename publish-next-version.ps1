@@ -1,6 +1,6 @@
 param(
     [string] $Remote = "origin",
-    [string] $Branch = "master",
+    [string] $Branch = "main",
     [string] $TagPrefix = "v",
     [string] $FirstVersion = "1.0.0"
 )

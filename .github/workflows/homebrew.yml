@@ -14,7 +14,7 @@ on:
         type: string
   push:
     branches:
-      - master
+      - main
     paths:
       - eng/packaging/homebrew-current-tag.txt
       - eng/packaging/update-homebrew-formula.ps1
@@ -30,10 +30,10 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: Checkout master
+      - name: Checkout main
         uses: actions/checkout@v4
         with:
-          ref: master
+          ref: main
           fetch-depth: 0
 
       - name: Resolve release tag
@@ -134,4 +134,4 @@ jobs:
           }
 
           git commit -m "Update Homebrew metadata for $env:RELEASE_TAG"
-          git push origin HEAD:master
+          git push origin HEAD:main

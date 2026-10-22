@@ -126,7 +126,7 @@ brew uninstall dimonsmart/csharpfar/csharpfar
 
 The Formula and Cask can coexist: the Formula provides the `csharpfar` command while the Cask provides `CSharpFar.app` for Finder/Applications.
 
-Both Homebrew packages are generated from SHA-256 checksums of the matching GitHub Release assets. After a successful Release workflow, the Homebrew workflow refreshes `Formula/csharpfar.rb` and `Casks/csharpfar-app.rb` on `master` automatically.
+Both Homebrew packages are generated from SHA-256 checksums of the matching GitHub Release assets. After a successful Release workflow, the Homebrew workflow refreshes `Formula/csharpfar.rb` and `Casks/csharpfar-app.rb` on `main` automatically.
 
 Because the repository name does not use Homebrew's `homebrew-<tap>` naming convention, the first manual `brew tap` command includes the explicit Git URL.
 
