@@ -76,3 +76,4 @@ is non-normative engineering history.
 | IDD-0082 | spec | macOS install and self-update | Recommended Homebrew Cask installer and guarded About self-update | IDD-0076/IDD-0077 distribution workflow clarification |
 | IDD-0083 | spec | User menu | F2 command selection, Options editor, platform filters, placeholders, and user-menu.json persistence |  |
 | IDD-0084 | adr | macOS embedded terminal engine | Pinned SwiftTerm AppKit/PTY host and CLI compatibility |  |
+| IDD-0085 | spike | Network Traffic ETW feasibility | Blocking Windows validation; not a shipped plugin |  |
