@@ -236,7 +236,7 @@ internal static class Program
         for (int i = 0; i < 64; i++)
         {
             await sender.SendAsync(payload, destination);
-            await receiver.ReceiveAsync().AsTask();
+            await receiver.ReceiveAsync().WaitAsync(TimeSpan.FromSeconds(5));
         }
     }
 
