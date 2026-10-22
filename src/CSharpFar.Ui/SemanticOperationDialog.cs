@@ -12,6 +12,7 @@ public sealed class OperationDialogDefinition<TItem, TBackground, TResult>
     public int PreferredHeight { get; init; } = 20;
     public int MinWidth { get; init; } = 20;
     public int MinHeight { get; init; } = 8;
+    public DialogResizeMode ResizeMode { get; init; } = DialogResizeMode.None;
     public TimeSpan RefreshInterval { get; init; } = TimeSpan.FromMilliseconds(100);
     public DialogAppearance Appearance { get; init; } = DialogAppearance.Standard;
     public TableListDefinition<TItem>? TableDefinition { get; init; }
@@ -83,7 +84,8 @@ internal sealed class SemanticOperationDialog<TItem, TBackground, TResult>
                 options.PreferredHeight,
                 options.MinWidth,
                 options.MinHeight,
-                Appearance: options.Appearance),
+                Appearance: options.Appearance)
+            { ResizeMode = options.ResizeMode },
             options.RefreshInterval);
 
         return options.HandleOperationCompleted is null

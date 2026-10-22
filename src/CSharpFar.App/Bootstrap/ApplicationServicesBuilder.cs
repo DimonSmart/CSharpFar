@@ -1,20 +1,20 @@
 using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.CommandLine;
 using CSharpFar.App.Commands;
-using CSharpFar.App.Dialogs;
 using CSharpFar.App.Diagnostics;
+using CSharpFar.App.Dialogs;
 using CSharpFar.App.Files;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Highlighting;
 using CSharpFar.App.Input;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
-using CSharpFar.App.Plugins;
 using CSharpFar.App.Panels;
+using CSharpFar.App.Plugins;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
-using CSharpFar.App.UserMenu;
 using CSharpFar.App.Updates;
+using CSharpFar.App.UserMenu;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
@@ -26,8 +26,10 @@ using CSharpFar.Core.Services;
 using CSharpFar.FileSystem;
 using CSharpFar.Module.Abstractions;
 using CSharpFar.Module.Ftp;
+using CSharpFar.Module.NetworkTraffic;
 using CSharpFar.Module.ProcessesAndPorts;
 using CSharpFar.Module.Sftp;
+using CSharpFar.NetworkTraffic;
 using CSharpFar.Platform.Abstractions;
 using CSharpFar.Plugin.Abstractions;
 using CSharpFar.Shell;
@@ -565,8 +567,15 @@ internal static class ApplicationServicesBuilder
         pluginComposition.Add((
             new PluginDescriptor
             {
-                Id = ProcessesAndPortsModuleIds.MenuActionId.ToString("D"), Title = "Processes and Ports",
+                Id = ProcessesAndPortsModuleIds.MenuActionId.ToString("D"),
+                Title = "Processes and Ports",
             }, ports));
+
+        pluginComposition.Add((
+            new PluginDescriptor { Id = NetworkTrafficPlugin.Id, Title = "Network Traffic" },
+            new NetworkTrafficPlugin(moduleUiServices, () => OperatingSystem.IsWindows()
+                ? new WindowsNetworkTrafficMonitor()
+                : throw new PlatformNotSupportedException("Traffic monitoring requires Windows."))));
 
         void ReleaseFailedPreparation()
         {
@@ -593,143 +602,143 @@ internal static class ApplicationServicesBuilder
         var pluginFailures = new List<string>();
         ApplicationServices Finish()
         {
-        var moduleCatalog = new NativeModuleCatalog(pluginRuntime);
-        var pluginUiActions = new PluginUiActionQueue(autoRefresh.WakeInputLoop);
-        var modulePanelOpener = new ModulePanelOpener(
-            moduleCatalog,
-            effectiveSourceRegistry,
-            controller,
-            screen,
-            dialogs,
-            () => session.App.Palette,
-            () => callbacks.PanelOptions(),
-            side => side == PanelSide.Left ? session.Panels.Left : session.Panels.Right,
-            side => callbacks.SetActiveSide(side),
-            quickView => callbacks.SetQuickView(quickView),
-            pluginUiActions.Post,
-            error => diagnosticLog.WriteException(
-                DiagnosticCategory.Plugin, error, "Rejected plugin panel source cleanup"));
-        var workspaceModeController = new ApplicationWorkspaceModeController(
-            screen,
-            session,
-            panelQuickSearch,
-            commandCompletionController,
-            commandHistoryNavigator,
-            topMenu.Close,
-            terminalSurface,
-            composition);
-        var commandServices = CommandServicesFactory.Create(
-            screen,
-            interactiveSurfaces,
-            modalDialogs,
-            dialogs,
-            shell,
-            fileOps,
-            effectiveFileLauncher,
-            effectiveUriLauncher,
-            effectiveSearchService,
-            effectiveHistory,
-            formFields,
-            effectiveUserMenu,
-            effectiveClipboard,
-            effectiveSourceRegistry,
-            effectiveSettings,
-            session,
-            menuProvider,
-            callbacks,
-            controller,
-            autoRefresh,
-            directorySizes,
-            panelRefresh,
-            panelSort,
-            panelNavigation,
-            searchResults,
-            panelQuickSearch,
-            panelWorkspace,
-            workspaceModeController,
-            panelFileViewer,
-            panelFileOpener,
-            moduleCatalog,
-            modulePanelOpener,
-            terminalSurface,
-            commandLineRenderer,
-            commandCompletionController,
-            commandHistoryNavigator,
-            topMenu,
-            saveSettings,
-            volumeService,
-            effectiveFileMetadata,
-            fileAttributesDialogFactory ?? (() => new FileAttributesDialog(
+            var moduleCatalog = new NativeModuleCatalog(pluginRuntime);
+            var pluginUiActions = new PluginUiActionQueue(autoRefresh.WakeInputLoop);
+            var modulePanelOpener = new ModulePanelOpener(
+                moduleCatalog,
+                effectiveSourceRegistry,
+                controller,
+                screen,
                 dialogs,
+                () => session.App.Palette,
+                () => callbacks.PanelOptions(),
+                side => side == PanelSide.Left ? session.Panels.Left : session.Panels.Right,
+                side => callbacks.SetActiveSide(side),
+                quickView => callbacks.SetQuickView(quickView),
+                pluginUiActions.Post,
+                error => diagnosticLog.WriteException(
+                    DiagnosticCategory.Plugin, error, "Rejected plugin panel source cleanup"));
+            var workspaceModeController = new ApplicationWorkspaceModeController(
+                screen,
+                session,
+                panelQuickSearch,
+                commandCompletionController,
+                commandHistoryNavigator,
+                topMenu.Close,
+                terminalSurface,
+                composition);
+            var commandServices = CommandServicesFactory.Create(
+                screen,
+                interactiveSurfaces,
+                modalDialogs,
+                dialogs,
+                shell,
+                fileOps,
+                effectiveFileLauncher,
+                effectiveUriLauncher,
+                effectiveSearchService,
+                effectiveHistory,
                 formFields,
-                canOpenSystemProperties: System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
-                    System.Runtime.InteropServices.OSPlatform.Windows))),
-            highlightService,
-            diagnosticLog,
-            updateCheckService,
-            effectiveApplicationUpdateInstaller);
-        var runtime = ApplicationRuntimeBuilder.Create(
-            composition,
-            screen,
-            applicationSurface,
-            applicationUiLayers,
-            pendingMenuCommands,
-            session,
-            callbacks,
-            autoRefresh,
-            quickViewDirectorySize,
-            fileUsagePanel,
-            directorySizes,
-            pluginUiActions,
-            modulePanelOpener.CleanupUnusedTemporarySources);
+                effectiveUserMenu,
+                effectiveClipboard,
+                effectiveSourceRegistry,
+                effectiveSettings,
+                session,
+                menuProvider,
+                callbacks,
+                controller,
+                autoRefresh,
+                directorySizes,
+                panelRefresh,
+                panelSort,
+                panelNavigation,
+                searchResults,
+                panelQuickSearch,
+                panelWorkspace,
+                workspaceModeController,
+                panelFileViewer,
+                panelFileOpener,
+                moduleCatalog,
+                modulePanelOpener,
+                terminalSurface,
+                commandLineRenderer,
+                commandCompletionController,
+                commandHistoryNavigator,
+                topMenu,
+                saveSettings,
+                volumeService,
+                effectiveFileMetadata,
+                fileAttributesDialogFactory ?? (() => new FileAttributesDialog(
+                    dialogs,
+                    formFields,
+                    canOpenSystemProperties: System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+                        System.Runtime.InteropServices.OSPlatform.Windows))),
+                highlightService,
+                diagnosticLog,
+                updateCheckService,
+                effectiveApplicationUpdateInstaller);
+            var runtime = ApplicationRuntimeBuilder.Create(
+                composition,
+                screen,
+                applicationSurface,
+                applicationUiLayers,
+                pendingMenuCommands,
+                session,
+                callbacks,
+                autoRefresh,
+                quickViewDirectorySize,
+                fileUsagePanel,
+                directorySizes,
+                pluginUiActions,
+                modulePanelOpener.CleanupUnusedTemporarySources);
 
-        return new ApplicationServices
-        {
-            Screen = screen,
-            PanelController = controller,
-            CommandHistoryNavigator = commandHistoryNavigator,
-            CommandCompletionController = commandCompletionController,
-            CommandLineCommandExecutor = commandServices.CommandLineCommandExecutor,
-            ExternalConsoleCommandRunner = commandServices.ExternalConsoleCommandRunner,
-            CommandContext = commandServices.CommandContext,
-            Settings = effectiveSettings,
-            Clipboard = effectiveClipboard,
-            Session = session,
-            MenuProvider = menuProvider,
-            Callbacks = callbacks,
-            AutoRefresh = autoRefresh,
-            PanelSort = panelSort,
-            PanelNavigation = panelNavigation,
-            SearchResults = searchResults,
-            PanelRefresh = panelRefresh,
-            PanelQuickSearch = panelQuickSearch,
-            FileUsagePanel = fileUsagePanel,
-            PanelWorkspace = panelWorkspace,
-            WorkspaceModeController = workspaceModeController,
-            PanelFileViewer = panelFileViewer,
-            PanelFileOpener = panelFileOpener,
-            ModuleCatalog = moduleCatalog,
-            ModulePanelOpener = modulePanelOpener,
-            CommandRegistry = commandServices.CommandRegistry,
-            RenderContext = rendering.RenderContext,
-            RenderCoordinator = renderCoordinator,
-            CommandCompletionLayer = commandCompletionLayer,
-            PanelQuickSearchLayer = panelQuickSearchLayer,
-            TopMenu = topMenu,
-            ApplicationSurface = applicationSurface,
-            Composition = composition,
-            ModalDialogs = modalDialogs,
-            TerminalSurface = terminalSurface,
-            Runtime = runtime,
-            KeyboardInputContext = keyboardInputContext,
-            KeyboardInputRouter = keyboardInputRouter,
-            ApplicationInputDispatcher = applicationInputDispatcher,
-            MouseInputContext = mouseInputContext,
-            SaveSettings = saveSettings,
-            PluginRuntime = pluginRuntime,
-            PluginUi = pluginUi,
-            StartupPluginErrors = pluginFailures.ToArray(),
-        };
+            return new ApplicationServices
+            {
+                Screen = screen,
+                PanelController = controller,
+                CommandHistoryNavigator = commandHistoryNavigator,
+                CommandCompletionController = commandCompletionController,
+                CommandLineCommandExecutor = commandServices.CommandLineCommandExecutor,
+                ExternalConsoleCommandRunner = commandServices.ExternalConsoleCommandRunner,
+                CommandContext = commandServices.CommandContext,
+                Settings = effectiveSettings,
+                Clipboard = effectiveClipboard,
+                Session = session,
+                MenuProvider = menuProvider,
+                Callbacks = callbacks,
+                AutoRefresh = autoRefresh,
+                PanelSort = panelSort,
+                PanelNavigation = panelNavigation,
+                SearchResults = searchResults,
+                PanelRefresh = panelRefresh,
+                PanelQuickSearch = panelQuickSearch,
+                FileUsagePanel = fileUsagePanel,
+                PanelWorkspace = panelWorkspace,
+                WorkspaceModeController = workspaceModeController,
+                PanelFileViewer = panelFileViewer,
+                PanelFileOpener = panelFileOpener,
+                ModuleCatalog = moduleCatalog,
+                ModulePanelOpener = modulePanelOpener,
+                CommandRegistry = commandServices.CommandRegistry,
+                RenderContext = rendering.RenderContext,
+                RenderCoordinator = renderCoordinator,
+                CommandCompletionLayer = commandCompletionLayer,
+                PanelQuickSearchLayer = panelQuickSearchLayer,
+                TopMenu = topMenu,
+                ApplicationSurface = applicationSurface,
+                Composition = composition,
+                ModalDialogs = modalDialogs,
+                TerminalSurface = terminalSurface,
+                Runtime = runtime,
+                KeyboardInputContext = keyboardInputContext,
+                KeyboardInputRouter = keyboardInputRouter,
+                ApplicationInputDispatcher = applicationInputDispatcher,
+                MouseInputContext = mouseInputContext,
+                SaveSettings = saveSettings,
+                PluginRuntime = pluginRuntime,
+                PluginUi = pluginUi,
+                StartupPluginErrors = pluginFailures.ToArray(),
+            };
         }
 
         return new PreparedApplicationServices(

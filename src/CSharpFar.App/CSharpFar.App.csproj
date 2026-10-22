@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\CSharpFar.Module.NetworkTraffic\CSharpFar.Module.NetworkTraffic.csproj" />
     <ProjectReference Include="..\CSharpFar.Core\CSharpFar.Core.csproj" />
     <ProjectReference Include="..\CSharpFar.Console\CSharpFar.Console.csproj" />
     <ProjectReference Include="..\CSharpFar.Ui\CSharpFar.Ui.csproj" />

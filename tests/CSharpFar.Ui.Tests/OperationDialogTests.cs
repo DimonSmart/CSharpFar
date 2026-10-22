@@ -253,6 +253,35 @@ public sealed class OperationDialogTests
         Assert.Equal("boom", error.Message);
     }
 
+    [Fact]
+    public void Adaptive_operation_resizes_its_table_and_keeps_selection_usable()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        int resizedBorder = 0;
+        driver.BeforeTryReadInput = d =>
+        {
+            d.SetSize(140, 40);
+            d.BeforeTryReadInput = current => resizedBorder = Enumerable.Range(0, 40).Max(y => current.GetRow(y).Count(c => c is '\u2550' or '\u2500'));
+        };
+        string result = Create(driver).Operation(new OperationDialogDefinition<string, int, string>
+        {
+            Title = "Adaptive operation",
+            PreferredWidth = 70,
+            PreferredHeight = 18,
+            ResizeMode = DialogResizeMode.Both,
+            TableDefinition = Definition(),
+            ItemIdentity = x => x,
+            Operation = WaitUntilCancelled,
+            Synchronize = () => new OperationDialogState<string>(items: ["one", "two"]),
+            HandleItemActivation = x => OperationDialogOutcome<string>.Complete(x),
+            Complete = _ => "cancelled",
+        });
+        Assert.Equal("two", result);
+        Assert.True(resizedBorder >= 120, $"Resized border: {resizedBorder}");
+    }
+
     private static async Task<int> WaitUntilCancelled(CancellationToken cancellationToken)
     {
         await Task.Delay(Timeout.Infinite, cancellationToken);

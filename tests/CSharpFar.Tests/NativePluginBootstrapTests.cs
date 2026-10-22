@@ -49,6 +49,9 @@ public sealed class NativePluginBootstrapTests : IDisposable
         Assert.Equal(PanelSide.Right, invokedSide);
         Assert.True(catalog.TryOpenFromCommandLine("WORLD:value", PanelSide.Left, out _));
         Assert.Contains(catalog.MenuItems, item => item.Text == "Processes and Ports...");
+        Assert.Contains(catalog.MenuItems, item => item.Text == "Network Traffic...");
+        Assert.Contains("traffic", catalog.CommandPrefixes);
+
     }
 
     [Fact]
@@ -145,7 +148,10 @@ public sealed class NativePluginBootstrapTests : IDisposable
             host.RegisterCommand(Command("go"));
             host.RegisterMenuItem(new PluginMenuItemDescriptor
             {
-                Id = "conflict", Title = "Conflict", CommandId = "go", ActionId = generated,
+                Id = "conflict",
+                Title = "Conflict",
+                CommandId = "go",
+                ActionId = generated,
             });
             return ValueTask.CompletedTask;
         });
@@ -303,7 +309,9 @@ public sealed class NativePluginBootstrapTests : IDisposable
     private static PluginDescriptor Descriptor(string id) => new() { Id = id, Title = id };
     private static PluginCommandDescriptor Command(string id) => new()
     {
-        Id = id, Title = id, ExecuteAsync = (_, _) => ValueTask.FromResult(PluginCommandResult.Completed()),
+        Id = id,
+        Title = id,
+        ExecuteAsync = (_, _) => ValueTask.FromResult(PluginCommandResult.Completed()),
     };
 
     private static void Register(IPluginHost host, string id, string title, string prefix,
@@ -311,7 +319,8 @@ public sealed class NativePluginBootstrapTests : IDisposable
     {
         host.RegisterCommand(new PluginCommandDescriptor
         {
-            Id = id, Title = title,
+            Id = id,
+            Title = title,
             ExecuteAsync = (context, _) =>
             {
                 invoked?.Invoke(context.TargetPanelSide);
@@ -321,7 +330,9 @@ public sealed class NativePluginBootstrapTests : IDisposable
         host.RegisterMenuItem(new PluginMenuItemDescriptor { Id = id, Title = title, CommandId = id });
         host.RegisterMenuItem(new PluginMenuItemDescriptor
         {
-            Id = id + "-disk", Title = title + " disk", CommandId = id,
+            Id = id + "-disk",
+            Title = title + " disk",
+            CommandId = id,
             Placement = PluginMenuPlacement.Disk,
         });
         host.RegisterCommandPrefix(prefix, id);

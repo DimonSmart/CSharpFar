@@ -46,3 +46,5 @@ CSharpFar.Ui.OperationDialogState<TItem>.OperationDialogState(System.Collections
 CSharpFar.Ui.OperationDialogState<TItem>.Rows.get -> System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.FormRow!>!
 CSharpFar.Ui.OperationDialogState<TItem>.Status.get -> string?
 CSharpFar.Ui.DialogService.Operation<TItem, TBackground, TResult>(CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>! options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> TResult
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.ResizeMode.get -> CSharpFar.Ui.DialogResizeMode
+CSharpFar.Ui.OperationDialogDefinition<TItem, TBackground, TResult>.ResizeMode.init -> void
