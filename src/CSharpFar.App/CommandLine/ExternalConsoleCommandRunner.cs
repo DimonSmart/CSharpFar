@@ -38,23 +38,37 @@ internal sealed class ExternalConsoleCommandRunner
         ShowShellUnderlayForCommand();
         PrintExecutedCommandPrompt(workDir, displayCommand);
 
+        IDisposable? childConsoleMode = null;
         try
         {
-            using var childConsoleMode = _screen.EnterChildProcessConsoleMode();
+            childConsoleMode = _screen.EnterChildProcessConsoleMode();
             execute();
         }
         finally
         {
-            _screen.RestoreApplicationInputMode();
-            MoveShellOutputAbovePromptArea();
-            PrintInputPrompt(workDir);
+            try
+            {
+                MoveShellOutputAbovePromptArea();
+                PrintInputPrompt(workDir);
 
-            _terminalSurface.CaptureUnderlay();
-            _screen.InvalidatePhysicalOutput();
+                _terminalSurface.CaptureUnderlay();
+                _screen.InvalidatePhysicalOutput();
 
-            _refreshPanels();
-            _state.WorkspaceMode = workspaceModeAfterCommand;
-            _terminalSurface.ApplyMode();
+                _refreshPanels();
+                _state.WorkspaceMode = workspaceModeAfterCommand;
+                _terminalSurface.ApplyMode();
+            }
+            finally
+            {
+                try
+                {
+                    childConsoleMode?.Dispose();
+                }
+                finally
+                {
+                    _screen.RestoreApplicationInputMode();
+                }
+            }
         }
     }
 
