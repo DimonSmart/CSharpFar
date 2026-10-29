@@ -117,6 +117,9 @@ jobs:
           cp Formula/csharpfar.rb "$tap_dir/Formula/csharpfar.rb"
           cp Casks/csharpfar-app.rb "$tap_dir/Casks/csharpfar-app.rb"
 
+          brew trust --formula dimonsmart/csharpfar/csharpfar
+          brew trust --cask dimonsmart/csharpfar/csharpfar-app
+
           brew audit --formula --strict dimonsmart/csharpfar/csharpfar
           brew audit --cask --strict dimonsmart/csharpfar/csharpfar-app
 
