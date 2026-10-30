@@ -218,13 +218,13 @@ public class JsonHistoryStoreTests : IDisposable
         a.AddCommand(new CommandHistoryItem { Command = "dir", WorkingDirectory = "first", TimestampUtc = timestamp });
         b.AddCommand(new CommandHistoryItem { Command = "git status", WorkingDirectory = "second" });
         a.AddCommand(new CommandHistoryItem { Command = "dir", WorkingDirectory = "new", TimestampUtc = timestamp });
-        b.AddCommand(new CommandHistoryItem { Command = "echo a\\nb", WorkingDirectory = "third" });
+        b.AddCommand(new CommandHistoryItem { Command = "echo a\nb", WorkingDirectory = "third" });
 
         var actual = new JsonHistoryStore(_tempFile).GetCommandHistory();
-        Assert.Equal(["git status", "dir", "echo a\\nb"], actual.Select(item => item.Command));
+        Assert.Equal(["git status", "dir", "echo a\nb"], actual.Select(item => item.Command));
         Assert.Equal("new", actual[1].WorkingDirectory);
         Assert.Equal(timestamp, actual[1].TimestampUtc);
-        Assert.Equal(["git status", "dir", "echo a\\nb"], a.GetCommandHistory().Select(item => item.Command));
+        Assert.Equal(["git status", "dir", "echo a\nb"], a.GetCommandHistory().Select(item => item.Command));
     }
 
     [Fact]
