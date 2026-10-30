@@ -7,6 +7,7 @@ internal sealed class CommandHistoryNavigator
 {
     private readonly IHistoryStore _history;
     private int? _navigationIndex;
+    private IReadOnlyList<CommandHistoryItem>? _snapshot;
 
     public CommandHistoryNavigator(IHistoryStore history)
     {
@@ -15,7 +16,7 @@ internal sealed class CommandHistoryNavigator
 
     public bool Browse(CommandLineState commandLine, int direction, CommandHistoryNavigationStart start)
     {
-        var history = _history.GetCommandHistory();
+        var history = _snapshot ??= _history.GetCommandHistory();
         if (history.Count == 0)
             return true;
 
@@ -37,6 +38,9 @@ internal sealed class CommandHistoryNavigator
         return true;
     }
 
-    public void Reset() =>
+    public void Reset()
+    {
         _navigationIndex = null;
+        _snapshot = null;
+    }
 }

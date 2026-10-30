@@ -14,6 +14,7 @@ public sealed class SingleLineTextHistoryState
 
     private readonly List<string> _matches = [];
     private int _matchSetVersion;
+    private bool _prefixSessionActive;
     internal VerticalScrollbarController Scrollbar { get; } = new();
 
     public SingleLineTextHistoryState(TextHistory history) =>
@@ -35,8 +36,12 @@ public sealed class SingleLineTextHistoryState
         FirstVisibleIndex = snapshot.FirstVisibleIndex;
     }
 
-    public bool OpenAll(int availableContentRows) =>
-        OpenMatches(prefix: string.Empty, availableContentRows);
+    public bool OpenAll(int availableContentRows)
+    {
+        History.Refresh();
+        _prefixSessionActive = false;
+        return OpenMatches(prefix: string.Empty, availableContentRows);
+    }
 
     public bool OpenForPrefix(string prefix, int availableContentRows)
     {
@@ -46,10 +51,22 @@ public sealed class SingleLineTextHistoryState
             return false;
         }
 
+        if (!_prefixSessionActive)
+        {
+            History.Refresh();
+            _prefixSessionActive = true;
+        }
+
         return OpenMatches(prefix, availableContentRows);
     }
 
     public void Close()
+    {
+        _prefixSessionActive = false;
+        CloseDropdown();
+    }
+
+    private void CloseDropdown()
     {
         IsDropdownOpen = false;
         _matches.Clear();
@@ -145,7 +162,7 @@ public sealed class SingleLineTextHistoryState
         _matchSetVersion++;
         if (availableContentRows <= 0)
         {
-            Close();
+            CloseDropdown();
             return false;
         }
 
@@ -158,7 +175,7 @@ public sealed class SingleLineTextHistoryState
 
         if (_matches.Count == 0)
         {
-            Close();
+            CloseDropdown();
             return false;
         }
 

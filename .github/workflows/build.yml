@@ -42,6 +42,25 @@ jobs:
       - name: Test
         run: dotnet test CSharpFar.slnx --configuration Release --no-build --verbosity minimal
 
+      - name: Build cross-process history probe
+        run: dotnet build tools/CSharpFar.HistorySmoke/CSharpFar.HistorySmoke.csproj --configuration Release
+
+      - name: Verify cross-process history writes
+        shell: pwsh
+        run: |
+          $directory = Join-Path $env:RUNNER_TEMP "csharpfar-history-smoke"
+          New-Item -ItemType Directory -Path $directory -Force | Out-Null
+          $dll = Join-Path $PWD "tools/CSharpFar.HistorySmoke/bin/Release/net10.0/CSharpFar.HistorySmoke.dll"
+          $a = Start-Process dotnet -ArgumentList @($dll, $directory, "A") -PassThru
+          $b = Start-Process dotnet -ArgumentList @($dll, $directory, "B") -PassThru
+          $a.WaitForExit()
+          $b.WaitForExit()
+          if ($a.ExitCode -ne 0 -or $b.ExitCode -ne 0) {
+            throw "One of the history writers failed."
+          }
+          dotnet $dll $directory verify
+          if ($LASTEXITCODE -ne 0) { throw "Cross-process history verification failed." }
+
       - name: Verify reusable packages
         shell: pwsh
         run: ./eng/verify-reusable-packages.ps1

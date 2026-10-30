@@ -254,8 +254,6 @@ public static class SingleLineTextInput
         int fieldY,
         int screenHeight)
     {
-        if (!history.History.HasItems)
-            return false;
         int availableContentRows = AvailableDropdownContentRows(fieldY, screenHeight);
         return history.OpenAll(availableContentRows);
     }

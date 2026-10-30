@@ -18,6 +18,7 @@ public class JsonHistoryStoreTests : IDisposable
     public void Dispose()
     {
         if (File.Exists(_tempFile)) File.Delete(_tempFile);
+        if (File.Exists(_tempFile + ".lock")) File.Delete(_tempFile + ".lock");
     }
 
     // ── Command history ───────────────────────────────────────────────────────
@@ -208,4 +209,112 @@ public class JsonHistoryStoreTests : IDisposable
 
         Assert.Contains(_tempFile, ex.Message, StringComparison.Ordinal);
     }
+    [Fact]
+    public void Two_instances_merge_command_operations_in_commit_order()
+    {
+        var a = new JsonHistoryStore(_tempFile);
+        var b = new JsonHistoryStore(_tempFile);
+        var timestamp = new DateTime(2026, 1, 1, 10, 0, 0, DateTimeKind.Utc);
+        a.AddCommand(new CommandHistoryItem { Command = "dir", WorkingDirectory = "first", TimestampUtc = timestamp });
+        b.AddCommand(new CommandHistoryItem { Command = "git status", WorkingDirectory = "second" });
+        a.AddCommand(new CommandHistoryItem { Command = "dir", WorkingDirectory = "new", TimestampUtc = timestamp });
+        b.AddCommand(new CommandHistoryItem { Command = "echo a\\nb", WorkingDirectory = "third" });
+
+        var actual = new JsonHistoryStore(_tempFile).GetCommandHistory();
+        Assert.Equal(["git status", "dir", "echo a\\nb"], actual.Select(item => item.Command));
+        Assert.Equal("new", actual[1].WorkingDirectory);
+        Assert.Equal(timestamp, actual[1].TimestampUtc);
+        Assert.Equal(["git status", "dir", "echo a\\nb"], a.GetCommandHistory().Select(item => item.Command));
+    }
+
+    [Fact]
+    public void Stale_instance_cannot_resurrect_removed_command()
+    {
+        var a = new JsonHistoryStore(_tempFile);
+        a.AddCommand(new CommandHistoryItem { Command = "to-remove", WorkingDirectory = "/" });
+        var b = new JsonHistoryStore(_tempFile);
+        Assert.True(a.RemoveCommand("to-remove"));
+        b.AddCommand(new CommandHistoryItem { Command = "survives", WorkingDirectory = "/" });
+        Assert.False(b.RemoveCommand("to-remove"));
+
+        Assert.Equal("survives", Assert.Single(a.GetCommandHistory()).Command);
+        Assert.Equal("survives", Assert.Single(new JsonHistoryStore(_tempFile).GetCommandHistory()).Command);
+    }
+
+    [Fact]
+    public void Separate_arrays_merge_and_snapshots_are_independent()
+    {
+        var a = new JsonHistoryStore(_tempFile);
+        var b = new JsonHistoryStore(_tempFile);
+        var c = new JsonHistoryStore(_tempFile);
+        var old = a.GetCommandHistory();
+        a.AddDirectory(new DirectoryHistoryItem { Path = "/tmp/a" });
+        b.AddCommand(new CommandHistoryItem { Command = "ls", WorkingDirectory = "/" });
+        c.AddFile(new FileHistoryItem { Path = "/tmp/a.txt" });
+        a.AddDirectory(new DirectoryHistoryItem { Path = "/tmp/A" });
+        c.AddFile(new FileHistoryItem { Path = "/tmp/A.TXT" });
+
+        Assert.Empty(old);
+        Assert.Equal(["/tmp/a"], b.GetDirectoryHistory().Select(item => item.Path));
+        Assert.Equal(["ls"], c.GetCommandHistory().Select(item => item.Command));
+        Assert.Equal(["/tmp/a.txt"], a.GetFileHistory().Select(item => item.Path));
+    }
+
+    [Fact]
+    public void Concurrent_writers_preserve_all_operations_under_limit()
+    {
+        var stores = Enumerable.Range(0, 4).Select(_ => new JsonHistoryStore(_tempFile)).ToArray();
+        Parallel.For(0, 80, index =>
+        {
+            stores[index % stores.Length].AddCommand(new CommandHistoryItem
+            {
+                Command = $"command-{index}",
+                WorkingDirectory = "/",
+            });
+        });
+        Assert.Equal(80, new JsonHistoryStore(_tempFile).GetCommandHistory().Count);
+    }
+
+    [Fact]
+    public void Runtime_corruption_does_not_get_overwritten()
+    {
+        var store = new JsonHistoryStore(_tempFile);
+        store.AddCommand(new CommandHistoryItem { Command = "initial", WorkingDirectory = "/" });
+        File.WriteAllText(_tempFile, "{ broken");
+        store.AddCommand(new CommandHistoryItem { Command = "new", WorkingDirectory = "/" });
+        Assert.Equal("{ broken", File.ReadAllText(_tempFile));
+        Assert.Equal("initial", Assert.Single(store.GetCommandHistory()).Command);
+        Assert.False(store.RemoveCommand("initial"));
+    }
+
+    [Fact]
+    public void Locked_history_does_not_report_successful_removal()
+    {
+        var store = new JsonHistoryStore(_tempFile);
+        store.AddCommand(new CommandHistoryItem { Command = "initial", WorkingDirectory = "/" });
+        using var occupied = new FileStream(_tempFile + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        Assert.False(store.RemoveCommand("initial"));
+        Assert.Equal("initial", Assert.Single(store.GetCommandHistory()).Command);
+    }
+
+    [Fact]
+    public void Navigator_keeps_a_stable_snapshot_until_reset()
+    {
+        var a = new JsonHistoryStore(_tempFile);
+        var b = new JsonHistoryStore(_tempFile);
+        a.AddCommand(new CommandHistoryItem { Command = "old", WorkingDirectory = "/" });
+        a.AddCommand(new CommandHistoryItem { Command = "new", WorkingDirectory = "/" });
+        var nav = new CSharpFar.App.CommandLine.CommandHistoryNavigator(b);
+        var line = new CSharpFar.Ui.CommandLineState();
+
+        nav.Browse(line, -1, CSharpFar.App.CommandLine.CommandHistoryNavigationStart.Newest);
+        Assert.Equal("new", line.Text);
+        a.AddCommand(new CommandHistoryItem { Command = "newest", WorkingDirectory = "/" });
+        nav.Browse(line, -1, CSharpFar.App.CommandLine.CommandHistoryNavigationStart.Newest);
+        Assert.Equal("old", line.Text);
+        nav.Reset();
+        nav.Browse(line, -1, CSharpFar.App.CommandLine.CommandHistoryNavigationStart.Newest);
+        Assert.Equal("newest", line.Text);
+    }
+
 }

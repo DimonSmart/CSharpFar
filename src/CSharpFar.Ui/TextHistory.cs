@@ -5,8 +5,11 @@ public sealed class TextHistory
 {
     public const int MaxItemsPerField = 100;
 
+    private readonly object _sync = new();
     private readonly List<string> _items;
     private readonly Action<IReadOnlyList<string>>? _itemsChanged;
+    private readonly Func<string, IReadOnlyList<string>?>? _promote;
+    private readonly Func<IReadOnlyList<string>>? _reload;
 
     internal TextHistory(IEnumerable<string>? initialItems, Action<IReadOnlyList<string>>? itemsChanged)
     {
@@ -14,8 +17,32 @@ public sealed class TextHistory
         _itemsChanged = itemsChanged;
     }
 
-    public IReadOnlyList<string> Items => _items;
-    public bool HasItems => _items.Count > 0;
+    internal TextHistory(IEnumerable<string>? initialItems,
+        Func<string, IReadOnlyList<string>?> promote, Func<IReadOnlyList<string>> reload)
+        : this(initialItems, itemsChanged: null)
+    {
+        _promote = promote;
+        _reload = reload;
+    }
+
+    public IReadOnlyList<string> Items
+    {
+        get { lock (_sync) return _items.ToArray(); }
+    }
+
+    public bool HasItems
+    {
+        get { lock (_sync) return _items.Count > 0; }
+    }
+
+    public void Refresh()
+    {
+        lock (_sync)
+        {
+            if (_reload is not null)
+                Replace(_reload());
+        }
+    }
 
     public void Add(string text) => AddCore(text, allowWhitespaceOnly: false);
 
@@ -26,14 +53,31 @@ public sealed class TextHistory
         if (string.IsNullOrEmpty(text) || !allowWhitespaceOnly && string.IsNullOrWhiteSpace(text))
             return;
 
-        if (_items.Count > 0 && string.Equals(_items[0], text, StringComparison.Ordinal))
-            return;
+        lock (_sync)
+        {
+            if (_promote is not null)
+            {
+                IReadOnlyList<string>? saved = _promote(text);
+                if (saved is not null)
+                    Replace(saved);
+                return;
+            }
 
-        _items.RemoveAll(item => string.Equals(item, text, StringComparison.Ordinal));
-        _items.Insert(0, text);
-        if (_items.Count > MaxItemsPerField)
-            _items.RemoveRange(MaxItemsPerField, _items.Count - MaxItemsPerField);
-        _itemsChanged?.Invoke(_items);
+            if (_items.Count > 0 && string.Equals(_items[0], text, StringComparison.Ordinal))
+                return;
+
+            _items.RemoveAll(item => string.Equals(item, text, StringComparison.Ordinal));
+            _items.Insert(0, text);
+            if (_items.Count > MaxItemsPerField)
+                _items.RemoveRange(MaxItemsPerField, _items.Count - MaxItemsPerField);
+            _itemsChanged?.Invoke(_items.ToArray());
+        }
+    }
+
+    private void Replace(IEnumerable<string> items)
+    {
+        _items.Clear();
+        _items.AddRange(Normalize(items));
     }
 
     private static List<string> Normalize(IEnumerable<string>? items)

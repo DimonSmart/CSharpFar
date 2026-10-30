@@ -10,6 +10,7 @@ internal sealed class FormTextInputField
     private readonly SingleLineTextHistoryState? _history;
     private readonly bool _maskInput;
     private bool _enabled = true;
+    private bool _previouslyFocused;
 
     public FormTextInputField(CommandLineState buffer, SingleLineTextHistoryState? history, bool maskInput = false)
     {
@@ -32,10 +33,16 @@ internal sealed class FormTextInputField
     }
     public string? DisabledReason { get; set; }
 
-    public void Render(FormRowRenderContext context, Rect bounds) =>
+    public void Render(FormRowRenderContext context, Rect bounds)
+    {
+        bool focused = Enabled && context.Focused;
+        if (focused && !_previouslyFocused && _history is { IsDropdownOpen: false })
+            _history.History.Refresh();
+        _previouslyFocused = focused;
         SingleLineTextInput.Render(context.Canvas, bounds.X, bounds.Y, bounds.Width, _buffer,
-            Enabled && context.Focused ? DialogStyles.FocusedInput : DisabledFormControlPresentation.Style(Enabled, DialogStyles.Input),
+            focused ? DialogStyles.FocusedInput : DisabledFormControlPresentation.Style(Enabled, DialogStyles.Input),
             DisabledFormControlPresentation.Style(Enabled, DialogStyles.Input), Enabled ? _history : null, maskInput: _maskInput, renderDropdown: false);
+    }
 
     public bool TryGetCursor(FormRowRenderContext context, Rect bounds, out FormCursorPlacement cursor)
     {

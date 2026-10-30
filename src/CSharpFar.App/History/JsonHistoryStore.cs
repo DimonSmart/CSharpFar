@@ -4,50 +4,68 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.History;
 
-/// <summary>
-/// IHistoryStore backed by a JSON file.
-/// Loads history at construction; saves after every mutation.
-/// </summary>
+/// <summary>Transactional JSON-backed history shared by local application instances.</summary>
 public sealed class JsonHistoryStore : IHistoryStore
 {
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private readonly object _sync = new();
+    private readonly string _filePath;
     private readonly int _maxCommands;
     private readonly int _maxDirectories;
     private readonly int _maxFiles;
+    private HistoryData _snapshot;
 
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-
-    private readonly string _filePath;
-    private readonly List<CommandHistoryItem> _commands = new();
-    private readonly List<DirectoryHistoryItem> _directories = new();
-    private readonly List<FileHistoryItem> _files = new();
-
-    public JsonHistoryStore(
-        string? filePath = null,
-        int maxCommands = 1000,
-        int maxDirectories = 500,
-        int maxFiles = 200)
+    public JsonHistoryStore(string? filePath = null, int maxCommands = 1000,
+        int maxDirectories = 500, int maxFiles = 200)
     {
-        _filePath = filePath ?? DefaultPath();
+        _filePath = Path.GetFullPath(filePath ?? DefaultPath());
         _maxCommands = maxCommands;
         _maxDirectories = maxDirectories;
         _maxFiles = maxFiles;
-        Load();
+        _snapshot = ReadDocument();
     }
 
-    // ── IHistoryStore ─────────────────────────────────────────────────────────
+    public IReadOnlyList<CommandHistoryItem> GetCommandHistory()
+    {
+        lock (_sync)
+        {
+            Refresh();
+            return _snapshot.Commands!.ToArray();
+        }
+    }
 
-    public IReadOnlyList<CommandHistoryItem> GetCommandHistory() => _commands;
+    public IReadOnlyList<DirectoryHistoryItem> GetDirectoryHistory()
+    {
+        lock (_sync)
+        {
+            Refresh();
+            return _snapshot.Directories!.ToArray();
+        }
+    }
+
+    public IReadOnlyList<FileHistoryItem> GetFileHistory()
+    {
+        lock (_sync)
+        {
+            Refresh();
+            return _snapshot.Files!.ToArray();
+        }
+    }
 
     public void AddCommand(CommandHistoryItem item)
     {
+        ArgumentNullException.ThrowIfNull(item);
         if (string.IsNullOrWhiteSpace(item.Command))
             return;
 
-        _commands.RemoveAll(existing =>
-            string.Equals(existing.Command, item.Command, StringComparison.Ordinal));
-        _commands.Add(item);
-        if (_commands.Count > _maxCommands) _commands.RemoveAt(0);
-        Save();
+        Mutate("add-command", data =>
+        {
+            data.Commands!.RemoveAll(existing =>
+                string.Equals(existing.Command, item.Command, StringComparison.Ordinal));
+            data.Commands.Add(item);
+            Trim(data.Commands, _maxCommands);
+            return true;
+        });
     }
 
     public bool RemoveCommand(string command)
@@ -55,57 +73,91 @@ public sealed class JsonHistoryStore : IHistoryStore
         if (string.IsNullOrWhiteSpace(command))
             return false;
 
-        int removed = _commands.RemoveAll(existing =>
-            string.Equals(existing.Command, command, StringComparison.Ordinal));
-        if (removed == 0)
-            return false;
-
-        Save();
-        return true;
+        return Mutate("remove-command", data =>
+            data.Commands!.RemoveAll(existing =>
+                string.Equals(existing.Command, command, StringComparison.Ordinal)) > 0);
     }
-
-    public IReadOnlyList<DirectoryHistoryItem> GetDirectoryHistory() => _directories;
 
     public void AddDirectory(DirectoryHistoryItem item)
     {
-        if (_directories.Count > 0 &&
-            string.Equals(_directories[^1].Path, item.Path, StringComparison.OrdinalIgnoreCase))
-            return;
+        ArgumentNullException.ThrowIfNull(item);
+        Mutate("add-directory", data =>
+        {
+            var list = data.Directories!;
+            if (list.Count > 0 && string.Equals(list[^1].Path, item.Path, StringComparison.OrdinalIgnoreCase))
+                return false;
 
-        _directories.Add(item);
-        if (_directories.Count > _maxDirectories) _directories.RemoveAt(0);
-        Save();
+            list.Add(item);
+            Trim(list, _maxDirectories);
+            return true;
+        });
     }
-
-    public IReadOnlyList<FileHistoryItem> GetFileHistory() => _files;
 
     public void AddFile(FileHistoryItem item)
     {
-        if (_files.Count > 0 &&
-            string.Equals(_files[^1].Path, item.Path, StringComparison.OrdinalIgnoreCase))
-            return;
+        ArgumentNullException.ThrowIfNull(item);
+        Mutate("add-file", data =>
+        {
+            var list = data.Files!;
+            if (list.Count > 0 && string.Equals(list[^1].Path, item.Path, StringComparison.OrdinalIgnoreCase))
+                return false;
 
-        _files.Add(item);
-        if (_files.Count > _maxFiles) _files.RemoveAt(0);
-        Save();
+            list.Add(item);
+            Trim(list, _maxFiles);
+            return true;
+        });
     }
 
-    // ── persistence ───────────────────────────────────────────────────────────
-
-    private void Load()
+    private bool Mutate(string operation, Func<HistoryData, bool> change)
     {
-        if (!File.Exists(_filePath)) return;
+        lock (_sync)
+        {
+            try
+            {
+                using var fileLock = AtomicHistoryFile.Acquire(_filePath);
+                HistoryData current = ReadDocument();
+                bool changed = change(current);
+                if (changed)
+                    AtomicHistoryFile.Write(_filePath, JsonSerializer.Serialize(current, JsonOptions));
+                _snapshot = current;
+                return changed;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                InvalidDataException or JsonException or NotSupportedException)
+            {
+                AtomicHistoryFile.Report("history.json", operation, ex);
+                return false;
+            }
+        }
+    }
+
+    private void Refresh()
+    {
         try
         {
-            string json = File.ReadAllText(_filePath);
-            var data = JsonSerializer.Deserialize<HistoryData>(json, JsonOptions);
-            if (data is null)
-                throw new InvalidDataException("History file does not contain a JSON object: " + _filePath);
+            _snapshot = ReadDocument();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            InvalidDataException or JsonException or NotSupportedException)
+        {
+            AtomicHistoryFile.Report("history.json", "read", ex);
+        }
+    }
 
-            if (data.Commands is not null) _commands.AddRange(data.Commands);
-            if (data.Directories is not null) _directories.AddRange(data.Directories);
-            if (data.Files is not null) _files.AddRange(data.Files);
-            NormalizeCommandHistory();
+    private HistoryData ReadDocument()
+    {
+        if (!File.Exists(_filePath))
+            return new HistoryData { Commands = [], Directories = [], Files = [] };
+
+        try
+        {
+            var data = JsonSerializer.Deserialize<HistoryData>(File.ReadAllText(_filePath), JsonOptions)
+                ?? throw new InvalidDataException("History file does not contain a JSON object: " + _filePath);
+            data.Commands ??= [];
+            data.Directories ??= [];
+            data.Files ??= [];
+            NormalizeCommands(data.Commands);
+            return data;
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException)
         {
@@ -113,49 +165,32 @@ public sealed class JsonHistoryStore : IHistoryStore
         }
     }
 
-    private void NormalizeCommandHistory()
+    private void NormalizeCommands(List<CommandHistoryItem> commands)
     {
-        if (_commands.Count == 0)
-            return;
-
-        var newestFirst = new List<CommandHistoryItem>(_commands.Count);
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        for (int i = _commands.Count - 1; i >= 0; i--)
+        var newestFirst = new List<CommandHistoryItem>(commands.Count);
+        for (int i = commands.Count - 1; i >= 0; i--)
         {
-            var item = _commands[i];
-            if (string.IsNullOrWhiteSpace(item.Command))
-                continue;
-
-            if (seen.Add(item.Command))
+            var item = commands[i];
+            if (item is not null && !string.IsNullOrWhiteSpace(item.Command) && seen.Add(item.Command))
                 newestFirst.Add(item);
         }
 
-        _commands.Clear();
+        commands.Clear();
         for (int i = newestFirst.Count - 1; i >= 0; i--)
-            _commands.Add(newestFirst[i]);
-
-        while (_commands.Count > _maxCommands)
-            _commands.RemoveAt(0);
+            commands.Add(newestFirst[i]);
+        Trim(commands, _maxCommands);
     }
 
-    private void Save()
+    private static void Trim<T>(List<T> items, int limit)
     {
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
-            var data = new HistoryData { Commands = _commands, Directories = _directories, Files = _files };
-            File.WriteAllText(_filePath, JsonSerializer.Serialize(data, JsonOptions));
-        }
-        catch { /* best effort — never crash the app */ }
+        if (items.Count > limit)
+            items.RemoveRange(0, items.Count - Math.Max(0, limit));
     }
 
     private static string DefaultPath() =>
-        Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "CSharpFar",
-            "history.json");
-
-    // ── DTO ───────────────────────────────────────────────────────────────────
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "CSharpFar", "history.json");
 
     private sealed class HistoryData
     {

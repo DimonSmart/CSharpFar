@@ -19,7 +19,9 @@ public sealed class SingleLineTextHistoryRegistry : ITextFieldHistoryProvider
             if (_histories.TryGetValue(id, out TextHistory? history))
                 return history;
 
-            history = new TextHistory(_store.Load(id.Value), items => _store.Save(id.Value, items));
+            history = new TextHistory(_store.Load(id.Value),
+                value => _store.Promote(id.Value, value),
+                () => _store.Load(id.Value));
             _histories.Add(id, history);
             return history;
         }

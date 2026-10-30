@@ -42,7 +42,7 @@ internal sealed class TextInputCompositeController : IFormCompositeController, I
                 return FormInputResult.Handled;
 
             SingleLineTextHistoryState? history = _field.History;
-            if (history is null || !history.History.HasItems)
+            if (history is null)
                 return FormInputResult.Handled;
             if (history.IsDropdownOpen)
                 history.Close();

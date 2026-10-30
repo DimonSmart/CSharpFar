@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.History;
@@ -14,7 +13,7 @@ public sealed class JsonSingleLineTextHistoryStore : ISingleLineTextHistoryStore
     };
     private readonly object _sync = new();
     private readonly string _filePath;
-    private readonly Dictionary<string, List<string>> _fields = new(StringComparer.Ordinal);
+    private Dictionary<string, List<string>> _fields = new(StringComparer.Ordinal);
     private readonly ITextFieldHistoryDiagnostics _diagnostics;
     private readonly Action<string, string, bool> _moveFile;
 
@@ -23,14 +22,12 @@ public sealed class JsonSingleLineTextHistoryStore : ISingleLineTextHistoryStore
     {
     }
 
-    internal JsonSingleLineTextHistoryStore(
-        string configDirectory,
-        ITextFieldHistoryDiagnostics? diagnostics,
-        Action<string, string, bool> moveFile)
+    internal JsonSingleLineTextHistoryStore(string configDirectory,
+        ITextFieldHistoryDiagnostics? diagnostics, Action<string, string, bool> moveFile)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(configDirectory);
         ArgumentNullException.ThrowIfNull(moveFile);
-        _filePath = Path.Combine(configDirectory, "field-history.json");
+        _filePath = Path.GetFullPath(Path.Combine(configDirectory, "field-history.json"));
         _diagnostics = diagnostics ?? new TraceTextFieldHistoryDiagnostics();
         _moveFile = moveFile;
         LoadDocument();
@@ -40,20 +37,48 @@ public sealed class JsonSingleLineTextHistoryStore : ISingleLineTextHistoryStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fieldKey);
         lock (_sync)
-            return _fields.TryGetValue(fieldKey, out List<string>? items) ? items.ToArray() : [];
+        {
+            LoadDocument();
+            return _fields.TryGetValue(fieldKey, out var values) ? values.ToArray() : [];
+        }
     }
 
-    public void Save(string fieldKey, IReadOnlyList<string> items)
+    public IReadOnlyList<string>? Promote(string fieldKey, string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fieldKey);
-        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(value);
         lock (_sync)
         {
-            List<string> normalized = Normalize(items);
-            if (_fields.TryGetValue(fieldKey, out List<string>? current) && current.SequenceEqual(normalized, StringComparer.Ordinal))
-                return;
-            _fields[fieldKey] = normalized;
-            SaveDocument();
+            try
+            {
+                using var fileLock = AtomicHistoryFile.Acquire(_filePath);
+                var fields = ReadDocument();
+                if (!fields.TryGetValue(fieldKey, out var values))
+                    fields[fieldKey] = values = [];
+
+                var previous = values.ToArray();
+                if (value.Length > 0)
+                {
+                    values.RemoveAll(item => string.Equals(item, value, StringComparison.Ordinal));
+                    values.Insert(0, value);
+                    if (values.Count > TextHistory.MaxItemsPerField)
+                        values.RemoveRange(TextHistory.MaxItemsPerField, values.Count - TextHistory.MaxItemsPerField);
+                }
+
+                if (!previous.SequenceEqual(values, StringComparer.Ordinal))
+                    AtomicHistoryFile.Write(_filePath,
+                        JsonSerializer.Serialize(new Document { Version = Version, Fields = fields }, JsonOptions),
+                        _moveFile);
+
+                _fields = fields;
+                return values.ToArray();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                InvalidDataException or JsonException or NotSupportedException)
+            {
+                ReportFailure(TextHistoryPersistenceOperation.Save, ex);
+                return null;
+            }
         }
     }
 
@@ -63,37 +88,36 @@ public sealed class JsonSingleLineTextHistoryStore : ISingleLineTextHistoryStore
         {
             try
             {
-                if (!File.Exists(_filePath)) return;
-                Document? document = JsonSerializer.Deserialize<Document>(File.ReadAllText(_filePath), JsonOptions);
-                if (document is null || document.Version != Version || document.Fields is null) return;
-                foreach ((string key, List<string>? values) in document.Fields)
-                    if (!string.IsNullOrWhiteSpace(key)) _fields[key] = Normalize(values);
+                _fields = ReadDocument();
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or NotSupportedException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                InvalidDataException or JsonException or NotSupportedException)
             {
-                _fields.Clear();
                 ReportFailure(TextHistoryPersistenceOperation.Load, ex);
             }
         }
     }
 
-    private void SaveDocument()
+    private Dictionary<string, List<string>> ReadDocument()
     {
-        string? temporaryPath = null;
-        try
+        var fields = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        if (!File.Exists(_filePath))
+            return fields;
+
+        string json = File.ReadAllText(_filePath);
+        if (string.IsNullOrWhiteSpace(json))
+            return fields;
+
+        Document? document = JsonSerializer.Deserialize<Document>(json, JsonOptions);
+        if (document is null || document.Version != Version || document.Fields is null)
+            throw new InvalidDataException("Unsupported field history document.");
+
+        foreach (var (key, values) in document.Fields)
         {
-            string directory = Path.GetDirectoryName(_filePath)!;
-            Directory.CreateDirectory(directory);
-            temporaryPath = Path.Combine(directory, $".{Path.GetFileName(_filePath)}.{Guid.NewGuid():N}.tmp");
-            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(new Document { Version = Version, Fields = _fields }, JsonOptions));
-            _moveFile(temporaryPath, _filePath, true);
+            if (!string.IsNullOrWhiteSpace(key))
+                fields[key] = Normalize(values);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
-        {
-            if (temporaryPath is not null)
-                TryDeleteTemporaryFile(temporaryPath);
-            ReportFailure(TextHistoryPersistenceOperation.Save, ex);
-        }
+        return fields;
     }
 
     private static List<string> Normalize(IEnumerable<string>? values)
@@ -103,7 +127,7 @@ public sealed class JsonSingleLineTextHistoryStore : ISingleLineTextHistoryStore
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (string value in values)
         {
-            if (!string.IsNullOrWhiteSpace(value) && seen.Add(value)) result.Add(value);
+            if (!string.IsNullOrEmpty(value) && seen.Add(value)) result.Add(value);
             if (result.Count == TextHistory.MaxItemsPerField) break;
         }
         return result;
@@ -111,25 +135,15 @@ public sealed class JsonSingleLineTextHistoryStore : ISingleLineTextHistoryStore
 
     private void ReportFailure(TextHistoryPersistenceOperation operation, Exception exception)
     {
+        AtomicHistoryFile.Report("field-history.json", operation.ToString(), exception);
         try
         {
-            _diagnostics.ReportPersistenceFailure(operation, exception);
+            _diagnostics.ReportPersistenceFailure(operation,
+                new InvalidOperationException($"Field history {exception.GetType().Name}."));
         }
         catch
         {
-            // Diagnostics must not make field-history persistence fatal.
-        }
-    }
-
-    private static void TryDeleteTemporaryFile(string path)
-    {
-        try
-        {
-            File.Delete(path);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // The original persistence failure has already been reported.
+            // Diagnostics are best effort.
         }
     }
 
@@ -142,6 +156,6 @@ public sealed class JsonSingleLineTextHistoryStore : ISingleLineTextHistoryStore
     private sealed class TraceTextFieldHistoryDiagnostics : ITextFieldHistoryDiagnostics
     {
         public void ReportPersistenceFailure(TextHistoryPersistenceOperation operation, Exception exception) =>
-            System.Diagnostics.Trace.TraceError($"Text field history {operation.ToString().ToLowerInvariant()} failed: {exception}");
+            System.Diagnostics.Trace.TraceError($"Field history {operation} failed ({exception.GetType().Name}).");
     }
 }

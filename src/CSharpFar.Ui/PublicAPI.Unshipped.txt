@@ -641,7 +641,7 @@ CSharpFar.Ui.IFormFocusTarget
 CSharpFar.Ui.InMemorySingleLineTextHistoryStore
 CSharpFar.Ui.InMemorySingleLineTextHistoryStore.InMemorySingleLineTextHistoryStore() -> void
 CSharpFar.Ui.InMemorySingleLineTextHistoryStore.Load(string! fieldKey) -> System.Collections.Generic.IReadOnlyList<string!>!
-CSharpFar.Ui.InMemorySingleLineTextHistoryStore.Save(string! fieldKey, System.Collections.Generic.IReadOnlyList<string!>! items) -> void
+CSharpFar.Ui.InMemorySingleLineTextHistoryStore.Promote(string! fieldKey, string! value) -> System.Collections.Generic.IReadOnlyList<string!>?
 CSharpFar.Ui.InteractiveSurfaceHost
 CSharpFar.Ui.InteractiveSurfaceHost.InteractiveSurfaceHost(CSharpFar.Ui.UiCompositionHost! composition) -> void
 CSharpFar.Ui.InteractiveSurfaceHost.LastObservedModifiers.get -> System.ConsoleModifiers
@@ -693,7 +693,7 @@ CSharpFar.Ui.InteractiveSurfaceWakeResult<TResult>.Result.get -> TResult
 CSharpFar.Ui.InteractiveSurfaceWakeResult<TResult>.Result.init -> void
 CSharpFar.Ui.ISingleLineTextHistoryStore
 CSharpFar.Ui.ISingleLineTextHistoryStore.Load(string! fieldKey) -> System.Collections.Generic.IReadOnlyList<string!>!
-CSharpFar.Ui.ISingleLineTextHistoryStore.Save(string! fieldKey, System.Collections.Generic.IReadOnlyList<string!>! items) -> void
+CSharpFar.Ui.ISingleLineTextHistoryStore.Promote(string! fieldKey, string! value) -> System.Collections.Generic.IReadOnlyList<string!>?
 CSharpFar.Ui.ITextClipboard
 CSharpFar.Ui.ITextClipboard.TryGetText(out string! text) -> bool
 CSharpFar.Ui.ITextClipboard.TrySetText(string! text) -> bool
@@ -1699,6 +1699,7 @@ CSharpFar.Ui.TextFieldOptions.Width.init -> void
 CSharpFar.Ui.TextHistory
 CSharpFar.Ui.TextHistory.Add(string! text) -> void
 CSharpFar.Ui.TextHistory.AddPreservingWhitespace(string! text) -> void
+CSharpFar.Ui.TextHistory.Refresh() -> void
 CSharpFar.Ui.TextHistory.HasItems.get -> bool
 CSharpFar.Ui.TextHistory.Items.get -> System.Collections.Generic.IReadOnlyList<string!>!
 CSharpFar.Ui.TextHistoryValueMode

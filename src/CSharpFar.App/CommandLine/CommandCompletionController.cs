@@ -9,6 +9,7 @@ internal sealed class CommandCompletionController
 
     private readonly IHistoryStore _history;
     private readonly CommandCompletionState _state;
+    private IReadOnlyList<CommandHistoryItem>? _sessionHistory;
 
     public CommandCompletionController(IHistoryStore history, CommandCompletionState state)
     {
@@ -21,6 +22,8 @@ internal sealed class CommandCompletionController
     public void Refresh(CommandLineState commandLine, bool hasRows)
     {
         _state.ClearMatches();
+        if (string.IsNullOrWhiteSpace(commandLine.Text))
+            _sessionHistory = null;
 
         if (_state.TemporarilyHidden ||
             !hasRows ||
@@ -31,7 +34,7 @@ internal sealed class CommandCompletionController
 
         var items = new List<string> { string.Empty };
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        var history = _history.GetCommandHistory();
+        var history = _sessionHistory ??= _history.GetCommandHistory();
         for (int i = history.Count - 1; i >= 0; i--)
         {
             string command = history[i].Command;
@@ -64,6 +67,7 @@ internal sealed class CommandCompletionController
         if (string.IsNullOrEmpty(command) || !_history.RemoveCommand(command))
             return false;
 
+        _sessionHistory = _sessionHistory?.Where(item => !string.Equals(item.Command, command, StringComparison.Ordinal)).ToArray();
         string[] items = _state.Items.Where((_, index) => index != selectedIndex).ToArray();
         if (items.Length <= 1)
         {
@@ -75,6 +79,9 @@ internal sealed class CommandCompletionController
         return true;
     }
 
-    public void Hide(bool temporarily) =>
+    public void Hide(bool temporarily)
+    {
+        _sessionHistory = null;
         _state.Reset(temporarily);
+    }
 }
