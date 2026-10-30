@@ -305,7 +305,7 @@ public class JsonHistoryStoreTests : IDisposable
         a.AddCommand(new CommandHistoryItem { Command = "old", WorkingDirectory = "/" });
         a.AddCommand(new CommandHistoryItem { Command = "new", WorkingDirectory = "/" });
         var nav = new CSharpFar.App.CommandLine.CommandHistoryNavigator(b);
-        var line = new CSharpFar.Ui.CommandLineState();
+        var line = new CommandLineState();
 
         nav.Browse(line, -1, CSharpFar.App.CommandLine.CommandHistoryNavigationStart.Newest);
         Assert.Equal("new", line.Text);

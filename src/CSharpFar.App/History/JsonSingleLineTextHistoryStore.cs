@@ -101,10 +101,19 @@ public sealed class JsonSingleLineTextHistoryStore : ISingleLineTextHistoryStore
     private Dictionary<string, List<string>> ReadDocument()
     {
         var fields = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        if (!File.Exists(_filePath))
+        string json;
+        try
+        {
+            json = File.ReadAllText(_filePath);
+        }
+        catch (FileNotFoundException)
+        {
             return fields;
-
-        string json = File.ReadAllText(_filePath);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return fields;
+        }
         if (string.IsNullOrWhiteSpace(json))
             return fields;
 

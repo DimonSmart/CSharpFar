@@ -146,12 +146,23 @@ public sealed class JsonHistoryStore : IHistoryStore
 
     private HistoryData ReadDocument()
     {
-        if (!File.Exists(_filePath))
+        string json;
+        try
+        {
+            json = File.ReadAllText(_filePath);
+        }
+        catch (FileNotFoundException)
+        {
             return new HistoryData { Commands = [], Directories = [], Files = [] };
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return new HistoryData { Commands = [], Directories = [], Files = [] };
+        }
 
         try
         {
-            var data = JsonSerializer.Deserialize<HistoryData>(File.ReadAllText(_filePath), JsonOptions)
+            var data = JsonSerializer.Deserialize<HistoryData>(json, JsonOptions)
                 ?? throw new InvalidDataException("History file does not contain a JSON object: " + _filePath);
             data.Commands ??= [];
             data.Directories ??= [];
