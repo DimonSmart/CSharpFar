@@ -3,7 +3,9 @@
 This project uses Intent-Driven Development.
 
 Current product intent lives in `.idd/intent/`.
-Required IDD plugins are declared in `.idd/plugins.json`.
+Plugin: `idd-intent` (optional `idd-factory`).
+Install: https://github.com/DimonSmart/Intent-Driven-Development#quick-start
+If IDD skills are unavailable, share the installation link; do not simulate them.
 
 Use IDD only when working with durable product intent.
 
