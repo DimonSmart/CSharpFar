@@ -47,8 +47,25 @@ if ($status) {
 Write-Host "Fetching '$Remote'..."
 Invoke-Git -Arguments @("fetch", "--prune", "--tags", $Remote) | Out-Null
 
-Write-Host "Switching to '$Branch'..."
-Invoke-Git -Arguments @("switch", $Branch) | Out-Null
+$remoteBranchRef = "refs/remotes/$Remote/$Branch"
+& git show-ref --verify --quiet $remoteBranchRef
+if ($LASTEXITCODE -ne 0) {
+    throw "Remote branch '$Remote/$Branch' does not exist. Specify an existing branch with -Branch."
+}
+
+$localBranchRef = "refs/heads/$Branch"
+& git show-ref --verify --quiet $localBranchRef
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Switching to '$Branch'..."
+    Invoke-Git -Arguments @("switch", $Branch) | Out-Null
+}
+elseif ($LASTEXITCODE -eq 1) {
+    Write-Host "Creating local '$Branch' tracking '$Remote/$Branch'..."
+    Invoke-Git -Arguments @("switch", "--track", "-c", $Branch, "$Remote/$Branch") | Out-Null
+}
+else {
+    throw "Unable to inspect local branch '$Branch'."
+}
 
 Write-Host "Updating '$Branch' from '$Remote/$Branch'..."
 Invoke-Git -Arguments @("pull", "--ff-only", $Remote, $Branch) | Out-Null
