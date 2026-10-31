@@ -112,6 +112,26 @@ public sealed partial class Spec010FileOperationDialogTests
     }
 
     [Fact]
+    public void ShowCopy_SameDirectoryCopyMayStartWithTemplateSelected()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        var result = new FileOperationDialog(
+            new DialogService(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())),
+            new FormFieldFactory(TextFieldHistoryTestProvider.Create())).ShowCopy(
+                [@"C:\source\a.txt", @"C:\source\b.txt"],
+                @"C:\source\{name} (copy){ext}",
+                new FileOperationOptions(),
+                initialUseTemplate: true);
+
+        Assert.NotNull(result);
+        Assert.True(result.UseDestinationTemplate);
+        Assert.Equal(@"C:\source\{name} (copy){ext}", result.Destination);
+    }
+
+    [Fact]
     public void ShowCopy_UseTemplateIsExplicitAndDisabledByDefault()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
