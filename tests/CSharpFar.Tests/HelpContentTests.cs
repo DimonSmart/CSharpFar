@@ -40,6 +40,7 @@ public class HelpContentTests
     [InlineData("F3")]
     [InlineData("F4")]
     [InlineData("F5")]
+    [InlineData("Shift+F5")]
     [InlineData("F7")]
     [InlineData("F8")]
     [InlineData("F10")]
