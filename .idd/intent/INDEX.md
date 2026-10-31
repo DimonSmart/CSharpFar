@@ -17,14 +17,14 @@ is non-normative engineering history.
 
 | Document | Role | Area | Notes | Replaces |
 | --- | --- | --- | --- | --- |
-| IDD-0001 | spec | CSharpFar file manager | User menu and native plugins are owned by IDD-0083 and IDD-0061 |  |
+| IDD-0001 | spec | CSharpFar file manager | Product overview and Demo Mode; links to specialized owners for settings, UI, shell, packages, viewer/editor and plugins |  |
 | IDD-0002 | adr | Render buffering strategy |  |  |
-| IDD-0003 | spec | Display modes, palettes, and settings menu |  |  |
+| IDD-0003 | spec | Display modes, palettes, and settings menu | Owns generic Settings lifecycle, display modes and palettes; Panels page and commit effects owned by IDD-0007 |  |
 | IDD-0004 | spec | Column navigation, Ctrl+O command line, and resize behavior |  |  |
 | IDD-0005 | spec | Drive and volume selection |  |  |
 | IDD-0006 | spec | File and folder highlighting |  |  |
-| IDD-0007 | spec | File panel options |  |  |
-| IDD-0008 | spec | Menu bar, popup rendering, and shadows |  |  |
+| IDD-0007 | spec | File panel options | Owns Panels settings page, grouping and apply effects; shared scrollbar geometry in IDD-0020 |  |
+| IDD-0008 | spec | Menu bar, popup rendering, and shadows | Menu commands and visuals only; underlying-layer redraw and popup lifetime owned by IDD-0067 |  |
 | IDD-0009 | spec | Open panel item |  |  |
 | IDD-0010 | spec | File operations |  |  |
 | IDD-0012 | spec | Search feature | Virtual result snapshots; edit and delete referenced items without making the results source writable |  |
@@ -60,20 +60,20 @@ is non-normative engineering history.
 | IDD-0059 | spec | Panel cursor normalization |  |  |
 | IDD-0060 | spec | File rename operation |  |  |
 | IDD-0061 | spec | Native plugin system |  |  |
-| IDD-0062 | spec | Console UI component library | Stable reusable UX and boundaries; implementation reference in docs/architecture/ |  |
+| IDD-0062 | spec | Console UI component library | Reusable component semantics only; frame/routing/mouse capture in IDD-0067 and scrollbar mechanics in IDD-0020/0021 |  |
 | IDD-0063 | spec | File attributes dialog |  |  |
 | IDD-0064 | spec | Unix terminal input |  |  |
 | IDD-0065 | spec | Debian/Ubuntu APT distribution and installation |  |  |
 | IDD-0066 | spec | Folder and file-set comparison |  |  |
-| IDD-0067 | spec | UI layer composition and modal resize | Owns frame-commit guarantees formerly in IDD-0071; testing reference in docs/testing/ |  |
+| IDD-0067 | spec | UI layer composition and modal resize | Owns committed frames, input routing, modal focus/resize; terminal-shell fallback separately in IDD-0022 |  |
 | IDD-0073 | spec | Processes and Ports | Local endpoint diagnostics module |  |
 | IDD-0074 | spec | FAR-compatible wildcard destination names | Destination name transformation for file operations |  |
 | IDD-0075 | spec | Destination templates | Explicit per-source destination path evaluation for file operations |  |
-| IDD-0076 | spec | macOS Homebrew distribution | Formula and Cask installation/upgrade paths |  |
-| IDD-0077 | spec | macOS application bundle | Standalone desktop terminal host, application identity, CLI compatibility |  |
+| IDD-0076 | spec | macOS Homebrew distribution | Formula/Cask artifacts, checksums, tap and metadata publication; install/update orchestration owned by IDD-0082 |  |
+| IDD-0077 | spec | macOS application bundle | Owns bundle contents, desktop identity and host lifecycle; package metadata in IDD-0076 |  |
 | IDD-0080 | spec | File Usage panel | Local-file usage and lock diagnostics with safe owner release |  |
 | IDD-0081 | spec | Runtime diagnostics | Opt-in in-memory tracing and safe copyable diagnostic report |  |
-| IDD-0082 | spec | macOS install and self-update | Recommended Homebrew Cask installer and guarded About self-update | IDD-0076/IDD-0077 distribution workflow clarification |
+| IDD-0082 | spec | macOS install and self-update | Sole owner of installer, quarantine, update eligibility, cancellation and relaunch; uses the Cask in IDD-0076 | IDD-0076/IDD-0077 distribution workflow clarification |
 | IDD-0083 | spec | User menu | F2 command selection, Options editor, platform filters, placeholders, and user-menu.json persistence |  |
 | IDD-0084 | adr | macOS embedded terminal engine | Pinned SwiftTerm AppKit/PTY host and CLI compatibility |  |
 | IDD-0086 | spec | Network Traffic | Live top-consumer native plugin |  |
