@@ -59,12 +59,13 @@ internal sealed class FileOperationDialog
         IReadOnlyList<string> sources,
         string initialDestination,
         FileOperationOptions initialOptions,
-        Action<FileOperationDialogResult>? preview = null)
+        Action<FileOperationDialogResult>? preview = null,
+        bool initialUseTemplate = false)
     {
         string prompt = sources.Count == 1
             ? $"Copy {Path.GetFileName(sources[0])} to:"
             : $"Copy {sources.Count} items to:";
-        return Show("Copy", prompt, "Copy", initialDestination, initialOptions, CopyConflictModes, LocalCopyModes, showOperationOptions: true, showHelp: true, preview: preview);
+        return Show("Copy", prompt, "Copy", initialDestination, initialOptions, CopyConflictModes, LocalCopyModes, showOperationOptions: true, showHelp: true, preview: preview, initialUseTemplate: initialUseTemplate);
     }
 
     public FileOperationDialogResult? ShowMove(
@@ -102,7 +103,8 @@ internal sealed class FileOperationDialog
         IReadOnlyList<CopyMode>? copyModes,
         bool showOperationOptions,
         bool showHelp,
-        Action<FileOperationDialogResult>? preview)
+        Action<FileOperationDialogResult>? preview,
+        bool initialUseTemplate = false)
     {
         TextField destination = _fields.Text(new TextFieldOptions(
             initialDestination,
@@ -134,7 +136,7 @@ internal sealed class FileOperationDialog
             initialOptions.SymlinkMode == SymlinkCopyMode.CopyTargetContents);
         var useFilter = FormControls.CheckBox(
             "Use filter", !string.IsNullOrWhiteSpace(initialOptions.FileMask));
-        var useTemplate = FormControls.CheckBox("Use template", false);
+        var useTemplate = FormControls.CheckBox("Use template", initialUseTemplate);
         var buttons = FormControls.Buttons(showHelp
             ? [DialogButton.Default("submit", actionLabel, actionLabel[0]), DialogButton.Auxiliary("preview", "Preview", 'P'), DialogButton.Auxiliary("help", "Help", 'H'), DialogButton.Cancel()]
             : [DialogButton.Default("submit", actionLabel, actionLabel[0]), DialogButton.Auxiliary("preview", "Preview", 'P'), DialogButton.Cancel()]);

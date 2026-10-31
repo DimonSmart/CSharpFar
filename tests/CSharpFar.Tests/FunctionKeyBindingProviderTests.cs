@@ -31,6 +31,8 @@ public sealed class FunctionKeyBindingProviderTests
             FunctionKeyLayer.Control, ConsoleKey.F6, "SortSz");
         AssertBinding(bindings, FunctionKeyCommandIds.CalculateDirectorySizes,
             FunctionKeyLayer.Shift, ConsoleKey.F3, "DirSz");
+        AssertBinding(bindings, FunctionKeyCommandIds.CopyToCurrentDirectory,
+            FunctionKeyLayer.Shift, ConsoleKey.F5, "CopyHere", runsWhenUnavailable: true);
         AssertBinding(bindings, FunctionKeyCommandIds.Rename,
             FunctionKeyLayer.Shift, ConsoleKey.F6, "Rename", runsWhenUnavailable: true);
         Assert.DoesNotContain(bindings, binding => binding.Layer == FunctionKeyLayer.Control && binding.Key == ConsoleKey.F1);
@@ -44,6 +46,7 @@ public sealed class FunctionKeyBindingProviderTests
         string[] runnableWhenUnavailable =
         [
             FunctionKeyCommandIds.Copy,
+            FunctionKeyCommandIds.CopyToCurrentDirectory,
             FunctionKeyCommandIds.RenameOrMove,
             FunctionKeyCommandIds.Rename,
             FunctionKeyCommandIds.CreateFolder,
@@ -82,6 +85,7 @@ public sealed class FunctionKeyBindingProviderTests
             [FunctionKeyCommandIds.Edit] = FunctionKeyCommandCategory.PanelScoped,
             [FunctionKeyCommandIds.OpenCreateFile] = FunctionKeyCommandCategory.PanelScoped,
             [FunctionKeyCommandIds.Copy] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.CopyToCurrentDirectory] = FunctionKeyCommandCategory.PanelScoped,
             [FunctionKeyCommandIds.RenameOrMove] = FunctionKeyCommandCategory.PanelScoped,
             [FunctionKeyCommandIds.Rename] = FunctionKeyCommandCategory.PanelScoped,
             [FunctionKeyCommandIds.CreateFolder] = FunctionKeyCommandCategory.PanelScoped,
@@ -114,6 +118,7 @@ public sealed class FunctionKeyBindingProviderTests
             FunctionKeyCommandIds.Edit,
             FunctionKeyCommandIds.OpenCreateFile,
             FunctionKeyCommandIds.Copy,
+            FunctionKeyCommandIds.CopyToCurrentDirectory,
             FunctionKeyCommandIds.RenameOrMove,
             FunctionKeyCommandIds.Rename,
             FunctionKeyCommandIds.CreateFolder,
