@@ -144,6 +144,103 @@ public sealed class ExplicitCopyTargetTests : IDisposable
         Assert.Equal("old", await ReadAllTextAsync(source, "/renamed.txt"));
     }
 
+    [Fact]
+    public async Task LocalCopy_SingleFileBesideOriginal_KeepsBothFiles()
+    {
+        string source = Path.Combine(_root, "report.txt");
+        string target = Path.Combine(_root, "report (copy).txt");
+        await File.WriteAllTextAsync(source, "original");
+
+        FileOperationResult result = await new FileOperationService().ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Copy,
+                Sources = [source],
+                Destination = target,
+                Options = new FileOperationOptions(),
+            },
+            progress: null,
+            conflictResolver: new RecordingConflictResolver(ConflictDecisionMode.Rename));
+
+        Assert.Equal(1, result.CopiedCount);
+        Assert.Equal("original", await File.ReadAllTextAsync(source));
+        Assert.Equal("original", await File.ReadAllTextAsync(target));
+    }
+
+    [Fact]
+    public async Task LocalCopy_SeveralFilesBesideOriginal_UsesDestinationTemplate()
+    {
+        string first = Path.Combine(_root, "first.txt");
+        string second = Path.Combine(_root, "second.log");
+        await File.WriteAllTextAsync(first, "one");
+        await File.WriteAllTextAsync(second, "two");
+
+        FileOperationResult result = await new FileOperationService().ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Copy,
+                Sources = [first, second],
+                Destination = Path.Combine(_root, "{name} (copy){ext}"),
+                UseDestinationTemplate = true,
+                Options = new FileOperationOptions(),
+            },
+            progress: null,
+            conflictResolver: new RecordingConflictResolver(ConflictDecisionMode.Rename));
+
+        Assert.Equal(2, result.CopiedCount);
+        Assert.Equal("one", await File.ReadAllTextAsync(Path.Combine(_root, "first (copy).txt")));
+        Assert.Equal("two", await File.ReadAllTextAsync(Path.Combine(_root, "second (copy).log")));
+        Assert.Equal("one", await File.ReadAllTextAsync(first));
+        Assert.Equal("two", await File.ReadAllTextAsync(second));
+    }
+
+    [Fact]
+    public async Task LocalCopy_DirectoryBesideOriginal_UsesDestinationTemplate()
+    {
+        string source = Path.Combine(_root, "folder");
+        Directory.CreateDirectory(source);
+        await File.WriteAllTextAsync(Path.Combine(source, "child.txt"), "child");
+
+        await new FileOperationService().ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Copy,
+                Sources = [source],
+                Destination = Path.Combine(_root, "{name} (copy){ext}"),
+                UseDestinationTemplate = true,
+                Options = new FileOperationOptions(),
+            },
+            progress: null,
+            conflictResolver: new RecordingConflictResolver(ConflictDecisionMode.Rename));
+
+        Assert.Equal("child", await File.ReadAllTextAsync(Path.Combine(_root, "folder (copy)", "child.txt")));
+        Assert.Equal("child", await File.ReadAllTextAsync(Path.Combine(source, "child.txt")));
+    }
+
+    [Fact]
+    public async Task ProviderCopy_FileBesideOriginal_UsesExactTargetName()
+    {
+        string fixture = CreateFixture(("report.txt", "original"));
+        var provider = DemoFilePanelSource.ImportFromDirectory(fixture);
+        var service = new FileOperationService(new FilePanelSourceRegistry([provider]));
+
+        FileOperationResult result = await service.ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Copy,
+                Sources = [],
+                SourceLocations = [PanelLocation.Demo("/report.txt")],
+                DestinationLocation = PanelLocation.Demo("/report (copy).txt"),
+                Options = new FileOperationOptions(),
+            },
+            progress: null,
+            conflictResolver: new RecordingConflictResolver(ConflictDecisionMode.Rename));
+
+        Assert.Equal(1, result.CopiedCount);
+        Assert.Equal("original", await ReadAllTextAsync(provider, "/report.txt"));
+        Assert.Equal("original", await ReadAllTextAsync(provider, "/report (copy).txt"));
+    }
+
     private string CreateFixture(params (string Path, string Content)[] files)
     {
         string fixture = Path.Combine(_root, $"fixture-{Guid.NewGuid():N}");
