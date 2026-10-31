@@ -17,7 +17,7 @@ is non-normative engineering history.
 
 | Document | Role | Area | Notes | Replaces |
 | --- | --- | --- | --- | --- |
-| IDD-0001 | spec | CSharpFar file manager | Product overview and Demo Mode; links to specialized owners for settings, UI, shell, packages, viewer/editor and plugins |  |
+| IDD-0001 | spec | CSharpFar product vision and system boundaries | Product-wide intent only; feature ownership is routed through this index |  |
 | IDD-0002 | adr | Render buffering strategy |  |  |
 | IDD-0003 | spec | Display modes, palettes, and settings menu | Owns generic Settings lifecycle, display modes and palettes; Panels page and commit effects owned by IDD-0007 |  |
 | IDD-0004 | spec | Column navigation, Ctrl+O command line, and resize behavior |  |  |
@@ -40,7 +40,7 @@ is non-normative engineering history.
 | IDD-0027 | spec | Far command-line shortcuts |  |  |
 | IDD-0028 | spec | Panel and hidden command-line workspace modes |  |  |
 | IDD-0029 | spec | SFTP file system provider |  |  |
-| IDD-0030 | spec | Panel source error retry |  |  |
+| IDD-0030 | spec | Panel source error retry | Owns inaccessible child handling and transactional rejection of unregistered panel targets |  |
 | IDD-0032 | spec | Unified File Viewer |  |  |
 | IDD-0033 | spec | Viewer Encoding Selection |  |  |
 | IDD-0034 | spec | Panel quick search |  |  |
@@ -77,3 +77,5 @@ is non-normative engineering history.
 | IDD-0083 | spec | User menu | F2 command selection, Options editor, platform filters, placeholders, and user-menu.json persistence |  |
 | IDD-0084 | adr | macOS embedded terminal engine | Pinned SwiftTerm AppKit/PTY host and CLI compatibility |  |
 | IDD-0086 | spec | Network Traffic | Live top-consumer native plugin |  |
+| IDD-0087 | spec | Isolated Demo Mode | Owns CLI startup, in-memory fixture, source allow-list and user-data isolation | IDD-0001 Demo Mode details |
+| IDD-0088 | spec | Deterministic demo recording | Owns scripted real-UI frame capture, demo scenarios and screenshot/GIF/video artifacts | IDD-0001 recording details |

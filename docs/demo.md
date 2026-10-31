@@ -1,5 +1,9 @@
 # Demo Mode
 
+Normative requirements: [isolated Demo Mode](../.idd/intent/IDD-0087.spec-isolated-demo-mode.md)
+and [deterministic demo recording](../.idd/intent/IDD-0088.spec-deterministic-demo-recording.md).
+This page is the operational guide for running them.
+
 Demo Mode exists for safe, reproducible product walkthroughs. CSharpFar imports
 the fixture once, exposes it as the logical root `/`, and discards every
 runtime mutation when the session ends.
