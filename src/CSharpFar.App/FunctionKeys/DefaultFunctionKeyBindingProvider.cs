@@ -42,6 +42,12 @@ internal sealed class DefaultFunctionKeyBindingProvider
             "Copy",
             RunsWhenUnavailable: true),
         new(
+            FunctionKeyCommandIds.CopyToCurrentDirectory,
+            FunctionKeyLayer.Shift,
+            ConsoleKey.F5,
+            "CopyHere",
+            RunsWhenUnavailable: true),
+        new(
             FunctionKeyCommandIds.RenameOrMove,
             FunctionKeyLayer.Plain,
             ConsoleKey.F6,
