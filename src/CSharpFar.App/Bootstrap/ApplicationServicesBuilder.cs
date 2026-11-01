@@ -313,8 +313,7 @@ internal static class ApplicationServicesBuilder
         var panelSort = new PanelSortServiceFacade(
             controller,
             () => callbacks.PanelOptions(),
-            state => callbacks.ClosePanelQuickSearchForState(state),
-            state => panelNavigation.EnsureNestedRootParent(state, callbacks.PanelSideForState(state)));
+            state => callbacks.ClosePanelQuickSearchForState(state));
         var panelNavigation = new PanelNavigationService(
             controller,
             effectiveHistory,
@@ -489,7 +488,8 @@ internal static class ApplicationServicesBuilder
             controller,
             () => callbacks.PanelOptions(),
             side => callbacks.VisibleRowsForSide(side),
-            state => callbacks.ClosePanelQuickSearchForState(state));
+            state => callbacks.ClosePanelQuickSearchForState(state),
+            state => panelNavigation.EnsureNestedRootParent(state, callbacks.PanelSideForState(state)));
         panelRefresh.RefreshRequested = state =>
         {
             if (session.App.FileUsage && ReferenceEquals(state, panelWorkspace.ActiveState))
