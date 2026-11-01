@@ -187,9 +187,24 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         return request.Kind switch
         {
             FileOperationKind.Copy => ToPublicPlan(BuildProviderCopyPlan(RequireSourceLocations(request), RequireDestinationLocation(request), request.Options, request.UseDestinationTemplate, cancellationToken), RequireDestinationLocation(request).SourceId),
-            FileOperationKind.Move => ToPublicPlan(BuildProviderMovePlan(_sources.GetSource(RequireSourceLocations(request)[0].SourceId), RequireSourceLocations(request), RequireDestinationLocation(request).SourcePath, request.Options, request.UseDestinationTemplate, cancellationToken), RequireDestinationLocation(request).SourceId),
+            FileOperationKind.Move => BuildProviderMovePreviewPlan(request, cancellationToken),
             _ => throw new InvalidOperationException("Preview is available only for copy, move, and rename operations."),
         };
+    }
+
+    private FileOperationPlan BuildProviderMovePreviewPlan(
+        FileOperationRequest request, CancellationToken cancellationToken)
+    {
+        var sources = RequireSourceLocations(request);
+        var destination = RequireDestinationLocation(request);
+        var source = _sources!.GetSource(sources[0].SourceId);
+        var target = _sources.GetSource(destination.SourceId);
+        var plan = source.SourceId == target.SourceId || SamePhysicalContainer(source, target)
+            ? BuildProviderMovePlan(source, sources, destination.SourcePath,
+                request.Options, request.UseDestinationTemplate, cancellationToken)
+            : BuildProviderCopyPlan(sources, destination, request.Options,
+                request.UseDestinationTemplate, cancellationToken);
+        return ToPublicPlan(plan, destination.SourceId);
     }
 
     private static FileOperationPlan ToPublicPlan(IEnumerable<ProviderOperationPlanItem> plan, PanelSourceId destinationSourceId) =>
@@ -580,6 +595,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         {
             if (sourceSource is IFileOperationBatchProvider sourceBatching)
             {
+                int movedBeforeBatch = state.MovedCount;
                 var deletePlan = new FileOperationPlan(copiedFiles.Select(path =>
                 {
                     var location = new PanelLocation(sourceSource.SourceId, path);
@@ -597,6 +613,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                 }
                 catch
                 {
+                    state.MovedCount = movedBeforeBatch;
                     try { await batch.AbortAsync(CancellationToken.None).ConfigureAwait(false); }
                     catch { }
                     throw;
