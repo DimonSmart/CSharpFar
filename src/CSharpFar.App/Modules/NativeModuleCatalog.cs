@@ -1,4 +1,5 @@
 using CSharpFar.App.Plugins;
+using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Plugin.Abstractions;
 
@@ -14,6 +15,10 @@ internal sealed class NativeModuleCatalog(NativePluginRuntime plugins)
         Project(PluginMenuPlacement.Disk);
 
     public IReadOnlyCollection<string> CommandPrefixes => plugins.CommandPrefixes;
+
+    public bool TryOpenFile(IFilePanelSource source, FilePanelItem item, PanelSide side,
+        out ValueTask<PluginFileOpenResult> invocation) =>
+        plugins.TryOpenFile(source, item, side, out invocation);
 
     public ValueTask<PluginCommandResult> OpenFromMenu(Guid actionId, PanelSide panelSide) =>
         InvokeMenu(actionId, PluginMenuPlacement.Plugins, PluginCommandOrigin.PluginsMenu, panelSide);

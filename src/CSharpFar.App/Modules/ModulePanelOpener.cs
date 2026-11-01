@@ -1,4 +1,5 @@
 using CSharpFar.App.Commands;
+using CSharpFar.App.Panels;
 using CSharpFar.Console;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Abstractions;
@@ -14,6 +15,7 @@ namespace CSharpFar.App.Modules;
 internal sealed class ModulePanelOpener
 {
     private readonly NativeModuleCatalog _moduleCatalog;
+    private readonly PanelNavigationService? _navigation;
     private readonly FilePanelSourceRegistry _sourceRegistry;
     private readonly PanelController _controller;
     private readonly Action<string, string> _showMessage;
@@ -37,9 +39,11 @@ internal sealed class ModulePanelOpener
         Action<bool> setQuickView,
         Action<Action>? postToUi = null,
         Action<Exception>? reportCleanupError = null,
-        Action<string, string>? showMessage = null)
+        Action<string, string>? showMessage = null,
+        PanelNavigationService? navigation = null)
     {
         _moduleCatalog = moduleCatalog;
+        _navigation = navigation;
         _sourceRegistry = sourceRegistry;
         _controller = controller;
         _showMessage = showMessage ?? (dialogs ?? throw new ArgumentNullException(nameof(dialogs))).Message;
@@ -104,11 +108,13 @@ internal sealed class ModulePanelOpener
     public void OpenPanel(PanelSide panelSide, IModulePanel panel) =>
         OpenPanel(panelSide, ModulePluginBridge.ToPanelRequest(panel));
 
-    public void OpenPanel(PanelSide panelSide, PluginPanelOpenRequest request)
+    public void OpenPanel(
+        PanelSide panelSide, PluginPanelOpenRequest request, FilePanelItem? entryItem = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         var source = request.Source;
         var state = _getPanelState(panelSide);
+        var returnPoint = entryItem is null ? null : _navigation?.CaptureReturnPoint(state, entryItem);
         bool newlyRegistered = false;
 
         if (_sourceRegistry.TryGetSource(source.SourceId, out var existing))
@@ -152,6 +158,11 @@ internal sealed class ModulePanelOpener
             return;
         }
 
+        if (returnPoint is not null)
+            _navigation!.PushReturnPoint(panelSide, returnPoint);
+        else
+            _navigation?.ClearNavigation(panelSide);
+
         _controller.SetSourceDisplay(state, request.Title, showCurrentItemFullPath: true);
         try
         {
@@ -164,6 +175,70 @@ internal sealed class ModulePanelOpener
         }
         _setQuickView(false);
         _setActiveSide(panelSide);
+    }
+
+    /// <summary>Handles Enter for plugin-owned file types without blocking the UI input loop.</summary>
+    public bool TryOpenFileItem(
+        FilePanelState state, PanelSide side, FilePanelItem item,
+        Action<FilePanelState, FilePanelItem> fallback)
+    {
+        if (!_sourceRegistry.TryGetSource(item.SourceId, out var source) ||
+            !_moduleCatalog.TryOpenFile(source, item, side, out var invocation))
+            return false;
+
+        var origin = state.CurrentLocation;
+        if (invocation.IsCompleted)
+        {
+            CompleteFileOpen(invocation.Result, state, side, item, origin, fallback);
+            return true;
+        }
+
+        if (_postToUi is null)
+        {
+            _showMessage("Open file", "Asynchronous file handlers require a UI completion queue.");
+            return true;
+        }
+        _ = AwaitFileOpenAsync(invocation, state, side, item, origin, fallback);
+        return true;
+    }
+
+    private async Task AwaitFileOpenAsync(
+        ValueTask<PluginFileOpenResult> invocation,
+        FilePanelState state, PanelSide side, FilePanelItem item, PanelLocation origin,
+        Action<FilePanelState, FilePanelItem> fallback)
+    {
+        PluginFileOpenResult result;
+        try { result = await invocation.ConfigureAwait(false); }
+        catch (OperationCanceledException) { result = PluginFileOpenResult.Cancelled(); }
+        catch (Exception error) { result = PluginFileOpenResult.Failed(error.Message); }
+        _postToUi!(() => CompleteFileOpen(result, state, side, item, origin, fallback));
+    }
+
+    private void CompleteFileOpen(
+        PluginFileOpenResult result,
+        FilePanelState state, PanelSide side, FilePanelItem item, PanelLocation origin,
+        Action<FilePanelState, FilePanelItem> fallback)
+    {
+        if (state.CurrentLocation != origin)
+        {
+            if (result.Panel is { Source: var unused } &&
+                !_sourceRegistry.TryGetSource(unused.SourceId, out _))
+                _cleanup.Discard(unused);
+            return;
+        }
+
+        switch (result.Kind)
+        {
+            case PluginFileOpenResultKind.NotHandled:
+                fallback(state, item);
+                break;
+            case PluginFileOpenResultKind.OpenPanel:
+                OpenPanel(side, result.Panel!, item);
+                break;
+            case PluginFileOpenResultKind.Failed:
+                _showMessage("Open file", result.Error ?? "File handler failed.");
+                break;
+        }
     }
 
     public ApplicationCommandResult HandleOpenResult(
