@@ -145,8 +145,9 @@ public sealed class ArchiveFilePanelSource : IFilePanelSource, IFileOperationBat
 
             return new ArchiveFilePanelSource(
                 file, !local, snapshot.Length, snapshot.LastWriteTimeUtc, format, index, depth,
-                local && format == "ZIP" && !snapshot.IsReadOnly &&
-                snapshot.LinkTarget is null && ArchiveZipSafety.IsRebuildSafe(file));
+                local && !snapshot.IsReadOnly && snapshot.LinkTarget is null &&
+                (format == "ZIP" ? ArchiveZipSafety.IsRebuildSafe(file) :
+                 format is "TAR" or "TAR.GZ" && ArchiveTarSafety.IsRebuildSafe(file, format)));
         }
         catch
         {
@@ -205,7 +206,10 @@ public sealed class ArchiveFilePanelSource : IFilePanelSource, IFileOperationBat
             throw ReadOnly();
         cancellationToken.ThrowIfCancellationRequested();
         EnsureFresh();
-        ArchiveZipSafety.Validate(_archiveFile);
+        if (Format == "ZIP")
+            ArchiveZipSafety.Validate(_archiveFile);
+        else
+            ArchiveTarSafety.Validate(_archiveFile, Format);
         byte[] originalDigest = await Task.Run(() =>
         {
             using var input = File.OpenRead(_archiveFile);
