@@ -480,7 +480,8 @@ internal sealed class ApplicationCommandContext
             return;
         }
 
-        _panelFileOpener.OpenFileItem(state, item);
+        if (!_modulePanelOpener.TryOpenFileItem(state, side, item, _panelFileOpener.OpenFileItem))
+            _panelFileOpener.OpenFileItem(state, item);
     }
 
     public ApplicationCommandResult OpenModuleMenuItem(Guid actionId) =>

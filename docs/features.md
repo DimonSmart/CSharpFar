@@ -71,3 +71,7 @@ Platform-specific functionality includes terminal input/output, process launchin
 CSharpFar uses a custom terminal UI subsystem rather than a general-purpose GUI toolkit. It handles layered composition, modal dialogs, focus and mouse routing, committed frame state, scrolling, editor/viewer surfaces and fine-grained invalidation for partial redraws.
 
 These implementation details are intentionally not part of the main README, but they make the project useful as a realistic engineering sandbox in addition to being a file manager.
+
+### Archive navigation (read-only)
+
+Press Enter on a ZIP, RAR/RAR5, 7z, TAR, TAR.GZ or TGZ archive to browse it like a folder. Use Backspace or `..` to return. F3 views files, F5 extracts files or directories into the opposite writable panel; the source archive is not changed. Nested archives are supported, with explicit depth and temporary-storage limits. See [archive documentation](archive-provider.md).
