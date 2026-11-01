@@ -79,9 +79,8 @@ public sealed class ArchiveBatchInfrastructureTests
         var destination = new InMemoryBatchFilePanelSource();
         source.SeedFile("/old.txt", "replacement");
         destination.SeedFile("/old.txt", "original");
-        // A batch is a view distinct from the committed destination.
-        // Failure in the destination batch must not be interpreted as a successful copy.
-        destination.FailCommit = true;
+        // A failed stream close inside the staging view must not publish data.
+        destination.FailWrite = true;
         await Assert.ThrowsAsync<IOException>(() => Copy(source, destination, ["/old.txt"]));
         Assert.Equal("original", destination.ReadText("/old.txt"));
     }

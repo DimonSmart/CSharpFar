@@ -18,7 +18,9 @@ public sealed class NestedPanelNavigationTests
         outer.SeedFile("/container.bin", "container");
         inner.SeedFile("/internal.txt", "contents");
 
-        var registry = new FilePanelSourceRegistry([outer, inner]);
+        var registry = new FilePanelSourceRegistry([]);
+        Assert.True(registry.TryAddOwned(outer));
+        Assert.True(registry.TryAddOwned(inner));
         var controller = new PanelController(
             new PanelViewBuilder(new FakeFileSystemService(), new PanelSortService(), sources: registry));
         var options = new AppSettings.PanelOptionsSettings();
@@ -52,7 +54,10 @@ public sealed class NestedPanelNavigationTests
         outer.SeedFile("/first.container", "first");
         middle.SeedFile("/second.container", "second");
         inner.SeedFile("/file.txt", "inside");
-        var registry = new FilePanelSourceRegistry([outer, middle, inner]);
+        var registry = new FilePanelSourceRegistry([]);
+        Assert.True(registry.TryAddOwned(outer));
+        Assert.True(registry.TryAddOwned(middle));
+        Assert.True(registry.TryAddOwned(inner));
         var controller = new PanelController(
             new PanelViewBuilder(new FakeFileSystemService(), new PanelSortService(), sources: registry));
         var state = new FilePanelState();
