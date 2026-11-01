@@ -1,3 +1,4 @@
+using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Plugin.Abstractions;
 
@@ -257,6 +258,77 @@ internal sealed class NativePluginRuntime
         }
     }
 
+    /// <summary>
+    /// Finds exactly one handler in registration order. Conflicting claims fail closed
+    /// rather than silently selecting a format handler.
+    /// </summary>
+    public bool TryOpenFile(
+        IFilePanelSource source, FilePanelItem item, PanelSide side,
+        out ValueTask<PluginFileOpenResult> invocation,
+        CancellationToken cancellationToken = default)
+    {
+        invocation = default;
+        (Registration Registration, IFileOpenHandler Handler)? match = null;
+        foreach (var registration in _plugins.Values)
+        {
+            foreach (var handler in registration.OpenHandlers)
+            {
+                bool canOpen;
+                try { canOpen = handler.CanOpen(item); }
+                catch (Exception error)
+                {
+                    invocation = ValueTask.FromResult(PluginFileOpenResult.Failed(
+                        $"File opener '{registration.Descriptor.Id}/{handler.Id}': {error.Message}"));
+                    return true;
+                }
+                if (!canOpen)
+                    continue;
+                if (match is not null)
+                {
+                    invocation = ValueTask.FromResult(PluginFileOpenResult.Failed(
+                        $"Ambiguous file open handlers: '{match.Value.Registration.Descriptor.Id}/{match.Value.Handler.Id}' " +
+                        $"and '{registration.Descriptor.Id}/{handler.Id}'."));
+                    return true;
+                }
+                match = (registration, handler);
+            }
+        }
+        if (match is null)
+            return false;
+
+        invocation = InvokeFileOpenAsync(match.Value.Registration, match.Value.Handler,
+            source, item, side, cancellationToken);
+        return true;
+    }
+
+    private async ValueTask<PluginFileOpenResult> InvokeFileOpenAsync(
+        Registration registration, IFileOpenHandler handler,
+        IFilePanelSource source, FilePanelItem item, PanelSide side, CancellationToken cancellationToken)
+    {
+        var host = registration.Host!;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return await handler.OpenAsync(new FileOpenContext
+            {
+                Source = source,
+                Item = item,
+                Location = item.Location,
+                TargetPanelSide = side,
+                Application = host.Application,
+                Settings = host.Settings,
+                Credentials = host.Credentials,
+                Ui = host.Ui,
+            }, cancellationToken) ?? PluginFileOpenResult.Failed("File handler returned null.");
+        }
+        catch (OperationCanceledException) { return PluginFileOpenResult.Cancelled(); }
+        catch (Exception error)
+        {
+            return PluginFileOpenResult.Failed(
+                $"File opener '{registration.Descriptor.Id}/{handler.Id}': {error.Message}");
+        }
+    }
+
     private void EnsureMutable()
     {
         if (_sealed || _aborted) throw new InvalidOperationException("Plugin initialization is closed.");
@@ -267,6 +339,7 @@ internal sealed class NativePluginRuntime
         public PluginDescriptor Descriptor { get; } = descriptor;
         public Dictionary<string, PluginCommandDescriptor> Commands { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, IPanelProvider> Providers { get; } = new(StringComparer.Ordinal);
+        public List<IFileOpenHandler> OpenHandlers { get; } = [];
         public Dictionary<string, string> Prefixes { get; } = new(StringComparer.OrdinalIgnoreCase);
         public List<PluginMenuItemDescriptor> Menus { get; } = [];
         public RegistrationHost? Host { get; set; }
@@ -310,6 +383,7 @@ internal sealed class NativePluginRuntime
                 }
             }
             Providers.Clear();
+            OpenHandlers.Clear();
             if (failures is not null)
                 throw new AggregateException("Plugin provider cleanup failed.", failures);
         }
@@ -366,6 +440,16 @@ internal sealed class NativePluginRuntime
                 throw new ArgumentException("A prefix cannot contain a colon or whitespace.", nameof(prefix));
             if (!_owner.Prefixes.TryAdd(prefix, commandId))
                 throw new InvalidOperationException($"Duplicate command prefix '{prefix}'.");
+        }
+
+        public void RegisterFileOpenHandler(IFileOpenHandler handler)
+        {
+            _owner.CheckWritable();
+            ArgumentNullException.ThrowIfNull(handler);
+            CheckId(handler.Id);
+            if (_owner.OpenHandlers.Any(existing => string.Equals(existing.Id, handler.Id, StringComparison.Ordinal)))
+                throw new InvalidOperationException($"Duplicate file-open handler '{handler.Id}'.");
+            _owner.OpenHandlers.Add(handler);
         }
 
         public void RegisterPanelProvider(IPanelProvider provider)
