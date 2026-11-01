@@ -67,14 +67,14 @@ internal static class SharpCompressArchiveReader
         IReader? reader = null;
         try
         {
-            if (format == "TAR.GZ")
+            if (format is "TAR.GZ" or "TAR")
             {
                 reader = ReaderFactory.OpenReader(input);
                 return FindSequential(reader, input, null, node, cancellationToken);
             }
 
             archive = ArchiveFactory.OpenArchive(input);
-            if (archive.IsSolid || format == "TAR")
+            if (archive.IsSolid)
             {
                 reader = archive.ExtractAllEntries();
                 return FindSequential(reader, input, archive, node, cancellationToken);
