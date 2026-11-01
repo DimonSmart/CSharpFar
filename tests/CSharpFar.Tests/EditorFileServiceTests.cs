@@ -1,5 +1,6 @@
 using System.Text;
 using CSharpFar.App.Editor;
+using CSharpFar.Tests.Infrastructure;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.Tests;
@@ -22,6 +23,56 @@ public sealed class EditorFileServiceTests : IDisposable
                 File.SetAttributes(path, FileAttributes.Normal);
             Directory.Delete(_tempDir, recursive: true);
         }
+    }
+
+    [Fact]
+    public void ProviderSave_StreamDisposeFailureLeavesDocumentDirty()
+    {
+        var source = new InMemoryBatchFilePanelSource { FailWrite = true };
+        source.SeedFile("/document.txt", "old");
+        var service = new EditorFileService(new AppSettings.EditorSettings());
+        var session = service.Load(source, "/document.txt", "/document.txt");
+        session.MoveToDocumentEnd();
+        session.InsertText(" new");
+        Assert.True(session.Document.IsDirty);
+
+        Assert.Throws<IOException>(() => service.Save(session, source, "/document.txt"));
+        Assert.True(session.Document.IsDirty);
+        Assert.Equal("old", source.ReadText("/document.txt"));
+    }
+
+    [Fact]
+    public async Task ProviderSaveAsync_FailedBatchCommitKeepsDirtyDocumentAndOldContent()
+    {
+        var source = new InMemoryBatchFilePanelSource { FailCommit = true };
+        source.SeedFile("/document.txt", "old");
+        var service = new EditorFileService(new AppSettings.EditorSettings());
+        var session = service.Load(source, "/document.txt", "/document.txt");
+        session.MoveToDocumentEnd();
+        session.InsertText(" new");
+
+        await Assert.ThrowsAsync<IOException>(() => service.SaveAsync(session, source, "/document.txt"));
+
+        Assert.True(session.Document.IsDirty);
+        Assert.Equal("old", source.ReadText("/document.txt"));
+        Assert.Equal(0, source.Committed);
+        Assert.Equal(1, source.Aborted);
+    }
+
+    [Fact]
+    public async Task ProviderSaveAsync_SuccessfulBatchCommitCleansDocument()
+    {
+        var source = new InMemoryBatchFilePanelSource();
+        source.SeedFile("/document.txt", "old");
+        var service = new EditorFileService(new AppSettings.EditorSettings());
+        var session = service.Load(source, "/document.txt", "/document.txt");
+        session.MoveToDocumentEnd();
+        session.InsertText(" new");
+
+        await service.SaveAsync(session, source, "/document.txt");
+        Assert.False(session.Document.IsDirty);
+        Assert.Equal("old new", source.ReadText("/document.txt"));
+        Assert.Equal(1, source.Committed);
     }
 
     [Fact]

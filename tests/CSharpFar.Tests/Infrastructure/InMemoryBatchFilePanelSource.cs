@@ -215,7 +215,8 @@ internal sealed class InMemoryBatchFilePanelSource : MemoryFilePanelView, IFileO
         cancellationToken.ThrowIfCancellationRequested();
         Begun++;
         LastPlan = plan;
-        return ValueTask.FromResult<IFileOperationBatch>(new Batch(this, Snapshot()));
+        return ValueTask.FromResult<IFileOperationBatch>(
+            new Batch(this, Snapshot()) { FailWrite = FailWrite });
     }
 
     private sealed class Batch(
