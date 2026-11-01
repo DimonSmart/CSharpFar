@@ -266,6 +266,18 @@ internal sealed class ModulePanelOpener
             _getPanelState(PanelSide.Right).SourceId,
             _cleanup.Discard);
 
+    /// <summary>
+    /// Called after the terminal input loop ends. Drop saved navigation leases,
+    /// retire every owned panel source, and await asynchronous cleanup.
+    /// </summary>
+    public async Task ShutdownAsync()
+    {
+        _navigation?.ClearNavigation(PanelSide.Left);
+        _navigation?.ClearNavigation(PanelSide.Right);
+        _sourceRegistry.DisposeOwnedSources(_cleanup.Discard);
+        await _cleanup.AwaitPendingAsync().ConfigureAwait(false);
+    }
+
     /// <summary>Finish rejected-source cleanup after the input loop stops.</summary>
     public Task AwaitPendingCleanupsAsync() => _cleanup.AwaitPendingAsync();
 }

@@ -317,7 +317,7 @@ public sealed class Application
             {
                 // The input loop has stopped; complete rejected-source cleanup
                 // before shutting down the plugin runtime and its live providers.
-                _modulePanelOpener.AwaitPendingCleanupsAsync().GetAwaiter().GetResult();
+                _modulePanelOpener.ShutdownAsync().GetAwaiter().GetResult();
             }
             finally
             {

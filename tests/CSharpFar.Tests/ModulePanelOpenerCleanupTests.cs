@@ -12,6 +12,23 @@ namespace CSharpFar.Tests;
 public sealed class ModulePanelOpenerCleanupTests
 {
     [Fact]
+    public async Task Shutdown_RetiresOwnedTemporarySourcesAndAwaitsAsyncDispose()
+    {
+        var fixture = new Fixture();
+        var owned = new AsyncSource();
+        Assert.True(fixture.Registry.TryAddOwned(owned));
+
+        Task shutdown = fixture.Opener.ShutdownAsync();
+        Assert.Equal(1, owned.DisposeCalls);
+        Assert.False(shutdown.IsCompleted);
+        Assert.False(fixture.Registry.TryGetSource(owned.SourceId, out _));
+
+        owned.CompleteDisposal();
+        await shutdown.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Empty(fixture.Errors);
+    }
+
+    [Fact]
     public async Task ConflictingSource_AsyncDisposalDoesNotBlockAndPreservesPanel()
     {
         var fixture = new Fixture();
