@@ -54,11 +54,11 @@ public sealed class ArchiveFilePanelSource : IFilePanelSource, IFileOperationBat
         PanelProviderCapabilities.CopyFrom |
         PanelProviderCapabilities.Refresh |
         (_writable ?
-            PanelProviderCapabilities.OpenWrite | PanelProviderCapabilities.CreateFile |
+            PanelProviderCapabilities.OpenWrite |
             PanelProviderCapabilities.CreateDirectory | PanelProviderCapabilities.Delete |
             PanelProviderCapabilities.Rename | PanelProviderCapabilities.CopyTo |
-            PanelProviderCapabilities.MoveFrom | PanelProviderCapabilities.MoveTo |
-            PanelProviderCapabilities.Edit : PanelProviderCapabilities.None);
+            PanelProviderCapabilities.MoveFrom | PanelProviderCapabilities.MoveTo
+            : PanelProviderCapabilities.None);
 
     internal string ArchiveFile => _archiveFile;
     internal ArchiveEntryIndex Index => _index;
