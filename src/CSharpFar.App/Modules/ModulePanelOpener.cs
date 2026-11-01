@@ -158,6 +158,9 @@ internal sealed class ModulePanelOpener
             return;
         }
 
+        // A previously nested or shared source may have a pending retirement.
+        // It is visible now, before any old navigation leases are released.
+        _sourceRegistry.RetainSource(source.SourceId);
         if (returnPoint is not null)
             _navigation!.EnterNestedSource(state, panelSide, returnPoint);
         else
