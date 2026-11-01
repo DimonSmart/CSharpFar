@@ -54,9 +54,11 @@ public sealed class ArchiveProviderTests : IDisposable
         Assert.Equal("main.cs", Assert.Single(source.EnumerateDirectory("/src/core")).Name);
         Assert.Empty(source.EnumerateDirectory("/empty"));
 
-        await using var stream = await source.OpenReadAsync("/Русский/имя.txt");
-        using var reader = new StreamReader(stream);
-        Assert.Equal("мир", await reader.ReadToEndAsync());
+        await using (var stream = await source.OpenReadAsync("/Русский/имя.txt"))
+        using (var reader = new StreamReader(stream))
+        {
+            Assert.Equal("мир", await reader.ReadToEndAsync());
+        }
         await source.CreateDirectoryAsync("/new");
         Assert.True(source.GetItem("/new")!.IsDirectory);
         Assert.Empty(source.EnumerateDirectory("/new"));
