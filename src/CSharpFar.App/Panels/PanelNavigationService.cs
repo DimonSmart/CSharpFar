@@ -75,7 +75,7 @@ internal sealed class PanelNavigationService
             IsParentDirectory = true,
             Attributes = FileAttributes.Directory,
         });
-        state.CursorIndex++;
+        state.CursorIndex = Math.Min(state.CursorIndex + 1, state.Items.Count - 1);
         if (state.ScrollOffset > 0)
             state.ScrollOffset++;
     }
