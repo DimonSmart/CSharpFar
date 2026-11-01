@@ -131,6 +131,13 @@ internal sealed class ArchiveMutationBatch : IFileOperationBatch
         return Task.FromResult<Stream>(new StagedWriteStream(stream,
             () =>
             {
+                if (_aborted)
+                {
+                    try { File.Delete(staged); }
+                    catch (IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                    return;
+                }
                 long size = new FileInfo(staged).Length;
                 if (size > ArchiveEntryIndex.MaxSingleSize)
                     throw new InvalidDataException("Archive entry exceeds the single-file size limit.");
