@@ -69,7 +69,7 @@ public sealed class NestedPanelNavigationTests
         var first = navigation.CaptureReturnPoint(state, Assert.Single(state.Items));
         controller.LoadLocation(state, new PanelLocation(middle.SourceId, "/"), options);
         navigation.EnterNestedSource(state, PanelSide.Left, first);
-        var second = navigation.CaptureReturnPoint(state, Assert.Single(state.Items));
+        var second = navigation.CaptureReturnPoint(state, Assert.Single(state.Items.Where(item => !item.IsParentDirectory)));
         controller.LoadLocation(state, new PanelLocation(inner.SourceId, "/"), options);
         navigation.EnterNestedSource(state, PanelSide.Left, second);
 

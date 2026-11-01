@@ -20,7 +20,8 @@ matches fail explicitly. A handler can return `NotHandled` to request the
 ordinary fallback, `Cancelled`, or `Failed(message)`. Async completion
 is posted to the existing UI queue. Nested panels save the previous location,
 selected item, cursor, scroll offset, selection, and source display. On moving
-above the nested root, the old source is restored. A usage lease pins any
+above the nested root, the old source is restored. The panel supplies a
+synthetic `..` at that root, retained after refresh. A usage lease pins any
 temporary source referenced in the navigation stack.
 
 ## Provider batch writes
