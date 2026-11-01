@@ -72,7 +72,7 @@ public sealed class NestedPanelNavigationTests
         controller.LoadLocation(state, new PanelLocation(middle.SourceId, "/"), options);
         navigation.EnterNestedSource(state, PanelSide.Left, first);
         controller.SetSourceDisplay(state, "ZIP: middle.zip", showCurrentItemFullPath: true);
-        var second = navigation.CaptureReturnPoint(state, Assert.Single(state.Items.Where(item => !item.IsParentDirectory)));
+        var second = navigation.CaptureReturnPoint(state, Assert.Single(state.Items, item => !item.IsParentDirectory));
         controller.LoadLocation(state, new PanelLocation(inner.SourceId, "/"), options);
         navigation.EnterNestedSource(state, PanelSide.Left, second);
         controller.SetSourceDisplay(state, "7Z: inner.7z", showCurrentItemFullPath: true);

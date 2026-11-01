@@ -54,10 +54,14 @@ internal static class PanelTitleRenderer
         if (title.Length + suffix.Length <= maxLen)
             return title + suffix;
 
-        if (title.Length < maxLen)
-            return title + FormatSourcePath(suffix, maxLen - title.Length);
-
-        int suffixWidth = Math.Min(suffix.Length, maxLen / 3);
+        int markerEnd = title.IndexOf(':');
+        int minimumTitleWidth = markerEnd >= 0
+            ? Math.Min(maxLen, markerEnd + 2)
+            : 1;
+        int lastSeparator = Math.Max(suffix.LastIndexOf('/'), suffix.LastIndexOf('\\'));
+        int currentFolderWidth = suffix.Length - lastSeparator - 1;
+        int preferredSuffixWidth = Math.Min(suffix.Length, Math.Max(maxLen / 3, currentFolderWidth + 3));
+        int suffixWidth = Math.Min(maxLen - minimumTitleWidth, Math.Max(preferredSuffixWidth, maxLen - title.Length));
         return FormatSourceTitle(title, maxLen - suffixWidth) + FormatSourcePath(suffix, suffixWidth);
     }
 
