@@ -47,6 +47,7 @@ public sealed class FilePanelState
         PanelProviderCapabilities.LocalFileSystem;
     public PanelLoadError? LoadError { get; internal set; }
     public string? DisplayTitle { get; internal set; }
+    public string? DisplayTitleBasePath { get; internal set; }
     public bool ShowCurrentItemFullPath { get; internal set; }
     public PanelContentKind ContentKind { get; internal set; } = PanelContentKind.Source;
     public SearchRequest? SearchRequest { get; set; }

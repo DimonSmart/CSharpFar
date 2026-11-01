@@ -1,6 +1,7 @@
 using System.Formats.Tar;
 using System.IO.Compression;
 using System.Text;
+using CSharpFar.App.Rendering;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
@@ -101,9 +102,22 @@ public sealed class ArchiveProviderTests : IDisposable
         var state = new FilePanelState();
         var options = new AppSettings.PanelOptionsSettings();
         controller.LoadLocation(state, new PanelLocation(archive.SourceId, "/"), options);
+        controller.SetSourceDisplay(state, "ZIP: panel.zip", showCurrentItemFullPath: true);
+        Assert.Equal("ZIP: panel.zip", PanelTitleRenderer.FormatLabel(state, 80));
         Assert.Equal("a", Assert.Single(state.Items).Name);
+
         controller.LoadLocation(state, new PanelLocation(archive.SourceId, "/a/b"), options);
         Assert.Contains(state.Items, i => i.Name == "file.txt");
+        Assert.Equal("ZIP: panel.zip/a/b", PanelTitleRenderer.FormatLabel(state, 80));
+        Assert.True(state.ShowCurrentItemFullPath);
+
+        Assert.True(controller.TryGoToParent(state, visibleRows: 10, options));
+        Assert.Equal("ZIP: panel.zip/a", PanelTitleRenderer.FormatLabel(state, 80));
+
+        controller.LoadLocation(state, PanelLocation.Local(_folder), options);
+        Assert.Null(state.DisplayTitle);
+        Assert.Null(state.DisplayTitleBasePath);
+        Assert.False(state.ShowCurrentItemFullPath);
     }
 
     [Fact]

@@ -37,7 +37,7 @@ internal sealed class PanelNavigationService
 
     internal sealed record ReturnPoint(
         PanelLocation Location, string ItemName, int CursorIndex, int ScrollOffset,
-        string? DisplayTitle, bool ShowFullPath,
+        string? DisplayTitle, string? DisplayTitleBasePath, bool ShowFullPath,
         IReadOnlyList<string> SelectedPaths, IReadOnlyList<PanelLocation> SelectedLocations)
     {
         internal IDisposable? Lease { get; init; }
@@ -45,7 +45,7 @@ internal sealed class PanelNavigationService
 
     public ReturnPoint CaptureReturnPoint(FilePanelState state, FilePanelItem item) =>
         new(state.CurrentLocation, item.Name, state.CursorIndex, state.ScrollOffset,
-            state.DisplayTitle, state.ShowCurrentItemFullPath,
+            state.DisplayTitle, state.DisplayTitleBasePath, state.ShowCurrentItemFullPath,
             state.SelectedPaths.ToArray(), state.SelectedLocations.ToArray());
 
     public void PushReturnPoint(PanelSide side, ReturnPoint point)
@@ -109,7 +109,7 @@ internal sealed class PanelNavigationService
         frame.Lease?.Dispose();
         if (stack.Count == 0)
             _returnPoints.Remove(side);
-        _controller.SetSourceDisplay(state, frame.DisplayTitle, frame.ShowFullPath);
+        _controller.SetSourceDisplay(state, frame.DisplayTitle, frame.ShowFullPath, frame.DisplayTitleBasePath);
         foreach (string path in frame.SelectedPaths)
             state.SelectedPaths.Add(path);
         foreach (PanelLocation location in frame.SelectedLocations)

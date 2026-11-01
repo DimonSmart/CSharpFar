@@ -22,7 +22,7 @@ internal static class PanelTitleRenderer
         bool touchesRightScreenEdge = bounds.Right == screen.Size.Width;
         int titleAreaWidth = Math.Max(0, innerWidth - (touchesRightScreenEdge ? ClockWidth : 0));
         int pathMaxLen = Math.Max(0, titleAreaWidth - 2);
-        string label = FormatPathLabel(state.DisplayTitle ?? state.CurrentDirectory, pathMaxLen);
+        string label = FormatLabel(state, pathMaxLen);
         if (label.Length == 0)
             return;
 
@@ -35,6 +35,80 @@ internal static class PanelTitleRenderer
         var activePathStyle = new CellStyle(palette.PanelPathActiveFg, palette.PanelPathActiveBg);
 
         screen.Write(titleX, bounds.Y, text, isActive ? activePathStyle : textStyle);
+    }
+
+
+    internal static string FormatLabel(FilePanelState state, int maxLen)
+    {
+        if (maxLen <= 0)
+            return string.Empty;
+
+        if (string.IsNullOrEmpty(state.DisplayTitle))
+            return FormatPathLabel(state.CurrentDirectory, maxLen);
+
+        string title = state.DisplayTitle;
+        string suffix = GetSourcePathSuffix(state.SourcePath, state.DisplayTitleBasePath);
+        if (suffix.Length == 0)
+            return FormatSourceTitle(title, maxLen);
+
+        if (title.Length + suffix.Length <= maxLen)
+            return title + suffix;
+
+        if (title.Length < maxLen)
+            return title + FormatSourcePath(suffix, maxLen - title.Length);
+
+        int suffixWidth = Math.Min(suffix.Length, maxLen / 3);
+        return FormatSourceTitle(title, maxLen - suffixWidth) + FormatSourcePath(suffix, suffixWidth);
+    }
+
+    private static string GetSourcePathSuffix(string currentPath, string? basePath)
+    {
+        if (string.IsNullOrEmpty(basePath) || currentPath == basePath)
+            return string.Empty;
+
+        if (currentPath.StartsWith(basePath, StringComparison.Ordinal))
+        {
+            string relative = currentPath[basePath.Length..];
+            if (basePath.EndsWith('/') || basePath.EndsWith('\\') ||
+                relative.StartsWith('/') || relative.StartsWith('\\'))
+            {
+                return relative.StartsWith('/') || relative.StartsWith('\\')
+                    ? relative
+                    : "/" + relative;
+            }
+        }
+
+        return currentPath.StartsWith('/') || currentPath.StartsWith('\\')
+            ? currentPath
+            : "/" + currentPath;
+    }
+
+    private static string FormatSourceTitle(string title, int maxLen)
+    {
+        if (maxLen <= 0)
+            return string.Empty;
+        if (title.Length <= maxLen)
+            return title;
+
+        int markerEnd = title.IndexOf(':');
+        if (markerEnd < 0 || markerEnd + 1 >= maxLen)
+            return title[..maxLen];
+
+        string marker = title[..(markerEnd + 1)];
+        return marker + TruncateLeft(title[marker.Length..], maxLen - marker.Length);
+    }
+
+    private static string FormatSourcePath(string suffix, int maxLen)
+    {
+        if (maxLen <= 0)
+            return string.Empty;
+        if (suffix.Length <= maxLen)
+            return suffix;
+
+        if (suffix[0] is '/' or '\\')
+            return maxLen == 1 ? suffix[..1] : suffix[..1] + TruncateLeft(suffix[1..], maxLen - 1);
+
+        return TruncateLeft(suffix, maxLen);
     }
 
     private static string FormatPathLabel(string path, int maxLen)

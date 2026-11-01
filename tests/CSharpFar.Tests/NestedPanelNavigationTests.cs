@@ -67,19 +67,27 @@ public sealed class NestedPanelNavigationTests
         var navigation = new PanelNavigationService(controller, new History(), () => options,
             _ => 10, _ => { }, (_, _) => { }, registry);
         controller.LoadLocation(state, new PanelLocation(outer.SourceId, "/"), options);
+        controller.SetSourceDisplay(state, "ZIP: outer.zip", showCurrentItemFullPath: true);
         var first = navigation.CaptureReturnPoint(state, Assert.Single(state.Items));
         controller.LoadLocation(state, new PanelLocation(middle.SourceId, "/"), options);
         navigation.EnterNestedSource(state, PanelSide.Left, first);
+        controller.SetSourceDisplay(state, "ZIP: middle.zip", showCurrentItemFullPath: true);
         var second = navigation.CaptureReturnPoint(state, Assert.Single(state.Items.Where(item => !item.IsParentDirectory)));
         controller.LoadLocation(state, new PanelLocation(inner.SourceId, "/"), options);
         navigation.EnterNestedSource(state, PanelSide.Left, second);
+        controller.SetSourceDisplay(state, "7Z: inner.7z", showCurrentItemFullPath: true);
 
         navigation.TryGoUp(state, PanelSide.Left);
         Assert.Equal(middle.SourceId, state.SourceId);
+        Assert.Equal("ZIP: middle.zip", state.DisplayTitle);
+        Assert.Equal("/", state.DisplayTitleBasePath);
         Assert.Equal("second.container", state.Items[state.CursorIndex].Name);
 
         navigation.TryGoUp(state, PanelSide.Left);
         Assert.Equal(outer.SourceId, state.SourceId);
+        Assert.Equal("ZIP: outer.zip", state.DisplayTitle);
+        Assert.Equal("/", state.DisplayTitleBasePath);
+        Assert.True(state.ShowCurrentItemFullPath);
         Assert.Equal("first.container", state.Items[state.CursorIndex].Name);
     }
 

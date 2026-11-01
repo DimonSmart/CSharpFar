@@ -88,12 +88,14 @@ public sealed class PanelController
     public void SetSourceDisplay(
         FilePanelState state,
         string? title,
-        bool showCurrentItemFullPath)
+        bool showCurrentItemFullPath,
+        string? basePath = null)
     {
         if (state.ContentKind != PanelContentKind.Source)
             throw new InvalidOperationException("Source display metadata requires a source panel.");
 
         state.DisplayTitle = title;
+        state.DisplayTitleBasePath = title is null ? null : basePath ?? state.SourcePath;
         state.ShowCurrentItemFullPath = showCurrentItemFullPath;
     }
 
@@ -132,6 +134,7 @@ public sealed class PanelController
         state.ProviderCapabilities = content.Capabilities;
         state.ContentKind = PanelContentKind.Virtual;
         state.DisplayTitle = content.Title;
+        state.DisplayTitleBasePath = null;
         state.ShowCurrentItemFullPath = content.ShowCurrentItemFullPath;
         state.AutoRefreshState = null;
         state.LoadError = null;
@@ -157,6 +160,7 @@ public sealed class PanelController
         PanelLocation location,
         PanelView view)
     {
+        bool sameSource = state.ContentKind == PanelContentKind.Source && state.SourceId == location.SourceId;
         state.CurrentLocation = location;
         state.Items.Clear();
         state.Items.AddRange(view.Items);
@@ -165,8 +169,12 @@ public sealed class PanelController
         state.ProviderCapabilities = view.ProviderCapabilities;
         state.ContentKind = PanelContentKind.Source;
         state.LoadError = null;
-        state.DisplayTitle = null;
-        state.ShowCurrentItemFullPath = false;
+        if (!sameSource)
+        {
+            state.DisplayTitle = null;
+            state.DisplayTitleBasePath = null;
+            state.ShowCurrentItemFullPath = false;
+        }
         state.SearchRequest = null;
         state.SearchWasCancelled = false;
         state.SelectedPaths.Clear();
@@ -808,6 +816,7 @@ public sealed class PanelController
         PanelLocation location,
         Exception exception)
     {
+        bool sameSource = state.ContentKind == PanelContentKind.Source && state.SourceId == location.SourceId;
         state.CurrentLocation = location;
         state.Items.Clear();
         state.SelectedPaths.Clear();
@@ -823,8 +832,12 @@ public sealed class PanelController
                 : exception.Message,
             RetryLocation = location,
         };
-        state.DisplayTitle = null;
-        state.ShowCurrentItemFullPath = false;
+        if (!sameSource)
+        {
+            state.DisplayTitle = null;
+            state.DisplayTitleBasePath = null;
+            state.ShowCurrentItemFullPath = false;
+        }
         state.SearchRequest = null;
         state.SearchWasCancelled = false;
         state.CursorIndex = 0;
