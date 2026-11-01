@@ -157,7 +157,7 @@ internal static class ArchivePublication
             FileAccess.ReadWrite, FileShare.None, BufferSize, FileOptions.Asynchronous);
         await using GZipStream? gzip = owner.Format == "TAR.GZ"
             ? new GZipStream(output, CompressionLevel.Optimal, leaveOpen: true) : null;
-        await using (var writer = new TarWriter(gzip ?? output, TarEntryFormat.Pax, leaveOpen: true))
+        await using (var writer = new TarWriter((Stream?)gzip ?? output, TarEntryFormat.Pax, leaveOpen: true))
         {
             foreach (var entry in batch.Entries.OrderBy(entry => entry.Path, StringComparer.Ordinal))
             {
