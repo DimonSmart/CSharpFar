@@ -24,6 +24,7 @@ internal class MemoryFilePanelView : IFilePanelSource
         PanelProviderCapabilities.Rename | PanelProviderCapabilities.CopyFrom |
         PanelProviderCapabilities.CopyTo | PanelProviderCapabilities.Edit;
     public IReadOnlyCollection<char> PathSeparators => ['/'];
+    public bool FailRead { get; set; }
     public bool FailWrite { get; set; }
 
     public string NormalizePath(string path)
@@ -79,6 +80,8 @@ internal class MemoryFilePanelView : IFilePanelSource
     public Task<Stream> OpenReadAsync(string path, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (FailRead)
+            throw new IOException("Simulated provider read failure.");
         path = NormalizePath(path);
         lock (_gate)
         {

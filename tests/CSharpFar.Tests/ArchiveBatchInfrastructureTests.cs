@@ -86,6 +86,23 @@ public sealed class ArchiveBatchInfrastructureTests
     }
 
     [Fact]
+    public async Task ReadFailure_AbortsDestinationBatchWithoutPublication()
+    {
+        var source = new InMemoryBatchFilePanelSource { FailRead = true };
+        var destination = new InMemoryBatchFilePanelSource();
+        source.SeedFile("/file.txt", "data");
+        destination.SeedFile("/existing.txt", "preserve");
+
+        await Assert.ThrowsAsync<IOException>(() => Copy(source, destination, ["/file.txt"]));
+
+        Assert.Null(destination.ReadText("/file.txt"));
+        Assert.Equal("preserve", destination.ReadText("/existing.txt"));
+        Assert.Equal(1, destination.Begun);
+        Assert.Equal(1, destination.Aborted);
+        Assert.Equal(0, destination.Committed);
+    }
+
+    [Fact]
     public async Task CancellationBeforeCommit_AbortsStagedChanges()
     {
         var source = new InMemoryBatchFilePanelSource();
