@@ -300,7 +300,9 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         FileOperationOptions options,
         IFileOperationConflictResolver conflictResolver,
         OperationState state,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ICollection<string>? copiedFiles = null,
+        ICollection<string>? copiedFolders = null)
     {
         foreach (var plannedItem in plan)
         {
@@ -315,7 +317,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             await CopyProviderItemAsync(
                 plannedItem.Source, plannedItem.SourcePath,
                 destinationSource, plannedItem.TargetPath, plannedItem.Item,
-                options, conflictResolver, state, cancellationToken).ConfigureAwait(false);
+                options, conflictResolver, state, cancellationToken, copiedFiles, copiedFolders).ConfigureAwait(false);
         }
     }
 
@@ -328,7 +330,9 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         FileOperationOptions options,
         IFileOperationConflictResolver conflictResolver,
         OperationState state,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ICollection<string>? copiedFiles = null,
+        ICollection<string>? copiedFolders = null)
     {
         if (sourceItem.IsDirectory)
         {
@@ -357,6 +361,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                     .ConfigureAwait(false);
             }
 
+            copiedFolders?.Add(sourcePath);
             state.CompleteItem();
             return;
         }
@@ -425,6 +430,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             state.Report(sourcePath, destinationPath, done, total);
         }
 
+        copiedFiles?.Add(sourcePath);
         state.CopiedCount++;
         state.CompleteItem();
     }
@@ -438,8 +444,15 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         ValidateMoveConflictDecision(request.Options.DefaultConflictDecision);
         var sources = RequireSourceLocations(request);
         var destination = RequireDestinationLocation(request);
-        if (sources.Any(location => location.SourceId != destination.SourceId))
-            throw new InvalidOperationException("Cross-provider move is not supported.");
+        if (sources.Any(location =>
+            location.SourceId != destination.SourceId &&
+            !SamePhysicalContainer(_sources!.GetSource(location.SourceId),
+                _sources.GetSource(destination.SourceId))))
+        {
+            await MoveAcrossProvidersAsync(request, conflictResolver, state, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
 
         var source = _sources!.GetSource(sources[0].SourceId);
         var plan = BuildProviderMovePlan(source, sources, destination.SourcePath,
@@ -493,6 +506,142 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             await MoveProviderItemAsync(source, item.SourcePath, item.TargetPath,
                 item.Item, options, conflictResolver, state, cancellationToken)
                 .ConfigureAwait(false);
+        }
+    }
+
+    private static bool SamePhysicalContainer(IFilePanelSource first, IFilePanelSource second) =>
+        first is IFileProviderPhysicalIdentity a &&
+        second is IFileProviderPhysicalIdentity b &&
+        string.Equals(a.PhysicalIdentity, b.PhysicalIdentity,
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+
+    private async Task MoveAcrossProvidersAsync(
+        FileOperationRequest request,
+        IFileOperationConflictResolver resolver,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        ValidateProviderCopyOptions(request.Options);
+        var sources = RequireSourceLocations(request);
+        var destination = RequireDestinationLocation(request);
+        var targetSource = _sources!.GetSource(destination.SourceId);
+        var sourceSource = _sources.GetSource(sources[0].SourceId);
+
+        if (sources.Any(item => item.SourceId != sources[0].SourceId))
+            throw new NotSupportedException("A move cannot span multiple source providers.");
+        var fromRequired = PanelProviderCapabilities.CopyFrom |
+            PanelProviderCapabilities.OpenRead | PanelProviderCapabilities.Delete;
+        var toRequired = PanelProviderCapabilities.CopyTo | PanelProviderCapabilities.OpenWrite;
+        if ((sourceSource.Capabilities & fromRequired) != fromRequired ||
+            (targetSource.Capabilities & toRequired) != toRequired ||
+            (sourceSource.SourceId != PanelSourceId.Local && sourceSource is not IFileOperationBatchProvider) ||
+            (targetSource.SourceId != PanelSourceId.Local && targetSource is not IFileOperationBatchProvider))
+            throw new NotSupportedException("Cross-provider move requires verified copy and delete capabilities.");
+
+        var plan = BuildProviderCopyPlan(sources, destination, request.Options,
+            request.UseDestinationTemplate, cancellationToken);
+        state.SetTotals(CalculateProviderPlanSize(plan), plan.Count);
+        state.StartProgressTimer();
+        var copiedFiles = new List<string>();
+        var copiedFolders = new List<string>();
+
+        if (targetSource is IFileOperationBatchProvider batching)
+        {
+            await using var batch = await batching.BeginBatchAsync(
+                ToPublicPlan(plan, destination.SourceId), cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await CopyProviderPlanItemsAsync(plan, batch, request.Options, resolver,
+                    state, cancellationToken, copiedFiles, copiedFolders).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                state.ReportCommitting(destination.SourcePath);
+                await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                try { await batch.AbortAsync(CancellationToken.None).ConfigureAwait(false); }
+                catch { /* Keep the primary error. */ }
+                throw;
+            }
+        }
+        else
+        {
+            // Ordinary local destination has no distributed rollback; do not
+            // delete source until every requested copy attempt completes.
+            await CopyProviderPlanItemsAsync(plan, targetSource, request.Options, resolver,
+                state, cancellationToken, copiedFiles, copiedFolders).ConfigureAwait(false);
+        }
+
+        state.CopiedCount = 0; // These were copies made as part of a move.
+        if (copiedFiles.Count == 0 && copiedFolders.Count == 0)
+            return;
+
+        try
+        {
+            if (sourceSource is IFileOperationBatchProvider sourceBatching)
+            {
+                var deletePlan = new FileOperationPlan(copiedFiles.Select(path =>
+                {
+                    var location = new PanelLocation(sourceSource.SourceId, path);
+                    return new FileOperationPlanItem(location, location, false);
+                }).ToArray());
+                await using var batch = await sourceBatching.BeginBatchAsync(deletePlan,
+                    cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await RemoveCopiedSourcesAsync(batch, copiedFiles, copiedFolders,
+                        state, cancellationToken).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    state.ReportCommitting(sources[0].SourcePath);
+                    await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch
+                {
+                    try { await batch.AbortAsync(CancellationToken.None).ConfigureAwait(false); }
+                    catch { }
+                    throw;
+                }
+            }
+            else
+            {
+                await RemoveCopiedSourcesAsync(sourceSource, copiedFiles, copiedFolders,
+                    state, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // The destination was already committed. Never attempt to undo it;
+            // both copies may remain until the user explicitly resolves the issue.
+            state.PartiallyMoved = true;
+            state.AddError(sources[0].SourcePath,
+                "Destination was committed, but source removal failed: " + ex.Message);
+        }
+    }
+
+    private static async Task RemoveCopiedSourcesAsync(
+        IFilePanelSource source, IEnumerable<string> copiedFiles,
+        IEnumerable<string> copiedFolders, OperationState state, CancellationToken cancellationToken)
+    {
+        foreach (string path in copiedFiles.Distinct(StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (source.GetItem(path, cancellationToken) is null)
+                continue;
+            await source.DeleteAsync(path, recursive: false, cancellationToken).ConfigureAwait(false);
+            state.MovedCount++;
+        }
+
+        // Remove directories only when all remaining children were copied.
+        // Skipped files are left in place along with their ancestors.
+        foreach (string path in copiedFolders.Distinct(StringComparer.Ordinal)
+                     .OrderByDescending(path => path.Length))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (source.GetItem(path, cancellationToken) is not { IsDirectory: true })
+                continue;
+            if (!source.EnumerateDirectory(path, cancellationToken)
+                    .Any(item => !item.IsParentDirectory))
+                await source.DeleteAsync(path, recursive: false, cancellationToken).ConfigureAwait(false);
         }
     }
 
