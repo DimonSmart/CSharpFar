@@ -214,6 +214,48 @@ public sealed class ArchiveProviderTests : IDisposable
         Assert.Equal(PluginFileOpenResultKind.Failed, result.Kind);
     }
 
+
+    // CI downloads the exact Git blobs from SharpCompress's MIT-licensed test suite,
+    // verifies their identities, then sets CSHARPFAR_ARCHIVE_FIXTURES.
+    [Theory]
+    [InlineData("Rar.rar", "RAR")]
+    [InlineData("Rar.solid.rar", "RAR")]
+    [InlineData("Rar5.rar", "RAR")]
+    [InlineData("Rar5.solid.rar", "RAR")]
+    [InlineData("7Zip.nonsolid.7z", "7Z")]
+    [InlineData("7Zip.solid.7z", "7Z")]
+    public async Task RealArchives_RarRar5And7Zip_EnumerateAndExtract(
+        string fixture, string format)
+    {
+        string? directory = Environment.GetEnvironmentVariable("CSHARPFAR_ARCHIVE_FIXTURES");
+        if (string.IsNullOrEmpty(directory))
+            return; // Optional locally; mandatory on CI where the fixture loader is enabled.
+
+        string archivePath = Path.Combine(directory, fixture);
+        Assert.True(File.Exists(archivePath), $"Missing required integration fixture: {archivePath}");
+        await using var archive = await ArchiveFilePanelSource.CreateAsync(
+            Local(), PanelLocation.Local(archivePath), fixture);
+        Assert.Equal(format, archive.Format);
+
+        var pending = new Queue<string>();
+        pending.Enqueue("/");
+        int readFiles = 0;
+        while (pending.TryDequeue(out string? directoryPath))
+        {
+            foreach (var item in archive.EnumerateDirectory(directoryPath))
+            {
+                if (item.IsDirectory)
+                    pending.Enqueue(item.FullPath);
+                else
+                {
+                    await using var stream = await archive.OpenReadAsync(item.FullPath);
+                    await stream.CopyToAsync(Stream.Null);
+                    readFiles++;
+                }
+            }
+        }
+        Assert.True(readFiles > 0, $"Expected at least one file in {fixture}");
+    }
     private sealed class OverwriteConflicts : IFileOperationConflictResolver
     {
         public FileOperationConflictDecision Resolve(FileOperationConflict conflict) =>

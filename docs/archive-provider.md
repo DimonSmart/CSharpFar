@@ -49,3 +49,10 @@ writable ZIP implementation via IFileOperationBatchProvider.
 Known validation gap: automated compatibility tests for RAR/RAR5 and
 solid RAR/7z require redistributable binary fixtures. Do not consider these
 combinations proven without those fixtures and successful platform CI runs.
+
+RAR/RAR5, solid RAR and solid/non-solid 7z integration fixtures are downloaded from
+SharpCompress's pinned test suite during GitHub Actions builds, and verified against
+Git object hashes. To run these integration tests locally, run
+`pwsh ./eng/testing/download-archive-fixtures.ps1` and set
+`CSHARPFAR_ARCHIVE_FIXTURES` to the absolute `tests/archive-fixtures` path before
+`dotnet test`. Without this variable, the external fixture cases do not execute.

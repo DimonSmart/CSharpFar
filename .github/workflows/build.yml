@@ -39,7 +39,13 @@ jobs:
         if: runner.os == 'Linux'
         run: bash -n docs/install-macos.sh
 
+      - name: Download verified RAR and 7z test archives
+        shell: pwsh
+        run: ./eng/testing/download-archive-fixtures.ps1
+
       - name: Test
+        env:
+          CSHARPFAR_ARCHIVE_FIXTURES: ${{ github.workspace }}/tests/archive-fixtures
         run: dotnet test CSharpFar.slnx --configuration Release --no-build --verbosity minimal
 
       - name: Build cross-process history probe
