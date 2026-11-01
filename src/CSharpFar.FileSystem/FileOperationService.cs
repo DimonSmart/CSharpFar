@@ -436,43 +436,62 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         CancellationToken cancellationToken)
     {
         ValidateMoveConflictDecision(request.Options.DefaultConflictDecision);
-
         var sources = RequireSourceLocations(request);
-        var sourceLocation = sources[0];
         var destination = RequireDestinationLocation(request);
-        if (sources.Any(source => source.SourceId != destination.SourceId))
+        if (sources.Any(location => location.SourceId != destination.SourceId))
             throw new InvalidOperationException("Cross-provider move is not supported.");
 
-        var source = _sources!.GetSource(sourceLocation.SourceId);
-        var plan = BuildProviderMovePlan(
-            source,
-            sources,
-            destination.SourcePath,
-            request.Options,
-            request.UseDestinationTemplate,
-            cancellationToken);
+        var source = _sources!.GetSource(sources[0].SourceId);
+        var plan = BuildProviderMovePlan(source, sources, destination.SourcePath,
+            request.Options, request.UseDestinationTemplate, cancellationToken);
         state.SetTotals(CalculateProviderPlanSize(plan), plan.Count);
         state.StartProgressTimer();
 
-        foreach (var plannedItem in plan)
+        if (source is IFileOperationBatchProvider batching)
+        {
+            await using var batch = await batching.BeginBatchAsync(
+                ToPublicPlan(plan, destination.SourceId), cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await MoveProviderPlanItemsAsync(plan, batch, request.Options,
+                    conflictResolver, state, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                state.ReportCommitting(destination.SourcePath);
+                await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                try { await batch.AbortAsync(CancellationToken.None).ConfigureAwait(false); }
+                catch { /* Preserve the original error. */ }
+                throw;
+            }
+        }
+        else
+        {
+            await MoveProviderPlanItemsAsync(plan, source, request.Options,
+                conflictResolver, state, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task MoveProviderPlanItemsAsync(
+        IReadOnlyList<ProviderOperationPlanItem> plan,
+        IFilePanelSource source,
+        FileOperationOptions options,
+        IFileOperationConflictResolver conflictResolver,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        foreach (var item in plan)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (plannedItem.Item is null)
+            if (item.Item is null)
             {
                 state.SkippedCount++;
                 state.CompleteItem();
                 continue;
             }
-
-            await MoveProviderItemAsync(
-                    source,
-                    plannedItem.SourcePath,
-                    plannedItem.TargetPath,
-                    plannedItem.Item,
-                    request.Options,
-                    conflictResolver,
-                    state,
-                    cancellationToken)
+            await MoveProviderItemAsync(source, item.SourcePath, item.TargetPath,
+                item.Item, options, conflictResolver, state, cancellationToken)
                 .ConfigureAwait(false);
         }
     }
@@ -725,27 +744,67 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         state.SetTotals(plan.TotalBytes, plan.Items.Count);
         state.StartProgressTimer();
 
-        foreach (var plannedItem in plan.Items)
+        foreach (var group in plan.Items.GroupBy(item => item.Location.SourceId))
+        {
+            var source = _sources!.GetSource(group.Key);
+            var items = group.Where(item => !group.Any(parent =>
+                parent != item && ProviderPathRelations.IsDescendantOf(
+                    source, item.Location.SourcePath, parent.Location.SourcePath))).ToArray();
+
+            if (source is IFileOperationBatchProvider batching)
+            {
+                var publicPlan = new FileOperationPlan(items.Select(item =>
+                    new FileOperationPlanItem(item.Location, item.Location, true)).ToArray());
+                await using var batch = await batching.BeginBatchAsync(publicPlan, cancellationToken)
+                    .ConfigureAwait(false);
+                try
+                {
+                    await DeleteProviderItemsAsync(items, batch, state, cancellationToken).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    state.ReportCommitting(items[0].Location.SourcePath);
+                    await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch
+                {
+                    try { await batch.AbortAsync(CancellationToken.None).ConfigureAwait(false); }
+                    catch { /* Preserve the primary error. */ }
+                    throw;
+                }
+            }
+            else
+            {
+                await DeleteProviderItemsAsync(items, source, state, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static async Task DeleteProviderItemsAsync(
+        IReadOnlyList<ProviderDeletePlanItem> items,
+        IFilePanelSource source,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        foreach (var plannedItem in items)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var sourceLocation = plannedItem.Location;
-            var source = _sources!.GetSource(sourceLocation.SourceId);
-            var item = source.GetItem(sourceLocation.SourcePath, cancellationToken);
+            var location = plannedItem.Location;
+            var item = source.GetItem(location.SourcePath, cancellationToken);
             if (item is null)
             {
-                state.ReportDeleting(sourceLocation.SourcePath, 0, 0);
+                state.ReportDeleting(location.SourcePath, 0, 0);
                 state.SkippedCount++;
                 state.CompleteItem();
                 continue;
             }
 
             long bytes = plannedItem.Size;
-            state.ReportDeleting(sourceLocation.SourcePath, 0, bytes);
-            await source.DeleteAsync(sourceLocation.SourcePath, item.IsDirectory, cancellationToken).ConfigureAwait(false);
+            state.ReportDeleting(location.SourcePath, 0, bytes);
+            await source.DeleteAsync(location.SourcePath, item.IsDirectory, cancellationToken)
+                .ConfigureAwait(false);
             state.DeletedCount++;
             state.AddBytes(bytes);
             state.CompleteItem();
-            state.ReportDeleting(sourceLocation.SourcePath, bytes, bytes);
+            state.ReportDeleting(location.SourcePath, bytes, bytes);
         }
     }
 
@@ -756,7 +815,29 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
     {
         var destination = RequireDestinationLocation(request);
         var source = _sources!.GetSource(destination.SourceId);
-        await source.CreateDirectoryAsync(destination.SourcePath, cancellationToken).ConfigureAwait(false);
+        if (source is IFileOperationBatchProvider batching)
+        {
+            var location = new PanelLocation(destination.SourceId, destination.SourcePath);
+            var plan = new FileOperationPlan([new FileOperationPlanItem(location, location, true)]);
+            await using var batch = await batching.BeginBatchAsync(plan, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await batch.CreateDirectoryAsync(destination.SourcePath, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                state.ReportCommitting(destination.SourcePath);
+                await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                try { await batch.AbortAsync(CancellationToken.None).ConfigureAwait(false); }
+                catch { /* Preserve the primary error. */ }
+                throw;
+            }
+        }
+        else
+        {
+            await source.CreateDirectoryAsync(destination.SourcePath, cancellationToken).ConfigureAwait(false);
+        }
         state.CreatedDirectoryCount++;
         state.SetTotals(0, 1);
         state.CompleteItem();
