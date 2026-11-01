@@ -38,9 +38,9 @@ internal static class ArchiveSevenZipSafety
                 entry.IsSplitAfter || entry.LinkTarget is not null)
                 throw new NotSupportedException("Encrypted, linked and multi-volume 7z files are read-only.");
             if (entry is SevenZipEntry sevenZip &&
-                sevenZip.ExtendedAttrib is not null and not 0)
+                sevenZip.ExtendedAttrib is not null and not 0 and not 0x10 and not 0x20 and not 0x80)
                 throw new NotSupportedException("7z extended attributes cannot be preserved.");
-            if (entry.Attrib is not null and not 0 and not 0x10 and not 0x80)
+            if (entry.Attrib is not null and not 0 and not 0x10 and not 0x20 and not 0x80)
                 throw new NotSupportedException("7z entry attributes cannot be preserved.");
             if (!entry.IsDirectory && entry.Size > 0 &&
                 entry.CompressionType != CompressionType.LZMA)
