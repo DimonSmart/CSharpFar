@@ -69,7 +69,7 @@ after replacement cannot restore the old version.
 | ZIP | Strict classic ZIP, stored or Deflate entries, no extras, comments, encryption or ZIP64, standard central directory | ZIP64, unusual methods, additional metadata, signatures, encryption, multi-disk |
 | TAR | Regular files and directories, basic supported POSIX metadata | Links, devices, unknown PAX extended metadata, unusual entries |
 | TAR.GZ / TGZ | Above TAR subset with standard GZip header | Custom GZip headers, additional streams, unsupported TAR metadata |
-| 7z | Non-solid LZMA2 without rich file attributes, where validation succeeds | Solid archives, other codecs, encryption, extended attributes; failure to prove compatibility |
+| 7z | Non-solid 7z with the LZMA family as reported by SharpCompress 0.50.7, basic DOS attributes | Solid archives, non-LZMA codecs, encryption, unusual attributes |
 | RAR / RAR5 | Never writable | Entire format; extraction remains supported |
 | Nested or remote archives | Never writable | Spool/read-only session from v1 |
 
@@ -79,6 +79,15 @@ capabilities. For compatibility, unknown critical metadata results in a
 read-only session, not lossy conversion. ZIP writer re-compresses unchanged
 entries and therefore does not preserve compressed byte identities, even
 when logical contents and supported metadata remain the same.
+
+**7z compression note:** In SharpCompress 0.50.7 the reader reports both
+LZMA and LZMA2 as `CompressionType.LZMA`; the writer emits LZMA2.
+The 7z writable subset therefore preserves logical contents, directories
+and timestamps but **can normalize an existing LZMA entry to LZMA2**.
+Do not use this feature where the original codec identity or its tuning
+parameters must be retained. Such archives should be exported rather than
+edited in place; a future writer would need codec-level introspection to
+preserve every method exactly.
 
 ## Operational workflow
 
