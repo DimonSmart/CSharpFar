@@ -373,7 +373,9 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                         options,
                         conflictResolver,
                         state,
-                        cancellationToken)
+                        cancellationToken,
+                        copiedFiles,
+                        copiedFolders)
                     .ConfigureAwait(false);
             }
 
