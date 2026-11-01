@@ -344,6 +344,30 @@ internal sealed class ApplicationCommandContext
             null).ShowWithNewFileFormat(path, newFileFormat);
     }
 
+    public void EditFileWithNewFileFormat(
+        PanelLocation location,
+        EditorDocumentFormat newFileFormat,
+        EditorFileNameInsertionContext? fileNameInsertionContext = null)
+    {
+        if (location.SourceId == PanelSourceId.Local)
+        {
+            EditFileWithNewFileFormat(location.SourcePath, newFileFormat, fileNameInsertionContext);
+            return;
+        }
+
+        new FileEditor(
+            _interactiveSurfaces,
+            ModalDialogs,
+            Dialogs,
+            Palette,
+            Settings.Editor,
+            TextClipboard,
+            Fields,
+            fileNameInsertionContext,
+            null,
+            _sourceRegistry).ShowWithNewFileFormat(location, newFileFormat);
+    }
+
     public void SaveSettings() => _saveSettings?.Invoke();
 
     public IFileAttributesDialog CreateFileAttributesDialog() => _fileAttributesDialogFactory();
