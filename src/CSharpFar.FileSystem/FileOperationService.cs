@@ -595,6 +595,8 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         state.CopiedCount = 0; // These were copies made as part of a move.
         if (copiedFiles.Count == 0 && copiedFolders.Count == 0)
             return;
+        if (state.SkippedCount != 0)
+            state.PartiallyMoved = true;
 
         try
         {
@@ -629,6 +631,13 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                 await RemoveCopiedSourcesAsync(sourceSource, copiedFiles, copiedFolders,
                     state, cancellationToken).ConfigureAwait(false);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            state.PartiallyMoved = true;
+            state.Cancelled = true;
+            state.AddError(sources[0].SourcePath,
+                "Move was cancelled after destination publication; some source entries may remain.");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
