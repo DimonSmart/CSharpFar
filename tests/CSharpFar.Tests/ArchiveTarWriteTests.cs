@@ -24,7 +24,7 @@ public sealed class ArchiveTarWriteTests : IDisposable
         string file = Path.Combine(_folder, name);
         using var output = File.Create(file);
         using var compressor = gzip ? new GZipStream(output, CompressionLevel.Optimal, leaveOpen: true) : null;
-        using var writer = new TarWriter(compressor ?? output, TarEntryFormat.Pax, leaveOpen: true);
+        using var writer = new TarWriter((Stream?)compressor ?? output, TarEntryFormat.Pax, leaveOpen: true);
         using var content = new MemoryStream(Encoding.UTF8.GetBytes("original"));
         var entry = new PaxTarEntry(TarEntryType.RegularFile, "old.txt") { DataStream = content };
         writer.WriteEntry(entry);
