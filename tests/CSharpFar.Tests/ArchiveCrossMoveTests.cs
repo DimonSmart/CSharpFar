@@ -103,6 +103,47 @@ public sealed class ArchiveCrossMoveTests : IDisposable
     }
 
     [Fact]
+    public async Task ArchiveToArchive_CopyThenDelete()
+    {
+        string a = Zip("archive-a.zip", ("data.txt", "data"));
+        string b = Zip("archive-b.zip");
+        await using var source = await ArchiveFilePanelSource.CreateAsync(
+            Local(), PanelLocation.Local(a), Path.GetFileName(a));
+        await using var destination = await ArchiveFilePanelSource.CreateAsync(
+            Local(), PanelLocation.Local(b), Path.GetFileName(b));
+        var registry = new FilePanelSourceRegistry([Local()]);
+        registry.TryAddOwned(source);
+        registry.TryAddOwned(destination);
+
+        var result = await Move(registry,
+            new PanelLocation(source.SourceId, "/data.txt"), new PanelLocation(destination.SourceId, "/"));
+        Assert.Empty(result.Errors);
+        Assert.Null(source.GetItem("/data.txt"));
+        Assert.NotNull(destination.GetItem("/data.txt"));
+    }
+
+    [Fact]
+    public async Task ArchiveToLocal_PartialDirectorySkipPreservesSkippedChild()
+    {
+        string zip = Zip("partial.zip", ("tree/a.txt", "a"), ("tree/b.txt", "b"));
+        string output = Path.Combine(_folder, "partial-output");
+        Directory.CreateDirectory(Path.Combine(output, "tree"));
+        await File.WriteAllTextAsync(Path.Combine(output, "tree", "a.txt"), "destination");
+        await using var archive = await ArchiveFilePanelSource.CreateAsync(
+            Local(), PanelLocation.Local(zip), Path.GetFileName(zip));
+        var registry = new FilePanelSourceRegistry([Local()]);
+        registry.TryAddOwned(archive);
+
+        var result = await Move(registry, new PanelLocation(archive.SourceId, "/tree"),
+            PanelLocation.Local(output), ConflictDecisionMode.Skip);
+        Assert.Empty(result.Errors);
+        Assert.True(result.PartiallyMoved);
+        Assert.NotNull(archive.GetItem("/tree/a.txt"));
+        Assert.Null(archive.GetItem("/tree/b.txt"));
+        Assert.Equal("b", (await File.ReadAllTextAsync(Path.Combine(output, "tree", "b.txt"))).TrimStart('\\uFEFF'));
+    }
+
+    [Fact]
     public async Task ArchiveToLocal_SkippedFileIsNotDeleted()
     {
         string zip = Zip("skip.zip", ("same.txt", "source"));
