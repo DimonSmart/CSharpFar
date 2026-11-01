@@ -99,7 +99,7 @@ public sealed class ArchiveCrossMoveTests : IDisposable
         Assert.Empty(result.Errors);
         Assert.NotNull(first.GetItem("/renamed.txt"));
         Assert.Null(first.GetItem("/first.txt"));
-        await Assert.Throws<IOException>(() => Task.FromResult(second.GetItem("/first.txt")));
+        Assert.Throws<IOException>(() => second.GetItem("/first.txt"));
     }
 
     [Fact]
