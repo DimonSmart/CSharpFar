@@ -28,7 +28,7 @@ internal sealed class ArchiveEntryIndex
         _nodes.Add("/", new ArchiveNode("/", true, 0, default, -1, false));
     }
 
-    public void Add(IEntry entry, int index)
+    public void Add(IEntry entry, int index, bool rarPathSeparators = false)
     {
         if (index >= MaxEntries)
             throw new InvalidDataException($"Archive contains more than {MaxEntries:N0} entries.");
@@ -39,7 +39,7 @@ internal sealed class ArchiveEntryIndex
         if (entry.IsSplitAfter || entry.VolumeIndexFirst != entry.VolumeIndexLast)
             throw new NotSupportedException("Multi-volume archives are not supported.");
 
-        string path = ArchivePath.NormalizeEntry(entry.Key ?? "");
+        string path = ArchivePath.NormalizeEntry(entry.Key ?? "", rarPathSeparators);
         long size = entry.IsDirectory ? 0 : entry.Size;
         if (size < 0 || size > MaxSingleSize)
             throw new InvalidDataException("Archive entry exceeds the supported unpacked size limit.");

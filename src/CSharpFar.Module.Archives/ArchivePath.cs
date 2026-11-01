@@ -2,10 +2,16 @@ namespace CSharpFar.Module.Archives;
 
 internal static class ArchivePath
 {
-    public static string NormalizeEntry(string key)
+    public static string NormalizeEntry(string key, bool rarPathSeparators = false)
     {
         if (string.IsNullOrEmpty(key) || key.Length > 2048)
             throw new InvalidDataException("Archive entry has no name.");
+
+        // RAR commonly stores Windows-style separators even when opened on Unix.
+        // Convert those only for RAR; the common validator still rejects absolute
+        // names, traversal, drive prefixes and ambiguous path segments.
+        if (rarPathSeparators)
+            key = key.Replace('\\', '/');
 
         // TAR archives commonly prefix otherwise relative entries with "./".
         while (key.StartsWith("./", StringComparison.Ordinal))

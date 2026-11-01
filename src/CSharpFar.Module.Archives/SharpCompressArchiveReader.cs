@@ -46,17 +46,17 @@ internal static class SharpCompressArchiveReader
             cancellationToken.ThrowIfCancellationRequested();
             if (!entry.IsComplete)
                 throw new NotSupportedException("Incomplete or multi-volume archive entries are unsupported.");
-            Add(index, entry, entryNumber++);
+            Add(index, entry, entryNumber++, archive.Type == ArchiveType.Rar);
         }
         return (format, index);
     }
 
-    private static void Add(ArchiveEntryIndex index, IEntry entry, int ordinal)
+    private static void Add(ArchiveEntryIndex index, IEntry entry, int ordinal, bool rarPathSeparators = false)
     {
         // An explicit TAR root entry is not a child of the virtual root.
         if (entry.IsDirectory && entry.Key is "." or "./")
             return;
-        index.Add(entry, ordinal);
+        index.Add(entry, ordinal, rarPathSeparators);
     }
 
     public static Stream OpenEntry(
@@ -82,7 +82,7 @@ internal static class SharpCompressArchiveReader
 
             var entry = archive.Entries.FirstOrDefault(candidate =>
                 candidate.Key is not null &&
-                ArchivePath.NormalizeEntry(candidate.Key) == node.Path);
+                ArchivePath.NormalizeEntry(candidate.Key, format == "RAR") == node.Path);
             if (entry is null)
                 throw new IOException("Archive entry disappeared.");
             if (!entry.IsComplete || entry.IsEncrypted)
@@ -110,7 +110,7 @@ internal static class SharpCompressArchiveReader
             IEntry entry = reader.Entry;
             if (entry.Key is null || entry.IsDirectory)
                 continue;
-            if (ArchivePath.NormalizeEntry(entry.Key) != node.Path)
+            if (ArchivePath.NormalizeEntry(entry.Key, reader.Type == ArchiveType.Rar) != node.Path)
                 continue;
             if (entry.IsEncrypted || entry.IsSplitAfter)
                 throw new NotSupportedException("Incomplete or encrypted archive entry.");
