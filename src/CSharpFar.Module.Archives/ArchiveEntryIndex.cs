@@ -86,6 +86,8 @@ internal sealed class ArchiveEntryIndex
             throw new InvalidDataException("Archive has too many nested directories.");
     }
 
+    internal IReadOnlyCollection<ArchiveNode> Nodes => _nodes.Values;
+
     public long TotalSize { get; private set; }
 
     public ArchiveNode? Find(string path) =>
