@@ -313,7 +313,8 @@ internal static class ApplicationServicesBuilder
         var panelSort = new PanelSortServiceFacade(
             controller,
             () => callbacks.PanelOptions(),
-            state => callbacks.ClosePanelQuickSearchForState(state));
+            state => callbacks.ClosePanelQuickSearchForState(state),
+            state => panelNavigation.EnsureNestedRootParent(state, callbacks.PanelSideForState(state)));
         var panelNavigation = new PanelNavigationService(
             controller,
             effectiveHistory,

@@ -56,6 +56,36 @@ internal sealed class PanelNavigationService
         stack.Push(point with { Lease = lease });
     }
 
+    /// <summary>
+    /// The inner source may have no natural parent at its root. Insert the generic
+    /// parent entry there so Enter and ordinary parent hotkeys share the same route.
+    /// This is panel UI metadata, not a path inside the container provider.
+    /// </summary>
+    public void EnsureNestedRootParent(FilePanelState state, PanelSide side)
+    {
+        if (!CanReturnFromRoot(state, side) || state.Items.Any(item => item.IsParentDirectory))
+            return;
+
+        state.Items.Insert(0, new FilePanelItem
+        {
+            Name = "..",
+            FullPath = state.SourcePath,
+            SourceId = state.SourceId,
+            IsDirectory = true,
+            IsParentDirectory = true,
+            Attributes = FileAttributes.Directory,
+        });
+        state.CursorIndex++;
+        if (state.ScrollOffset > 0)
+            state.ScrollOffset++;
+    }
+
+    public void EnterNestedSource(FilePanelState state, PanelSide side, ReturnPoint point)
+    {
+        PushReturnPoint(side, point);
+        EnsureNestedRootParent(state, side);
+    }
+
     public void ClearNavigation(PanelSide side)
     {
         if (!_returnPoints.Remove(side, out var stack))
@@ -86,6 +116,7 @@ internal sealed class PanelNavigationService
             _controller.SetCursorTo(state, frame.CursorIndex, _visibleRows(side));
         state.ScrollOffset = frame.ScrollOffset;
         _controller.NormalizeCursor(state, _visibleRows(side));
+        EnsureNestedRootParent(state, side);
         _startWatching(state, side);
         return true;
     }
@@ -116,6 +147,7 @@ internal sealed class PanelNavigationService
         if (!loaded)
             return;
 
+        EnsureNestedRootParent(state, side);
         if (state.SourceId == PanelSourceId.Local)
             _history.AddDirectory(new DirectoryHistoryItem { Path = state.CurrentDirectory });
         _startWatching(state, side);
@@ -134,6 +166,7 @@ internal sealed class PanelNavigationService
         }
         if (!_controller.TryGoToParent(activeState, _visibleRows(activeSide), _panelOptions()))
             return;
+        EnsureNestedRootParent(activeState, activeSide);
 
         if (activeState.SourceId == PanelSourceId.Local)
             _history.AddDirectory(new DirectoryHistoryItem { Path = activeState.CurrentDirectory });

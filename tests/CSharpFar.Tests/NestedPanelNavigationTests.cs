@@ -32,7 +32,8 @@ public sealed class NestedPanelNavigationTests
         var frame = navigation.CaptureReturnPoint(state, origin);
 
         controller.LoadLocation(state, new PanelLocation(inner.SourceId, "/"), options);
-        navigation.PushReturnPoint(PanelSide.Left, frame);
+        navigation.EnterNestedSource(state, PanelSide.Left, frame);
+        Assert.Contains(state.Items, item => item.IsParentDirectory);
 
         registry.RemoveUnusedTemporarySources(inner.SourceId, PanelSourceId.Local, _ => { });
         Assert.True(registry.TryGetSource(outer.SourceId, out _));
@@ -67,10 +68,10 @@ public sealed class NestedPanelNavigationTests
         controller.LoadLocation(state, new PanelLocation(outer.SourceId, "/"), options);
         var first = navigation.CaptureReturnPoint(state, Assert.Single(state.Items));
         controller.LoadLocation(state, new PanelLocation(middle.SourceId, "/"), options);
-        navigation.PushReturnPoint(PanelSide.Left, first);
+        navigation.EnterNestedSource(state, PanelSide.Left, first);
         var second = navigation.CaptureReturnPoint(state, Assert.Single(state.Items));
         controller.LoadLocation(state, new PanelLocation(inner.SourceId, "/"), options);
-        navigation.PushReturnPoint(PanelSide.Left, second);
+        navigation.EnterNestedSource(state, PanelSide.Left, second);
 
         navigation.TryGoUp(state, PanelSide.Left);
         Assert.Equal(middle.SourceId, state.SourceId);

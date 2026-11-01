@@ -159,7 +159,7 @@ internal sealed class ModulePanelOpener
         }
 
         if (returnPoint is not null)
-            _navigation!.PushReturnPoint(panelSide, returnPoint);
+            _navigation!.EnterNestedSource(state, panelSide, returnPoint);
         else
             _navigation?.ClearNavigation(panelSide);
 

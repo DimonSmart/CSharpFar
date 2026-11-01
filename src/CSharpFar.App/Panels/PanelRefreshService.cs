@@ -8,6 +8,7 @@ internal sealed class PanelRefreshService
 {
     public Action<FilePanelState>? RefreshRequested { get; set; }
     private readonly PanelController _controller;
+    private readonly Action<FilePanelState>? _afterRefresh;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
     private readonly Func<PanelSide, int> _visibleRows;
     private readonly Action<FilePanelState> _closeQuickSearchForState;
@@ -16,9 +17,11 @@ internal sealed class PanelRefreshService
         PanelController controller,
         Func<AppSettingsAlias.PanelOptionsSettings> panelOptions,
         Func<PanelSide, int> visibleRows,
-        Action<FilePanelState> closeQuickSearchForState)
+        Action<FilePanelState> closeQuickSearchForState,
+        Action<FilePanelState>? afterRefresh = null)
     {
         _controller = controller;
+        _afterRefresh = afterRefresh;
         _panelOptions = panelOptions;
         _visibleRows = visibleRows;
         _closeQuickSearchForState = closeQuickSearchForState;
@@ -47,7 +50,8 @@ internal sealed class PanelRefreshService
         if (state.ContentKind == PanelContentKind.Virtual)
             return;
 
-        _controller.TryRefreshDirectory(state, visibleRows, _panelOptions());
+        if (_controller.TryRefreshDirectory(state, visibleRows, _panelOptions()))
+            _afterRefresh?.Invoke(state);
     }
 
     private void RefreshPanelAfterFileOperation(FilePanelState state, PanelSide side)
