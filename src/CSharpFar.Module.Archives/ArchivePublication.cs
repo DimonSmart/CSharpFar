@@ -1,3 +1,4 @@
+using System.Formats.Tar;
 using System.IO.Compression;
 using System.Security.Cryptography;
 
@@ -29,8 +30,16 @@ internal static class ArchivePublication
             using var guard = new FileStream(original + ".csharpfar-lock",
                 FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
             await CheckRevisionAsync(owner, batch.OriginalDigest, cancellationToken).ConfigureAwait(false);
-            ArchiveZipSafety.Validate(original);
-            await WriteZipAsync(owner, batch, temporary, cancellationToken).ConfigureAwait(false);
+            if (owner.Format == "ZIP")
+            {
+                ArchiveZipSafety.Validate(original);
+                await WriteZipAsync(owner, batch, temporary, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                ArchiveTarSafety.Validate(original, owner.Format);
+                await WriteTarAsync(owner, batch, temporary, cancellationToken).ConfigureAwait(false);
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
             var (format, validatedIndex) = await Task.Run(() =>
@@ -39,7 +48,7 @@ internal static class ArchivePublication
             if (format != owner.Format)
                 throw new InvalidDataException("Archive format changed during rebuild.");
             ValidateIndex(batch, validatedIndex);
-            await VerifyChangedFilesAsync(temporary, batch, cancellationToken).ConfigureAwait(false);
+            await VerifyChangedFilesAsync(temporary, owner.Format, batch, cancellationToken).ConfigureAwait(false);
 
             // Re-check after the potentially lengthy compression and verification.
             // External non-cooperating writers can still race the final OS replace.
@@ -139,6 +148,97 @@ internal static class ArchivePublication
         output.Flush(flushToDisk: true);
     }
 
+    private static async Task WriteTarAsync(
+        ArchiveFilePanelSource owner, ArchiveMutationBatch batch,
+        string temporary, CancellationToken cancellationToken)
+    {
+        var oldMetadata = ArchiveTarSafety.ReadMetadata(owner.ArchiveFile, owner.Format);
+        await using var output = new FileStream(temporary, FileMode.CreateNew,
+            FileAccess.ReadWrite, FileShare.None, BufferSize, FileOptions.Asynchronous);
+        await using GZipStream? gzip = owner.Format == "TAR.GZ"
+            ? new GZipStream(output, CompressionLevel.Optimal, leaveOpen: true) : null;
+        await using (var writer = new TarWriter(gzip ?? output, TarEntryFormat.Pax, leaveOpen: true))
+        {
+            foreach (var entry in batch.Entries.OrderBy(entry => entry.Path, StringComparer.Ordinal))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (entry.IsDirectory && !entry.Explicit)
+                    continue;
+
+                string name = entry.Path.TrimStart('/') + (entry.IsDirectory ? "/" : "");
+                var tarEntry = new PaxTarEntry(entry.IsDirectory
+                    ? TarEntryType.Directory : TarEntryType.RegularFile, name);
+                if (entry.OriginalPath is { } original &&
+                    oldMetadata.TryGetValue(original, out var metadata))
+                {
+                    tarEntry.ModificationTime = metadata.Modified;
+                    tarEntry.Mode = metadata.Mode;
+                    tarEntry.Uid = metadata.Uid;
+                    tarEntry.Gid = metadata.Gid;
+                    if (metadata.UserName is not null) tarEntry.UserName = metadata.UserName;
+                    if (metadata.GroupName is not null) tarEntry.GroupName = metadata.GroupName;
+                }
+                else
+                {
+                    tarEntry.ModificationTime = new DateTimeOffset(entry.Modified == default
+                        ? DateTime.UtcNow : entry.Modified);
+                }
+
+                if (entry.IsDirectory)
+                {
+                    await writer.WriteEntryAsync(tarEntry, cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
+
+                string? temporaryEntry = null;
+                try
+                {
+                    if (entry.StagingFile is not null)
+                    {
+                        tarEntry.DataStream = new FileStream(entry.StagingFile, FileMode.Open,
+                            FileAccess.Read, FileShare.Read, BufferSize, FileOptions.Asynchronous);
+                    }
+                    else
+                    {
+                        // TarWriter must know entry length. Materialize at most one
+                        // unchanged file at a time, not the entire archive or RAM.
+                        temporaryEntry = temporary + ".entry-" + Guid.NewGuid().ToString("N");
+                        await using (var source = await batch.OpenReadAsync(
+                            entry.Path, cancellationToken).ConfigureAwait(false))
+                        await using (var destination = new FileStream(temporaryEntry,
+                            FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                            BufferSize, FileOptions.Asynchronous))
+                        {
+                            long copied = await CopyExactAsync(
+                                source, destination, cancellationToken).ConfigureAwait(false);
+                            if (copied != entry.Size)
+                                throw new InvalidDataException("TAR input size changed during rebuild.");
+                        }
+                        tarEntry.DataStream = new FileStream(temporaryEntry, FileMode.Open,
+                            FileAccess.Read, FileShare.Read, BufferSize, FileOptions.Asynchronous);
+                    }
+                    using (tarEntry.DataStream)
+                        await writer.WriteEntryAsync(tarEntry, cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    if (temporaryEntry is not null)
+                    {
+                        try { File.Delete(temporaryEntry); }
+                        catch (IOException) { }
+                        catch (UnauthorizedAccessException) { }
+                    }
+                }
+            }
+        }
+        if (gzip is not null)
+            await gzip.FlushAsync(cancellationToken).ConfigureAwait(false);
+        // gzip trailer is written at Dispose, before the underlying file closes.
+        if (gzip is not null)
+            await gzip.DisposeAsync().ConfigureAwait(false);
+        output.Flush(flushToDisk: true);
+    }
+
     private static async Task<long> CopyExactAsync(
         Stream input, Stream output, CancellationToken cancellationToken)
     {
@@ -170,7 +270,7 @@ internal static class ArchivePublication
     }
 
     private static async Task VerifyChangedFilesAsync(
-        string archivePath, ArchiveMutationBatch batch, CancellationToken cancellationToken)
+        string archivePath, string format, ArchiveMutationBatch batch, CancellationToken cancellationToken)
     {
         foreach (var entry in batch.Entries)
         {
@@ -181,7 +281,7 @@ internal static class ArchivePublication
             byte[] expected = await SHA256.HashDataAsync(staged, cancellationToken).ConfigureAwait(false);
             var actualNode = new ArchiveNode(entry.Path, false, entry.Size, entry.Modified, -1, true);
             await using var reopened = SharpCompressArchiveReader.OpenEntry(
-                archivePath, "ZIP", actualNode, cancellationToken);
+                archivePath, format, actualNode, cancellationToken);
             byte[] actual = await SHA256.HashDataAsync(reopened, cancellationToken).ConfigureAwait(false);
             if (!expected.AsSpan().SequenceEqual(actual))
                 throw new InvalidDataException("Rebuilt archive entry content differs: " + entry.Path);
