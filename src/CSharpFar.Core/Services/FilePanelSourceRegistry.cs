@@ -80,6 +80,19 @@ public sealed class FilePanelSourceRegistry : IFilePanelSourceRegistry
     }
 
     /// <summary>
+    /// A source returned from nested navigation is displayed again. Cancel a
+    /// previously scheduled retirement before releasing its navigation lease.
+    /// </summary>
+    public void RetainSource(PanelSourceId sourceId)
+    {
+        lock (_gate)
+        {
+            if (_sources.ContainsKey(sourceId))
+                _pendingRetirement.Remove(sourceId);
+        }
+    }
+
+    /// <summary>
     /// Release temporary plugin-owned sources not displayed by either panel.
     /// A source still used by a file operation is retired when its last lease ends.
     /// </summary>

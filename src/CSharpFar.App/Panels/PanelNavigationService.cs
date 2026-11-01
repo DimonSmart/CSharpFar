@@ -101,6 +101,10 @@ internal sealed class PanelNavigationService
         if (!_controller.TryLoadLocation(state, frame.Location, _panelOptions(), preserveOnError: true))
             return false;
 
+        // The parent may have been scheduled for retirement while held only
+        // by this navigation frame. It is now visible, so retain it before
+        // releasing its last usage lease.
+        _sources?.RetainSource(frame.Location.SourceId);
         stack.Pop();
         frame.Lease?.Dispose();
         if (stack.Count == 0)

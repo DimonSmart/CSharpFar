@@ -41,6 +41,7 @@ public sealed class NestedPanelNavigationTests
         navigation.TryGoUp(state, PanelSide.Left);
 
         Assert.Equal(new PanelLocation(outer.SourceId, "/"), state.CurrentLocation);
+        Assert.True(registry.TryGetSource(outer.SourceId, out _));
         Assert.Equal("container.bin", state.Items[state.CursorIndex].Name);
         registry.RemoveUnusedTemporarySources(outer.SourceId, PanelSourceId.Local, _ => { });
         Assert.False(registry.TryGetSource(inner.SourceId, out _));
