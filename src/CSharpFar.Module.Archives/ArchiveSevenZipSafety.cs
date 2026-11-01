@@ -5,7 +5,7 @@ using SharpCompress.Common.SevenZip;
 namespace CSharpFar.Module.Archives;
 
 /// <summary>
-/// Only standalone (non-solid) LZMA2 archives without additional file
+/// Only standalone (non-solid) 7z LZMA-family entries without additional file
 /// attributes are eligible for rebuild with SharpCompress 0.50.7.
 /// Writer 0.50.7 does not reproduce solid layouts, encryption or rich 7z metadata.
 /// </summary>
@@ -43,8 +43,8 @@ internal static class ArchiveSevenZipSafety
             if (entry.Attrib is not null and not 0 and not 0x10 and not 0x80)
                 throw new NotSupportedException("7z entry attributes cannot be preserved.");
             if (!entry.IsDirectory && entry.Size > 0 &&
-                entry.CompressionType != CompressionType.LZMA2)
-                throw new NotSupportedException("Only standalone LZMA2 7z entries can be rewritten.");
+                entry.CompressionType != CompressionType.LZMA)
+                throw new NotSupportedException("Only standalone LZMA-family 7z entries can be rewritten.");
             _ = ArchivePath.NormalizeEntry(entry.Key ?? "");
         }
     }
