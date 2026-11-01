@@ -3,7 +3,9 @@ using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
 using CSharpFar.FileSystem;
 using CSharpFar.Module.Archives;
+using SharpCompress.Archives;
 using SharpCompress.Common;
+using SharpCompress.Common.SevenZip;
 using SharpCompress.Writers;
 using SharpCompress.Writers.SevenZip;
 
@@ -35,7 +37,13 @@ public sealed class ArchiveSevenZipWriteTests : IDisposable
         await using (var archive = await ArchiveFilePanelSource.CreateAsync(
             local, PanelLocation.Local(file), Path.GetFileName(file)))
         {
-            Assert.True(archive.Capabilities.HasFlag(PanelProviderCapabilities.OpenWrite));
+            string diagnostic;
+            using (var input = File.OpenRead(file))
+            using (var check = ArchiveFactory.OpenArchive(input))
+                diagnostic = "solid=" + check.IsSolid + "; " + string.Join("; ",
+                    check.Entries.Select(e => $"{e.Key}: compression={e.CompressionType}, " +
+                        $"solid={e.IsSolid}, attrib={e.Attrib}, ext={(e as SevenZipEntry)?.ExtendedAttrib}"));
+            Assert.True(archive.Capabilities.HasFlag(PanelProviderCapabilities.OpenWrite), diagnostic);
             await using var batch = await archive.BeginBatchAsync(new FileOperationPlan([]));
             await batch.DeleteAsync("/old.txt", recursive: false);
             await batch.CreateDirectoryAsync("/new-empty");
