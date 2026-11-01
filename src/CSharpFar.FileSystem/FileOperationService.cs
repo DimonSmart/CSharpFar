@@ -351,7 +351,8 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
     {
         if (sourceItem.IsDirectory)
         {
-            if (source.SourceId == destinationSource.SourceId)
+            if (source.SourceId == destinationSource.SourceId ||
+                SamePhysicalContainer(source, destinationSource))
                 ValidateProviderCopyTarget(source, sourcePath, destinationPath, sourceItem.IsDirectory);
             await EnsureProviderDestinationDirectoryAsync(destinationSource, destinationPath, cancellationToken).ConfigureAwait(false);
             await destinationSource.CreateDirectoryAsync(destinationPath, cancellationToken).ConfigureAwait(false);
@@ -382,6 +383,10 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         }
 
         state.WaitIfPaused(cancellationToken);
+        if ((source.SourceId == destinationSource.SourceId ||
+            SamePhysicalContainer(source, destinationSource)) &&
+            ProviderPathRelations.PathsEqual(source, sourcePath, destinationPath))
+            throw new IOException("Cannot copy an archive entry onto itself.");
         var destinationItem = destinationSource.GetItem(destinationPath, cancellationToken);
         if (destinationItem is not null)
         {
