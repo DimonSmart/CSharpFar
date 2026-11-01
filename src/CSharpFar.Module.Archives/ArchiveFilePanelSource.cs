@@ -148,6 +148,7 @@ public sealed class ArchiveFilePanelSource : IFilePanelSource, IFileOperationBat
                 file, !local, snapshot.Length, snapshot.LastWriteTimeUtc, format, index, depth,
                 local && !snapshot.IsReadOnly && snapshot.LinkTarget is null &&
                 (format == "ZIP" ? ArchiveZipSafety.IsRebuildSafe(file) :
+                 format == "7Z" ? ArchiveSevenZipSafety.IsRebuildSafe(file) :
                  format is "TAR" or "TAR.GZ" && ArchiveTarSafety.IsRebuildSafe(file, format)));
         }
         catch
@@ -209,6 +210,8 @@ public sealed class ArchiveFilePanelSource : IFilePanelSource, IFileOperationBat
         EnsureFresh();
         if (Format == "ZIP")
             ArchiveZipSafety.Validate(_archiveFile);
+        else if (Format == "7Z")
+            ArchiveSevenZipSafety.Validate(_archiveFile);
         else
             ArchiveTarSafety.Validate(_archiveFile, Format);
         byte[] originalDigest = await Task.Run(() =>
