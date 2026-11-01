@@ -36,14 +36,6 @@ internal sealed class MoveCommand : IApplicationCommand
         if (sources.Count == 0)
             return ApplicationCommandResult.Rendered();
 
-        if (target.State.SourceId != target.PassiveState.SourceId && sources.Count > 0)
-        {
-            context.Dialogs.Message(
-                "Move",
-                "Cross-provider move is not supported.");
-            return ApplicationCommandResult.Rendered();
-        }
-
         var dialogResult = new FileOperationDialog(context.Dialogs, context.Fields).ShowMove(
             sources,
             target.PassiveCommitted?.CurrentDirectory ?? target.PassiveState.CurrentDirectory,
@@ -55,7 +47,7 @@ internal sealed class MoveCommand : IApplicationCommand
                 SourceLocations = sourceLocations,
                 Destination = result.Destination,
                 UseDestinationTemplate = result.UseDestinationTemplate,
-                DestinationLocation = BuildDestinationLocation(context, target.State, result.Destination, sources.Count),
+                DestinationLocation = BuildDestinationLocation(context, target.PassiveState, result.Destination, sources.Count),
                 Options = result.Options,
             }));
         if (dialogResult is null)
@@ -70,7 +62,7 @@ internal sealed class MoveCommand : IApplicationCommand
                 SourceLocations = sourceLocations,
                 Destination = dialogResult.Destination,
                 UseDestinationTemplate = dialogResult.UseDestinationTemplate,
-                DestinationLocation = BuildDestinationLocation(context, target.State, dialogResult.Destination, sources.Count),
+                DestinationLocation = BuildDestinationLocation(context, target.PassiveState, dialogResult.Destination, sources.Count),
                 Options = dialogResult.Options,
             });
 
@@ -89,16 +81,16 @@ internal sealed class MoveCommand : IApplicationCommand
 
     private static PanelLocation BuildDestinationLocation(
         ApplicationCommandContext context,
-        FilePanelState sourceState,
+        FilePanelState destinationState,
         string destination,
         int sourceCount)
     {
-        if (sourceState.SourceId == PanelSourceId.Local)
+        if (destinationState.SourceId == PanelSourceId.Local)
             return PanelLocation.Local(destination);
 
         string path = sourceCount == 1 && !destination.Contains('/')
-            ? context.CombinePanelPath(sourceState, destination)
+            ? context.CombinePanelPath(destinationState, destination)
             : destination;
-        return new PanelLocation(sourceState.SourceId, path);
+        return new PanelLocation(destinationState.SourceId, path);
     }
 }
