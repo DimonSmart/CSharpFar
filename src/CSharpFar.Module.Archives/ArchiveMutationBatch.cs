@@ -32,7 +32,7 @@ internal sealed class ArchiveMutationBatch : IFileOperationBatch
         _originalNodes = owner.Index.Nodes.ToDictionary(node => node.Path, StringComparer.Ordinal);
         _entries = owner.Index.Nodes.Where(node => node.Path != "/").ToDictionary(node => node.Path,
             node => new ArchiveMutationEntry(node.Path, node.IsDirectory, node.Size,
-                node.Modified, node.IsDirectory ? null : node.Path, null, node.Explicit),
+                node.Modified, node.Path, null, node.Explicit),
             StringComparer.Ordinal);
     }
 
@@ -114,7 +114,8 @@ internal sealed class ArchiveMutationBatch : IFileOperationBatch
         if (path == "/")
             throw new IOException("Cannot write to archive root.");
         EnsureParent(path);
-        if (_entries.TryGetValue(path, out var old))
+        _entries.TryGetValue(path, out var old);
+        if (old is not null)
         {
             if (old.IsDirectory)
                 throw new IOException("Cannot overwrite a directory with a file.");
@@ -142,7 +143,7 @@ internal sealed class ArchiveMutationBatch : IFileOperationBatch
                 if (size > ArchiveEntryIndex.MaxSingleSize)
                     throw new InvalidDataException("Archive entry exceeds the single-file size limit.");
                 _entries[path] = new ArchiveMutationEntry(path, false, size, DateTime.UtcNow,
-                    null, staged, true);
+                    old?.OriginalPath, staged, true);
             },
             () => { lock (_gate) { _failed = true; } },
             () => { lock (_gate) { _activeWriters--; } }));
