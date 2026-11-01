@@ -6,4 +6,5 @@ public enum FileOperationPhase
     Validating,
     Copying,
     Deleting,
+    Committing,
 }
