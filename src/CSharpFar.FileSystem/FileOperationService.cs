@@ -3181,6 +3181,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         public int CreatedDirectoryCount { get; set; }
         public int SkippedCount { get; set; }
         public bool Cancelled { get; set; }
+        public bool PartiallyMoved { get; set; }
         public ConflictDecisionMode? StickyConflictDecision { get; set; }
         public List<FileOperationItemError> Errors { get; } = [];
 
@@ -3339,6 +3340,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                 CreatedDirectoryCount = CreatedDirectoryCount,
                 SkippedCount = SkippedCount,
                 Cancelled = Cancelled,
+                PartiallyMoved = PartiallyMoved,
                 BytesProcessed = _bytesProcessed,
                 TotalBytes = _totalBytes,
                 Errors = Errors,
