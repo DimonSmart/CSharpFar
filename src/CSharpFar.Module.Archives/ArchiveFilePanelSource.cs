@@ -9,7 +9,7 @@ namespace CSharpFar.Module.Archives;
 /// An indexed archive session. Writable local ZIP archives use copy-on-write batches.
 /// Other formats and nested/remote archives retain the read-only v1 behavior.
 /// </summary>
-public sealed class ArchiveFilePanelSource : IFilePanelSource, IFileOperationBatchProvider, ITemporaryFilePanelSource, IAsyncDisposable
+public sealed class ArchiveFilePanelSource : IFilePanelSource, IFileOperationBatchProvider, IFileProviderPhysicalIdentity, ITemporaryFilePanelSource, IAsyncDisposable
 {
     public const long MaxTemporaryBytes = 1024L * 1024 * 1024;
     public const int MaxNestingDepth = 3;
@@ -45,6 +45,7 @@ public sealed class ArchiveFilePanelSource : IFilePanelSource, IFileOperationBat
     public int Depth { get; }
     public string Format { get; }
     public PanelSourceId SourceId { get; }
+    public string PhysicalIdentity => _archiveFile;
     public string DisplayName => Format;
     public bool IsTemporary => true;
     public PanelProviderCapabilities Capabilities =>
