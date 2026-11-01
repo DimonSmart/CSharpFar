@@ -34,7 +34,7 @@ internal static class ArchiveTarSafety
     {
         using var stream = File.OpenRead(path);
         using var gzip = format == "TAR.GZ" ? OpenSafeGzip(stream) : null;
-        using var reader = new TarReader(gzip ?? stream, leaveOpen: true);
+        using var reader = new TarReader((Stream?)gzip ?? stream, leaveOpen: true);
         TarEntry? entry;
         while ((entry = reader.GetNextEntry(copyData: false)) is not null)
         {
@@ -63,7 +63,7 @@ internal static class ArchiveTarSafety
     {
         using var stream = File.OpenRead(file);
         using var gzip = format == "TAR.GZ" ? OpenSafeGzip(stream) : null;
-        using var reader = new TarReader(gzip ?? stream, leaveOpen: true);
+        using var reader = new TarReader((Stream?)gzip ?? stream, leaveOpen: true);
         var result = new Dictionary<string, TarMetadata>(StringComparer.Ordinal);
         TarEntry? entry;
         while ((entry = reader.GetNextEntry(copyData: false)) is not null)
@@ -81,5 +81,5 @@ internal static class ArchiveTarSafety
 }
 
 internal sealed record TarMetadata(
-    DateTimeOffset Modified, int Mode, int Uid, int Gid,
+    DateTimeOffset Modified, UnixFileMode Mode, int Uid, int Gid,
     string? UserName, string? GroupName);
