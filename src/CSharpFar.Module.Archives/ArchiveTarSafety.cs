@@ -12,7 +12,7 @@ internal static class ArchiveTarSafety
 {
     private static readonly HashSet<string> SupportedPaxKeys = new(StringComparer.Ordinal)
     {
-        "path", "mtime", "atime", "ctime", "size", "uid", "gid",
+        "path", "mtime", "size", "uid", "gid",
         "uname", "gname", "mode",
     };
 
