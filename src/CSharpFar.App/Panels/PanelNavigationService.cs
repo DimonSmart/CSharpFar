@@ -80,6 +80,7 @@ internal sealed class PanelNavigationService
             state.SelectedPaths.Add(path);
         foreach (PanelLocation location in frame.SelectedLocations)
             state.SelectedLocations.Add(location);
+        _controller.RefreshSelectionSummary(state);
         _controller.SetCursorByName(state, frame.ItemName, _visibleRows(side));
         if (!state.Items.Any(item => string.Equals(item.Name, frame.ItemName, StringComparison.Ordinal)))
             _controller.SetCursorTo(state, frame.CursorIndex, _visibleRows(side));
