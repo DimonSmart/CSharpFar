@@ -2,11 +2,109 @@ using CSharpFar.App.Plugins;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Plugin.Abstractions;
+using CSharpFar.Tests.Infrastructure;
 
 namespace CSharpFar.Tests;
 
 public sealed class NativePluginRuntimeTests
 {
+    [Fact]
+    public async Task FileOpenHandlers_InterceptOnlyMatchingFilesAndReceiveOriginalSource()
+    {
+        var runtime = CreateRuntime(new TestApplication());
+        var source = new InMemoryBatchFilePanelSource();
+        var item = new FilePanelItem
+        {
+            Name = "container.bin", FullPath = "/container.bin",
+            SourceId = source.SourceId, IsDirectory = false,
+        };
+        FileOpenContext? captured = null;
+        Assert.True((await runtime.RegisterAsync(Descriptor("container"), new TestPlugin((host, _) =>
+        {
+            host.RegisterFileOpenHandler(new TestFileHandler(
+                "container", candidate => candidate.Name == "container.bin",
+                (context, _) =>
+                {
+                    captured = context;
+                    return ValueTask.FromResult(PluginFileOpenResult.OpenPanel(new PluginPanelOpenRequest
+                    {
+                        Source = new InMemoryBatchFilePanelSource(),
+                        InitialDirectory = "/",
+                        Title = "Container",
+                    }));
+                }));
+            return ValueTask.CompletedTask;
+        }))).Success);
+        runtime.Seal();
+
+        Assert.False(runtime.TryOpenFile(source,
+            new FilePanelItem { Name = "other.txt", FullPath = "/other.txt", SourceId = source.SourceId, IsDirectory = false },
+            PanelSide.Right, out _));
+
+        Assert.True(runtime.TryOpenFile(source, item, PanelSide.Right, out var invocation));
+        var result = await invocation;
+        Assert.Equal(PluginFileOpenResultKind.OpenPanel, result.Kind);
+        Assert.Same(source, captured!.Source);
+        Assert.Equal(item.Location, captured.Location);
+        Assert.Equal(PanelSide.Right, captured.TargetPanelSide);
+    }
+
+    [Fact]
+    public async Task AmbiguousOrThrowingFileOpenHandler_FailsWithoutSystemFallback()
+    {
+        var runtime = CreateRuntime(new TestApplication());
+        var source = new InMemoryBatchFilePanelSource();
+        var item = new FilePanelItem { Name = "x", FullPath = "/x", SourceId = source.SourceId, IsDirectory = false };
+        Assert.True((await runtime.RegisterAsync(Descriptor("first"), new TestPlugin((host, _) =>
+        {
+            host.RegisterFileOpenHandler(new TestFileHandler("a", _ => true,
+                (_, _) => ValueTask.FromResult(PluginFileOpenResult.NotHandled())));
+            return ValueTask.CompletedTask;
+        }))).Success);
+        Assert.True((await runtime.RegisterAsync(Descriptor("second"), new TestPlugin((host, _) =>
+        {
+            host.RegisterFileOpenHandler(new TestFileHandler("b", _ => true,
+                (_, _) => throw new InvalidOperationException("Should not run")));
+            return ValueTask.CompletedTask;
+        }))).Success);
+        Assert.True(runtime.TryOpenFile(source, item, PanelSide.Left, out var ambiguous));
+        Assert.Equal(PluginFileOpenResultKind.Failed, (await ambiguous).Kind);
+
+        var throwing = CreateRuntime(new TestApplication());
+        Assert.True((await throwing.RegisterAsync(Descriptor("throwing"), new TestPlugin((host, _) =>
+        {
+            host.RegisterFileOpenHandler(new TestFileHandler("bad", _ => true,
+                (_, _) => throw new IOException("read failed")));
+            return ValueTask.CompletedTask;
+        }))).Success);
+        Assert.True(throwing.TryOpenFile(source, item, PanelSide.Left, out var failed));
+        Assert.Equal(PluginFileOpenResultKind.Failed, (await failed).Kind);
+    }
+
+    [Fact]
+    public async Task FileOpenHandler_AwaitsWithoutBlockingAndMapsCancellation()
+    {
+        var runtime = CreateRuntime(new TestApplication());
+        var source = new InMemoryBatchFilePanelSource();
+        var item = new FilePanelItem { Name = "x", FullPath = "/x", SourceId = source.SourceId, IsDirectory = false };
+        var completion = new TaskCompletionSource<PluginFileOpenResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Assert.True((await runtime.RegisterAsync(Descriptor("async-file"), new TestPlugin((host, _) =>
+        {
+            host.RegisterFileOpenHandler(new TestFileHandler("pending", _ => true,
+                (_, _) => new ValueTask<PluginFileOpenResult>(completion.Task)));
+            return ValueTask.CompletedTask;
+        }))).Success);
+        Assert.True(runtime.TryOpenFile(source, item, PanelSide.Left, out var invocation));
+        Assert.False(invocation.IsCompleted);
+        completion.SetResult(PluginFileOpenResult.NotHandled());
+        Assert.Equal(PluginFileOpenResultKind.NotHandled, (await invocation).Kind);
+
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        Assert.True(runtime.TryOpenFile(source, item, PanelSide.Left, out var cancelled, cancellation.Token));
+        Assert.Equal(PluginFileOpenResultKind.Cancelled, (await cancelled).Kind);
+    }
+
     [Fact]
     public async Task Registration_ResolvesCommandsMenusAndPrefixesWithoutSpecializedApplicationHandlers()
     {
@@ -200,6 +298,16 @@ public sealed class NativePluginRuntimeTests
             _ => settings ?? new TestSettings(Path.Combine(Path.GetTempPath(), "CSharpFarPluginTests")),
             _ => new TestUi(),
             _ => credentials ?? new TestCredentials());
+
+    private sealed class TestFileHandler(
+        string id, Func<FilePanelItem, bool> canOpen,
+        Func<FileOpenContext, CancellationToken, ValueTask<PluginFileOpenResult>> open) : IFileOpenHandler
+    {
+        public string Id => id;
+        public bool CanOpen(FilePanelItem item) => canOpen(item);
+        public ValueTask<PluginFileOpenResult> OpenAsync(FileOpenContext context, CancellationToken token) =>
+            open(context, token);
+    }
 
     private sealed class TestPlugin(Func<IPluginHost, CancellationToken, ValueTask> initialize) : ICSharpFarPlugin
     {

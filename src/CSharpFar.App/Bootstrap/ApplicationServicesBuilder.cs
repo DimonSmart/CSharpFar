@@ -320,7 +320,8 @@ internal static class ApplicationServicesBuilder
             () => callbacks.PanelOptions(),
             side => callbacks.VisibleRowsForSide(side),
             side => callbacks.ClosePanelQuickSearchForPanel(side),
-            (state, side) => callbacks.StartWatching(state, side));
+            (state, side) => callbacks.StartWatching(state, side),
+            effectiveSourceRegistry);
         var panelQuickSearch = new PanelQuickSearchController(
             controller,
             () => callbacks.GetActiveSide(),
@@ -487,7 +488,8 @@ internal static class ApplicationServicesBuilder
             controller,
             () => callbacks.PanelOptions(),
             side => callbacks.VisibleRowsForSide(side),
-            state => callbacks.ClosePanelQuickSearchForState(state));
+            state => callbacks.ClosePanelQuickSearchForState(state),
+            state => panelNavigation.EnsureNestedRootParent(state, callbacks.PanelSideForState(state)));
         panelRefresh.RefreshRequested = state =>
         {
             if (session.App.FileUsage && ReferenceEquals(state, panelWorkspace.ActiveState))
@@ -617,7 +619,8 @@ internal static class ApplicationServicesBuilder
                 quickView => callbacks.SetQuickView(quickView),
                 pluginUiActions.Post,
                 error => diagnosticLog.WriteException(
-                    DiagnosticCategory.Plugin, error, "Rejected plugin panel source cleanup"));
+                    DiagnosticCategory.Plugin, error, "Rejected plugin panel source cleanup"),
+                navigation: panelNavigation);
             var workspaceModeController = new ApplicationWorkspaceModeController(
                 screen,
                 session,

@@ -261,18 +261,47 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
 
         var destination = RequireDestinationLocation(request);
         var sources = RequireSourceLocations(request);
-        if (destination.SourceId != PanelSourceId.Local &&
-            sources.Any(source => source.SourceId != PanelSourceId.Local && source.SourceId != destination.SourceId))
-        {
-            throw new InvalidOperationException("Provider-to-provider copy is not supported.");
-        }
-
         var destinationSource = _sources!.GetSource(destination.SourceId);
         var plan = BuildProviderCopyPlan(sources, destination, request.Options, request.UseDestinationTemplate, cancellationToken);
 
         state.SetTotals(CalculateProviderPlanSize(plan), plan.Count);
         state.StartProgressTimer();
 
+        if (destinationSource is IFileOperationBatchProvider batching)
+        {
+            var publicPlan = ToPublicPlan(plan, destination.SourceId);
+            await using var batch = await batching.BeginBatchAsync(publicPlan, cancellationToken)
+                .ConfigureAwait(false);
+            try
+            {
+                await CopyProviderPlanItemsAsync(plan, batch, request.Options,
+                    conflictResolver, state, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                state.ReportCommitting(destination.SourcePath);
+                await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                try { await batch.AbortAsync(CancellationToken.None).ConfigureAwait(false); }
+                catch { /* DisposeAsync makes the final cleanup attempt. */ }
+                throw;
+            }
+        }
+        else
+        {
+            await CopyProviderPlanItemsAsync(plan, destinationSource, request.Options,
+                conflictResolver, state, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task CopyProviderPlanItemsAsync(
+        IReadOnlyList<ProviderOperationPlanItem> plan,
+        IFilePanelSource destinationSource,
+        FileOperationOptions options,
+        IFileOperationConflictResolver conflictResolver,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
         foreach (var plannedItem in plan)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -284,16 +313,9 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             }
 
             await CopyProviderItemAsync(
-                    plannedItem.Source,
-                    plannedItem.SourcePath,
-                    destinationSource,
-                    plannedItem.TargetPath,
-                    plannedItem.Item!,
-                    request.Options,
-                    conflictResolver,
-                    state,
-                    cancellationToken)
-                .ConfigureAwait(false);
+                plannedItem.Source, plannedItem.SourcePath,
+                destinationSource, plannedItem.TargetPath, plannedItem.Item,
+                options, conflictResolver, state, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -376,7 +398,8 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                     throw new OperationCanceledException("File operation cancelled by user.");
                 case ConflictDecisionMode.Overwrite:
                 case ConflictDecisionMode.OverwriteAll:
-                    await destinationSource.DeleteAsync(destinationPath, recursive: false, cancellationToken).ConfigureAwait(false);
+                    if (destinationSource is not IFileOperationBatch)
+                        await destinationSource.DeleteAsync(destinationPath, recursive: false, cancellationToken).ConfigureAwait(false);
                     break;
                 case ConflictDecisionMode.OnlyNewer:
                     throw new InvalidOperationException("Only newer is not supported for provider copy.");
@@ -3055,6 +3078,23 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                 FoldersDone = _foldersDone,
                 BytesPerSecond = speed,
                 TimeRemaining = remaining,
+                Elapsed = _progressStopwatch.Elapsed,
+            });
+        }
+
+        public void ReportCommitting(string destinationPath)
+        {
+            _progress?.Report(new FileOperationProgress
+            {
+                Kind = _kind,
+                Phase = FileOperationPhase.Committing,
+                CurrentPath = destinationPath,
+                StatusMessage = "Committing changes",
+                TotalBytesDone = _bytesProcessed,
+                TotalBytesTotal = _totalBytes,
+                ItemsDone = _itemsDone,
+                ItemsTotal = _totalItems,
+                FoldersDone = _foldersDone,
                 Elapsed = _progressStopwatch.Elapsed,
             });
         }

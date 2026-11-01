@@ -167,12 +167,70 @@ public sealed class EditorFileService
         byte[] bytes = session.Document.Format.CreateSaveEncoding().GetBytes(
             session.Document.Buffer.GetText(session.Document.Format));
 
-        using var stream = source.OpenWriteAsync(sourcePath, overwrite: true).GetAwaiter().GetResult();
-        stream.Write(bytes, 0, bytes.Length);
-        stream.Flush();
+        // A provider may finalize or reject the write in Dispose. Only publish the
+        // editor's clean state after that finalization has successfully completed.
+        using (var stream = source.OpenWriteAsync(sourcePath, overwrite: true).GetAwaiter().GetResult())
+        {
+            stream.Write(bytes, 0, bytes.Length);
+            stream.Flush();
+        }
 
         session.Document.MarkClean();
         session.RaiseSaved();
+    }
+
+    /// <summary>
+    /// Asynchronous provider save, including final stream disposal and optional batch
+    /// commit. Consumers must await this before clearing the dirty indicator.
+    /// </summary>
+    public async Task SaveAsync(
+        EditorSession session, IFilePanelSource source, string sourcePath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(source);
+        if (session.ReadOnly)
+            throw new IOException("The file is opened read-only.");
+
+        byte[] bytes = session.Document.Format.CreateSaveEncoding().GetBytes(
+            session.Document.Buffer.GetText(session.Document.Format));
+
+        if (source is IFileOperationBatchProvider batching)
+        {
+            var location = new PanelLocation(source.SourceId, sourcePath);
+            var plan = new FileOperationPlan([new FileOperationPlanItem(location, location, false)]);
+            await using var batch = await batching.BeginBatchAsync(plan, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await WriteProviderFileAsync(batch, sourcePath, bytes, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                try { await batch.AbortAsync(CancellationToken.None).ConfigureAwait(false); }
+                catch { /* Keep the original write or commit failure. */ }
+                throw;
+            }
+        }
+        else
+        {
+            await WriteProviderFileAsync(source, sourcePath, bytes, cancellationToken).ConfigureAwait(false);
+        }
+
+        session.Document.MarkClean();
+        session.RaiseSaved();
+    }
+
+    private static async Task WriteProviderFileAsync(
+        IFilePanelSource destination, string path, byte[] bytes, CancellationToken cancellationToken)
+    {
+        await using (var stream = await destination.OpenWriteAsync(
+            path, overwrite: true, cancellationToken).ConfigureAwait(false))
+        {
+            await stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
+            await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
     public static EditorLineEnding ToEditorLineEnding(TextLineEndingKind kind) =>

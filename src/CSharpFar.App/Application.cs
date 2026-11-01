@@ -317,7 +317,7 @@ public sealed class Application
             {
                 // The input loop has stopped; complete rejected-source cleanup
                 // before shutting down the plugin runtime and its live providers.
-                _modulePanelOpener.AwaitPendingCleanupsAsync().GetAwaiter().GetResult();
+                _modulePanelOpener.ShutdownAsync().GetAwaiter().GetResult();
             }
             finally
             {
@@ -556,7 +556,7 @@ public sealed class Application
             return;
         }
 
-        OpenFileItem(state, item);
+        OpenFileItem(state, side, item);
     }
 
     private void OpenDirectoryItem(FilePanelState state, PanelSide side, FilePanelItem item)
@@ -564,9 +564,10 @@ public sealed class Application
         _panelNavigation.OpenDirectoryItem(state, side, item);
     }
 
-    private void OpenFileItem(FilePanelState state, FilePanelItem item)
+    private void OpenFileItem(FilePanelState state, PanelSide side, FilePanelItem item)
     {
-        _panelFileOpener.OpenFileItem(state, item);
+        if (!_modulePanelOpener.TryOpenFileItem(state, side, item, _panelFileOpener.OpenFileItem))
+            _panelFileOpener.OpenFileItem(state, item);
     }
 
     private void TryGoUp(FilePanelState state, PanelSide side)

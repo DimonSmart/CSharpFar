@@ -80,6 +80,19 @@ public sealed class FilePanelSourceRegistry : IFilePanelSourceRegistry
     }
 
     /// <summary>
+    /// A source returned from nested navigation is displayed again. Cancel a
+    /// previously scheduled retirement before releasing its navigation lease.
+    /// </summary>
+    public void RetainSource(PanelSourceId sourceId)
+    {
+        lock (_gate)
+        {
+            if (_sources.ContainsKey(sourceId))
+                _pendingRetirement.Remove(sourceId);
+        }
+    }
+
+    /// <summary>
     /// Release temporary plugin-owned sources not displayed by either panel.
     /// A source still used by a file operation is retired when its last lease ends.
     /// </summary>
@@ -146,8 +159,15 @@ public sealed class FilePanelSourceRegistry : IFilePanelSourceRegistry
     }
 
     /// <summary>Release sources at shutdown, deferring active temporary work until its last lease ends.</summary>
-    public void DisposeOwnedSources()
+    public void DisposeOwnedSources() => DisposeOwnedSources(DisposeSource);
+
+    /// <summary>
+    /// Release all owned sources using the caller's disposal scheduler.
+    /// This lets UI hosts dispatch asynchronous source disposal without blocking.
+    /// </summary>
+    public void DisposeOwnedSources(Action<IFilePanelSource> dispose)
     {
+        ArgumentNullException.ThrowIfNull(dispose);
         var released = new List<IFilePanelSource>();
         lock (_gate)
         {
@@ -157,7 +177,7 @@ public sealed class FilePanelSourceRegistry : IFilePanelSourceRegistry
                 if (source is ITemporaryFilePanelSource { IsTemporary: true } &&
                     _activeUses.GetValueOrDefault(id) > 0)
                 {
-                    _pendingRetirement[id] = DisposeSource;
+                    _pendingRetirement[id] = dispose;
                     continue;
                 }
                 _sources.Remove(id);
@@ -168,7 +188,7 @@ public sealed class FilePanelSourceRegistry : IFilePanelSourceRegistry
             }
         }
         foreach (var source in released)
-            DisposeSource(source);
+            dispose(source);
     }
 
     private static void DisposeSource(IFilePanelSource source)
