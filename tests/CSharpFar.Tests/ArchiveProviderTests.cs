@@ -46,20 +46,22 @@ public sealed class ArchiveProviderTests : IDisposable
         await using var source = await ArchiveFilePanelSource.CreateAsync(Local(), PanelLocation.Local(path), "sample.zip");
 
         Assert.Equal("ZIP", source.Format);
-        Assert.Equal(PanelProviderCapabilities.Enumerate |
-                     PanelProviderCapabilities.OpenRead |
-                     PanelProviderCapabilities.CopyFrom |
-                     PanelProviderCapabilities.Refresh, source.Capabilities);
+        Assert.True(source.Capabilities.HasFlag(PanelProviderCapabilities.OpenRead));
+        Assert.True(source.Capabilities.HasFlag(PanelProviderCapabilities.CopyTo));
+        Assert.True(source.Capabilities.HasFlag(PanelProviderCapabilities.Delete));
         Assert.Equal(["empty", "src", "Русский"], source.EnumerateDirectory("/").Select(x => x.Name).Order(StringComparer.Ordinal).ToArray());
         Assert.Single(source.EnumerateDirectory("/src"));
         Assert.Equal("main.cs", Assert.Single(source.EnumerateDirectory("/src/core")).Name);
         Assert.Empty(source.EnumerateDirectory("/empty"));
 
-        await using var stream = await source.OpenReadAsync("/Русский/имя.txt");
-        using var reader = new StreamReader(stream);
-        Assert.Equal("мир", await reader.ReadToEndAsync());
-        await Assert.ThrowsAsync<NotSupportedException>(
-            () => source.CreateDirectoryAsync("/new"));
+        await using (var stream = await source.OpenReadAsync("/Русский/имя.txt"))
+        using (var reader = new StreamReader(stream))
+        {
+            Assert.Equal("мир", await reader.ReadToEndAsync());
+        }
+        await source.CreateDirectoryAsync("/new");
+        Assert.True(source.GetItem("/new")!.IsDirectory);
+        Assert.Empty(source.EnumerateDirectory("/new"));
     }
 
     [Fact]

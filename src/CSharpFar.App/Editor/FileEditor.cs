@@ -38,6 +38,8 @@ internal sealed partial class FileEditor
     private bool _persistentSelection;
     private IFilePanelSource? _activeSource;
     private string? _activeSourcePath;
+    private Task? _pendingProviderSave;
+    private bool _closeAfterProviderSave;
 
     internal FileEditor(
         InteractiveSurfaceHost surfaces,
@@ -158,22 +160,59 @@ internal sealed partial class FileEditor
 
     private void RunLoop(EditorSession session)
     {
+        _pendingProviderSave = null;
+        _closeAfterProviderSave = false;
         var layer = new FileEditorLayer(this, session);
-        _surfaces.Run(
+        _surfaces.RunTimed(
             layer,
             (packet, input) =>
             {
                 bool cursorPhaseChanged = layer.RestoreVisibleCursorPhase();
                 ModalDialogLoopResult<bool> result =
-                    HandleSurfaceInput(session, input, packet.Frame);
+                    _pendingProviderSave is not null
+                        ? ModalDialogLoopResult<bool>.ContinueNoChange
+                        : HandleSurfaceInput(session, input, packet.Frame);
                 if (result.Invalidate)
                     layer.RequestAfterSemanticChange();
                 else if (cursorPhaseChanged && !result.IsCompleted)
                     return ModalDialogLoopResult<bool>.ContinueChanged;
                 return result;
             },
-            getNextWakeUtc: layer.GetNextWakeUtc,
-            handleWake: _ => layer.HandleWake());
+            getNextWakeUtc: () =>
+            {
+                DateTimeOffset? scheduled = layer.GetNextWakeUtc();
+                if (_pendingProviderSave is null)
+                    return scheduled;
+
+                var poll = DateTimeOffset.UtcNow.AddMilliseconds(80);
+                return scheduled is { } next && next < poll ? next : poll;
+            },
+            handleWake: _ =>
+            {
+                if (_pendingProviderSave is { IsCompleted: true } completed)
+                {
+                    _pendingProviderSave = null;
+                    bool close = _closeAfterProviderSave;
+                    _closeAfterProviderSave = false;
+                    if (completed.IsFaulted || completed.IsCanceled)
+                    {
+                        string message = completed.Exception?.GetBaseException().Message ??
+                            "The archive save was cancelled.";
+                        _dialogs.Message("Save Error", message);
+                    }
+                    else if (close)
+                    {
+                        return InteractiveSurfaceWakeResult<bool>.Complete(true);
+                    }
+                    layer.RequestAfterSemanticChange();
+                    return InteractiveSurfaceWakeResult<bool>.Changed;
+                }
+
+                var wake = layer.HandleWake();
+                return wake.Invalidate
+                    ? InteractiveSurfaceWakeResult<bool>.Changed
+                    : InteractiveSurfaceWakeResult<bool>.NoChange;
+            });
     }
 
     private ModalDialogLoopResult<bool> HandleSurfaceInput(
@@ -591,12 +630,14 @@ internal sealed partial class FileEditor
             return true;
 
         var choice = new SaveChangesDialog(_dialogs).Show(Path.GetFileName(session.FilePath));
-        return choice switch
+        if (choice == SaveChangesChoice.Save)
         {
-            SaveChangesChoice.Save => SaveFile(session),
-            SaveChangesChoice.Discard => true,
-            _ => false,
-        };
+            bool savedSynchronously = SaveFile(session);
+            if (_pendingProviderSave is not null)
+                _closeAfterProviderSave = true;
+            return savedSynchronously;
+        }
+        return choice == SaveChangesChoice.Discard;
     }
 
     private bool SaveFile(EditorSession session)
@@ -604,9 +645,22 @@ internal sealed partial class FileEditor
         try
         {
             if (_activeSource is not null && _activeSourcePath is not null)
+            {
+                if (_activeSource is IFileOperationBatchProvider)
+                {
+                    // A modal surface cannot synchronously wait for lengthy archive
+                    // compression. Run the existing async save and observe its
+                    // completion on the surface wake callback, without blocking UI.
+                    _pendingProviderSave = _fileService.SaveAsync(
+                        session, _activeSource, _activeSourcePath);
+                    return false;
+                }
                 _fileService.Save(session, _activeSource, _activeSourcePath);
+            }
             else
+            {
                 _fileService.Save(session);
+            }
             return true;
         }
         catch (Exception ex)

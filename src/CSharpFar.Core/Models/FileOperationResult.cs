@@ -10,6 +10,7 @@ public sealed record FileOperationResult
     public int SkippedCount { get; init; }
     public int FailedCount => Errors.Count;
     public bool Cancelled { get; init; }
+    public bool PartiallyMoved { get; init; }
     public long BytesProcessed { get; init; }
     public long TotalBytes { get; init; }
     public required IReadOnlyList<FileOperationItemError> Errors { get; init; }

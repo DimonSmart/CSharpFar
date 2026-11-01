@@ -59,8 +59,9 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
         }
         else
         {
-            context.EditFile(
+            context.EditFileWithNewFileFormat(
                 fileLocation,
+                newFileFormat,
                 PanelCommandEditorContextFactory.Create(context, target));
         }
 
