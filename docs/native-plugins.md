@@ -15,7 +15,7 @@ cleaned when the plugin actually exits.
 `CreateAsync` awaits initializers **sequentially**. A plugin that throws or
 cancels itself is omitted, and later independent plugins continue. A cancelled
 factory `cancellationToken` instead aborts the entire startup. Register all
-commands, menu items, prefixes and providers through the supplied `IPluginHost`;
+commands, menu items, prefixes, providers and file-open handlers through the supplied `IPluginHost`;
 the batch commits atomically only after initialization and validation.
 
 A modal `host.Ui.ShowMessage`, `Input` or `ShowMenu` call during initialization
@@ -31,3 +31,19 @@ diagnostics view. Plugin providers belong to the plugin runtime until shutdown,
 while sources opened by providers belong to the `FilePanelSourceRegistry`.
 Temporary demo plugin settings are removed on session shutdown. Call
 `Application.Run()` for the usual owned-session lifecycle.
+
+## Open files and container panels
+
+`IPluginHost.RegisterFileOpenHandler` registers a handler during initialization.
+`CanOpen` should be quick and should claim only files the plugin can confidently
+handle. The async `OpenAsync` receives the original `FilePanelItem`,
+`PanelLocation` and `IFilePanelSource` and can return a new `PluginPanelOpenRequest`.
+Two competing handlers produce an explicit ambiguity error; exceptions and
+cancellation do not silently run the system file association.
+
+A container provider may implement `IFileOperationBatchProvider` in addition to
+`IFilePanelSource`. For multi-file F5 copies, `FileOperationService` writes to
+its staged `IFileOperationBatch` view and commits once. Existing FTP, SFTP,
+and local providers do not have to change. See
+[archive infrastructure](archive-provider-infrastructure.md) for the
+contracts, ownership and remaining limitations.
