@@ -1,34 +1,42 @@
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.Module.Archives;
 
 /// <summary>
-/// A read-only, disposable archive session. Only metadata is indexed; file
-/// contents are decompressed on demand into caller-owned bounded streams.
+/// An indexed archive session. Writable local ZIP archives use copy-on-write batches.
+/// Other formats and nested/remote archives retain the read-only v1 behavior.
 /// </summary>
-public sealed class ArchiveFilePanelSource : IFilePanelSource, ITemporaryFilePanelSource, IAsyncDisposable
+public sealed class ArchiveFilePanelSource : IFilePanelSource, IFileOperationBatchProvider, ITemporaryFilePanelSource, IAsyncDisposable
 {
     public const long MaxTemporaryBytes = 1024L * 1024 * 1024;
     public const int MaxNestingDepth = 3;
     private static readonly Guid ModuleId = new("e772e934-2f54-49e5-b9c2-31ab4188a307");
     private static readonly char[] Separators = ['/'];
+    private static readonly ConcurrentDictionary<string, long> Generations =
+        new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
     private readonly string _archiveFile;
     private readonly bool _ownsFile;
-    private readonly long _fileLength;
-    private readonly DateTime _fileModifiedUtc;
-    private readonly ArchiveEntryIndex _index;
+    private long _fileLength;
+    private DateTime _fileModifiedUtc;
+    private ArchiveEntryIndex _index;
+    private long _generation;
+    private readonly bool _writable;
     private bool _disposed;
 
     private ArchiveFilePanelSource(
         string archiveFile, bool ownsFile, long fileLength, DateTime modifiedUtc,
-        string format, ArchiveEntryIndex index, int depth)
+        string format, ArchiveEntryIndex index, int depth, bool writable)
     {
         _archiveFile = archiveFile;
         _ownsFile = ownsFile;
         _fileLength = fileLength;
         _fileModifiedUtc = modifiedUtc;
         _index = index;
+        _writable = writable;
+        _generation = Generations.GetOrAdd(archiveFile, 0);
         Format = format;
         Depth = depth;
         SourceId = PanelSourceId.Module(ModuleId, Guid.NewGuid().ToString("N"));
@@ -43,7 +51,39 @@ public sealed class ArchiveFilePanelSource : IFilePanelSource, ITemporaryFilePan
         PanelProviderCapabilities.Enumerate |
         PanelProviderCapabilities.OpenRead |
         PanelProviderCapabilities.CopyFrom |
-        PanelProviderCapabilities.Refresh;
+        PanelProviderCapabilities.Refresh |
+        (_writable ?
+            PanelProviderCapabilities.OpenWrite | PanelProviderCapabilities.CreateFile |
+            PanelProviderCapabilities.CreateDirectory | PanelProviderCapabilities.Delete |
+            PanelProviderCapabilities.Rename | PanelProviderCapabilities.CopyTo |
+            PanelProviderCapabilities.MoveFrom | PanelProviderCapabilities.MoveTo |
+            PanelProviderCapabilities.Edit : PanelProviderCapabilities.None);
+
+    internal string ArchiveFile => _archiveFile;
+    internal ArchiveEntryIndex Index => _index;
+    internal bool IsWritable => _writable;
+    internal void CheckFresh() => EnsureFresh();
+
+    internal void Published(ArchiveEntryIndex index)
+    {
+        // The temporary result has already passed format validation. Publication
+        // is irreversible at this point; don't discard that success on refresh.
+        var info = new FileInfo(_archiveFile);
+        _index = index;
+        _fileLength = info.Length;
+        _fileModifiedUtc = info.LastWriteTimeUtc;
+        _generation = Generations.AddOrUpdate(_archiveFile, 1, (_, previous) => previous + 1);
+    }
+
+    internal Task<Stream> OpenOriginalEntryAsync(
+        ArchiveNode entry, CancellationToken cancellationToken) =>
+        Task.Run<Stream>(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureFresh();
+            return SharpCompressArchiveReader.OpenEntry(
+                _archiveFile, Format, entry, cancellationToken);
+        }, cancellationToken);
     public IReadOnlyCollection<char> PathSeparators => Separators;
 
     public static bool IsSupportedName(string name) =>
@@ -104,7 +144,9 @@ public sealed class ArchiveFilePanelSource : IFilePanelSource, ITemporaryFilePan
                 throw new IOException("Archive changed while its index was being built.");
 
             return new ArchiveFilePanelSource(
-                file, !local, snapshot.Length, snapshot.LastWriteTimeUtc, format, index, depth);
+                file, !local, snapshot.Length, snapshot.LastWriteTimeUtc, format, index, depth,
+                local && format == "ZIP" && !snapshot.IsReadOnly &&
+                snapshot.LinkTarget is null && ArchiveZipSafety.IsRebuildSafe(file));
         }
         catch
         {
@@ -156,22 +198,65 @@ public sealed class ArchiveFilePanelSource : IFilePanelSource, ITemporaryFilePan
             }, cancellationToken);
     }
 
+    public async ValueTask<IFileOperationBatch> BeginBatchAsync(
+        FileOperationPlan plan, CancellationToken cancellationToken = default)
+    {
+        if (!_writable)
+            throw ReadOnly();
+        cancellationToken.ThrowIfCancellationRequested();
+        EnsureFresh();
+        ArchiveZipSafety.Validate(_archiveFile);
+        byte[] originalDigest = await Task.Run(() =>
+        {
+            using var input = File.OpenRead(_archiveFile);
+            return SHA256.HashData(input);
+        }, cancellationToken).ConfigureAwait(false);
+        EnsureFresh();
+        return new ArchiveMutationBatch(this, originalDigest);
+    }
+
+    // All archive writes require an explicit batch. A bare stream cannot express
+    // rollback after a caller exception, so don't advertise implicit auto-commit.
     public Task<Stream> OpenWriteAsync(
         string sourcePath, bool overwrite, CancellationToken cancellationToken = default) =>
-        throw ReadOnly();
+        throw new NotSupportedException("Archive writes require an explicit mutation batch.");
+
     public Task CreateDirectoryAsync(string sourcePath, CancellationToken cancellationToken = default) =>
-        throw ReadOnly();
+        SingleMutationAsync(sourcePath, (batch, ct) => batch.CreateDirectoryAsync(sourcePath, ct), cancellationToken);
+
     public Task DeleteAsync(string sourcePath, bool recursive, CancellationToken cancellationToken = default) =>
-        throw ReadOnly();
+        SingleMutationAsync(sourcePath, (batch, ct) => batch.DeleteAsync(sourcePath, recursive, ct), cancellationToken);
+
     public Task RenameAsync(string sourcePath, string newSourcePath, CancellationToken cancellationToken = default) =>
-        throw ReadOnly();
+        SingleMutationAsync(sourcePath, (batch, ct) => batch.RenameAsync(sourcePath, newSourcePath, ct), cancellationToken);
+
+    private async Task SingleMutationAsync(
+        string path, Func<IFileOperationBatch, CancellationToken, Task> mutate, CancellationToken cancellationToken)
+    {
+        var location = new PanelLocation(SourceId, path);
+        await using var batch = await BeginBatchAsync(
+            new FileOperationPlan([new FileOperationPlanItem(location, location, false)]),
+            cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await mutate(batch, cancellationToken).ConfigureAwait(false);
+            await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            await batch.AbortAsync(CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
+    }
 
     private static NotSupportedException ReadOnly() =>
-        new("Archive provider is read-only.");
+        new("This archive is read-only or contains metadata that cannot be safely rewritten.");
 
     private void EnsureFresh()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (Generations.GetOrAdd(_archiveFile, 0) != _generation)
+            throw new IOException("Archive changed in another panel. Reopen it.");
         FileInfo info = new(_archiveFile);
         if (!info.Exists || info.Length != _fileLength || info.LastWriteTimeUtc != _fileModifiedUtc)
             throw new IOException("Archive was modified or removed since it was opened. Reopen it.");
