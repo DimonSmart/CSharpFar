@@ -74,25 +74,52 @@ internal sealed class PanelFileViewerService
         }
 
         var source = _sourceRegistry.GetSource(item.SourceId);
-        byte[] content;
-        using (var input = source.OpenReadAsync(item.SourcePath).GetAwaiter().GetResult())
-        using (var memory = new MemoryStream())
+        using var usage = _sourceRegistry.AcquireUsage(item.SourceId);
+        using var input = source.OpenReadAsync(item.SourcePath).GetAwaiter().GetResult();
+        string? spool = null;
+        IFileByteReader reader;
+        try
         {
-            input.CopyTo(memory);
-            content = memory.ToArray();
-        }
-
-        _history.AddFile(new FileHistoryItem { Path = BuildHistoryPath(item) });
-        new FileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette()).Show(
-            item.SourcePath,
-            new MemoryFileByteReader(content),
-            new LargeFileViewerOptions
+            if (input.CanSeek)
             {
-                Clipboard = _clipboard,
-                FileLauncher = _fileLauncher,
-                UriLauncher = _uriLauncher,
-                EditCurrentFile = () => EditPanelFile(state, item),
-            });
+                reader = new SeekableStreamFileByteReader(input);
+            }
+            else
+            {
+                // Non-seekable remote streams are spooled to bounded disk storage
+                // rather than collecting arbitrarily large byte arrays on the heap.
+                spool = Path.Combine(Path.GetTempPath(), "csharpfar-view-" + Guid.NewGuid().ToString("N"));
+                using (var output = new FileStream(spool, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
+                    input.CopyTo(output);
+                reader = new RandomAccessFileByteReader(spool);
+            }
+
+            try
+            {
+                _history.AddFile(new FileHistoryItem { Path = BuildHistoryPath(item) });
+                new FileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette()).Show(
+                    item.SourcePath, reader, new LargeFileViewerOptions
+                    {
+                        Clipboard = _clipboard,
+                        FileLauncher = _fileLauncher,
+                        UriLauncher = _uriLauncher,
+                        EditCurrentFile = () => EditPanelFile(state, item),
+                    });
+            }
+            finally
+            {
+                if (reader is IDisposable disposable)
+                    disposable.Dispose();
+            }
+        }
+        finally
+        {
+            if (spool is not null)
+            {
+                try { File.Delete(spool); }
+                catch (FileNotFoundException) { }
+            }
+        }
     }
 
     public void EditPanelFile(FilePanelState state, FilePanelItem item)
