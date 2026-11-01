@@ -181,7 +181,7 @@ public sealed class ArchiveProviderTests : IDisposable
         using (var file = File.Create(path))
         {
             using var compression = gzip ? new GZipStream(file, CompressionLevel.Optimal, leaveOpen: true) : null;
-            using var writer = new TarWriter(compression ?? file, leaveOpen: true);
+            using var writer = new TarWriter((Stream?)compression ?? file, leaveOpen: true);
             writer.WriteEntry(new PaxTarEntry(TarEntryType.RegularFile, "folder/file.txt")
             {
                 DataStream = new MemoryStream(Encoding.UTF8.GetBytes("hello")),
