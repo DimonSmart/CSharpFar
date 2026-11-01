@@ -140,7 +140,7 @@ public sealed class ArchiveCrossMoveTests : IDisposable
         Assert.True(result.PartiallyMoved);
         Assert.NotNull(archive.GetItem("/tree/a.txt"));
         Assert.Null(archive.GetItem("/tree/b.txt"));
-        Assert.Equal("b", (await File.ReadAllTextAsync(Path.Combine(output, "tree", "b.txt"))).TrimStart('\\uFEFF'));
+        Assert.Equal("b", (await File.ReadAllTextAsync(Path.Combine(output, "tree", "b.txt"))).TrimStart('\uFEFF'));
     }
 
     [Fact]
