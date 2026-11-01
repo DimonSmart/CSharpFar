@@ -46,11 +46,12 @@ Library: SharpCompress 0.50.7, MIT. The project intentionally keeps
 archive-specific readers separate from the panel source to allow a future
 writable ZIP implementation via IFileOperationBatchProvider.
 
-Known validation gap: automated compatibility tests for RAR/RAR5 and
-solid RAR/7z require redistributable binary fixtures. Do not consider these
-combinations proven without those fixtures and successful platform CI runs.
+Automated binary compatibility tests run on CI for RAR, RAR5, solid RAR,
+7z and solid 7z. Encrypted and multi-volume samples are included as negative
+test cases. These tests cover the supplied fixtures, not all possible archive
+compression methods or vendor-specific variants.
 
-RAR/RAR5, solid RAR and solid/non-solid 7z integration fixtures are downloaded from
+RAR/RAR5, solid RAR, solid/non-solid 7z and negative test fixtures are downloaded from
 SharpCompress's pinned test suite during GitHub Actions builds, and verified against
 Git object hashes. To run these integration tests locally, run
 `pwsh ./eng/testing/download-archive-fixtures.ps1` and set

@@ -256,6 +256,60 @@ public sealed class ArchiveProviderTests : IDisposable
         }
         Assert.True(readFiles > 0, $"Expected at least one file in {fixture}");
     }
+
+    [Fact]
+    public async Task Zip_EmptyArchiveAndCaseDistinctNames()
+    {
+        string empty = Zip("empty.zip");
+        await using (var source = await ArchiveFilePanelSource.CreateAsync(
+            Local(), PanelLocation.Local(empty), "empty.zip"))
+        {
+            Assert.Empty(source.EnumerateDirectory("/"));
+        }
+
+        string names = Zip("case.zip", ("readme.txt", "lower"), ("README.txt", "upper"));
+        await using var archive = await ArchiveFilePanelSource.CreateAsync(
+            Local(), PanelLocation.Local(names), "case.zip");
+        Assert.Equal(2, archive.EnumerateDirectory("/").Count);
+        await using var low = await archive.OpenReadAsync("/readme.txt");
+        await using var high = await archive.OpenReadAsync("/README.txt");
+        using var lowReader = new StreamReader(low);
+        using var highReader = new StreamReader(high);
+        Assert.Equal("lower", await lowReader.ReadToEndAsync());
+        Assert.Equal("upper", await highReader.ReadToEndAsync());
+    }
+
+    [Theory]
+    [InlineData("Rar5.encrypted_filesOnly.rar")]
+    [InlineData("7Zip.encryptedFiles.7z")]
+    [InlineData("Zip.deflate.WinzipAES.zip")]
+    [InlineData("Rar.multi.part01.rar")]
+    public async Task Archive_EncryptedOrMultipartFixtureIsRejected(string name)
+    {
+        string? directory = Environment.GetEnvironmentVariable("CSHARPFAR_ARCHIVE_FIXTURES");
+        if (string.IsNullOrEmpty(directory))
+            return;
+
+        string path = Path.Combine(directory, name);
+        Assert.True(File.Exists(path), $"Missing integration fixture: {path}");
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            ArchiveFilePanelSource.CreateAsync(Local(), PanelLocation.Local(path), name));
+    }
+
+    [Fact]
+    public async Task Archive_CancelledRemoteCopyDoesNotLeaveAnOpenSource()
+    {
+        string path = Zip("cancel.zip", ("file.txt", "value"));
+        byte[] bytes = await File.ReadAllBytesAsync(path);
+        var source = new NonSeekableSource(bytes);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            ArchiveFilePanelSource.CreateAsync(
+                source, new PanelLocation(source.SourceId, "/cancel.zip"),
+                "cancel.zip", cancellation.Token));
+    }
+
     private sealed class OverwriteConflicts : IFileOperationConflictResolver
     {
         public FileOperationConflictDecision Resolve(FileOperationConflict conflict) =>

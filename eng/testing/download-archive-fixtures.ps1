@@ -11,6 +11,10 @@ $fixtures = @(
     @{ Name = "Rar5.solid.rar"; Sha = "e16a01da81526b480f9d006d73497e1a9656d010" }
     @{ Name = "7Zip.nonsolid.7z"; Sha = "907e1e2c24542ad2d276756dc7d0ecb1f2665eca" }
     @{ Name = "7Zip.solid.7z"; Sha = "5ac695e59aeff2385e9065cb8841118f1bde06e1" }
+    @{ Name = "Rar5.encrypted_filesOnly.rar"; Sha = "cb18a2860dfcdb61931a04ea4a5bcdc2e7871705" }
+    @{ Name = "7Zip.encryptedFiles.7z"; Sha = "4c15bb2cf8e5407ddc147ffe1c4776c9895253e9" }
+    @{ Name = "Rar.multi.part01.rar"; Sha = "c2a44da7b1116f96f9d31a260ab9292a770ce4db" }
+    @{ Name = "Zip.deflate.WinzipAES.zip"; Sha = "9325aa8fcb8f5add7cea392bef17b4b3658ed304" }
 )
 foreach ($fixture in $fixtures) {
     $destination = Join-Path $root $fixture.Name
