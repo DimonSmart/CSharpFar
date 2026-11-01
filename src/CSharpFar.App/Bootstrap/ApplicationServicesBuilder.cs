@@ -25,6 +25,7 @@ using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
 using CSharpFar.FileSystem;
 using CSharpFar.Module.Abstractions;
+using CSharpFar.Module.Archives;
 using CSharpFar.Module.Ftp;
 using CSharpFar.Module.NetworkTraffic;
 using CSharpFar.Module.ProcessesAndPorts;
@@ -578,6 +579,10 @@ internal static class ApplicationServicesBuilder
             new NetworkTrafficPlugin(moduleUiServices, () => OperatingSystem.IsWindows()
                 ? new WindowsNetworkTrafficMonitor()
                 : throw new PlatformNotSupportedException("Traffic monitoring requires Windows."))));
+
+        pluginComposition.Add((
+            new PluginDescriptor { Id = ArchivePlugin.Id, Title = "Archives" },
+            new ArchivePlugin()));
 
         void ReleaseFailedPreparation()
         {

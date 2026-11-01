@@ -79,3 +79,4 @@ is non-normative engineering history.
 | IDD-0086 | spec | Network Traffic | Live top-consumer native plugin |  |
 | IDD-0087 | spec | Isolated Demo Mode | Owns CLI startup, in-memory fixture, source allow-list and user-data isolation | IDD-0001 Demo Mode details |
 | IDD-0088 | spec | Deterministic demo recording | Owns scripted real-UI frame capture, demo scenarios and screenshot/GIF/video artifacts | IDD-0001 recording details |
+| IDD-0089 | spec | Read-only archive provider | ZIP, RAR/RAR5, 7z, TAR and compressed TAR; archive navigation and extraction | |

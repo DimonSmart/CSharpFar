@@ -117,3 +117,7 @@ This project uses Intent-Driven Development. Before changing durable product beh
 ## License
 
 See the repository license file.
+
+### Read-only archives
+
+Open a `.zip`, `.rar`, `.7z`, `.tar`, `.tar.gz`, or `.tgz` file with Enter. Browse it in the ordinary file panel, use F3 to inspect a file and F5 to copy files or folders to another panel. Nested archives work up to three levels. Archive contents cannot be modified. See [Archive Provider](docs/archive-provider.md) for limits and supported features.
