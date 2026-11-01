@@ -48,6 +48,14 @@ jobs:
           CSHARPFAR_ARCHIVE_FIXTURES: ${{ github.workspace }}/tests/archive-fixtures
         run: dotnet test CSharpFar.slnx --configuration Release --no-build --verbosity minimal
 
+      - name: Verify Unix child interruption and panel restoration
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          host=Linux
+          if [ "$RUNNER_OS" = "macOS" ]; then host=MacOs; fi
+          python3 eng/testing/verify-unix-child-interrupt.py "src/CSharpFar.Host.$host/bin/Release/net10.0/csharpfar.dll"
+
       - name: Build cross-process history probe
         run: dotnet build tools/CSharpFar.HistorySmoke/CSharpFar.HistorySmoke.csproj --configuration Release
 

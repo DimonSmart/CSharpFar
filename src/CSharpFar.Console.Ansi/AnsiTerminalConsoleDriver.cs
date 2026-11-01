@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 
@@ -47,6 +48,9 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
             throw new InvalidOperationException("Ansi terminal console driver requires attached stdin and stdout terminals.");
 
         global::System.Console.OutputEncoding = System.Text.Encoding.UTF8;
+        // Let .NET capture the original cooked terminal settings before our
+        // reader enables raw mode. Process.Start reuses that saved snapshot.
+        _ = global::System.Console.TreatControlCAsInput;
         _diagnosticInput = new UnixTerminalInputByteReader();
         _inputReader = inputReader ?? new UnixRawTerminalInputReader(
             new UnixTerminalInputByteReader(),
@@ -379,13 +383,24 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
 
     public IDisposable EnterChildProcessConsoleMode()
     {
-        _diagnosticTerminalMode?.RestoreOriginalMode();
-        _inputReader.SuspendInputMode();
-        WriteControl(ResetAttributes + ShowCursor);
-        _cursorVisible = true;
-        EnsureMainScreen();
-        Flush();
-        return new ChildProcessConsoleModeScope(this);
+        // Install protection before cooked mode can deliver SIGINT to the
+        // foreground process group. The child still receives its own signal.
+        var scope = new ChildProcessConsoleModeScope(this);
+        try
+        {
+            _diagnosticTerminalMode?.RestoreOriginalMode();
+            _inputReader.SuspendInputMode();
+            WriteControl(ResetAttributes + ShowCursor);
+            _cursorVisible = true;
+            EnsureMainScreen();
+            Flush();
+            return scope;
+        }
+        catch
+        {
+            scope.Dispose();
+            throw;
+        }
     }
 
     public void RestoreTerminal()
@@ -485,11 +500,15 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
     private sealed class ChildProcessConsoleModeScope : IDisposable
     {
         private readonly AnsiTerminalConsoleDriver _owner;
+        private readonly PosixSignalRegistration _interrupt;
         private bool _disposed;
 
         public ChildProcessConsoleModeScope(AnsiTerminalConsoleDriver owner)
         {
             _owner = owner;
+            // Avoid initializing System.Console's input handling: it can
+            // reconfigure the terminal independently of our raw-mode reader.
+            _interrupt = PosixSignalRegistration.Create(PosixSignal.SIGINT, context => context.Cancel = true);
         }
 
         public void Dispose()
@@ -497,8 +516,15 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
             if (_disposed)
                 return;
 
-            _owner.RestoreApplicationInputMode();
-            _disposed = true;
+            try
+            {
+                _owner.RestoreApplicationInputMode();
+            }
+            finally
+            {
+                _interrupt.Dispose();
+                _disposed = true;
+            }
         }
     }
 
