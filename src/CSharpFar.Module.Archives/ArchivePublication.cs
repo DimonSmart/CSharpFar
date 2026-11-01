@@ -1,5 +1,8 @@
 using System.Formats.Tar;
 using System.IO.Compression;
+using SharpCompress.Common;
+using SharpCompress.Writers;
+using SharpCompress.Writers.SevenZip;
 using System.Security.Cryptography;
 
 namespace CSharpFar.Module.Archives;
@@ -34,6 +37,11 @@ internal static class ArchivePublication
             {
                 ArchiveZipSafety.Validate(original);
                 await WriteZipAsync(owner, batch, temporary, cancellationToken).ConfigureAwait(false);
+            }
+            else if (owner.Format == "7Z")
+            {
+                ArchiveSevenZipSafety.Validate(original);
+                await WriteSevenZipAsync(owner, batch, temporary, cancellationToken).ConfigureAwait(false);
             }
             else
             {
@@ -143,6 +151,44 @@ internal static class ArchivePublication
                 long copied = await CopyExactAsync(input, target, cancellationToken).ConfigureAwait(false);
                 if (copied != entry.Size)
                     throw new InvalidDataException("An archive entry changed size during rebuild: " + entry.Path);
+            }
+        }
+        output.Flush(flushToDisk: true);
+    }
+
+    private static async Task WriteSevenZipAsync(
+        ArchiveFilePanelSource owner, ArchiveMutationBatch batch,
+        string temporary, CancellationToken cancellationToken)
+    {
+        await using var output = new FileStream(temporary, FileMode.CreateNew,
+            FileAccess.ReadWrite, FileShare.None, BufferSize, FileOptions.Asynchronous);
+        await using (var writer = await WriterFactory.OpenAsyncWriter(
+            output, ArchiveType.SevenZip,
+            new SevenZipWriterOptions(CompressionType.LZMA2)
+            {
+                LeaveStreamOpen = true,
+                CompressHeader = true,
+            }, cancellationToken).ConfigureAwait(false))
+        {
+            foreach (var entry in batch.Entries.OrderBy(entry => entry.Path, StringComparer.Ordinal))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (entry.IsDirectory && !entry.Explicit)
+                    continue;
+                string name = entry.Path.TrimStart('/');
+                if (entry.IsDirectory)
+                {
+                    await writer.WriteDirectoryAsync(name, entry.Modified, cancellationToken)
+                        .ConfigureAwait(false);
+                    continue;
+                }
+
+                await using Stream input = entry.StagingFile is { } staged
+                    ? new FileStream(staged, FileMode.Open, FileAccess.Read, FileShare.Read,
+                        BufferSize, FileOptions.Asynchronous)
+                    : await batch.OpenReadAsync(entry.Path, cancellationToken).ConfigureAwait(false);
+                await writer.WriteAsync(name, input, entry.Modified, cancellationToken)
+                    .ConfigureAwait(false);
             }
         }
         output.Flush(flushToDisk: true);
