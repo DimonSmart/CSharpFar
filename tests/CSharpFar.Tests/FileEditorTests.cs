@@ -313,9 +313,12 @@ public sealed partial class FileEditorTests : IDisposable
     {
         public string Text { get; set; } = string.Empty;
         public bool ClearAfterSet { get; set; }
+        public bool FailSet { get; set; }
 
         public bool TrySetText(string text)
         {
+            if (FailSet)
+                return false;
             Text = text;
             if (ClearAfterSet)
                 Text = string.Empty;

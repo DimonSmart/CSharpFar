@@ -26,9 +26,29 @@ public sealed partial class FileEditorTests
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
-        ShowFileEditor(new ScreenRenderer(driver), filePath);
+        var clipboard = new FakeTextClipboard();
+        ShowFileEditor(new ScreenRenderer(driver), filePath, clipboard: clipboard);
 
+        Assert.Equal("ab", clipboard.Text);
         Assert.Equal("c", File.ReadAllText(filePath));
+    }
+
+    [Fact]
+    public void Show_F6DoesNotDeleteWhenClipboardWriteFails()
+    {
+        string filePath = Path.Combine(_tempDir, "failed-cut.txt");
+        File.WriteAllText(filePath, "abc");
+        var clipboard = new FakeTextClipboard { FailSet = true };
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F3, false, false, false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, false, false, false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F6, false, false, false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, false, false, false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, false, false, false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath, clipboard: clipboard);
+
+        Assert.Equal("abc", File.ReadAllText(filePath));
     }
 
     [Fact]
