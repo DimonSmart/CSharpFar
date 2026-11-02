@@ -1,4 +1,10 @@
 #nullable enable
+~override CSharpFar.Console.ConsoleOutputRun.Equals(object obj) -> bool
+~override CSharpFar.Console.ConsoleOutputRun.ToString() -> string
+~override CSharpFar.Console.Models.ConsoleOutputCell.Equals(object obj) -> bool
+~override CSharpFar.Console.Models.ConsoleOutputCell.ToString() -> string
+~override CSharpFar.Console.Models.ConsoleViewport.Equals(object obj) -> bool
+~override CSharpFar.Console.Models.ConsoleViewport.ToString() -> string
 abstract CSharpFar.Console.Input.ConsoleInputEvent.<Clone>$() -> CSharpFar.Console.Input.ConsoleInputEvent!
 const CSharpFar.Console.Input.ModifierKeyTrackingStatus.DisabledByConfiguration = "DisabledByConfiguration" -> string!
 const CSharpFar.Console.Input.ModifierKeyTrackingStatus.Enabled = "Enabled" -> string!
@@ -78,23 +84,25 @@ CSharpFar.Console.Input.KeyboardProtocolSnapshot
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.ActiveFlags.get -> int
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.ActiveScreen.get -> string?
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.CanTrackStandaloneModifiers.get -> bool
-CSharpFar.Console.Input.KeyboardProtocolSnapshot.ReportsKeyEventTypes.get -> bool
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.ConfirmedFlags.get -> int?
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.FallbackReason.get -> string?
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.IsActive.get -> bool
-static CSharpFar.Console.Input.KeyboardProtocolSnapshot.NotApplicable.get -> CSharpFar.Console.Input.KeyboardProtocolSnapshot!
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.Protocol.get -> string!
+CSharpFar.Console.Input.KeyboardProtocolSnapshot.ReportsKeyEventTypes.get -> bool
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.Requested.get -> bool
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.RequestedFlags.get -> int
 CSharpFar.Console.Input.KeyboardProtocolSnapshot.SupportStatus.get -> string!
 CSharpFar.Console.Input.KeyConsoleInputEvent
 CSharpFar.Console.Input.KeyConsoleInputEvent.Deconstruct(out System.ConsoleKeyInfo Key) -> void
 CSharpFar.Console.Input.KeyConsoleInputEvent.Equals(CSharpFar.Console.Input.KeyConsoleInputEvent? other) -> bool
+CSharpFar.Console.Input.KeyConsoleInputEvent.ExtendedModifiers.get -> CSharpFar.Console.Input.TerminalExtendedModifiers
+CSharpFar.Console.Input.KeyConsoleInputEvent.ExtendedModifiers.init -> void
 CSharpFar.Console.Input.KeyConsoleInputEvent.Key.get -> System.ConsoleKeyInfo
 CSharpFar.Console.Input.KeyConsoleInputEvent.Key.init -> void
 CSharpFar.Console.Input.KeyConsoleInputEvent.KeyConsoleInputEvent(System.ConsoleKeyInfo Key) -> void
 CSharpFar.Console.Input.KeyConsoleInputEvent.Text.get -> string?
 CSharpFar.Console.Input.KeyConsoleInputEvent.Text.init -> void
+CSharpFar.Console.Input.KeyConsoleInputEvent.TryGetMacTextEditingShortcut(out System.ConsoleKeyInfo shortcut) -> bool
 CSharpFar.Console.Input.ModifierKeyConsoleInputEvent
 CSharpFar.Console.Input.ModifierKeyConsoleInputEvent.Deconstruct(out System.ConsoleModifiers Modifiers) -> void
 CSharpFar.Console.Input.ModifierKeyConsoleInputEvent.Equals(CSharpFar.Console.Input.ModifierKeyConsoleInputEvent? other) -> bool
@@ -137,10 +145,10 @@ CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.IsPlatformSupported.init -> 
 CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.ModifierKeyTrackingSnapshot(string! BackendName, bool IsPlatformSupported, bool IsEnabled, bool CanTrackShiftOnly, string! Status, string? FailureReason, System.Collections.Generic.IReadOnlyList<CSharpFar.Console.Input.ModifierKeyDeviceSnapshot!>! Devices) -> void
 CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.ProtocolTrackingAvailable.get -> bool
 CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.ProtocolTrackingAvailable.init -> void
-CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.SupportedModifiers.get -> string!
-CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.SupportedModifiers.init -> void
 CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.Status.get -> string!
 CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.Status.init -> void
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.SupportedModifiers.get -> string!
+CSharpFar.Console.Input.ModifierKeyTrackingSnapshot.SupportedModifiers.init -> void
 CSharpFar.Console.Input.ModifierKeyTrackingStatus
 CSharpFar.Console.Input.MouseButton
 CSharpFar.Console.Input.MouseButton.Left = 1 -> CSharpFar.Console.Input.MouseButton
@@ -174,6 +182,10 @@ CSharpFar.Console.Input.MouseKeyModifiers.Alt = 2 -> CSharpFar.Console.Input.Mou
 CSharpFar.Console.Input.MouseKeyModifiers.Control = 4 -> CSharpFar.Console.Input.MouseKeyModifiers
 CSharpFar.Console.Input.MouseKeyModifiers.None = 0 -> CSharpFar.Console.Input.MouseKeyModifiers
 CSharpFar.Console.Input.MouseKeyModifiers.Shift = 1 -> CSharpFar.Console.Input.MouseKeyModifiers
+CSharpFar.Console.Input.TerminalExtendedModifiers
+CSharpFar.Console.Input.TerminalExtendedModifiers.Meta = 2 -> CSharpFar.Console.Input.TerminalExtendedModifiers
+CSharpFar.Console.Input.TerminalExtendedModifiers.None = 0 -> CSharpFar.Console.Input.TerminalExtendedModifiers
+CSharpFar.Console.Input.TerminalExtendedModifiers.Super = 1 -> CSharpFar.Console.Input.TerminalExtendedModifiers
 CSharpFar.Console.ITerminalScreenMode
 CSharpFar.Console.ITerminalScreenMode.EnsureApplicationScreen() -> void
 CSharpFar.Console.ITerminalScreenMode.EnsureMainScreen() -> void
@@ -188,8 +200,8 @@ CSharpFar.Console.Models.CellStyle.Attributes.init -> void
 CSharpFar.Console.Models.CellStyle.Background.get -> System.ConsoleColor
 CSharpFar.Console.Models.CellStyle.Background.init -> void
 CSharpFar.Console.Models.CellStyle.CellStyle() -> void
-CSharpFar.Console.Models.CellStyle.CellStyle(System.ConsoleColor foreground, System.ConsoleColor background) -> void
 CSharpFar.Console.Models.CellStyle.CellStyle(System.ConsoleColor foreground, System.ConsoleColor background, CSharpFar.Console.Models.TextAttributes attributes) -> void
+CSharpFar.Console.Models.CellStyle.CellStyle(System.ConsoleColor foreground, System.ConsoleColor background) -> void
 CSharpFar.Console.Models.CellStyle.Foreground.get -> System.ConsoleColor
 CSharpFar.Console.Models.CellStyle.Foreground.init -> void
 CSharpFar.Console.Models.ConsoleOutputCell
@@ -310,6 +322,7 @@ static CSharpFar.Console.Input.ConsoleInputEvent.operator !=(CSharpFar.Console.I
 static CSharpFar.Console.Input.ConsoleInputEvent.operator ==(CSharpFar.Console.Input.ConsoleInputEvent? left, CSharpFar.Console.Input.ConsoleInputEvent? right) -> bool
 static CSharpFar.Console.Input.ConsoleResizeInputEvent.operator !=(CSharpFar.Console.Input.ConsoleResizeInputEvent? left, CSharpFar.Console.Input.ConsoleResizeInputEvent? right) -> bool
 static CSharpFar.Console.Input.ConsoleResizeInputEvent.operator ==(CSharpFar.Console.Input.ConsoleResizeInputEvent? left, CSharpFar.Console.Input.ConsoleResizeInputEvent? right) -> bool
+static CSharpFar.Console.Input.KeyboardProtocolSnapshot.NotApplicable.get -> CSharpFar.Console.Input.KeyboardProtocolSnapshot!
 static CSharpFar.Console.Input.KeyConsoleInputEvent.operator !=(CSharpFar.Console.Input.KeyConsoleInputEvent? left, CSharpFar.Console.Input.KeyConsoleInputEvent? right) -> bool
 static CSharpFar.Console.Input.KeyConsoleInputEvent.operator ==(CSharpFar.Console.Input.KeyConsoleInputEvent? left, CSharpFar.Console.Input.KeyConsoleInputEvent? right) -> bool
 static CSharpFar.Console.Input.ModifierKeyConsoleInputEvent.operator !=(CSharpFar.Console.Input.ModifierKeyConsoleInputEvent? left, CSharpFar.Console.Input.ModifierKeyConsoleInputEvent? right) -> bool
@@ -330,9 +343,3 @@ static CSharpFar.Console.TerminalTrace.Write(string! source, string! message) ->
 virtual CSharpFar.Console.Input.ConsoleInputEvent.EqualityContract.get -> System.Type!
 virtual CSharpFar.Console.Input.ConsoleInputEvent.Equals(CSharpFar.Console.Input.ConsoleInputEvent? other) -> bool
 virtual CSharpFar.Console.Input.ConsoleInputEvent.PrintMembers(System.Text.StringBuilder! builder) -> bool
-~override CSharpFar.Console.ConsoleOutputRun.Equals(object obj) -> bool
-~override CSharpFar.Console.ConsoleOutputRun.ToString() -> string
-~override CSharpFar.Console.Models.ConsoleOutputCell.Equals(object obj) -> bool
-~override CSharpFar.Console.Models.ConsoleOutputCell.ToString() -> string
-~override CSharpFar.Console.Models.ConsoleViewport.Equals(object obj) -> bool
-~override CSharpFar.Console.Models.ConsoleViewport.ToString() -> string
