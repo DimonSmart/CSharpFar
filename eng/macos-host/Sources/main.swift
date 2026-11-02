@@ -188,31 +188,62 @@ final class CSharpFarDesktopHost: NSObject, NSApplicationDelegate, NSWindowDeleg
         let edit = NSMenuItem()
         main.addItem(edit)
         let editMenu = NSMenu(title: "Edit")
+        let undo = NSMenuItem(title: "Undo", action: #selector(undoText(_:)), keyEquivalent: "z")
+        undo.target = self
+        editMenu.addItem(undo)
+        let redo = NSMenuItem(title: "Redo", action: #selector(redoText(_:)), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        redo.target = self
+        editMenu.addItem(redo)
+        editMenu.addItem(.separator())
+        let cut = NSMenuItem(title: "Cut", action: #selector(cutSelection(_:)), keyEquivalent: "x")
+        cut.target = self
+        editMenu.addItem(cut)
         let copy = NSMenuItem(title: "Copy", action: #selector(copySelection(_:)), keyEquivalent: "c")
         copy.target = self
         editMenu.addItem(copy)
         let paste = NSMenuItem(title: "Paste", action: #selector(pasteClipboard(_:)), keyEquivalent: "v")
         paste.target = self
         editMenu.addItem(paste)
+        let all = NSMenuItem(title: "Select All", action: #selector(selectAllText(_:)), keyEquivalent: "a")
+        all.target = self
+        editMenu.addItem(all)
         edit.submenu = editMenu
         NSApp.mainMenu = main
     }
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
-        if item.action == #selector(copySelection(_:)) {
-            return terminal?.selectionActive == true
-        }
-        return true
+        guard let terminal, terminal.process.running else { return false }
+        if item.action == #selector(pasteClipboard(_:)) { return true }
+        if item.action == #selector(copySelection(_:)) && terminal.selectionActive { return true }
+        return !hasForegroundChild(terminal)
+    }
+
+    // CSI-u Super=9, Super+Shift=10; never substitute Control globally.
+    private func sendTextShortcut(_ scalar: Unicode.Scalar, shift: Bool = false) {
+        guard let terminal, terminal.process.running,
+              !hasForegroundChild(terminal), !terminal.selectionActive else { return }
+        let packet = Array("\u{001B}[\(scalar.value);\(shift ? 10 : 9)u".utf8)
+        terminal.process.send(data: packet[...])
     }
 
     @objc private func copySelection(_ sender: Any?) {
-        guard let terminal, terminal.selectionActive else { return }
-        terminal.copy(sender ?? self)
+        guard let terminal else { return }
+        if terminal.selectionActive {
+            terminal.copy(sender ?? self)
+        } else {
+            sendTextShortcut("c")
+        }
     }
 
     @objc private func pasteClipboard(_ sender: Any?) {
         terminal?.paste(sender ?? self)
     }
+
+    @objc private func cutSelection(_ sender: Any?) { sendTextShortcut("x") }
+    @objc private func selectAllText(_ sender: Any?) { sendTextShortcut("a") }
+    @objc private func undoText(_ sender: Any?) { sendTextShortcut("z") }
+    @objc private func redoText(_ sender: Any?) { sendTextShortcut("z", shift: true) }
 }
 
 private let application = NSApplication.shared

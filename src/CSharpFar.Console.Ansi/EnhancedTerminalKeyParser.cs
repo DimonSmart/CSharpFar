@@ -126,8 +126,11 @@ internal static class EnhancedTerminalKeyParser
         string? associatedText)
     {
         ConsoleModifiers consoleModifiers = modifiers.ToConsoleModifiers();
+        char keyChar = (modifiers.ToEnhancedModifiers() & EnhancedModifiers.Super) != 0
+            ? '\0'
+            : GetKeyChar(keyCode, key, associatedText);
         var consoleKey = new ConsoleKeyInfo(
-            GetKeyChar(keyCode, key, associatedText),
+            keyChar,
             key,
             consoleModifiers.HasFlag(ConsoleModifiers.Shift),
             consoleModifiers.HasFlag(ConsoleModifiers.Alt),

@@ -76,9 +76,14 @@ internal sealed class AnsiConsoleInputParser
                 return false;
             }
 
+            bool super = (enhanced.Modifiers & EnhancedModifiers.Super) != 0;
             inputEvent = new KeyConsoleInputEvent(enhanced.ParsedKey)
             {
-                Text = enhanced.AssociatedText,
+                Text = super ? null : enhanced.AssociatedText,
+                ExtendedModifiers =
+                    (super ? TerminalExtendedModifiers.Super : TerminalExtendedModifiers.None) |
+                    ((enhanced.Modifiers & EnhancedModifiers.Meta) != 0
+                        ? TerminalExtendedModifiers.Meta : TerminalExtendedModifiers.None),
             };
             return true;
         }

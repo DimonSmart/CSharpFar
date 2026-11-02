@@ -55,6 +55,9 @@ internal sealed class FormTextInputField
     {
         if (!Enabled)
             return FormInputResult.NotHandled;
+        if (_maskInput && (key.Key is ConsoleKey.C or ConsoleKey.X) &&
+            key.Modifiers == ConsoleModifiers.Control)
+            return FormInputResult.Handled;
         string? error = null;
         string before = _buffer.Text;
         TextInputKeyResult result = SingleLineTextInput.HandleKey(_buffer, key, ref error, _history, int.MaxValue);

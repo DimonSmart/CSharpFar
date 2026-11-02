@@ -50,6 +50,14 @@ internal sealed class KeyboardInputRouter
             return ApplicationInputHandlingResult.NotHandled;
         }
 
+        if (keyEvent.ExtendedModifiers != TerminalExtendedModifiers.None)
+        {
+            // Keep Command away from global Far shortcuts and file-panel actions.
+            return keyEvent.TryGetMacTextEditingShortcut(out var shortcut)
+                ? _commandLineHandler.HandleMacShortcut(shortcut, routed.Frame)
+                : ApplicationInputHandlingResult.FromHandled(true);
+        }
+
         ApplicationKeyboardOwner owner = _targetResolver.Resolve(key, routed.Frame, keyEvent.Text);
         var input = new ApplicationKeyboardInput(routed, key, owner)
         {

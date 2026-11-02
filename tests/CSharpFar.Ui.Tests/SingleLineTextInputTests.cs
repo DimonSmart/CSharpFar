@@ -462,4 +462,19 @@ public class SingleLineTextInputTests
             return true;
         }
     }
+    [Fact]
+    public void CtrlXCutsSelectionToClipboard()
+    {
+        var buffer = new CommandLineState();
+        buffer.SetText("sample");
+        buffer.SelectAll();
+        var clipboard = new FakeTextClipboard();
+        string? error = null;
+        var result = SingleLineTextInput.HandleKey(
+            buffer, new ConsoleKeyInfo('\0', ConsoleKey.X, false, false, true), ref error, clipboard);
+        Assert.Equal(TextInputKeyResult.TextChanged, result);
+        Assert.Equal("sample", clipboard.Text);
+        Assert.Equal("", buffer.Text);
+    }
+
 }

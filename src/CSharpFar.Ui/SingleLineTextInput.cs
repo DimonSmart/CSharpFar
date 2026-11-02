@@ -91,6 +91,18 @@ public static class SingleLineTextInput
             return TextInputKeyResult.Handled;
         }
 
+        if (IsPlainControlX(key))
+        {
+            string? selected = buffer.SelectedText;
+            if (!string.IsNullOrEmpty(selected) && clipboard.TrySetText(selected))
+            {
+                buffer.DeleteBack();
+                error = null;
+                return TextInputKeyResult.TextChanged;
+            }
+            return TextInputKeyResult.Handled;
+        }
+
         switch (key.Key)
         {
             case ConsoleKey.Backspace:
@@ -495,6 +507,15 @@ public static class SingleLineTextInput
 
         return !hasAlt && !hasShift &&
             ((hasControl && key.Key == ConsoleKey.V) || key.KeyChar == '\u0016');
+    }
+
+    private static bool IsPlainControlX(ConsoleKeyInfo key)
+    {
+        bool hasControl = (key.Modifiers & ConsoleModifiers.Control) != 0;
+        bool hasAlt = (key.Modifiers & ConsoleModifiers.Alt) != 0;
+        bool hasShift = (key.Modifiers & ConsoleModifiers.Shift) != 0;
+        return !hasAlt && !hasShift &&
+            ((hasControl && key.Key == ConsoleKey.X) || key.KeyChar == '\u0018');
     }
 
     private static bool IsPlainControlC(ConsoleKeyInfo key)

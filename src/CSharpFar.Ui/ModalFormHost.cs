@@ -189,7 +189,12 @@ public sealed class ModalFormHost
         if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F1 })
             return (ModalFormInputResult.Form(FormInputResult.Auxiliary()), UiInputResult.HandledResult);
 
-        FormRouteResult result = form.RouteInput(input, frame.Form, route);
+        // Only the form text-editing owner normalizes native Super shortcuts.
+        ConsoleInputEvent formInput = input is KeyConsoleInputEvent key &&
+            key.TryGetMacTextEditingShortcut(out var shortcut)
+                ? new KeyConsoleInputEvent(shortcut)
+                : input;
+        FormRouteResult result = form.RouteInput(formInput, frame.Form, route);
         if (result.FormResult.Kind is FormInputResultKind.Submit or FormInputResultKind.Cancel)
             form.CloseTransientOverlays(commit: result.FormResult.Kind == FormInputResultKind.Submit);
         if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } &&

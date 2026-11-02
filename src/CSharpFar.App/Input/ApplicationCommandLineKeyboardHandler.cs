@@ -95,6 +95,36 @@ internal sealed class ApplicationCommandLineKeyboardHandler
         return ApplicationInputHandlingResult.NotHandled;
     }
 
+    internal ApplicationInputHandlingResult HandleMacShortcut(ConsoleKeyInfo key, ApplicationUiFrame frame)
+    {
+        if (frame.Mode is not (ApplicationWorkspaceMode.Panels or ApplicationWorkspaceMode.HiddenCommandLine))
+            return ApplicationInputHandlingResult.FromHandled(true);
+        switch (key.Key)
+        {
+            case ConsoleKey.A:
+                // Command+A never selects files when the command line is empty.
+                return frame.Mode == ApplicationWorkspaceMode.HiddenCommandLine ||
+                    frame.Keyboard.CommandLineHasText
+                    ? HandleStandardEditing(key, frame)
+                    : ApplicationInputHandlingResult.FromHandled(true);
+            case ConsoleKey.C:
+                _context.CopyCommandLineSelection();
+                return ApplicationInputHandlingResult.FromHandled(true);
+            case ConsoleKey.X:
+                if (string.IsNullOrEmpty(_context.CommandLine.SelectedText) ||
+                    !_context.CopyCommandLineSelection())
+                    return ApplicationInputHandlingResult.FromHandled(true);
+                _context.CommandLine.DeleteBack();
+                ResetNavigation(frame);
+                NotifyCommandLineEdit();
+                return CommandLineChanged();
+            case ConsoleKey.V:
+                return CommandLineChanged(_context.PasteTextIntoCommandLine(frame.Mode));
+            default:
+                return ApplicationInputHandlingResult.FromHandled(true);
+        }
+    }
+
     private ApplicationInputHandlingResult HandleStandardEditing(
         ConsoleKeyInfo key,
         ApplicationUiFrame frame,

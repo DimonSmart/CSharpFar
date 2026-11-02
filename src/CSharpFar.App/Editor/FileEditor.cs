@@ -324,8 +324,8 @@ internal sealed partial class FileEditor
                 session.DeleteWordRight();
                 return true;
             case ConsoleKey.Delete when shift:
-                CopySelectionToClipboard(session);
-                session.CutSelection();
+                if (CopySelectionToClipboard(session))
+                    session.CutSelection();
                 _markMode = false;
                 _persistentSelection = false;
                 return true;
@@ -415,8 +415,8 @@ internal sealed partial class FileEditor
                 CopySelectionToClipboard(session);
                 return true;
             case ConsoleKey.X when control:
-                CopySelectionToClipboard(session);
-                session.CutSelection();
+                if (CopySelectionToClipboard(session))
+                    session.CutSelection();
                 _persistentSelection = false;
                 return true;
             case ConsoleKey.V when control:
@@ -490,8 +490,8 @@ internal sealed partial class FileEditor
                 _markMode = false;
                 return true;
             case ConsoleKey.F6:
-                CopySelectionToClipboard(session);
-                session.CutSelection();
+                if (CopySelectionToClipboard(session))
+                    session.CutSelection();
                 _markMode = false;
                 _persistentSelection = false;
                 return true;
@@ -515,10 +515,10 @@ internal sealed partial class FileEditor
         return false;
     }
 
-    private void CopySelectionToClipboard(EditorSession session)
+    private bool CopySelectionToClipboard(EditorSession session)
     {
         string selectedText = session.CopySelection();
-        if (selectedText.Length > 0)
+        return selectedText.Length > 0 &&
             _clipboard.TrySetText(ClipboardTextForOperatingSystem(selectedText));
     }
 

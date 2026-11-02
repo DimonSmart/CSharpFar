@@ -189,4 +189,18 @@ public sealed class EnhancedTerminalKeyParserTests
         Assert.Equal('\0', result.ParsedKey.KeyChar);
     }
 
+    [Theory]
+    [InlineData("\x1b[99;9u", ConsoleKey.C, false)]
+    [InlineData("\x1b[122;10u", ConsoleKey.Z, true)]
+    public void SuperShortcutsRetainModifierAndDoNotInsertText(string sequence, ConsoleKey expected, bool shift)
+    {
+        var evt = EnhancedTerminalKeyParser.Parse(System.Text.Encoding.UTF8.GetBytes(sequence));
+        Assert.True(evt.IsKnown);
+        Assert.True(evt.Modifiers.HasFlag(EnhancedModifiers.Super));
+        Assert.Equal(expected, evt.ParsedKey.Key);
+        Assert.Equal(shift, evt.ParsedKey.Modifiers.HasFlag(ConsoleModifiers.Shift));
+        Assert.False(evt.ParsedKey.Modifiers.HasFlag(ConsoleModifiers.Control));
+        Assert.Equal('\0', evt.ParsedKey.KeyChar);
+    }
+
 }

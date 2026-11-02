@@ -150,6 +150,12 @@ internal sealed partial class FileEditor
                 context.Target == Keyboard)
             {
                 _mouseSelectionAnchor = null;
+                if (key.ExtendedModifiers != TerminalExtendedModifiers.None)
+                    return new InteractiveSurfaceRouteResult<FileEditorInput>(
+                        key.TryGetMacTextEditingShortcut(out var shortcut)
+                            ? FileEditorInput.Keyboard(shortcut)
+                            : FileEditorInput.None);
+
                 return new InteractiveSurfaceRouteResult<FileEditorInput>(
                     FileEditorInput.Keyboard(key.Key, key.Text));
             }

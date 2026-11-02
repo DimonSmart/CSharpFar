@@ -3,6 +3,7 @@ name: macOS standalone host
 on:
   push:
     branches:
+      - main
       - codex/macos-standalone-host-spec
   workflow_dispatch:
 
