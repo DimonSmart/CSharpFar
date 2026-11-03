@@ -72,7 +72,8 @@ internal static class ApplicationServicesBuilder
         IFileUsagePlatformService? fileUsage = null,
         IUriLauncher? uriLauncher = null,
         IApplicationUpdateInstaller? applicationUpdateInstaller = null,
-        IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>? additionalPlugins = null)
+        IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>? additionalPlugins = null,
+        Func<INetworkTrafficMonitor>? networkTrafficMonitorFactory = null)
     {
         return Prepare(
             screen,
@@ -105,7 +106,8 @@ internal static class ApplicationServicesBuilder
             fileUsage,
             uriLauncher,
             applicationUpdateInstaller,
-            additionalPlugins).BuildSynchronously();
+            additionalPlugins,
+            networkTrafficMonitorFactory).BuildSynchronously();
     }
 
     public static Task<ApplicationServices> CreateAsync(
@@ -140,6 +142,7 @@ internal static class ApplicationServicesBuilder
         IUriLauncher? uriLauncher = null,
         IApplicationUpdateInstaller? applicationUpdateInstaller = null,
         IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>? additionalPlugins = null,
+        Func<INetworkTrafficMonitor>? networkTrafficMonitorFactory = null,
         CancellationToken cancellationToken = default)
     {
         return Prepare(
@@ -173,7 +176,8 @@ internal static class ApplicationServicesBuilder
             fileUsage,
             uriLauncher,
             applicationUpdateInstaller,
-            additionalPlugins).BuildAsynchronously(cancellationToken);
+            additionalPlugins,
+            networkTrafficMonitorFactory).BuildAsynchronously(cancellationToken);
     }
 
     private static PreparedApplicationServices Prepare(
@@ -207,7 +211,8 @@ internal static class ApplicationServicesBuilder
         IFileUsagePlatformService? fileUsage = null,
         IUriLauncher? uriLauncher = null,
         IApplicationUpdateInstaller? applicationUpdateInstaller = null,
-        IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>? additionalPlugins = null)
+        IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>? additionalPlugins = null,
+        Func<INetworkTrafficMonitor>? networkTrafficMonitorFactory = null)
     {
         var effectiveRunOptions = runOptions ?? ApplicationRunOptions.Normal;
         IDiagnosticLog diagnosticLog = effectiveRunOptions.DiagnosticsEnabled
@@ -576,9 +581,7 @@ internal static class ApplicationServicesBuilder
 
         pluginComposition.Add((
             new PluginDescriptor { Id = NetworkTrafficPlugin.Id, Title = "Network Traffic" },
-            new NetworkTrafficPlugin(moduleUiServices, () => OperatingSystem.IsWindows()
-                ? new WindowsNetworkTrafficMonitor()
-                : throw new PlatformNotSupportedException("Traffic monitoring requires Windows."))));
+            new NetworkTrafficPlugin(moduleUiServices, networkTrafficMonitorFactory)));
 
         pluginComposition.Add((
             new PluginDescriptor { Id = ArchivePlugin.Id, Title = "Archives" },
