@@ -99,6 +99,7 @@ public sealed class PlatformDependencyArchitectureTests
     public void NeutralProjectsDoNotDeclareWin32Imports()
     {
         string root = RepositoryPaths.FindRoot();
+        var violations = new List<string>();
         foreach (string name in Zones.Where(x => x.Value == Zone.Neutral).Select(x => x.Key))
         {
             foreach (string source in Directory.EnumerateFiles(Path.Combine(root, "src", name), "*.cs", SearchOption.AllDirectories)
@@ -107,11 +108,12 @@ public sealed class PlatformDependencyArchitectureTests
                 string code = File.ReadAllText(source);
                 foreach (Match match in Regex.Matches(code, @"(?:DllImport|LibraryImport|NativeLibrary\s*\.\s*Load)\s*\(\s*""([^""]+)"""))
                 {
-                    Assert.False(IsWindowsLibrary(match.Groups[1].Value),
-                        $"{name} has a Windows native import {match.Groups[1].Value} in {source}");
+                    if (IsWindowsLibrary(match.Groups[1].Value))
+                        violations.Add($"{name}: {match.Groups[1].Value} in {source}");
                 }
             }
         }
+        Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations));
     }
 
     [Fact]
