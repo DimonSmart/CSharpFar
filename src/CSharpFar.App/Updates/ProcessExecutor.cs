@@ -30,6 +30,7 @@ internal sealed class SystemProcessExecutor : IProcessExecutor
         {
             FileName = executable,
             UseShellExecute = false,
+            RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true,
@@ -41,6 +42,10 @@ internal sealed class SystemProcessExecutor : IProcessExecutor
         using var process = new Process { StartInfo = startInfo };
         if (!process.Start())
             throw new InvalidOperationException($"Unable to start process '{executable}'.");
+
+        // Service commands (e.g. Homebrew in About) must not read the UI's TTY.
+        // Close the pipe immediately so a child waiting for stdin gets EOF.
+        process.StandardInput.Close();
 
         Task<string> stdout = process.StandardOutput.ReadToEndAsync();
         Task<string> stderr = process.StandardError.ReadToEndAsync();

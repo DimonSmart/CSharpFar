@@ -45,11 +45,19 @@ def verify(host):
                     if b"\x1b[6n" in bytes(output[-3:]) + chunk:
                         os.write(terminal, b"\x1b[1;1R")
                     output.extend(chunk)
-            output.clear()
+            # Preserve later control sequences from the same PTY read.
+            del output[: output.index(marker) + len(marker)]
+
+        def verify_application_terminal():
+            mode = termios.tcgetattr(terminal)[3]
+            if mode & (termios.ECHO | termios.ICANON | termios.ISIG):
+                raise AssertionError(f"Application TTY is not raw after child exit: {mode:#x}")
+            wait_for(b"\x1b[?1003h\x1b[?1006h")
 
         try:
             fcntl.ioctl(terminal, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 100, 0, 0))
             wait_for(b"\x1b[?1049h")
+            verify_application_terminal()
             # Repeated execution also checks that returning to application input
             # mode does not break the next command or its interrupt handling.
             for attempt in range(2):
@@ -61,8 +69,15 @@ def verify(host):
                     raise AssertionError("Child command inherited raw mode; Ctrl+C cannot signal it")
                 os.write(terminal, b"\x03")
                 wait_for(b"\x1b[?1049h")
+                verify_application_terminal()
                 os.kill(pid, 0)
-            print("PASS: Ctrl+C interrupted both children and restored panels; CSharpFar survived.")
+
+            # This child deliberately leaves ECHO enabled on the shared TTY.
+            os.write(terminal, b"stty echo; printf 'CF_DIRTY_TTY\n'\r")
+            wait_for(b"CF_DIRTY_TTY")
+            wait_for(b"\x1b[?1049h")
+            verify_application_terminal()
+            print("PASS: Ctrl+C and changed TTY settings restored raw input, mouse tracking and panels.")
         finally:
             # Terminate any remaining child too if an assertion failed.
             try:

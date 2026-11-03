@@ -268,7 +268,18 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
     public override void RestoreInputMode()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        EnableInputMode();
+        if (!_active)
+        {
+            EnableInputMode();
+            return;
+        }
+
+        // External programs (or System.Console) can change the shared TTY
+        // without updating our cached state. Do not push Kitty a second time.
+        _terminalMode.EnableRawMode();
+        _writeControl(EnableFocusReporting);
+        _focusReportingActive = true;
+        ApplyMouseTracking(_mouseTrackingRequested);
     }
 
     public override void Dispose()
@@ -410,8 +421,9 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
                 _modifierKeyTracker?.Resume();
             _writeControl(EnableFocusReporting);
             _focusReportingActive = true;
-            if (_mouseTrackingRequested)
-                ApplyMouseTracking(enabled: true);
+            // The child may have left mouse reporting enabled on the main screen.
+            // Explicitly apply both enabled and disabled requests.
+            ApplyMouseTracking(_mouseTrackingRequested);
             _active = true;
         }
         catch

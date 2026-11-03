@@ -35,26 +35,39 @@ internal sealed class ExternalConsoleCommandRunner
     {
         ApplicationWorkspaceMode workspaceModeAfterCommand = _state.WorkspaceMode;
 
-        ShowShellUnderlayForCommand();
-        PrintExecutedCommandPrompt(workDir, displayCommand);
-
         try
         {
+            ShowShellUnderlayForCommand();
+            PrintExecutedCommandPrompt(workDir, displayCommand);
+
             using var childConsoleMode = _screen.EnterChildProcessConsoleMode();
             execute();
         }
         finally
         {
-            _screen.RestoreApplicationInputMode();
-            MoveShellOutputAbovePromptArea();
-            PrintInputPrompt(workDir);
+            try
+            {
+                MoveShellOutputAbovePromptArea();
+                PrintInputPrompt(workDir);
 
-            _terminalSurface.CaptureUnderlay();
-            _screen.InvalidatePhysicalOutput();
-
-            _refreshPanels();
-            _state.WorkspaceMode = workspaceModeAfterCommand;
-            _terminalSurface.ApplyMode();
+                _terminalSurface.CaptureUnderlay();
+                _screen.InvalidatePhysicalOutput();
+                _refreshPanels();
+            }
+            finally
+            {
+                _state.WorkspaceMode = workspaceModeAfterCommand;
+                try
+                {
+                    _terminalSurface.ApplyMode();
+                }
+                finally
+                {
+                    // Child mode's scope already resumed input. Reassert the real
+                    // TTY settings after System.Console calls and screen changes.
+                    _screen.RestoreApplicationInputMode();
+                }
+            }
         }
     }
 

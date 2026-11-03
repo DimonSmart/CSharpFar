@@ -49,12 +49,35 @@ public sealed class UnixRawTerminalInputReaderMouseTrackingTests
         Assert.False(reader.MouseTrackingEnabled);
         Assert.Equal(2, terminalMode.EnableCount);
         Assert.Equal(1, terminalMode.RestoreCount);
-        Assert.Equal(mouseControlCountAfterDisable, controls.Count(IsMouseControl));
+        Assert.Equal(mouseControlCountAfterDisable + 1, controls.Count(IsMouseControl));
+        Assert.Equal(DisableMouseTracking, controls[^1]);
 
         reader.SetMouseTrackingEnabled(true);
 
         Assert.True(reader.MouseTrackingEnabled);
         Assert.Equal(EnableMouseTracking, controls[^1]);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void RestoreInputMode_WhileActive_ReassertsRawAndRequestedMouseTracking(bool mouseEnabled)
+    {
+        var terminalMode = new RecordingTerminalInputMode();
+        var controls = new List<string>();
+        using var reader = CreateReader(terminalMode, controls);
+
+        if (!mouseEnabled)
+            reader.SetMouseTrackingEnabled(false);
+
+        int controlsBeforeRestore = controls.Count;
+        reader.RestoreInputMode();
+
+        Assert.Equal(2, terminalMode.EnableCount);
+        Assert.Equal(0, terminalMode.RestoreCount);
+        Assert.Equal(mouseEnabled, reader.MouseTrackingEnabled);
+        Assert.Contains("\x1b[?1004h", controls.Skip(controlsBeforeRestore));
+        Assert.Equal(mouseEnabled ? EnableMouseTracking : DisableMouseTracking, controls[^1]);
     }
 
     [Fact]

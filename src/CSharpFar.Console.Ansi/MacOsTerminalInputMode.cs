@@ -34,9 +34,8 @@ internal sealed class MacOsTerminalInputMode : ITerminalInputMode
     public void EnableRawMode()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_rawActive)
-            return;
-
+        // Another process sharing this TTY may have changed termios.
+        // Reapply the saved raw settings even when our bookkeeping says active.
         var raw = _raw;
         if (tcsetattr(StdinFileDescriptor, Tcsanow, ref raw) != 0)
             throw new InvalidOperationException("Failed to enable terminal raw mode.", new Win32Exception(Marshal.GetLastPInvokeError()));
