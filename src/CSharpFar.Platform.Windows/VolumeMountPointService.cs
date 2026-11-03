@@ -3,7 +3,7 @@ using System.Runtime.Versioning;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 
-namespace CSharpFar.FileSystem;
+namespace CSharpFar.Platform.Windows;
 
 /// <summary>
 /// Detects NTFS volume mount points.

@@ -68,4 +68,4 @@ foreach ($id in $expected) {
 $dll = if ($platform -eq 'Windows') { 'CSharpFar.dll' } else { 'csharpfar.dll' }
 & dotnet (Join-Path $out $dll) --self-test
 if ($LASTEXITCODE -ne 0) { throw "$RuntimeIdentifier --self-test failed" }
-Write-Host "PASS $RuntimeIdentifier: restored, deps.json and published runtime closure contain only permitted platform dependencies."
+Write-Host "PASS ${RuntimeIdentifier}: restored, deps.json and published runtime closure contain only permitted platform dependencies."
