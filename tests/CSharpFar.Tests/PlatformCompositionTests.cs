@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using CSharpFar.FileSystem;
 using CSharpFar.Platform.Abstractions;
 using CSharpFar.Platform.Linux;
@@ -33,6 +34,37 @@ public sealed class PlatformCompositionTests
         Assert.IsType<WindowsProcessesAndPortsPlatformService>(platform.ProcessesAndPorts);
         Assert.IsType<WindowsFileUsagePlatformService>(platform.FileUsage);
         Assert.NotNull(platform.NetworkTrafficMonitorFactory);
+    }
+
+    [Fact]
+    public void DpapiStore_ReadsLegacyCurrentUserCredentialsWithoutChangingTheFormat()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        string root = Path.Combine(Path.GetTempPath(), "CSharpFar.Dpapi." + Guid.NewGuid().ToString("N"));
+        string directory = Path.Combine(root, "credentials");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            byte[] entropy = "CSharpFar.Credential.v1"u8.ToArray();
+            byte[] encrypted = ProtectedData.Protect("existing credential"u8.ToArray(),
+                entropy, DataProtectionScope.CurrentUser);
+            File.WriteAllBytes(Path.Combine(directory, "old.bin"), encrypted);
+
+            var store = new DpapiCredentialStore(root);
+            Assert.Equal("existing credential", store.TryReadPassword("old"));
+
+            store.SavePassword("new", "new password");
+            byte[] saved = File.ReadAllBytes(Path.Combine(directory, "new.bin"));
+            Assert.Equal("new password", System.Text.Encoding.UTF8.GetString(
+                ProtectedData.Unprotect(saved, entropy, DataProtectionScope.CurrentUser)));
+            store.DeletePassword("new");
+            Assert.Null(store.TryReadPassword("new"));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]
