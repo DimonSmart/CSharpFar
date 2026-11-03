@@ -77,7 +77,7 @@ public sealed class WindowsPlatformServices : IPlatformServices
             new WindowsShellFileLauncher(new WindowsExecutableFileDetector()),
             new DpapiCredentialStore(configDirectory),
             new WindowsVolumeService(),
-            new VolumeInfoService(),
+            new WindowsVolumeInfoService(),
             new FileSystemLocationService(),
             new VolumeMountPointService(),
             new WindowsFileSystemPlatformOperations(),
