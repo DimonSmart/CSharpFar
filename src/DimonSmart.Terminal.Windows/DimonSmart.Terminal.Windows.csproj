@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../../eng/TerminalPackages.props" />
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageId>DimonSmart.Terminal.Windows</PackageId>
+    <Version>$(TerminalVersion)</Version>
+    <Title>DimonSmart.Terminal.Windows</Title>
+    <Description>Windows native console backend.</Description>
+    <Authors>DimonSmart</Authors>
+    <RepositoryUrl>https://github.com/DimonSmart/CSharpFar</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>console;terminal;windows;win32</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../CSharpFar.Console.Windows/CSharpFar.Console.Windows.csproj" PrivateAssets="all" />
+    <PackageReference Include="DimonSmart.Terminal" Version="$(TerminalVersion)" />
+    <None Include="../../docs/terminal-packages-readme.md" Pack="true" PackagePath="README.md" />
+    <None Include="../CSharpFar.Console.Windows/bin/$(Configuration)/$(TargetFramework)/CSharpFar.Console.Windows.dll" Pack="true" PackagePath="lib/$(TargetFramework)/" />
+  </ItemGroup>
+</Project>

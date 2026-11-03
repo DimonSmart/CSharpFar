@@ -35,7 +35,7 @@ public sealed class UiDemoDependencyBoundaryTests
         XDocument project = XDocument.Load(RepositoryPaths.FindFile("samples", "CSharpFar.Ui.Demo", "CSharpFar.Ui.Demo.csproj"));
         Assert.All(project.Descendants("ProjectReference"), reference =>
             Assert.Equal("'$(UseDimonSmartTerminalPackages)' != 'true'", reference.Parent?.Attribute("Condition")?.Value));
-        Assert.Equal(["DimonSmart.Terminal.Ui"],
+        Assert.Equal(["DimonSmart.Terminal.Ansi", "DimonSmart.Terminal.Ui", "DimonSmart.Terminal.Windows"],
             project.Descendants("PackageReference").Select(reference => reference.Attribute("Include")!.Value).Order().ToArray());
     }
 

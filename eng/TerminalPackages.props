@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup>
+    <TerminalVersion Condition="'$(TerminalVersion)' == ''">0.1.0-beta.1</TerminalVersion>
+  </PropertyGroup>
+</Project>
