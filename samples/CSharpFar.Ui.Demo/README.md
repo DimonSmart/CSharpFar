@@ -14,10 +14,11 @@ dotnet run --project samples/CSharpFar.Ui.Demo/CSharpFar.Ui.Demo.csproj
 The normal source-development build uses project references. To verify binary
 package consumption, run `eng/verify-reusable-packages.ps1`; it packs the
 reusable stack into `artifacts/packages` and builds this sample with
-`UseDimonSmartTerminalPackages=true`. Package mode references only
-`DimonSmart.Terminal.Ui`, which brings in `DimonSmart.Terminal` transitively.
-The runtime selects its Windows backend on Windows and ANSI backend on Linux or
-macOS.
+`UseDimonSmartTerminalPackages=true`. Package mode explicitly references `DimonSmart.Terminal.Ui` and both
+`DimonSmart.Terminal.Windows` and `DimonSmart.Terminal.Ansi`, because this demo
+runs on all three operating systems. The UI package brings in the neutral core
+runtime but no backend; the demo selects the Windows driver on Windows and the
+ANSI driver on Linux and macOS.
 
 Run it in an interactive terminal. Redirected input or output is deliberately rejected because the production terminal drivers require a real terminal and must be able to restore its state.
 
