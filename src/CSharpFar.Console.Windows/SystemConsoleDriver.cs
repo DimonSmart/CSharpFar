@@ -222,6 +222,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleFrameWriter, I
 
     private static void SetNativeVerticalScrollbarVisible(bool visible)
     {
+        if (!OperatingSystem.IsWindows()) return;
         IntPtr window = GetConsoleWindow();
         if (window != IntPtr.Zero)
             _ = ShowScrollBar(window, SB_VERT, visible);
@@ -229,6 +230,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleFrameWriter, I
 
     private void RestoreNativeVerticalScrollbarForMainScreen()
     {
+        if (!OperatingSystem.IsWindows()) return;
         if (!Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var sbi))
             return;
 

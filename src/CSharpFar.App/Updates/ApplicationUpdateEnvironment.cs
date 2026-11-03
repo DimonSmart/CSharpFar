@@ -35,7 +35,7 @@ internal sealed class DefaultApplicationUpdateEnvironment : IApplicationUpdateEn
 
     public bool IsExecutableFile(string path)
     {
-        if (!File.Exists(path))
+        if (!OperatingSystem.IsMacOS() || !File.Exists(path))
             return false;
 
         try

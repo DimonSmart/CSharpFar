@@ -17,6 +17,9 @@ public sealed class MacOsFileSystemPlatformOperations : IFileSystemPlatformOpera
     }
     public void PreserveFileMetadata(string sourcePath, string destinationPath, FileOperationOptions options, IFileOperationErrorSink errors)
     {
+        if (!OperatingSystem.IsMacOS())
+            throw new PlatformNotSupportedException("macOS file metadata operations require macOS.");
+
         try
         {
             if (options.PreserveTimestamps) { File.SetCreationTime(destinationPath, File.GetCreationTime(sourcePath)); File.SetLastWriteTime(destinationPath, File.GetLastWriteTime(sourcePath)); File.SetLastAccessTime(destinationPath, File.GetLastAccessTime(sourcePath)); }
