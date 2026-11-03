@@ -6,6 +6,7 @@ using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
 using CSharpFar.Module.Ftp;
 using CSharpFar.Module.Sftp;
+using CSharpFar.NetworkTraffic;
 using CSharpFar.Platform.Abstractions;
 using CSharpFar.Plugin.Abstractions;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
@@ -44,7 +45,8 @@ public static class ApplicationFactory
         IProcessesAndPortsPlatformService? processesAndPorts = null,
         IFileUsagePlatformService? fileUsage = null,
         PlatformKind? platform = null,
-        IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>? additionalPlugins = null)
+        IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>? additionalPlugins = null,
+        Func<INetworkTrafficMonitor>? networkTrafficMonitorFactory = null)
     {
         var services = ApplicationServicesBuilder.Create(
             screen,
@@ -75,7 +77,8 @@ public static class ApplicationFactory
             runOptions,
             processesAndPorts,
             fileUsage,
-            additionalPlugins: additionalPlugins);
+            additionalPlugins: additionalPlugins,
+            networkTrafficMonitorFactory: networkTrafficMonitorFactory);
 
         services.CommandContext.UserMenu.RuntimePlatform = platform ?? DetectCurrentPlatform();
         return new Application(services);
@@ -112,6 +115,7 @@ public static class ApplicationFactory
         IFileUsagePlatformService? fileUsage = null,
         PlatformKind? platform = null,
         IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>? additionalPlugins = null,
+        Func<INetworkTrafficMonitor>? networkTrafficMonitorFactory = null,
         CancellationToken cancellationToken = default)
     {
         var services = await ApplicationServicesBuilder.CreateAsync(
@@ -144,6 +148,7 @@ public static class ApplicationFactory
             processesAndPorts,
             fileUsage,
             additionalPlugins: additionalPlugins,
+            networkTrafficMonitorFactory: networkTrafficMonitorFactory,
             cancellationToken: cancellationToken).ConfigureAwait(false);
         services.CommandContext.UserMenu.RuntimePlatform = platform ?? DetectCurrentPlatform();
         return new Application(services);

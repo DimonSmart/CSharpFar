@@ -76,6 +76,7 @@ public static class ApplicationBootstrap
             runOptions: runOptions,
             processesAndPorts: platform.ProcessesAndPorts,
             fileUsage: platform.FileUsage,
+            networkTrafficMonitorFactory: platform.NetworkTrafficMonitorFactory,
             platform: platform.Platform);
 
             application.Run();

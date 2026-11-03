@@ -7,11 +7,11 @@ namespace CSharpFar.Module.NetworkTraffic;
 public sealed class NetworkTrafficPlugin : ICSharpFarPlugin
 {
     private readonly ModuleUiServices ui;
-    private readonly Func<INetworkTrafficMonitor> createMonitor;
-    public NetworkTrafficPlugin(ModuleUiServices ui, Func<INetworkTrafficMonitor> createMonitor)
+    private readonly Func<INetworkTrafficMonitor>? createMonitor;
+    public NetworkTrafficPlugin(ModuleUiServices ui, Func<INetworkTrafficMonitor>? createMonitor)
     {
         this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
-        this.createMonitor = createMonitor ?? throw new ArgumentNullException(nameof(createMonitor));
+        this.createMonitor = createMonitor;
     }
     public const string Id = "network-traffic";
     public ValueTask InitializeAsync(IPluginHost host, CancellationToken cancellationToken)
@@ -24,9 +24,9 @@ public sealed class NetworkTrafficPlugin : ICSharpFarPlugin
             ExecuteAsync = (context, token) =>
             {
                 token.ThrowIfCancellationRequested();
-                if (context.Application.RunMode != PluginRunMode.Demo && !OperatingSystem.IsWindows())
+                if (context.Application.RunMode != PluginRunMode.Demo && createMonitor is null)
                     context.Ui.ShowMessage("Network Traffic", "Live traffic monitoring is currently available on Windows only.");
-                else new NetworkTrafficDialog(ui).Show(context.Application.RunMode == PluginRunMode.Demo ? new DemoTrafficMonitor() : createMonitor(), token);
+                else new NetworkTrafficDialog(ui).Show(context.Application.RunMode == PluginRunMode.Demo ? new DemoTrafficMonitor() : createMonitor!(), token);
                 return ValueTask.FromResult(PluginCommandResult.Completed());
             },
         });
