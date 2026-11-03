@@ -7,6 +7,7 @@ using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
+using CSharpFar.NetworkTraffic;
 using CSharpFar.Plugin.Abstractions;
 using CSharpFar.Tests.Fakes;
 
@@ -79,6 +80,32 @@ public sealed class NativePluginBootstrapTests : IDisposable
         Assert.Equal(1, secondStarted);
         Assert.Contains(Catalog(app).MenuItems, item => item.Text == "Slow");
         Assert.Contains(Catalog(app).MenuItems, item => item.Text == "Fast");
+    }
+
+    [Fact]
+    public void SyncBootstrap_ReceivesNetworkTrafficFactoryWithoutCreatingMonitor()
+    {
+        int created = 0;
+        var app = Create([], () =>
+        {
+            created++;
+            throw new InvalidOperationException("Factory must not run during bootstrap");
+        });
+        Assert.Equal(0, created);
+        Assert.Contains(Catalog(app).CommandPrefixes, prefix => prefix == "traffic");
+    }
+
+    [Fact]
+    public async Task AsyncBootstrap_ReceivesNetworkTrafficFactoryWithoutCreatingMonitor()
+    {
+        int created = 0;
+        var app = await CreateAsync([], networkTrafficMonitorFactory: () =>
+        {
+            created++;
+            throw new InvalidOperationException("Factory must not run during bootstrap");
+        });
+        Assert.Equal(0, created);
+        Assert.Contains(Catalog(app).CommandPrefixes, prefix => prefix == "traffic");
     }
 
     [Fact]
@@ -266,7 +293,8 @@ public sealed class NativePluginBootstrapTests : IDisposable
 
     public void Dispose() => Directory.Delete(_root, recursive: true);
 
-    private Application Create(IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)> plugins)
+    private Application Create(IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)> plugins,
+        Func<INetworkTrafficMonitor>? networkTrafficMonitorFactory = null)
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_root);
@@ -275,12 +303,14 @@ public sealed class NativePluginBootstrapTests : IDisposable
             fs, new NoOpShellService(), new NoOpFileOperationService(),
             new InMemoryHistoryStore(), Settings(),
             enableBuiltInNetworkModules: false, configDirectory: _root,
-            additionalPlugins: plugins);
+            additionalPlugins: plugins,
+            networkTrafficMonitorFactory: networkTrafficMonitorFactory);
     }
 
     private Task<Application> CreateAsync(
         IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)> plugins,
-        CancellationToken token = default)
+        CancellationToken token = default,
+        Func<INetworkTrafficMonitor>? networkTrafficMonitorFactory = null)
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_root);
@@ -289,7 +319,8 @@ public sealed class NativePluginBootstrapTests : IDisposable
             fs, new NoOpShellService(), new NoOpFileOperationService(),
             new InMemoryHistoryStore(), Settings(),
             enableBuiltInNetworkModules: false, configDirectory: _root,
-            additionalPlugins: plugins, cancellationToken: token);
+            additionalPlugins: plugins,
+            networkTrafficMonitorFactory: networkTrafficMonitorFactory, cancellationToken: token);
     }
 
     private AppSettings Settings()
