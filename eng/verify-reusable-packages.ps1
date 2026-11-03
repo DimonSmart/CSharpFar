@@ -48,8 +48,11 @@ function CheckPackage([string]$id) {
       $depId = $dep.GetAttribute('id')
       $depVersion = $dep.GetAttribute('version')
       if ($depId -match '^CSharpFar(?:\.|$)') { throw "$id leaks a project package $depId" }
-      if ($depId -like 'DimonSmart.Terminal*' -and $depVersion -notlike "*$version*") {
-        throw "$id references $depId version $depVersion instead of $version"
+      if ($depId -like 'DimonSmart.Terminal*') {
+        $allowedRanges = @($version, "[$version]", "[$version, )", "[$version,)")
+        if ($depVersion -notin $allowedRanges) {
+          throw "$id references $depId version $depVersion instead of $version"
+        }
       }
     }
   }
