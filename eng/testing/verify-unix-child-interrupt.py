@@ -73,7 +73,7 @@ def verify(host):
                 os.kill(pid, 0)
 
             # This child deliberately leaves ECHO enabled on the shared TTY.
-            os.write(terminal, b"stty echo; printf 'CF_DIRTY_TTY\n'\r")
+            os.write(terminal, b"stty echo; printf '%s%s\\n' CF_DIRTY_ TTY\r")
             wait_for(b"CF_DIRTY_TTY")
             wait_for(b"\x1b[?1049h")
             verify_application_terminal()
