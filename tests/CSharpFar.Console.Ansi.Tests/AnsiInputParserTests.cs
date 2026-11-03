@@ -280,7 +280,8 @@ public sealed class AnsiInputParserTests
         reader.RestoreInputMode();
 
         Assert.True(reader.MouseTrackingEnabled);
-        Assert.Equal(2, terminalMode.EnableCount);
+        // A repeated restore must reassert raw mode if another TTY user changed it.
+        Assert.Equal(3, terminalMode.EnableCount);
         Assert.Equal("\u001b[?1003h\u001b[?1006h", controls[^1]);
 
         reader.Dispose();
