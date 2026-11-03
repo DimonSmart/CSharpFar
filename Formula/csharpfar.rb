@@ -6,13 +6,13 @@ class Csharpfar < Formula
 
   on_macos do
     on_arm do
-      url "https://github.com/DimonSmart/CSharpFar/releases/download/v1.0.115/CSharpFar-v1.0.115-osx-arm64.tar.gz"
-      sha256 "43b8859f3e3b83a0393286dc196e339de1657e4ea176f62af28be8e24106e1ee"
+      url "https://github.com/DimonSmart/CSharpFar/releases/download/v1.0.116/CSharpFar-v1.0.116-osx-arm64.tar.gz"
+      sha256 "ba98bb75d9113cfcb20fba7a162065d0d6d7d6badd6d446d1e27f474b9352176"
     end
 
     on_intel do
-      url "https://github.com/DimonSmart/CSharpFar/releases/download/v1.0.115/CSharpFar-v1.0.115-osx-x64.tar.gz"
-      sha256 "ce4cabeb2326fd931f07ef51574adf4b5b05cbbd775ce823f9b32dba0ffcfcc5"
+      url "https://github.com/DimonSmart/CSharpFar/releases/download/v1.0.116/CSharpFar-v1.0.116-osx-x64.tar.gz"
+      sha256 "7bdf7281791075754e4fb7310d67e4fa87067d61b2e8bb0b8b48c0a063603106"
     end
   end
 
