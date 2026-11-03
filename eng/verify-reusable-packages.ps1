@@ -5,7 +5,7 @@ $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $feed = Join-Path $root 'artifacts/packages'
 $config = Join-Path $feed 'NuGet.config'
 [xml]$props = Get-Content (Join-Path $root 'eng/TerminalPackages.props') -Raw
-$version = [string]$props.Project.PropertyGroup.TerminalVersion
+$version = $props.Project.PropertyGroup.TerminalVersion.InnerText
 if (-not $version) { throw 'Missing TerminalVersion' }
 
 $packages = [ordered]@{
