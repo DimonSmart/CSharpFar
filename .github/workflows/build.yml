@@ -35,6 +35,25 @@ jobs:
       - name: Build
         run: dotnet build CSharpFar.slnx --configuration Release --no-restore
 
+      - name: Enforce CA1416 platform guards
+        run: dotnet build CSharpFar.slnx --configuration Release --no-restore -warnaserror:CA1416
+
+      - name: Verify RID-specific publish closure and host self-test
+        shell: pwsh
+        run: |
+          $platform = switch ($env:RUNNER_OS) {
+            'Windows' { 'Windows' }
+            'Linux' { 'Linux' }
+            'macOS' { 'MacOs' }
+            default { throw "Unsupported runner OS: $env:RUNNER_OS" }
+          }
+          $rid = switch ($env:RUNNER_OS) {
+            'Windows' { 'win-x64' }
+            'Linux' { 'linux-x64' }
+            'macOS' { if ($env:RUNNER_ARCH -eq 'ARM64') { 'osx-arm64' } else { 'osx-x64' } }
+          }
+          ./eng/verify-published-platform-closure.ps1 -Project "src/CSharpFar.Host.$platform/CSharpFar.Host.$platform.csproj" -RuntimeIdentifier $rid
+
       - name: Validate macOS installer script
         if: runner.os == 'Linux'
         run: bash -n docs/install-macos.sh
