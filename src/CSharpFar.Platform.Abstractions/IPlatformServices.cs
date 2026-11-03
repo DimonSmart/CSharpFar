@@ -1,6 +1,7 @@
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
+using CSharpFar.NetworkTraffic;
 
 namespace CSharpFar.Platform.Abstractions;
 
@@ -19,4 +20,5 @@ public interface IPlatformServices : IDisposable
     ITerminalScreenMode TerminalScreenMode { get; }
     IProcessesAndPortsPlatformService ProcessesAndPorts { get; }
     IFileUsagePlatformService FileUsage { get; }
+    Func<INetworkTrafficMonitor>? NetworkTrafficMonitorFactory { get; }
 }

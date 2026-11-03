@@ -6,6 +6,7 @@
     <Project Path="src/CSharpFar.Module.Archives/CSharpFar.Module.Archives.csproj" />
     <Project Path="src/CSharpFar.Module.NetworkTraffic/CSharpFar.Module.NetworkTraffic.csproj" />
     <Project Path="src/CSharpFar.NetworkTraffic/CSharpFar.NetworkTraffic.csproj" />
+    <Project Path="src/CSharpFar.NetworkTraffic.Windows/CSharpFar.NetworkTraffic.Windows.csproj" />
     <Project Path="src/CSharpFar.App/CSharpFar.App.csproj" />
     <Project Path="src/CSharpFar.Console.Ansi/CSharpFar.Console.Ansi.csproj" />
     <Project Path="src/CSharpFar.Console.Windows/CSharpFar.Console.Windows.csproj" />

@@ -32,6 +32,7 @@ public sealed class PlatformCompositionTests
         Assert.IsType<WindowsFileSystemPlatformOperations>(platform.FileSystemOperations);
         Assert.IsType<WindowsProcessesAndPortsPlatformService>(platform.ProcessesAndPorts);
         Assert.IsType<WindowsFileUsagePlatformService>(platform.FileUsage);
+        Assert.NotNull(platform.NetworkTrafficMonitorFactory);
     }
 
     [Fact]
@@ -60,6 +61,7 @@ public sealed class PlatformCompositionTests
         Assert.False(platform.ProcessesAndPorts.Support.IsSupported);
         Assert.DoesNotContain("Windows only", platform.ProcessesAndPorts.Support.Reason ?? string.Empty, StringComparison.OrdinalIgnoreCase);
         Assert.IsType<UnsupportedFileUsagePlatformService>(platform.FileUsage);
+        Assert.Null(platform.NetworkTrafficMonitorFactory);
     }
 
     [Fact]
@@ -80,5 +82,6 @@ public sealed class PlatformCompositionTests
         Assert.True(processes.Support.IsSupported);
         Assert.True(processes.Support.CanTerminate);
         Assert.IsType<UnsupportedFileUsagePlatformService>(platform.FileUsage);
+        Assert.Null(platform.NetworkTrafficMonitorFactory);
     }
 }

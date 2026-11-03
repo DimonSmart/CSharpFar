@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using CSharpFar.Core.Abstractions;
 
-namespace CSharpFar.FileSystem;
+namespace CSharpFar.Platform.Windows;
 
 public sealed class DpapiCredentialStore : ICredentialStore
 {

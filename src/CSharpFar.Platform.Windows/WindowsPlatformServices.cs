@@ -2,6 +2,7 @@ using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.FileSystem;
+using CSharpFar.NetworkTraffic;
 using CSharpFar.Platform.Abstractions;
 using CSharpFar.Shell;
 
@@ -54,9 +55,20 @@ public sealed class WindowsPlatformServices : IPlatformServices
     public ITerminalScreenMode TerminalScreenMode { get; }
     public IProcessesAndPortsPlatformService ProcessesAndPorts { get; }
     public IFileUsagePlatformService FileUsage { get; }
+    public Func<INetworkTrafficMonitor>? NetworkTrafficMonitorFactory => CreateNetworkTrafficMonitor;
+
+    private static INetworkTrafficMonitor CreateNetworkTrafficMonitor()
+    {
+        if (!OperatingSystem.IsWindows())
+            throw new PlatformNotSupportedException("Live network traffic monitoring requires Windows.");
+        return new WindowsNetworkTrafficMonitor();
+    }
 
     public static WindowsPlatformServices Create(string configDirectory, AppSettings.ShellSettings shellSettings)
     {
+        if (!OperatingSystem.IsWindows())
+            throw new PlatformNotSupportedException("Windows platform services require Windows.");
+
         var consoleDriver = CreateConsoleDriver();
         return new WindowsPlatformServices(
             consoleDriver,

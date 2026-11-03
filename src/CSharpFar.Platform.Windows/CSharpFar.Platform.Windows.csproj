@@ -12,7 +12,12 @@
     <ProjectReference Include="..\CSharpFar.Core\CSharpFar.Core.csproj" />
     <ProjectReference Include="..\CSharpFar.FileSystem\CSharpFar.FileSystem.csproj" />
     <ProjectReference Include="..\CSharpFar.Platform.Abstractions\CSharpFar.Platform.Abstractions.csproj" />
+    <ProjectReference Include="..\CSharpFar.NetworkTraffic.Windows\CSharpFar.NetworkTraffic.Windows.csproj" />
     <ProjectReference Include="..\CSharpFar.Shell\CSharpFar.Shell.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.11" />
   </ItemGroup>
 
   <PropertyGroup>

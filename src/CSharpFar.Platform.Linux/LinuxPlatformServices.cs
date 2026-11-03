@@ -3,6 +3,7 @@ using CSharpFar.Console.Ansi;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.FileSystem;
+using CSharpFar.NetworkTraffic;
 using CSharpFar.Platform.Abstractions;
 using CSharpFar.Shell;
 
@@ -54,6 +55,7 @@ public sealed class LinuxPlatformServices : IPlatformServices
     public ITerminalScreenMode TerminalScreenMode { get; }
     public IProcessesAndPortsPlatformService ProcessesAndPorts { get; }
     public IFileUsagePlatformService FileUsage { get; }
+    public Func<INetworkTrafficMonitor>? NetworkTrafficMonitorFactory => null;
 
     public static LinuxPlatformServices Create(string configDirectory, AppSettings.ShellSettings shellSettings)
     {

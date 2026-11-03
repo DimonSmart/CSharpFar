@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\CSharpFar.Console\CSharpFar.Console.csproj" />
     <ProjectReference Include="..\CSharpFar.Core\CSharpFar.Core.csproj" />
+    <ProjectReference Include="..\CSharpFar.NetworkTraffic\CSharpFar.NetworkTraffic.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
