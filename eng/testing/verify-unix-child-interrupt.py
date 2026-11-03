@@ -48,11 +48,15 @@ def verify(host):
             # Preserve later control sequences from the same PTY read.
             del output[: output.index(marker) + len(marker)]
 
-        def verify_application_terminal():
+        def verify_application_terminal(after_child=False):
+            mouse_enabled = b"\x1b[?1003h\x1b[?1006h"
+            wait_for(mouse_enabled)
+            if after_child:
+                # The final restore reasserts mouse modes after screen changes.
+                wait_for(mouse_enabled)
             mode = termios.tcgetattr(terminal)[3]
             if mode & (termios.ECHO | termios.ICANON | termios.ISIG):
                 raise AssertionError(f"Application TTY is not raw after child exit: {mode:#x}")
-            wait_for(b"\x1b[?1003h\x1b[?1006h")
 
         try:
             fcntl.ioctl(terminal, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 100, 0, 0))
@@ -69,14 +73,14 @@ def verify(host):
                     raise AssertionError("Child command inherited raw mode; Ctrl+C cannot signal it")
                 os.write(terminal, b"\x03")
                 wait_for(b"\x1b[?1049h")
-                verify_application_terminal()
+                verify_application_terminal(after_child=True)
                 os.kill(pid, 0)
 
             # This child deliberately leaves ECHO enabled on the shared TTY.
             os.write(terminal, b"stty echo; printf '%s%s\\n' CF_DIRTY_ TTY\r")
             wait_for(b"CF_DIRTY_TTY")
             wait_for(b"\x1b[?1049h")
-            verify_application_terminal()
+            verify_application_terminal(after_child=True)
             print("PASS: Ctrl+C and changed TTY settings restored raw input, mouse tracking and panels.")
         finally:
             # Terminate any remaining child too if an assertion failed.
