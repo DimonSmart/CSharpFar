@@ -5,9 +5,7 @@ using CSharpFar.Core.Models;
 namespace CSharpFar.Platform.Windows;
 
 /// <summary>
-/// Windows-aware implementation of IVolumeInfoService.
-/// Uses GetDiskFreeSpaceEx on Windows for correct results with mount points and UNC paths;
-/// falls back to DriveInfo on other platforms.
+/// Windows volume space provider using GetDiskFreeSpaceEx for mount points and UNC paths.
 /// </summary>
 public sealed class WindowsVolumeInfoService : IVolumeInfoService
 {
