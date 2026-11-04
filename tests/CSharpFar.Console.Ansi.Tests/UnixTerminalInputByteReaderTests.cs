@@ -67,10 +67,15 @@ public sealed class UnixTerminalInputByteReaderTests
     }
 
     [Fact]
-    public void EndOfStream_ThrowsRatherThanBusyLooping()
+    public void ZeroByteRead_IsOnlyEndOfStreamAfterHangup()
     {
-        var reader = new UnixTerminalInputByteReader(_ => true, _ => 0);
+        var pollResults = new Queue<UnixTerminalInputByteReader.PollResult>([
+            UnixTerminalInputByteReader.PollResult.Input,
+            UnixTerminalInputByteReader.PollResult.Hangup,
+        ]);
+        var reader = new UnixTerminalInputByteReader(_ => pollResults.Dequeue(), _ => 0);
 
+        Assert.False(reader.TryReadByte(out _));
         Assert.Throws<EndOfStreamException>(() => reader.ReadByte());
     }
 
@@ -96,7 +101,7 @@ public sealed class UnixTerminalInputByteReaderTests
     public void ReadFailure_IsNotSwallowed()
     {
         var reader = new UnixTerminalInputByteReader(
-            _ => true, _ => -5);
+            _ => UnixTerminalInputByteReader.PollResult.Input, _ => -5);
 
         Assert.Throws<InvalidOperationException>(() => reader.ReadByte());
     }
@@ -117,10 +122,12 @@ public sealed class UnixTerminalInputByteReaderTests
 
         public UnixTerminalInputByteReader CreateReader() => new(Poll, Read);
 
-        private bool Poll(int timeout)
+        private UnixTerminalInputByteReader.PollResult Poll(int timeout)
         {
             PollTimeouts.Add(timeout);
-            return _chunks.Count != 0;
+            return _chunks.Count != 0
+                ? UnixTerminalInputByteReader.PollResult.Input
+                : UnixTerminalInputByteReader.PollResult.None;
         }
 
         private int Read(byte[] buffer)

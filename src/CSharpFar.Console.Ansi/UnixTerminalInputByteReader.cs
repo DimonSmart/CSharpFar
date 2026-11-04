@@ -10,10 +10,11 @@ internal sealed class UnixTerminalInputByteReader : IAnsiInputByteReader
     private const short PollInput = 0x0001;
     private const short PollError = 0x0008;
     private const short PollHangup = 0x0010;
+    private const short PollInvalid = 0x0020;
     private const int MaxReadsPerBatch = 8;
 
     private readonly Queue<byte> _pending = new();
-    private readonly Func<int, bool> _pollForInput;
+    private readonly Func<int, PollResult> _pollForInput;
     private readonly Func<byte[], int> _readInto;
 
     public UnixTerminalInputByteReader()
@@ -22,7 +23,7 @@ internal sealed class UnixTerminalInputByteReader : IAnsiInputByteReader
     }
 
     internal UnixTerminalInputByteReader(
-        Func<int, bool> pollForInput,
+        Func<int, PollResult> pollForInput,
         Func<byte[], int> readInto)
     {
         _pollForInput = pollForInput ?? throw new ArgumentNullException(nameof(pollForInput));
@@ -54,13 +55,17 @@ internal sealed class UnixTerminalInputByteReader : IAnsiInputByteReader
         if (_pending.Count > 0)
             return true;
 
-        return _pollForInput(timeoutMilliseconds);
+        PollResult result = _pollForInput(timeoutMilliseconds);
+        ThrowIfPollFailed(result);
+        return result.IsReady;
     }
 
     private bool ReadPacket(bool block)
     {
-        if (!_pollForInput(block ? -1 : 0))
+        PollResult pollResult = _pollForInput(block ? -1 : 0);
+        if (!pollResult.IsReady)
             return false;
+        ThrowIfPollFailed(pollResult);
 
         byte[] buffer = new byte[256];
         // Drain only bytes that are already available. Waiting for a quiet
@@ -74,7 +79,7 @@ internal sealed class UnixTerminalInputByteReader : IAnsiInputByteReader
                 throw new InvalidOperationException("Failed to read terminal input.", new Win32Exception(Marshal.GetLastPInvokeError()));
             if (readCount == 0)
             {
-                if (_pending.Count == 0)
+                if (_pending.Count == 0 && pollResult.HasHangup)
                     throw new EndOfStreamException("Terminal input closed.");
                 break;
             }
@@ -82,21 +87,32 @@ internal sealed class UnixTerminalInputByteReader : IAnsiInputByteReader
             for (int j = 0; j < readCount; j++)
                 _pending.Enqueue(buffer[j]);
 
-            if (!_pollForInput(0))
+            pollResult = _pollForInput(0);
+            if (!pollResult.HasInput)
                 break;
+            ThrowIfPollFailed(pollResult);
         }
 
         return _pending.Count > 0;
     }
 
-    private static bool PollForInput(int timeoutMilliseconds)
+    private static PollResult PollForInput(int timeoutMilliseconds)
     {
         while (true)
         {
             var fds = new[] { new PollFd { Fd = StdinFileDescriptor, Events = PollInput } };
             int result = poll(fds, 1, timeoutMilliseconds);
-            if (result >= 0)
-                return result > 0 && (fds[0].Revents & (PollInput | PollError | PollHangup)) != 0;
+            if (result == 0)
+                return PollResult.None;
+            if (result > 0)
+            {
+                short events = fds[0].Revents;
+                return new PollResult(
+                    HasInput: (events & PollInput) != 0,
+                    HasHangup: (events & PollHangup) != 0,
+                    HasError: (events & PollError) != 0,
+                    IsInvalid: (events & PollInvalid) != 0);
+            }
 
             int error = Marshal.GetLastPInvokeError();
             if (error == InterruptedSystemCall)
@@ -104,6 +120,14 @@ internal sealed class UnixTerminalInputByteReader : IAnsiInputByteReader
 
             throw new InvalidOperationException("Failed to poll terminal input.", new Win32Exception(error));
         }
+    }
+
+    private static void ThrowIfPollFailed(PollResult result)
+    {
+        if (result.IsInvalid)
+            throw new InvalidOperationException("Terminal input descriptor is invalid.");
+        if (result.HasError)
+            throw new InvalidOperationException("Terminal input poll reported an I/O error.");
     }
 
     private static int ReadInto(byte[] buffer)
@@ -137,5 +161,18 @@ internal sealed class UnixTerminalInputByteReader : IAnsiInputByteReader
         public int Fd;
         public short Events;
         public short Revents;
+    }
+
+    internal readonly record struct PollResult(
+        bool HasInput,
+        bool HasHangup = false,
+        bool HasError = false,
+        bool IsInvalid = false)
+    {
+        public bool IsReady => HasInput || HasHangup || HasError || IsInvalid;
+
+        public static PollResult None => default;
+        public static PollResult Input => new(HasInput: true);
+        public static PollResult Hangup => new(HasInput: false, HasHangup: true);
     }
 }
