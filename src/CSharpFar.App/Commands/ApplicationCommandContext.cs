@@ -639,7 +639,7 @@ internal sealed class ApplicationCommandContext
     public IFileHighlightService? CreateHighlightService() =>
         FileHighlightServiceFactory.Create(Settings);
 
-    private MenuBarDefinition BuildMenuDefinition() =>
+    internal MenuBarDefinition BuildMenuDefinition() =>
         BuildMenuDefinition(ActiveSide);
 
     private MenuBarDefinition BuildMenuDefinition(PanelSide activeSide) =>

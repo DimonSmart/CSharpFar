@@ -8,7 +8,6 @@ using CSharpFar.App.Files;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Highlighting;
 using CSharpFar.App.Input;
-using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
 using CSharpFar.App.Panels;
 using CSharpFar.App.Plugins;
@@ -93,7 +92,6 @@ public sealed class Application
         get => _session.Panels.RightViewMode;
         set => _session.Panels.RightViewMode = value;
     }
-    private readonly DefaultMenuDefinitionProvider _menuProvider;
     private readonly ApplicationCommandRegistry _commandRegistry;
     private readonly ApplicationCommandContext _commandContext;
     private readonly TopMenu _topMenu;
@@ -173,7 +171,6 @@ public sealed class Application
         _clipboard = services.Clipboard;
         _saveSettings = services.SaveSettings;
         _session = services.Session;
-        _menuProvider = services.MenuProvider;
         _topMenu = services.TopMenu;
         _autoRefresh = services.AutoRefresh;
         _renderContext = services.RenderContext;
@@ -235,7 +232,7 @@ public sealed class Application
 
     private void BindRenderContext(ApplicationRenderContext context)
     {
-        context.BuildMenuDefinition = BuildMenuDefinition;
+        context.BuildMenuDefinition = _commandContext.BuildMenuDefinition;
     }
 
     private void BindCallbacks(ApplicationServiceCallbacks callbacks)
@@ -361,19 +358,6 @@ public sealed class Application
     }
 
     internal void ResetFunctionKeyLayer() => _functionKeyLayer = FunctionKeyLayer.Plain;
-
-    private MenuBarDefinition BuildMenuDefinition() =>
-        _menuProvider.BuildMenu(new MenuBuildContext
-        {
-            ActivePanelSide = _active,
-            LeftPanel = _left,
-            RightPanel = _right,
-            LeftViewMode = _leftViewMode,
-            RightViewMode = _rightViewMode,
-            Settings = _settings,
-            CanSaveSettings = _saveSettings is not null,
-            ModuleMenuItems = _moduleCatalog.MenuItems,
-        });
 
     // ── panel visibility ──────────────────────────────────────────────────────
 
