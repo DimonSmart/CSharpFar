@@ -74,7 +74,7 @@ is non-normative engineering history.
 | IDD-0080 | spec | File Usage panel | Local-file usage and lock diagnostics with safe owner release |  |
 | IDD-0081 | spec | Runtime diagnostics | Opt-in in-memory tracing and safe copyable diagnostic report |  |
 | IDD-0082 | spec | macOS install and self-update | Sole owner of installer, quarantine, update eligibility, cancellation and relaunch; uses the Cask in IDD-0076 | IDD-0076/IDD-0077 distribution workflow clarification |
-| IDD-0083 | spec | User menu | F2 command selection, Options editor, platform filters, placeholders, and user-menu.json persistence |  |
+| IDD-0083 | spec | User menu | Merged local/global F2, global-only Shift+F2, local/global editors, ID overrides, placeholders and menu persistence |  |
 | IDD-0084 | adr | macOS embedded terminal engine | Pinned SwiftTerm AppKit/PTY host and CLI compatibility |  |
 | IDD-0086 | spec | Network Traffic | Live top-consumer native plugin |  |
 | IDD-0087 | spec | Isolated Demo Mode | Owns CLI startup, in-memory fixture, source allow-list and user-data isolation | IDD-0001 Demo Mode details |

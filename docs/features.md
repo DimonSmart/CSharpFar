@@ -22,6 +22,38 @@ When a shorter destination file already exists, CSharpFar can compare the existi
 
 Unrelated, equal-size or otherwise unsafe destination states are not silently treated as resumable copies; normal conflict handling remains in control.
 
+## User menu
+
+Press \`F2\` to open the user menu. To share commands with a project or directory,
+put an ordered JSON array in \`.csharpfar-menu.json\` in that directory:
+
+\`\`\`json
+[
+  { "id": "build", "title": "Build solution", "command": "dotnet build \"{menuDir}/Project.slnx\"" },
+  { "id": "test", "title": "Run tests", "command": "dotnet test" }
+]
+\`\`\`
+
+CSharpFar combines the active directory's file, its ancestors' files, and
+the global \`user-menu.json\` (in that priority order). Each source has its own
+section. The first visible entry with a matching optional \`id\` overrides
+entries from farther sources; entries without IDs never override one another.
+An \`id\` must be lowercase, start with a letter, and contain at most 64
+letters, digits, dots, underscores or hyphens. Platform-specific commands
+are filtered before resolving duplicates. Empty local files do not stop
+inheritance.
+
+\`{menuDir}\` expands to the directory of the menu file that defines the chosen
+entry. \`{panelDir}\` remains the active panel directory, which is also the
+working directory for external commands. Paths needing quotes must be quoted
+explicitly in the command template.
+
+\`Shift+F2\` opens the global menu only. \`Options → User menu...\` edits only
+the global menu, while \`Options → Local user menu...\` edits only the local file
+in the active folder (available for real local filesystem panels). Opening the
+local editor and closing without changes creates no file. Project menus may be
+checked into Git; verify commands before running them from untrusted projects.
+
 ## Viewer and editor
 
 CSharpFar includes a built-in streaming file viewer and a text editor.
