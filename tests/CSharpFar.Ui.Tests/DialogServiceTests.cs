@@ -214,6 +214,47 @@ public sealed class DialogServiceTests
     }
 
     [Fact]
+    public void Select_SectionHeadersAreNotKeyboardTargets()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        var result = Create(driver).Select(new SelectionDialogOptions<string>
+        {
+            Title = "Sections",
+            Items = ["A /projects", "Build", "B /", "Global"],
+            ItemText = static item => item,
+            IsSelectable = static item => item is "Build" or "Global",
+        });
+
+        Assert.True(result.IsConfirmed);
+        Assert.Equal("Global", result.SelectedItem);
+        Assert.Equal(3, result.SelectedIndex);
+    }
+
+    [Fact]
+    public void Select_HomeAndEndSkipHeaders()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Home));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        var result = Create(driver).Select(new SelectionDialogOptions<string>
+        {
+            Title = "Sections",
+            Items = ["Header", "Build", "Group", "Run", "Empty group"],
+            ItemText = static item => item,
+            IsSelectable = static item => item is "Build" or "Run",
+            SelectedIndex = 3,
+        });
+
+        Assert.True(result.IsConfirmed);
+        Assert.Equal("Build", result.SelectedItem);
+        Assert.Equal(1, result.SelectedIndex);
+    }
+
+    [Fact]
     public void Input_CancelOnF10ReturnsNullInsteadOfSubmitting()
     {
         var driver = new FakeConsoleDriver();
