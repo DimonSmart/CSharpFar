@@ -9,6 +9,8 @@ internal sealed class MacOsTerminalInputMode : ITerminalInputMode
     private const int Tcsanow = 0;
     private const int Vmin = 16;
     private const int Vtime = 17;
+    private const ulong Echo = 0x00000008;
+    private const ulong Icanon = 0x00000100;
 
     private readonly Termios _original;
     private readonly Termios _raw;
@@ -52,6 +54,20 @@ internal sealed class MacOsTerminalInputMode : ITerminalInputMode
         if (tcsetattr(StdinFileDescriptor, Tcsanow, ref original) != 0)
             throw new InvalidOperationException("Failed to restore terminal mode.", new Win32Exception(Marshal.GetLastPInvokeError()));
         _rawActive = false;
+    }
+
+    internal void EnsureRawModeForRead()
+    {
+        if (!_rawActive)
+            return;
+
+        if (tcgetattr(StdinFileDescriptor, out var current) != 0)
+            throw new InvalidOperationException("Failed to read terminal mode.", new Win32Exception(Marshal.GetLastPInvokeError()));
+
+        // A process sharing the TTY can restore cooked mode after our handoff
+        // has finished. Repair it before polling for individual input bytes.
+        if ((current.LocalFlags & (Icanon | Echo)) != 0)
+            EnableRawMode();
     }
 
     public void Dispose()

@@ -176,6 +176,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
             if (TryReadResize(out var resize))
                 return resize;
 
+            EnsureTerminalModeForRead();
             if (!_input.WaitForInput(CancellationPollMilliseconds))
             {
                 if (TryReadModifierStateEvent(out modifierEvent))
@@ -202,6 +203,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
         if (TryReadResize(out inputEvent))
             return true;
 
+        EnsureTerminalModeForRead();
         while (_input.WaitForInput(0))
         {
             if (TryReadParsedEvent(intercept, out inputEvent))
@@ -215,6 +217,12 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
 
         inputEvent = null;
         return false;
+    }
+
+    private void EnsureTerminalModeForRead()
+    {
+        if (_active && _terminalMode is MacOsTerminalInputMode macOsMode)
+            macOsMode.EnsureRawModeForRead();
     }
 
     public void PrepareForScreenChange()
