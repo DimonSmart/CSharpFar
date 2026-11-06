@@ -1,18 +1,13 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.UserMenu;
 
-/// <summary>
-/// Loads and saves the user menu in user-menu.json in the config directory.
-/// Creates a default file with sample commands on first run.
-/// </summary>
+/// <summary>Loaded global user menu, with first-run defaults and save-on-success snapshots.</summary>
 public sealed class UserMenuStore
 {
-    private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
-
     private readonly string _filePath;
+
+    internal string FilePath => _filePath;
 
     public IReadOnlyList<UserMenuItem> Items { get; private set; }
 
@@ -24,95 +19,31 @@ public sealed class UserMenuStore
         Items = Load();
     }
 
-    /// <summary>Saves a detached snapshot of the supplied menu and updates the runtime menu after a successful write.</summary>
     public void Save(IReadOnlyList<UserMenuItem> items)
     {
         ArgumentNullException.ThrowIfNull(items);
         UserMenuItem[] snapshot = UserMenuItemRules.NormalizeItems(items);
-        WriteFileSafely(snapshot);
+        UserMenuFile.WriteSafely(_filePath, snapshot);
         Items = snapshot;
     }
 
     private IReadOnlyList<UserMenuItem> Load()
     {
-        if (!File.Exists(_filePath))
-        {
-            var defaults = CreateDefaults();
-            TryWriteDefaults(defaults);
-            return defaults;
-        }
+        UserMenuItem[]? persisted = UserMenuFile.ReadOrNull(_filePath);
+        if (persisted is not null)
+            return persisted;
 
+        List<UserMenuItem> defaults = CreateDefaults();
         try
         {
-            string json = File.ReadAllText(_filePath);
-            List<UserMenuItem> items = JsonSerializer.Deserialize<List<UserMenuItem>>(json, JsonOptions)
-                ?? throw new InvalidDataException("User menu file does not contain a JSON array: " + _filePath);
-            return UserMenuItemRules.CloneItems(items);
+            UserMenuFile.WriteSafely(_filePath, defaults);
         }
-        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        catch (Exception)
         {
-            throw new InvalidDataException("User menu file is invalid: " + _filePath, ex);
+            // First-run defaults remain available in memory if best-effort persistence fails.
         }
+        return defaults;
     }
-
-    private void TryWriteDefaults(IReadOnlyList<UserMenuItem> items)
-    {
-        try
-        {
-            WriteFileSafely(items);
-        }
-        catch
-        {
-            // First-run defaults remain available in memory even if the optional initial file cannot be written.
-        }
-    }
-
-    private void WriteFileSafely(IReadOnlyList<UserMenuItem> items)
-    {
-        string directory = Path.GetDirectoryName(_filePath)!;
-        Directory.CreateDirectory(directory);
-        string temporaryPath = Path.Combine(
-            directory,
-            $".{Path.GetFileName(_filePath)}.{Guid.NewGuid():N}.tmp");
-
-        try
-        {
-            string json = JsonSerializer.Serialize(items, JsonOptions);
-            File.WriteAllText(temporaryPath, json);
-            File.Move(temporaryPath, _filePath, overwrite: true);
-        }
-        catch
-        {
-            TryDelete(temporaryPath);
-            throw;
-        }
-    }
-
-    private static void TryDelete(string path)
-    {
-        try
-        {
-            if (File.Exists(path))
-                File.Delete(path);
-        }
-        catch
-        {
-            // Preserve the original save exception; a stale temporary file is preferable to masking it.
-        }
-    }
-
-    private static JsonSerializerOptions CreateJsonOptions()
-    {
-        var options = new JsonSerializerOptions
-        {
-            WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        };
-        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
-        return options;
-    }
-
 
     private static List<UserMenuItem> CreateDefaults() =>
     [

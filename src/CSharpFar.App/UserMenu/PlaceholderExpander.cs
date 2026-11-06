@@ -17,7 +17,8 @@ public static class PlaceholderExpander
         string currentFile,
         IReadOnlyList<string> selectedPaths,
         string panelDir,
-        string otherPanelDir)
+        string otherPanelDir,
+        string menuDir = "")
     {
         string selected = selectedPaths.Count > 0
             ? string.Join(" ", selectedPaths.Select(p => $"\"{p}\""))
@@ -27,6 +28,7 @@ public static class PlaceholderExpander
             .Replace("{current}", currentFile)
             .Replace("{selected}", selected)
             .Replace("{panelDir}", panelDir)
-            .Replace("{otherPanelDir}", otherPanelDir);
+            .Replace("{otherPanelDir}", otherPanelDir)
+            .Replace("{menuDir}", menuDir);
     }
 }

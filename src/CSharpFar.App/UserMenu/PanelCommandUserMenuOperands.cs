@@ -37,11 +37,12 @@ internal readonly record struct PanelCommandUserMenuOperands(
         return true;
     }
 
-    public string Expand(string command) =>
+    public string Expand(string command, string menuDirectory = "") =>
         PlaceholderExpander.Expand(
             command,
             CurrentFile,
             SelectedPaths,
             ActiveDirectory,
-            PassiveDirectory);
+            PassiveDirectory,
+            menuDirectory);
 }

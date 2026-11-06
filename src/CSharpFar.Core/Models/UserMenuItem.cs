@@ -4,5 +4,6 @@ public sealed class UserMenuItem
 {
     public required string Title { get; init; }
     public string? Command { get; init; }
+    public string? Id { get; init; }
     public PlatformKind? Platform { get; init; }
 }
