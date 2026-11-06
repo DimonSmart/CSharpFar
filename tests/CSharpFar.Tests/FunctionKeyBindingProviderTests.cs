@@ -29,6 +29,8 @@ public sealed class FunctionKeyBindingProviderTests
             FunctionKeyLayer.Control, ConsoleKey.F3, "SortNm");
         AssertBinding(bindings, FunctionKeyCommandIds.SortBySize,
             FunctionKeyLayer.Control, ConsoleKey.F6, "SortSz");
+        AssertBinding(bindings, FunctionKeyCommandIds.GlobalUserMenu,
+            FunctionKeyLayer.Shift, ConsoleKey.F2, "GlobMn");
         AssertBinding(bindings, FunctionKeyCommandIds.CalculateDirectorySizes,
             FunctionKeyLayer.Shift, ConsoleKey.F3, "DirSz");
         AssertBinding(bindings, FunctionKeyCommandIds.CopyToCurrentDirectory,
@@ -81,6 +83,7 @@ public sealed class FunctionKeyBindingProviderTests
         {
             [FunctionKeyCommandIds.Help] = FunctionKeyCommandCategory.Global,
             [FunctionKeyCommandIds.UserMenu] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.GlobalUserMenu] = FunctionKeyCommandCategory.PanelScoped,
             [FunctionKeyCommandIds.View] = FunctionKeyCommandCategory.PanelScoped,
             [FunctionKeyCommandIds.Edit] = FunctionKeyCommandCategory.PanelScoped,
             [FunctionKeyCommandIds.OpenCreateFile] = FunctionKeyCommandCategory.PanelScoped,
@@ -114,6 +117,7 @@ public sealed class FunctionKeyBindingProviderTests
         string[] panelScoped =
         [
             FunctionKeyCommandIds.UserMenu,
+            FunctionKeyCommandIds.GlobalUserMenu,
             FunctionKeyCommandIds.View,
             FunctionKeyCommandIds.Edit,
             FunctionKeyCommandIds.OpenCreateFile,

@@ -63,6 +63,16 @@ public class PlaceholderExpanderTests
     }
 
     [Fact]
+    public void MenuDirBelongsToSelectedSourceNotActivePanel()
+    {
+        string result = PlaceholderExpander.Expand(
+            "dotnet test \"{menuDir}/Project.slnx\" in {panelDir}",
+            string.Empty, [], "/project/src", "/other", "/project");
+
+        Assert.Equal("dotnet test \"/project/Project.slnx\" in /project/src", result);
+    }
+
+    [Fact]
     public void MultipleOccurrences_AllReplaced()
     {
         string result = PlaceholderExpander.Expand(
