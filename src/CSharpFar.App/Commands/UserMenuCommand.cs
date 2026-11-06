@@ -67,7 +67,7 @@ internal sealed class UserMenuCommand : IApplicationCommand
             var rows = new List<UserMenuRow>();
             foreach (ResolvedUserMenuSection section in menu.Sections)
             {
-                string location = section.Label == "Global"
+                string location = section.SourcePath == context.UserMenu.FilePath
                     ? "Global"
                     : section.Label + "  [" + Path.GetDirectoryName(section.SourcePath) + "]";
                 rows.Add(new UserMenuRow("── " + location, null));

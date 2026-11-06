@@ -535,8 +535,7 @@ internal sealed class ApplicationCommandContext
     internal bool CanUseLocalUserMenu(ResolvedPanelCommandTarget target)
     {
         FilePanelState state = target.State;
-        return IsPanelsMode &&
-            CommittedLocationMatches(target.State, target.ActiveCommitted) &&
+        return CommittedLocationMatches(target.State, target.ActiveCommitted) &&
             CommittedLocationMatches(target.PassiveState, target.PassiveCommitted) &&
             state.SourceId == PanelSourceId.Local &&
             state.ContentKind == PanelContentKind.Source &&
