@@ -77,7 +77,7 @@ public sealed class UserMenuResolverTests : IDisposable
         WriteMenu(src, """
             [{"id":"build","title":"One"}, {"id":"build","title":"Two"}]
             """);
-        var global = Global(new() { Title = "Global" });
+        var global = Global(new UserMenuItem { Title = "Global" });
 
         var error = Assert.Throws<InvalidDataException>(() =>
             UserMenuResolver.Resolve(global, PlatformKind.Windows, src));
@@ -93,7 +93,7 @@ public sealed class UserMenuResolverTests : IDisposable
     {
         string src = Path.Combine(_root, "A");
         WriteMenu(src, "{\"items\":[]}");
-        var global = Global(new() { Title = "Global" });
+        var global = Global(new UserMenuItem { Title = "Global" });
         var error = Assert.Throws<InvalidDataException>(() =>
             UserMenuResolver.Resolve(global, PlatformKind.Windows, src));
         Assert.Contains(Path.Combine(src, UserMenuResolver.LocalFileName), error.Message, StringComparison.Ordinal);
@@ -110,7 +110,7 @@ public sealed class UserMenuResolverTests : IDisposable
     {
         string src = Path.Combine(_root, "NoLocal");
         Directory.CreateDirectory(src);
-        var global = Global(new() { Title = "Run", Id = "run.tests" });
+        var global = Global(new UserMenuItem { Title = "Run", Id = "run.tests" });
 
         var resolved = UserMenuResolver.Resolve(global, PlatformKind.Windows, src);
         Assert.False(resolved.HasLocalMenus);
