@@ -60,6 +60,8 @@ CSharpFar.Ui.DynamicTableDialogState<TItem>.Rows.get -> System.Collections.Gener
 CSharpFar.Ui.DynamicTableDialogState<TItem>.Status.get -> string?
 CSharpFar.Ui.SelectionDialogOptions<T>.Appearance.get -> CSharpFar.Ui.DialogAppearance
 CSharpFar.Ui.SelectionDialogOptions<T>.Appearance.init -> void
+CSharpFar.Ui.SelectionDialogOptions<T>.IsSelectable.get -> System.Func<T, bool>?
+CSharpFar.Ui.SelectionDialogOptions<T>.IsSelectable.init -> void
 CSharpFar.Ui.TableDialogOptions<T, TResult>
 CSharpFar.Ui.TableDialogOptions<T, TResult>.Actions.get -> System.Collections.Generic.IReadOnlyList<CSharpFar.Ui.DialogButton!>!
 CSharpFar.Ui.TableDialogOptions<T, TResult>.Actions.init -> void
