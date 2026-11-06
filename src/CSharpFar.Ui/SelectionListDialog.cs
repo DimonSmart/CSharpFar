@@ -25,6 +25,7 @@ internal sealed class SelectionListDialog<T>
     private readonly DialogFrameRenderer _frameRenderer = new();
     private Action<T, int>? _selectionChanged;
     private Func<T, string>? _searchText;
+    private Func<T, bool>? _isSelectable;
     private string _emptyText = "No items";
 
     public SelectionListDialog(
@@ -58,7 +59,13 @@ internal sealed class SelectionListDialog<T>
             int originalIndex = Math.Clamp(value, 0, _allItems.Count - 1);
             int filteredIndex = FindFilteredIndex(originalIndex);
             if (filteredIndex >= 0)
-                _list.SetSelectedIndex(filteredIndex);
+            {
+                int selectable = FindSelectable(filteredIndex, +1);
+                if (selectable < 0)
+                    selectable = FindSelectable(filteredIndex, -1);
+                if (selectable >= 0)
+                    _list.SetSelectedIndex(selectable);
+            }
         }
     }
 
@@ -92,6 +99,12 @@ internal sealed class SelectionListDialog<T>
     {
         get => _searchText;
         set => _searchText = value;
+    }
+
+    public Func<T, bool>? IsSelectable
+    {
+        get => _isSelectable;
+        set => _isSelectable = value;
     }
 
     public Action<T, int>? SelectionChanged
@@ -129,10 +142,26 @@ internal sealed class SelectionListDialog<T>
                     return (new SelectionListInput(input, ScrollableListInputResult.NotHandled, IsFilterInput: true), UiInputResult.HandledResult);
                 }
 
+                int previousIndex = _list.SelectedIndex;
                 var routed = _list.RouteInput(
                     input,
                     frame.List,
                     route);
+                if (_isSelectable is not null && _list.HasItems && !IsSelectableIndex(_list.SelectedIndex))
+                {
+                    if (input is MouseConsoleInputEvent)
+                    {
+                        _list.SetSelectedIndex(previousIndex);
+                        return (new SelectionListInput(input, ScrollableListInputResult.NotHandled, IsFilterInput: false), UiInputResult.HandledResult);
+                    }
+
+                    int step = _list.SelectedIndex < previousIndex ? -1 : +1;
+                    int selectable = FindSelectable(_list.SelectedIndex, step);
+                    if (selectable < 0)
+                        selectable = FindSelectable(_list.SelectedIndex, -step);
+                    if (selectable >= 0)
+                        _list.SetSelectedIndex(selectable);
+                }
                 return (new SelectionListInput(input, routed.Semantic, IsFilterInput: false), routed.UiResult);
             },
             (_, semantic) =>
@@ -161,7 +190,7 @@ internal sealed class SelectionListDialog<T>
                     return ModalDialogLoopResult<SelectionListDialogResult<T>>.Complete(Cancelled());
                 }
 
-                if (semantic.ListResult.Kind == ScrollableListInputResultKind.Confirmed && _list.HasItems)
+                if (semantic.ListResult.Kind == ScrollableListInputResultKind.Confirmed && _list.HasItems && IsSelectableIndex(_list.SelectedIndex))
                 {
                     return ModalDialogLoopResult<SelectionListDialogResult<T>>.Complete(Confirmed());
                 }
@@ -184,6 +213,20 @@ internal sealed class SelectionListDialog<T>
                     initialSelectionNotified = true;
                 }
             });
+    }
+
+    private bool IsSelectableIndex(int index) =>
+        index >= 0 && index < _list.Count &&
+        (_isSelectable is null || _isSelectable(_list.Items[index].Item));
+
+    private int FindSelectable(int from, int step)
+    {
+        for (int index = from; index >= 0 && index < _list.Count; index += step)
+        {
+            if (IsSelectableIndex(index))
+                return index;
+        }
+        return -1;
     }
 
     private SelectionListDialogResult<T> Confirmed()
@@ -222,7 +265,12 @@ internal sealed class SelectionListDialog<T>
             int preservedIndex = previousOriginalIndex >= 0
                 ? FindFilteredIndex(previousOriginalIndex)
                 : -1;
-            _list.SetSelectedIndex(preservedIndex >= 0 ? preservedIndex : 0);
+            int initialIndex = preservedIndex >= 0 ? preservedIndex : 0;
+            int selectable = FindSelectable(initialIndex, +1);
+            if (selectable < 0)
+                selectable = FindSelectable(initialIndex, -1);
+            if (selectable >= 0)
+                _list.SetSelectedIndex(selectable);
         }
 
         UpdateEmptyText();
