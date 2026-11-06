@@ -15,6 +15,9 @@ public sealed class SelectionDialogOptions<T>
 
     public required Func<T, string> ItemText { get; init; }
 
+    /// <summary>Optional semantic predicate marking section headings or disabled rows unselectable.</summary>
+    public Func<T, bool>? IsSelectable { get; init; }
+
     public int SelectedIndex { get; init; }
 
     public int MaxVisibleRows { get; init; } = 15;
