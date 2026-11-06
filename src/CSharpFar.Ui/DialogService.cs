@@ -46,6 +46,7 @@ public sealed class DialogService
             DoubleBorder = options.DoubleBorder,
             EnableFilter = options.EnableFilter,
             SearchText = options.SearchText,
+            IsSelectable = options.IsSelectable,
             SelectionChanged = options.SelectionChanged,
         };
         if (options.Items.Count > 0)
