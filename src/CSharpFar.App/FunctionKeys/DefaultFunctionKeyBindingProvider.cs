@@ -15,6 +15,11 @@ internal sealed class DefaultFunctionKeyBindingProvider
             ConsoleKey.F2,
             "UserMn"),
         new(
+            FunctionKeyCommandIds.GlobalUserMenu,
+            FunctionKeyLayer.Shift,
+            ConsoleKey.F2,
+            "GlobMn"),
+        new(
             FunctionKeyCommandIds.View,
             FunctionKeyLayer.Plain,
             ConsoleKey.F3,

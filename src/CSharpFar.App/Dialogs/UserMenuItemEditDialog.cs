@@ -7,7 +7,7 @@ namespace CSharpFar.App.Dialogs;
 internal sealed class UserMenuItemEditDialog
 {
     private const int DialogWidth = 64;
-    private const int DialogHeight = 17;
+    private const int DialogHeight = 20;
 
     private static readonly PlatformKind?[] PlatformValues =
     [
@@ -30,8 +30,10 @@ internal sealed class UserMenuItemEditDialog
     {
         TextField title = _fields.Text(new TextFieldOptions(currentItem?.Title ?? string.Empty));
         TextField command = _fields.Text(new TextFieldOptions(currentItem?.Command ?? string.Empty));
+        TextField id = _fields.Text(new TextFieldOptions(currentItem?.Id ?? string.Empty));
         TextInputRow titleRow = FormControls.Text(title);
         TextInputRow commandRow = FormControls.Text(command);
+        TextInputRow idRow = FormControls.Text(id);
         CompactChoiceFormRow<PlatformKind?> platformRow = FormControls.CompactChoice(
             "Platform",
             PlatformValues,
@@ -49,28 +51,37 @@ internal sealed class UserMenuItemEditDialog
                 FormControls.Label("Command (optional; empty = Title)"),
                 commandRow,
                 FormControls.Spacer(),
+                FormControls.Label("ID (optional; overrides inherited item)"),
+                idRow,
+                FormControls.Spacer(),
                 platformRow,
                 FormControls.Spacer(),
                 FormControls.Label("Available placeholders:"),
                 FormControls.Label("{current} {selected} {panelDir}"),
-                FormControls.Label("{otherPanelDir}"),
+                FormControls.Label("{otherPanelDir} {menuDir}"),
             ],
             footer: () => [actions],
-            submit: () => Validate(title, command, platformRow));
+            submit: () => Validate(title, command, id, platformRow));
     }
 
     private static FormSubmitResult<UserMenuItem> Validate(
         TextField title,
         TextField command,
+        TextField id,
         CompactChoiceFormRow<PlatformKind?> platform)
     {
         if (string.IsNullOrWhiteSpace(title.Text))
             return FormSubmit.Invalid<UserMenuItem>("Title is required.", title);
 
+        string normalizedId = id.Text.Trim();
+        if (normalizedId.Length > 0 && !UserMenuItemRules.IsValidId(normalizedId))
+            return FormSubmit.Invalid<UserMenuItem>("ID must start with a-z and contain 1-64 lowercase letters, digits, '.', '_' or '-'.", id);
+
         string normalizedTitle = title.Text.Trim();
         return FormSubmit.Success(new UserMenuItem
         {
             Title = normalizedTitle,
+            Id = normalizedId.Length == 0 ? null : normalizedId,
             Command = UserMenuItemRules.NormalizeCommand(normalizedTitle, command.Text),
             Platform = platform.Value,
         });

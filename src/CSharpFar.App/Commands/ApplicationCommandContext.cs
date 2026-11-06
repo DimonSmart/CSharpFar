@@ -20,6 +20,7 @@ using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
+using CSharpFar.FileSystem;
 using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
@@ -531,6 +532,22 @@ internal sealed class ApplicationCommandContext
     public bool IsSourceAvailable(PanelSourceId sourceId) =>
         _sourceRegistry.TryGetSource(sourceId, out _);
 
+    internal bool CanUseLocalUserMenu(ResolvedPanelCommandTarget target)
+    {
+        FilePanelState state = target.State;
+        return IsPanelsMode &&
+            CommittedLocationMatches(target.State, target.ActiveCommitted) &&
+            CommittedLocationMatches(target.PassiveState, target.PassiveCommitted) &&
+            state.SourceId == PanelSourceId.Local &&
+            state.ContentKind == PanelContentKind.Source &&
+            state.SearchRequest is null &&
+            state.LoadError is null &&
+            Path.IsPathFullyQualified(state.SourcePath) &&
+            TryGetSource(PanelSourceId.Local, out IFilePanelSource source) &&
+            source is LocalFilePanelSource &&
+            Directory.Exists(state.SourcePath);
+    }
+
     public bool CanAccessLocalFileSystem(FilePanelState state) =>
         state.SourceId == PanelSourceId.Local &&
         IsSourceAvailable(PanelSourceId.Local);
@@ -636,6 +653,7 @@ internal sealed class ApplicationCommandContext
             RightViewMode = RightViewMode,
             Settings = Settings,
             CanSaveSettings = CanSaveSettings,
+            CanEditLocalUserMenu = CanUseLocalUserMenu(ResolvePanelTarget(new PanelCommandArgs { PanelSide = activeSide })),
             ModuleMenuItems = _moduleCatalog.MenuItems,
         });
 

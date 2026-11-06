@@ -163,6 +163,8 @@ public sealed class DefaultMenuDefinitionProvider
                 MenuCommandIds.SettingsOpenDirectoryShortcuts),
             Command("Options.userMenu", "User menu...", 'N',
                 MenuCommandIds.SettingsOpenUserMenu),
+            Command("Options.localUserMenu", "Local user menu...", 'L',
+                MenuCommandIds.SettingsOpenLocalUserMenu, isEnabled: context.CanEditLocalUserMenu),
             Separator("Options.sep.panelSettings"),
             Command("Options.diagnostics", "Terminal diagnostics", 'G',
                 MenuCommandIds.DiagnosticsPrintTerminalInfo),

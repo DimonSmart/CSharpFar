@@ -19,14 +19,14 @@ internal sealed class UserMenuEditorDialog
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
-    public UserMenuEditorDialogResult Show(IReadOnlyList<UserMenuItem> currentItems)
+    public UserMenuEditorDialogResult Show(IReadOnlyList<UserMenuItem> currentItems, string title = "User menu")
     {
         List<UserMenuItem> items = CloneItems(currentItems).ToList();
         UserMenuItem[] initialItems = CloneItems(currentItems);
 
         return _dialogs.List(new ListDialogOptions<UserMenuItem, UserMenuEditorDialogResult>
         {
-            Title = "User menu",
+            Title = title,
             Items = () => items,
             ItemText = UserMenuItemRules.DisplayText,
             Actions =
@@ -72,6 +72,9 @@ internal sealed class UserMenuEditorDialog
         if (item is null)
             return DialogOutcome<UserMenuEditorDialogResult>.ContinueOpen();
 
+        if (!ValidateEdit(items.Append(item).ToArray()))
+            return DialogOutcome<UserMenuEditorDialogResult>.ContinueOpen();
+
         items.Add(item);
         return DialogOutcome<UserMenuEditorDialogResult>.RefreshOpen(items.Count - 1);
     }
@@ -86,8 +89,22 @@ internal sealed class UserMenuEditorDialog
         if (edited is null || SameItem(current, edited))
             return DialogOutcome<UserMenuEditorDialogResult>.ContinueOpen();
 
+        var candidate = items.ToArray();
+        candidate[selectedIndex] = edited;
+        if (!ValidateEdit(candidate))
+            return DialogOutcome<UserMenuEditorDialogResult>.ContinueOpen();
+
         items[selectedIndex] = edited;
         return DialogOutcome<UserMenuEditorDialogResult>.RefreshOpen(selectedIndex);
+    }
+
+    private bool ValidateEdit(IReadOnlyList<UserMenuItem> items)
+    {
+        string? error = UserMenuItemRules.FindValidationError(items);
+        if (error is null)
+            return true;
+        _dialogs.Message("User menu", error);
+        return false;
     }
 
     private DialogOutcome<UserMenuEditorDialogResult> Delete(List<UserMenuItem> items, int selectedIndex)
@@ -135,7 +152,8 @@ internal sealed class UserMenuEditorDialog
     internal static bool SameItem(UserMenuItem left, UserMenuItem right) =>
         left.Title == right.Title &&
         left.Command == right.Command &&
-        left.Platform == right.Platform;
+        left.Platform == right.Platform &&
+        left.Id == right.Id;
 
     internal static UserMenuItem[] CloneItems(IEnumerable<UserMenuItem> items) =>
         UserMenuItemRules.CloneItems(items);

@@ -4,6 +4,7 @@ internal static class FunctionKeyCommandIds
 {
     public const string Help = "functionKey.help";
     public const string UserMenu = "functionKey.userMenu";
+    public const string GlobalUserMenu = "functionKey.shift.globalUserMenu";
     public const string View = "functionKey.view";
     public const string CalculateDirectorySizes = "functionKey.shift.calculateDirectorySizes";
     public const string Edit = "functionKey.edit";
