@@ -2730,3 +2730,9 @@ CSharpFar.Ui.TableDialogOptions<T, TResult>.StatusText.get -> System.Func<T?, st
 CSharpFar.Ui.TableDialogOptions<T, TResult>.StatusText.init -> void
 CSharpFar.Ui.TableWidth.IsGrow.get -> bool
 static CSharpFar.Ui.TableWidth.Grow(int preferred, int minimum) -> CSharpFar.Ui.TableWidth!
+CSharpFar.Ui.SingleLineInputDialogOptions.ErrorLines.get -> System.Func<string!, string!, System.Collections.Generic.IReadOnlyList<string!>!>?
+CSharpFar.Ui.SingleLineInputDialogOptions.ErrorLines.init -> void
+CSharpFar.Ui.SingleLineInputDialogOptions.PreferredHeight.get -> int?
+CSharpFar.Ui.SingleLineInputDialogOptions.PreferredHeight.init -> void
+CSharpFar.Ui.SingleLineInputDialogOptions.PreferredWidth.get -> int?
+CSharpFar.Ui.SingleLineInputDialogOptions.PreferredWidth.init -> void

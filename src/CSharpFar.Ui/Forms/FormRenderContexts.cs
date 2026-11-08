@@ -28,7 +28,7 @@ public sealed class FormRenderContext
     public Rect BodyBounds { get; }
     public CellStyle ScrollbarStyle { get; }
     public Rect? FooterBounds { get; }
-    public string RenderHoverMarquee(HoverMarqueeRegistration registration) =>
+    internal string RenderHoverMarquee(HoverMarqueeRegistration registration) =>
         _renderContext.RenderHoverMarquee(registration);
 
     public void PublishOnStable(Action commit) => _renderContext.PublishOnStable(commit);
