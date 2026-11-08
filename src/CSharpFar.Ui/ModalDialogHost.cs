@@ -83,7 +83,8 @@ public sealed class ModalDialogHost
             handleWake: _ => _composition.HandleHoverWake()
                 ? ModalDialogWakeResult<TResult>.Changed
                 : ModalDialogWakeResult<TResult>.NoChange,
-            cancellationToken);
+            cancellationToken,
+            blockingReadWhenNoDeadline: true);
     }
 
     public TResult RunInteractiveTimed<TFrame, TSemantic, TResult>(
@@ -124,7 +125,8 @@ public sealed class ModalDialogHost
         Func<DateTimeOffset?>? getNextWakeUtc,
         Func<TFrame, ModalDialogWakeResult<TResult>>? handleWake,
         CancellationToken cancellationToken,
-        CancellationToken wakeSignal = default)
+        CancellationToken wakeSignal = default,
+        bool blockingReadWhenNoDeadline = false)
     {
         ArgumentNullException.ThrowIfNull(render);
         ArgumentNullException.ThrowIfNull(buildInteractionFrame);
@@ -163,7 +165,8 @@ public sealed class ModalDialogHost
                     wake.IsCompleted ? wake.Result : default!);
             },
             cancellationToken,
-            wakeSignal);
+            wakeSignal,
+            blockingReadWhenNoDeadline);
     }
 
     public void Run<TFrame>(

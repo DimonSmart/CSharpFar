@@ -140,10 +140,19 @@ public sealed class HoverMarqueeTests
         driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
         var host = new UiCompositionHost(new ScreenRenderer(driver));
 
-        CompositionInputReadResult result = host.ReadCompositionInputUntil(null, CancellationToken.None);
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => { }));
+        int polls = 0;
+        var pump = new CompositionInputPump<string>(host, (out string packet) =>
+        {
+            packet = "handled";
+            return ++polls == 2;
+        });
+
+        CompositionInputPumpResult<string> result = pump.ReadOrWake(
+            () => null, blockingReadWhenNoDeadline: true);
 
         Assert.False(result.IsWake);
-        Assert.IsType<KeyConsoleInputEvent>(result.Input);
+        Assert.Equal("handled", result.RequiredPacket);
         Assert.True(blockingReadObserved);
         Assert.False(nonBlockingProbeObserved);
     }

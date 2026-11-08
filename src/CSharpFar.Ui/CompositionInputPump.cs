@@ -53,7 +53,8 @@ internal sealed class CompositionInputPump<TPacket>
     public CompositionInputPumpResult<TPacket> ReadOrWake(
         Func<DateTimeOffset?> getNextWakeUtc,
         CancellationToken cancellationToken = default,
-        CancellationToken wakeSignal = default)
+        CancellationToken wakeSignal = default,
+        bool blockingReadWhenNoDeadline = false)
     {
         ArgumentNullException.ThrowIfNull(getNextWakeUtc);
 
@@ -64,7 +65,11 @@ internal sealed class CompositionInputPump<TPacket>
         while (true)
         {
             _ensureActive();
-            var read = _composition.ReadCompositionInputUntil(getNextWakeUtc(), cancellationToken, wakeSignal);
+            DateTimeOffset? nextWake = getNextWakeUtc();
+            CompositionInputReadResult read = blockingReadWhenNoDeadline &&
+                nextWake is null && !wakeSignal.CanBeCanceled
+                ? CompositionInputReadResult.ForInput(_composition.ReadCompositionInput(cancellationToken))
+                : _composition.ReadCompositionInputUntil(nextWake, cancellationToken, wakeSignal);
             if (read.IsWake)
                 return CompositionInputPumpResult<TPacket>.Wake();
 

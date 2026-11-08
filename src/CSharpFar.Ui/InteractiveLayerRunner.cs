@@ -43,7 +43,8 @@ internal sealed class InteractiveLayerRunner
         Func<DateTimeOffset?>? getNextWakeUtc = null,
         Func<TFrame, InteractiveLayerWakeResult<TResult>>? handleWake = null,
         CancellationToken cancellationToken = default,
-        CancellationToken wakeSignal = default)
+        CancellationToken wakeSignal = default,
+        bool blockingReadWhenNoDeadline = false)
     {
         ArgumentNullException.ThrowIfNull(layer);
         ArgumentNullException.ThrowIfNull(committedFrame);
@@ -71,7 +72,7 @@ internal sealed class InteractiveLayerRunner
             {
                 CompositionInputPumpResult<InteractiveLayerInput<TFrame, TSemantic>> read = getNextWakeUtc is null
                     ? CompositionInputPumpResult<InteractiveLayerInput<TFrame, TSemantic>>.Input(pump.Read(cancellationToken))
-                    : pump.ReadOrWake(getNextWakeUtc, cancellationToken, effectiveWakeSignal);
+                    : pump.ReadOrWake(getNextWakeUtc, cancellationToken, effectiveWakeSignal, blockingReadWhenNoDeadline);
                 if (read.IsWake && effectiveWakeSignal.IsCancellationRequested)
                     effectiveWakeSignal = default;
                 if (read.IsWake)
