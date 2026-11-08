@@ -11,8 +11,8 @@ public sealed class SingleLineInputDialogTests
     public void Show_DuplicateNameDisplaysTwoRedRowsAndButtonsBelowThem()
     {
         var driver = new FakeConsoleDriver(100, 30);
-        driver.EnqueueKey(new ConsoleKeyInfo('\\r', ConsoleKey.Enter, false, false, false));
-        driver.EnqueueKey(new ConsoleKeyInfo('\\0', ConsoleKey.Escape, false, false, false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, false, false, false));
 
         string? result = new SingleLineInputDialog(
             ModalTestHost.Create(driver),
@@ -41,8 +41,8 @@ public sealed class SingleLineInputDialogTests
     public void Show_LongDuplicateNameFitsInErrorRow()
     {
         var driver = new FakeConsoleDriver(100, 30);
-        driver.EnqueueKey(new ConsoleKeyInfo('\\r', ConsoleKey.Enter, false, false, false));
-        driver.EnqueueKey(new ConsoleKeyInfo('\\0', ConsoleKey.Escape, false, false, false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, false, false, false));
         string longName = new string('x', 140);
 
         string? result = new SingleLineInputDialog(
