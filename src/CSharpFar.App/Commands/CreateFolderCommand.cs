@@ -28,6 +28,12 @@ internal sealed class CreateFolderCommand : IApplicationCommand
             Title = "Make folder",
             Prompt = "Create the folder:",
             History = AppTextHistoryIds.CreateFolderName,
+            PreferredWidth = 64,
+            PreferredHeight = 11,
+            ErrorLines = (attempt, error) =>
+                error.Contains("already exists", StringComparison.OrdinalIgnoreCase)
+                    ? [attempt, "already exists."]
+                    : [error],
             Validate = attempt =>
             {
                 if (attempt.IndexOfAny(Path.GetInvalidPathChars()) >= 0)

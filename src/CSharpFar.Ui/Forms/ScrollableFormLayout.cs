@@ -64,7 +64,7 @@ public sealed partial class ScrollableFormDialog
         foreach (FormRowTargetFrame targetFrame in frame.Targets.OfType<FormRowTargetFrame>().Where(target => !target.IsFooter && IsVisibleInBody(target.Bounds, context.BodyBounds)))
         {
             bool focused = targetFrame.Target == effectiveFocusedTarget;
-            targetFrame.Row.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, targetFrame.Layout));
+            targetFrame.Row.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, targetFrame.Layout, context.RenderHoverMarquee));
         }
 
         if (BodyRowCount > viewportRows)
@@ -92,7 +92,7 @@ public sealed partial class ScrollableFormDialog
             foreach (FormRowTargetFrame targetFrame in frame.Targets.OfType<FormRowTargetFrame>().Where(target => target.IsFooter))
             {
                 bool focused = targetFrame.Target == effectiveFocusedTarget;
-                targetFrame.Row.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, targetFrame.Layout));
+                targetFrame.Row.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, targetFrame.Layout, context.RenderHoverMarquee));
             }
         }
 

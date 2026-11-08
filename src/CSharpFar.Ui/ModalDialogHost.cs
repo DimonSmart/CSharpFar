@@ -79,8 +79,10 @@ public sealed class ModalDialogHost
             handleInput,
             prepareRender,
             applyCommittedFrame,
-            getNextWakeUtc: null,
-            handleWake: null,
+            getNextWakeUtc: () => _composition.NextHoverWakeUtc,
+            handleWake: _ => _composition.HandleHoverWake()
+                ? ModalDialogWakeResult<TResult>.Changed
+                : ModalDialogWakeResult<TResult>.NoChange,
             cancellationToken);
     }
 

@@ -293,7 +293,11 @@ public sealed class UiCompositionHost
                     var context = new UiRenderContext(Screen, viewport, attempt, _hoverMarquee);
                     composition.Surface.Layer.Render(context);
                     foreach (var overlay in composition.Overlays)
+                    {
+                        if (overlay.Layer.InputPolicy == UiLayerInputPolicy.Modal)
+                            attempt.ClearHoverRegistrations();
                         overlay.Layer.Render(context);
+                    }
                 }
 
                 bool interrupted = Screen.FrameWasInterrupted;
@@ -359,9 +363,7 @@ public sealed class UiCompositionHost
             if (input is MouseConsoleInputEvent { Kind: MouseEventKind.Move, Button: MouseButton.None } passiveMove &&
                 _mouseCapture is null)
             {
-                bool hoverAllowed =
-                    ReferenceEquals(composition.Surface, _layers[0]) &&
-                    !composition.Overlays.Any(entry => entry.Layer.InputPolicy == UiLayerInputPolicy.Modal);
+                bool hoverAllowed = ReferenceEquals(composition.Surface, _layers[0]);
                 bool hoverInvalidate = hoverAllowed && _hoverMarquee.SetPointer(passiveMove.X, passiveMove.Y);
                 if (!hoverAllowed)
                     hoverInvalidate |= _hoverMarquee.SetPointer(null, null);
@@ -849,6 +851,7 @@ public sealed class UiCompositionHost
         private readonly List<HoverMarqueeRegistration> _hoverRegistrations = [];
         public IReadOnlyList<HoverMarqueeRegistration> HoverRegistrations => _hoverRegistrations;
         public void RegisterHover(HoverMarqueeRegistration registration) => _hoverRegistrations.Add(registration);
+        public void ClearHoverRegistrations() => _hoverRegistrations.Clear();
 
         public void Commit()
         {

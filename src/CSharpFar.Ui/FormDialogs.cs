@@ -209,7 +209,8 @@ internal sealed class FormDialogs
         Func<IReadOnlyList<FormRow>>? footer,
         Func<FormSubmitResult<TResult>> submit,
         Func<FormDialogEvent, bool> cancelWhen,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<Func<string?>, FormRow>? errorRowFactory = null)
     {
         ArgumentNullException.ThrowIfNull(cancelWhen);
         return ShowStandard(
@@ -220,7 +221,8 @@ internal sealed class FormDialogs
             valueChanged: null,
             auxiliary: null,
             cancelWhen,
-            cancellationToken);
+            cancellationToken,
+            errorRowFactory);
     }
 
     public TResult? Show<TResult>(
@@ -246,11 +248,13 @@ internal sealed class FormDialogs
         Action<FormDialogEvent>? valueChanged,
         Func<FormDialogEvent, bool>? auxiliary,
         Func<FormDialogEvent, bool>? cancelWhen,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<Func<string?>, FormRow>? errorRowFactory = null)
     {
         ArgumentNullException.ThrowIfNull(submit);
 
         string? error = null;
+        FormRow errorRow = errorRowFactory?.Invoke(() => error) ?? FormFooter.Error(() => error);
         var historyFields = new HashSet<TextField>();
 
         IReadOnlyList<FormRow> Observe(IReadOnlyList<FormRow> formRows)
@@ -269,7 +273,7 @@ internal sealed class FormDialogs
                 IReadOnlyList<FormRow> supplied = footer?.Invoke() ?? [];
                 foreach (FormRow row in supplied)
                     row.CollectTextFields(historyFields);
-                return [FormFooter.Error(() => error), .. supplied];
+                return [errorRow, .. supplied];
             },
             handle: formEvent =>
             {

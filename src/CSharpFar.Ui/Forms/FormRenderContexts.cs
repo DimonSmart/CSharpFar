@@ -28,6 +28,8 @@ public sealed class FormRenderContext
     public Rect BodyBounds { get; }
     public CellStyle ScrollbarStyle { get; }
     public Rect? FooterBounds { get; }
+    public string RenderHoverMarquee(HoverMarqueeRegistration registration) =>
+        _renderContext.RenderHoverMarquee(registration);
 
     public void PublishOnStable(Action commit) => _renderContext.PublishOnStable(commit);
     public void PublishOnStable<T>(T value, Action<T> commit) => _renderContext.PublishOnStable(value, commit);
@@ -35,18 +37,29 @@ public sealed class FormRenderContext
 
 internal sealed class FormRowRenderContext
 {
-    public FormRowRenderContext(IUiCanvas screen, Rect bounds, bool focused, FormRowLayout? layout = null)
+    private readonly Func<HoverMarqueeRegistration, string>? _renderHoverMarquee;
+    public FormRowRenderContext(
+        IUiCanvas screen,
+        Rect bounds,
+        bool focused,
+        FormRowLayout? layout = null,
+        Func<HoverMarqueeRegistration, string>? renderHoverMarquee = null)
     {
         Canvas = screen;
         Bounds = bounds;
         Focused = focused;
         Layout = layout ?? new FormRowLayout(bounds, null, bounds);
+        _renderHoverMarquee = renderHoverMarquee;
     }
 
     public IUiCanvas Canvas { get; }
     public Rect Bounds { get; }
     public bool Focused { get; }
     public FormRowLayout Layout { get; }
+
+    public string RenderHoverMarquee(HoverMarqueeRegistration registration) =>
+        _renderHoverMarquee?.Invoke(registration) ??
+        ScrollableFormDialog.Fit(registration.Text, registration.VisibleCellWidth);
 }
 
 internal readonly record struct FormRowInputContext(bool Focused);

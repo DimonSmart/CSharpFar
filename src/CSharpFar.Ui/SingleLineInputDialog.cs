@@ -11,6 +11,9 @@ public sealed class SingleLineInputDialogOptions
     public bool CancelOnF10 { get; init; }
     public TextHistoryId? History { get; init; }
     public Func<string, string?>? Validate { get; init; }
+    public int? PreferredWidth { get; init; }
+    public int? PreferredHeight { get; init; }
+    public Func<string, string, IReadOnlyList<string>>? ErrorLines { get; init; }
 }
 
 internal sealed class SingleLineInputDialog
@@ -41,8 +44,8 @@ internal sealed class SingleLineInputDialog
         return _forms.ShowWithCancellation(
             new FormDialogOptions(
                 options.Title,
-                PreferredWidth: DialogWidth,
-                PreferredHeight: DialogHeight,
+                PreferredWidth: options.PreferredWidth ?? DialogWidth,
+                PreferredHeight: options.PreferredHeight ?? DialogHeight,
                 MinWidth: 20,
                 MinHeight: 5),
             rows: () =>
@@ -51,7 +54,7 @@ internal sealed class SingleLineInputDialog
                 FormControls.Text(field),
                 FormControls.Spacer(),
             ],
-            footer: () => [actions],
+            footer: () => options.ErrorLines is null ? [actions] : [FormControls.Spacer(), actions],
             submit: () =>
             {
                 string text = field.TrimmedText;
@@ -64,6 +67,15 @@ internal sealed class SingleLineInputDialog
                     : FormSubmit.Invalid<string>(error, field);
             },
             cancelWhen: formEvent =>
-                options.CancelOnF10 && formEvent.Key == ConsoleKey.F10);
+                options.CancelOnF10 && formEvent.Key == ConsoleKey.F10,
+            errorRowFactory: getError => options.ErrorLines is null
+                ? FormFooter.Error(getError)
+                : FormFooter.ErrorLines(
+                    () => getError() is { } error
+                        ? options.ErrorLines(field.TrimmedText, error)
+                        : [],
+                    height: 2,
+                    foreground: ConsoleColor.Red,
+                    marqueeFirstLine: true));
     }
 }
