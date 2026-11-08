@@ -254,7 +254,7 @@ internal sealed class FormDialogs
         ArgumentNullException.ThrowIfNull(submit);
 
         string? error = null;
-        FormRow errorRow = errorRowFactory?.Invoke(() => error) ?? FormFooter.Error(() => error);
+        FormRow? customErrorRow = errorRowFactory?.Invoke(() => error);
         var historyFields = new HashSet<TextField>();
 
         IReadOnlyList<FormRow> Observe(IReadOnlyList<FormRow> formRows)
@@ -273,7 +273,7 @@ internal sealed class FormDialogs
                 IReadOnlyList<FormRow> supplied = footer?.Invoke() ?? [];
                 foreach (FormRow row in supplied)
                     row.CollectTextFields(historyFields);
-                return [errorRow, .. supplied];
+                return [customErrorRow ?? FormFooter.Error(() => error), .. supplied];
             },
             handle: formEvent =>
             {

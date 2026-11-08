@@ -558,6 +558,11 @@ public sealed class UiCompositionHost
     {
         EnsureNotDispatchingInputPump();
 
+        // Keep the ordinary blocking read boundary when there is no deadline.
+        // A preliminary TryRead changes how interactive dialogs observe input.
+        if (wakeUtc is null && !wakeSignal.CanBeCanceled)
+            return CompositionInputReadResult.ForInput(ReadCompositionInput(cancellationToken));
+
         if (wakeSignal.IsCancellationRequested)
             return CompositionInputReadResult.Wake();
 

@@ -130,6 +130,25 @@ public sealed class HoverMarqueeTests
     }
 
     [Fact]
+    public void Composition_TimedReadWithoutDeadlineUsesOrdinaryBlockingReadBoundary()
+    {
+        var driver = new FakeConsoleDriver();
+        bool blockingReadObserved = false;
+        bool nonBlockingProbeObserved = false;
+        driver.BeforeReadInput = _ => blockingReadObserved = true;
+        driver.BeforeTryReadInput = _ => nonBlockingProbeObserved = true;
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
+        var host = new UiCompositionHost(new ScreenRenderer(driver));
+
+        CompositionInputReadResult result = host.ReadCompositionInputUntil(null, CancellationToken.None);
+
+        Assert.False(result.IsWake);
+        Assert.IsType<KeyConsoleInputEvent>(result.Input);
+        Assert.True(blockingReadObserved);
+        Assert.False(nonBlockingProbeObserved);
+    }
+
+    [Fact]
     public void Composition_WithoutHoverDeadlinePreservesOrdinaryBlockingReadBoundary()
     {
         var driver = new FakeConsoleDriver();
