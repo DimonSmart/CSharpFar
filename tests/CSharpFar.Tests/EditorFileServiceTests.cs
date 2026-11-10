@@ -114,7 +114,8 @@ public sealed class EditorFileServiceTests : IDisposable
         var session = service.Load(path);
 
         Assert.True(session.Document.Format.EmitByteOrderMark);
-        Assert.Equal("UTF-8 BOM", session.Document.Format.EncodingDisplayName);
+        Assert.Equal("UTF-8", session.Document.Format.EncodingDisplayName);
+        Assert.Equal("BOM", session.Document.Format.BomDisplayName);
         Assert.Equal("{\"items\":[1,2]}", session.Document.Buffer.GetLine(0));
         Assert.False(session.Document.Buffer.GetLine(0).StartsWith('\uFEFF'));
     }

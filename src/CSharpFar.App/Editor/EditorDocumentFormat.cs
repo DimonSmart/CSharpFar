@@ -13,7 +13,9 @@ public sealed class EditorDocumentFormat
         Encoding = encoding;
         EmitByteOrderMark = emitByteOrderMark;
         LineEnding = lineEnding;
-        EncodingDisplayName = encodingDisplayName;
+        EncodingDisplayName = encodingDisplayName.EndsWith(" BOM", StringComparison.Ordinal)
+            ? encodingDisplayName[..^4]
+            : encodingDisplayName;
     }
 
     public Encoding Encoding { get; }

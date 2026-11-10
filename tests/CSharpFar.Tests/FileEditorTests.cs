@@ -1,3 +1,4 @@
+using System.Text;
 using CSharpFar.App.Editor;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
@@ -28,6 +29,22 @@ public sealed partial class FileEditorTests : IDisposable
                 File.SetAttributes(path, FileAttributes.Normal);
             Directory.Delete(_tempDir, recursive: true);
         }
+    }
+
+    [Theory]
+    [InlineData(false, "UTF-8 No BOM Unix (LF)")]
+    [InlineData(true, "UTF-8 BOM Unix (LF)")]
+    public void Show_HeaderShowsEncodingAndBomOnce(bool emitBom, string expected)
+    {
+        string filePath = Path.Combine(_tempDir, $"header-bom-{emitBom}.txt");
+        File.WriteAllText(filePath, "first\nsecond", new UTF8Encoding(emitBom));
+
+        var driver = new FakeConsoleDriver(120, 25);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath);
+
+        Assert.Contains(expected, ComposeRow(driver, y: 0, width: 120), StringComparison.Ordinal);
     }
 
     [Fact]
