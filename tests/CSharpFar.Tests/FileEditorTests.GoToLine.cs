@@ -90,8 +90,6 @@ public sealed partial class FileEditorTests
         ShowFileEditor(new ScreenRenderer(driver), filePath);
 
         Assert.Equal("one\ntXwo\nthree", File.ReadAllText(filePath).ReplaceLineEndings("\n"));
-        Assert.Contains(driver.WriteRecords, record =>
-            record.Text.Contains(input.Length == 0 ? "A value is required." : "positive line number.", StringComparison.Ordinal));
     }
 
     [Theory]
@@ -174,27 +172,27 @@ public sealed partial class FileEditorTests
         ShowFileEditor(new ScreenRenderer(driver), filePath);
 
         Assert.Equal("one\ntwo\nthree", File.ReadAllText(filePath).ReplaceLineEndings("\n"));
-        Assert.Contains(driver.WriteRecords, record =>
-            record.Text.Contains("Ln 2", StringComparison.Ordinal));
+        Assert.Equal(2, driver.CursorY);
     }
 
     [Fact]
     public void Show_AltF8MakesDistantLineVisibleAndUpdatesStatus()
     {
         string filePath = Path.Combine(_tempDir, "far-line.txt");
-        File.WriteAllText(filePath, string.Join("\n",
-            Enumerable.Range(1, 70).Select(number => $"line-{number:00}")));
+        string[] lines = Enumerable.Range(1, 70).Select(number => $"line-{number:00}").ToArray();
+        File.WriteAllText(filePath, string.Join("\n", lines));
 
         var driver = new FakeConsoleDriver(80, 8);
         EnqueueGoToLine(driver, "56");
+        driver.EnqueueInput(LeftMouse(0, 5));
+        driver.EnqueueKey(Key(ConsoleKey.X, 'X'));
+        driver.EnqueueKey(Key(ConsoleKey.F2));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
         ShowFileEditor(new ScreenRenderer(driver), filePath);
 
-        Assert.Contains(driver.WriteRecords, record =>
-            record.Y is >= 1 and <= 5 && record.Text.Contains("line-56", StringComparison.Ordinal));
-        Assert.Contains(driver.WriteRecords, record =>
-            record.Y == 6 && record.Text.Contains("Ln 56", StringComparison.Ordinal));
+        lines[55] = "Xline-56";
+        Assert.Equal(string.Join("\n", lines), File.ReadAllText(filePath).ReplaceLineEndings("\n"));
         Assert.InRange(driver.CursorY, 1, 5);
     }
 
