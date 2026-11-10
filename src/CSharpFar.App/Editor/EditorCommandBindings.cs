@@ -23,6 +23,7 @@ public static class EditorCommandBindings
     private static readonly IReadOnlyList<EditorCommandBinding> Alt =
     [
         new(7, "Prev", ConsoleKey.F7, ConsoleModifiers.Alt),
+        new(8, "GoTo", ConsoleKey.F8, ConsoleModifiers.Alt),
     ];
 
     private static readonly IReadOnlyList<EditorCommandBinding> Control =

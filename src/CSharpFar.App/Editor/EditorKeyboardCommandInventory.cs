@@ -11,6 +11,7 @@ public static class EditorKeyboardCommandInventory
         new("paste", ConsoleKey.V, ConsoleModifiers.Control, EditorKeyCommandStatus.Implemented, "Paste clipboard text"),
         new("paste", ConsoleKey.Insert, ConsoleModifiers.Shift, EditorKeyCommandStatus.Implemented, "Paste clipboard text"),
         new("delete-block-or-line", ConsoleKey.F8, 0, EditorKeyCommandStatus.Implemented, "Delete selection or current line"),
+        new("go-to-line", ConsoleKey.F8, ConsoleModifiers.Alt, EditorKeyCommandStatus.Implemented, "Go to a document line by number"),
         new("delete-to-line-end", ConsoleKey.K, ConsoleModifiers.Control, EditorKeyCommandStatus.Implemented, "Delete to line end"),
         new("delete-to-line-end", ConsoleKey.D, ConsoleModifiers.Alt, EditorKeyCommandStatus.Implemented, "Delete to line end"),
         new("toggle-syntax-highlighting", ConsoleKey.H, ConsoleModifiers.Alt, EditorKeyCommandStatus.Implemented, "Toggle syntax highlighting for current editor session"),

@@ -824,6 +824,67 @@ public sealed class EditorSessionTests
             command.Status == EditorKeyCommandStatus.Implemented);
     }
 
+    [Fact]
+    public void MoveToGoToLine_DoesNotChangeDocumentSelectionHistoryOrBookmarks()
+    {
+        var session = CreateSession("first\nsecond\nthird");
+        session.InsertText("X");
+        Assert.True(session.Undo());
+        session.MoveTo(new EditorPosition(1, 2));
+        session.SetNumberedBookmark(3);
+        session.SelectRange(new EditorPosition(0, 0), new EditorPosition(1, 1));
+
+        long revision = session.Document.Revision;
+        long cleanRevision = session.Document.CleanRevision;
+        string text = session.FlattenText();
+        bool canUndo = session.UndoHistory.CanUndo;
+        bool canRedo = session.UndoHistory.CanRedo;
+
+        session.MoveTo(new EditorPosition(2, 0));
+
+        Assert.Equal(new EditorPosition(2, 0), session.Cursor);
+        Assert.Null(session.Selection);
+        Assert.Equal(text, session.FlattenText());
+        Assert.Equal(revision, session.Document.Revision);
+        Assert.Equal(cleanRevision, session.Document.CleanRevision);
+        Assert.False(session.Document.IsDirty);
+        Assert.Equal(canUndo, session.UndoHistory.CanUndo);
+        Assert.Equal(canRedo, session.UndoHistory.CanRedo);
+        Assert.Equal(new EditorPosition(1, 2), session.NumberedBookmarks[3]);
+        Assert.True(session.Redo());
+        Assert.Equal("Xfirst\nsecond\nthird", session.FlattenText());
+    }
+
+    [Fact]
+    public void MoveToGoToLine_ReadOnlyAndUnicodeWorkWithoutEditing()
+    {
+        var session = CreateSession("Ж😀\nmañana", readOnly: true);
+        long revision = session.Document.Revision;
+
+        session.MoveTo(new EditorPosition(1, 0));
+        Assert.Equal(new EditorPosition(1, 0), session.Cursor);
+        session.MoveTo(new EditorPosition(100, 0));
+        Assert.Equal(new EditorPosition(1, 0), session.Cursor);
+
+        Assert.Equal("Ж😀\nmañana", session.FlattenText());
+        Assert.Equal(revision, session.Document.Revision);
+        Assert.False(session.Document.IsDirty);
+        Assert.False(session.UndoHistory.CanUndo);
+    }
+
+    [Fact]
+    public void CommandInventory_ContainsExactAltF8GoToLineBinding()
+    {
+        Assert.Contains(EditorKeyboardCommandInventory.Commands, command =>
+            command.Key == ConsoleKey.F8 &&
+            command.Modifiers == ConsoleModifiers.Alt &&
+            command.CommandId == "go-to-line" &&
+            command.Status == EditorKeyCommandStatus.Implemented);
+        Assert.Contains(EditorCommandBindings.ForModifiers(ConsoleModifiers.Alt), binding =>
+            binding.Key == ConsoleKey.F8 &&
+            binding.Modifiers == ConsoleModifiers.Alt);
+    }
+
     private static EditorSession CreateSession(
         string text,
         AppSettings.EditorSettings? settings = null,

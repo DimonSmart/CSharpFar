@@ -67,4 +67,15 @@ The built-in editor is designed for practical terminal-based editing without lea
 
 It supports Unicode-aware cursor and selection behavior, mouse text selection, scrolling, clipboard interaction and syntax highlighting based on TextMate grammars. Its rendering and input handling use the same terminal UI infrastructure as the rest of CSharpFar, including committed frame state and partial redraw support.
 
+Use `Alt+F8` in the editor to open **Go to line**. Enter a 1-based
+line number; the cursor moves to the beginning of the requested line and the
+viewport scrolls to it. Numbers beyond the end of the document select the last
+line. Invalid numbers are rejected. `Esc` or `F10` cancels without moving
+the cursor. The command also works in read-only mode and does not edit the
+document. `F8` without modifiers still deletes a selection or the current
+line; modified `F8` never deletes text.
+
+Unlike the viewer, the editor does not use `G` for this command, since
+`G` is ordinary text input.
+
 The editor continues to evolve toward the familiar Far-style editing workflow while using modern text-layout and rendering rules internally.

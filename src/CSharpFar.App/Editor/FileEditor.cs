@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.Rendering;
@@ -507,7 +508,10 @@ internal sealed partial class FileEditor
             case ConsoleKey.F7:
                 ShowFindDialog(session);
                 return true;
-            case ConsoleKey.F8:
+            case ConsoleKey.F8 when alt && !shift && !control:
+                ShowGoToLineDialog(session);
+                return true;
+            case ConsoleKey.F8 when !alt && !shift && !control:
                 session.DeleteSelectionOrCurrentLine();
                 return true;
         }
@@ -675,6 +679,29 @@ internal sealed partial class FileEditor
         var selected = new EditorFormatDialog(_dialogs).Show(session.Document.Format);
         if (selected is not null)
             session.Document.SetFormat(selected);
+    }
+
+    private void ShowGoToLineDialog(EditorSession session)
+    {
+        int lineCount = session.Document.Buffer.LineCount;
+        string? input = _dialogs.Input(new SingleLineInputDialogOptions
+        {
+            Title = "Go to line",
+            Prompt = $"Line number (1–{lineCount}):",
+            CancelOnF10 = true,
+            Validate = text => int.TryParse(
+                text, NumberStyles.None, CultureInfo.InvariantCulture, out int lineNumber) &&
+                lineNumber > 0
+                    ? null
+                    : "Enter a positive line number.",
+        });
+        if (input is null)
+            return;
+
+        int requestedLine = int.Parse(input, NumberStyles.None, CultureInfo.InvariantCulture);
+        session.MoveTo(new EditorPosition(Math.Min(requestedLine, lineCount) - 1, 0));
+        _markMode = false;
+        _persistentSelection = false;
     }
 
     private void ShowFindDialog(EditorSession session)
