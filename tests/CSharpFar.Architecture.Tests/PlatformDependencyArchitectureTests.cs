@@ -127,7 +127,7 @@ public sealed class PlatformDependencyArchitectureTests
         };
         Assert.Equal(
             ["CSharpFar.App", "CSharpFar.Core", "CSharpFar.Platform.Windows"],
-            FindForbiddenPath(graph, "CSharpFar.App", x => x == "CSharpFar.Platform.Windows"));
+            FindForbiddenPath(graph, "CSharpFar.App", x => x == "CSharpFar.Platform.Windows") ?? []);
         Assert.True(IsForbiddenPackage("Microsoft.Diagnostics.Tracing.TraceEvent"));
         Assert.True(IsForbiddenPackage("System.Security.Cryptography.ProtectedData"));
         Assert.False(IsForbiddenPackage("Microsoft.Extensions.Logging"));
