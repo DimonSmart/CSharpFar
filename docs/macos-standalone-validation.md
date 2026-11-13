@@ -31,18 +31,20 @@ request do **not** establish that the embedded terminal behaves correctly.
 | Close with running command: confirm or cancel | Not verified | Not verified |
 | Unexpected core exit, startup failure, no orphan processes | Not verified | Not verified |
 | Cask install, update and new standalone host relaunch | Not verified | Not verified |
+| Activity Monitor reports native Apple process (no Rosetta translation) | Not verified | N/A |
 
 Automated checks run in [macOS standalone host workflow](../.github/workflows/macos-standalone-host.yml)
 and in the tagged Release workflow. The automated checks are expected to verify:
 .NET regression tests; SwiftTerm source compilation on native arm64/x64 runners;
-bundle identifier, version, host and CLI architecture; CLI binary parity;
-no-window diagnostics and shell/PTY diagnostic behavior.
+bundle identifier, version, native Mach-O app entry point, host and CLI architecture;
+CLI binary parity; checks of all bundled Mach-O components; no-window CLI diagnostics
+and shell/PTY diagnostic behavior.
 
 Useful manual smoke commands:
 
 ```bash
-/Applications/CSharpFar.app/Contents/MacOS/CSharpFar --version
-/Applications/CSharpFar.app/Contents/MacOS/CSharpFar --check-system-git
+/Applications/CSharpFar.app/Contents/Resources/csharpfar --version
+/Applications/CSharpFar.app/Contents/Resources/csharpfar --check-system-git
 /Applications/CSharpFar.app/Contents/Resources/csharpfar --check-terminal --input-lab
 open /Applications/CSharpFar.app
 open -n /Applications/CSharpFar.app

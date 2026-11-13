@@ -127,32 +127,6 @@ chmod +x $hostTarget
 Get-ChildItem -LiteralPath $hostBuildDir -Filter '*.bundle' -Directory -Recurse |
     ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $resourcesDir -Recurse -Force }
 
-$launcher = @'
-#!/bin/zsh
-set -euo pipefail
-script_dir="$(cd "$(dirname "$0")" && pwd)"
-resources_dir="$(cd "$script_dir/../Resources" && pwd)"
-binary="$resources_dir/csharpfar"
-
-# Real terminal launches and diagnostics stay CLI-only. Interactive Finder
-# launches pass all application arguments to the embedded terminal session.
-if [[ -t 0 && -t 1 ]]; then
-    exec "$binary" "$@"
-fi
-if (( $# > 0 )); then
-    case "$1" in
-        --version|--self-test|--check-system-git|--check-terminal)
-            exec "$binary" "$@"
-            ;;
-    esac
-fi
-exec "$script_dir/CSharpFarHost" "$@"
-'@
-
-$launcherPath = Join-Path $macOsDir 'CSharpFar'
-Set-Content -LiteralPath $launcherPath -Value $launcher -Encoding utf8NoBOM
-chmod +x $launcherPath
-
 Export-LargestPngFromIco -IcoPath $iconSource -PngPath $iconPngPath
 $iconSizes = @(
     @{ Name = 'icon_16x16.png'; Size = 16 },
@@ -193,7 +167,7 @@ $infoPlist = @"
     <key>CFBundleDisplayName</key>
     <string>CSharpFar</string>
     <key>CFBundleExecutable</key>
-    <string>CSharpFar</string>
+    <string>CSharpFarHost</string>
     <key>CFBundleIconFile</key>
     <string>CSharpFar</string>
     <key>CFBundleIdentifier</key>
@@ -239,9 +213,15 @@ foreach ($line in ($linkedLibraries | Select-Object -Skip 1)) {
     }
 }
 
-$versionOutput = & $launcherPath --version
+$versionOutput = & $binaryTarget --version
 if ($LASTEXITCODE -ne 0 -or $versionOutput -notmatch [regex]::Escape($Version)) {
-    throw "Application bundle launcher version check failed. Output: $versionOutput"
+    throw "Bundled CLI version check failed. Output: $versionOutput"
+}
+
+$verifyScript = Join-Path $PSScriptRoot 'verify-macos-app.sh'
+& /bin/bash $verifyScript $appDir $expectedArch
+if ($LASTEXITCODE -ne 0) {
+    throw 'macOS application architecture verification failed.'
 }
 
 Write-Output $appDir

@@ -199,8 +199,9 @@ Windows `cmd.exe` handling is unchanged.
 The macOS application contains an AppKit desktop host and the same self-contained
 `csharpfar` CLI binary as the portable release. Finder and Dock start the
 embedded terminal; a direct CLI invocation in Kitty, Terminal.app, SSH, or
-another TTY stays in that terminal. Bundle executable diagnostics such as
-`--version` and `--check-system-git` run without opening a window.
+another TTY stays in that terminal. Finder, Dock, and Spotlight launch the native `CSharpFarHost` Mach-O entry point directly;
+no shell-script launcher is included in the app. Run `--version` and
+`--check-system-git` through `Contents/Resources/csharpfar` without opening a window.
 
 Existing `application.preferredMacOsTerminal` values in `settings.json` are
 preserved but ignored by the desktop host. The obsolete preference is no longer

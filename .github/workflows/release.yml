@@ -228,7 +228,8 @@ jobs:
             exit 1
           fi
 
-          "$app/Contents/MacOS/CSharpFar" --check-system-git
+          bash ./eng/packaging/verify-macos-app.sh "$app" "$expected_arch"
+          "$bundled" --check-system-git
 
       - name: Build Debian package
         if: matrix.runtime == 'linux-x64'

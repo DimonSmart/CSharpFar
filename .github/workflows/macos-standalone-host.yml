@@ -51,5 +51,6 @@ jobs:
           test "$(/usr/bin/lipo -archs "$bundled")" = "${{ matrix.arch }}"
           /usr/bin/plutil -lint "$app/Contents/Info.plist"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "com.dimonsmart.csharpfar"
-          "$app/Contents/MacOS/CSharpFar" --version
-          "$app/Contents/MacOS/CSharpFar" --check-system-git
+          bash ./eng/packaging/verify-macos-app.sh "$app" "${{ matrix.arch }}"
+          "$bundled" --version
+          "$bundled" --check-system-git
