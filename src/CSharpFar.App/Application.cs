@@ -204,6 +204,12 @@ public sealed class Application
 
     }
 
+    internal void ConfigureExternalPlugins(ExternalPluginManager manager)
+    {
+        _commandContext.ExternalPlugins = manager;
+        manager.Complete(_pluginRuntime, _startupPluginErrors);
+    }
+
     private void BindKeyboardInputContext(KeyboardInputContext context)
     {
         context.ExecuteRegisteredCommand = ExecuteRegisteredCommand;
