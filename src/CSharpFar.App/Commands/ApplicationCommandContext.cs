@@ -9,6 +9,7 @@ using CSharpFar.App.Highlighting;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
 using CSharpFar.App.Panels;
+using CSharpFar.App.Plugins;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.App.UserMenu;
@@ -161,6 +162,8 @@ internal sealed class ApplicationCommandContext
         _updateCheckService = updateCheckService ?? throw new ArgumentNullException(nameof(updateCheckService));
         _applicationUpdateInstaller = applicationUpdateInstaller ?? UnsupportedApplicationUpdateInstaller.Instance;
     }
+
+    internal ExternalPluginManager? ExternalPlugins { get; set; }
 
     public ModalDialogHost ModalDialogs { get; }
 
