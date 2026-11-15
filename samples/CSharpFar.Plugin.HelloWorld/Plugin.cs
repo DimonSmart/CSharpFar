@@ -1,4 +1,5 @@
 using CSharpFar.Plugin.Abstractions;
+using PluginSharedDependency;
 
 namespace HelloWorld;
 
@@ -21,7 +22,7 @@ public sealed class Plugin : ICSharpFarPlugin, IAsyncDisposable
                 int count = File.Exists(valueFile) &&
                     int.TryParse(File.ReadAllText(valueFile), out int previous) ? previous : 0;
                 File.WriteAllText(valueFile, (count + 1).ToString());
-                context.Ui.ShowMessage("Hello World", $"Greetings from an external plugin. Run #{count + 1}.");
+                context.Ui.ShowMessage("Hello World", $"Greetings from an external plugin. Run #{count + 1}. Dependency {Marker.Version}.");
                 return ValueTask.FromResult(PluginCommandResult.Completed());
             },
         });
