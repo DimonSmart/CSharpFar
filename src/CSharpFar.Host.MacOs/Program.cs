@@ -19,7 +19,7 @@ try
     if (!ApplicationRunOptionsParser.TryParse(args, out var options, out string? error) || !ApplicationRunOptionsValidator.TryValidate(options, out error)) { Console.Error.WriteLine(error); return 2; }
     using var context = ApplicationStartupContext.Create(options, MacOsPlatformServices.CreateDefaultSettings, ValidateShellSettings);
     using var platform = MacOsPlatformServices.Create(context.SettingsStore.ConfigDirectory, context.SettingsStore.Settings.Shell);
-    ApplicationBootstrap.Run(platform.ConsoleDriver, platform, context.SettingsStore, options); return 0;
+    await ApplicationBootstrap.RunAsync(platform.ConsoleDriver, platform, context.SettingsStore, options); return 0;
 }
 catch (Exception ex) { string? report = ApplicationCrashReport.Write(ex); Console.Error.WriteLine(report is null ? ex.ToString() : $"CSharpFar stopped because of an unexpected error. Details were saved to: {report}"); return 1; }
 

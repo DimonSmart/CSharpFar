@@ -58,7 +58,7 @@ try
 
     try
     {
-        ApplicationBootstrap.Run(platform.ConsoleDriver, platform, settingsStore, runOptions);
+        await ApplicationBootstrap.RunAsync(platform.ConsoleDriver, platform, settingsStore, runOptions);
         return 0;
     }
     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
