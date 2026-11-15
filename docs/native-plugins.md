@@ -163,9 +163,10 @@ manager, hot reload, unload or out-of-process execution is provided.
 
 Pass explicit `(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)` entries in
 `additionalPlugins` to `ApplicationFactory.CreateAsync(..., cancellationToken: token)`.
-The factory composes built-ins (SFTP, FTP/FTPS, Processes and Ports) before supplied
-plugins, in enumeration order. The sequence is enumerated once per attempt.
-There is no automatic discovery or DLL loader.
+The factory composes built-ins (SFTP, FTP/FTPS, Processes and Ports,
+Network Traffic, Archives) before supplied plugins, in enumeration order.
+The sequence is enumerated once per attempt. Normal application startup separately
+discovers user-installed extensions and passes them through this same factory.
 
 Use `Create` only if every `InitializeAsync` completes synchronously. An unfinished
 initializer makes `Create` throw immediately and aborts host-side publication.
