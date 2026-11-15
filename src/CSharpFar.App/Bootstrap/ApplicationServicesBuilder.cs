@@ -143,7 +143,8 @@ internal static class ApplicationServicesBuilder
         IApplicationUpdateInstaller? applicationUpdateInstaller = null,
         IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>? additionalPlugins = null,
         Func<INetworkTrafficMonitor>? networkTrafficMonitorFactory = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyList<string>? initialPluginErrors = null)
     {
         return Prepare(
             screen,
@@ -177,7 +178,8 @@ internal static class ApplicationServicesBuilder
             uriLauncher,
             applicationUpdateInstaller,
             additionalPlugins,
-            networkTrafficMonitorFactory).BuildAsynchronously(cancellationToken);
+            networkTrafficMonitorFactory,
+            initialPluginErrors).BuildAsynchronously(cancellationToken);
     }
 
     private static PreparedApplicationServices Prepare(
@@ -212,7 +214,8 @@ internal static class ApplicationServicesBuilder
         IUriLauncher? uriLauncher = null,
         IApplicationUpdateInstaller? applicationUpdateInstaller = null,
         IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>? additionalPlugins = null,
-        Func<INetworkTrafficMonitor>? networkTrafficMonitorFactory = null)
+        Func<INetworkTrafficMonitor>? networkTrafficMonitorFactory = null,
+        IReadOnlyList<string>? initialPluginErrors = null)
     {
         var effectiveRunOptions = runOptions ?? ApplicationRunOptions.Normal;
         IDiagnosticLog diagnosticLog = effectiveRunOptions.DiagnosticsEnabled
@@ -610,6 +613,16 @@ internal static class ApplicationServicesBuilder
         // The final assembly closes over shared services, so both factories reuse
         // exactly the same preparation and finalization pipeline.
         var pluginFailures = new List<string>();
+        if (initialPluginErrors is not null)
+        {
+            foreach (string error in initialPluginErrors)
+            {
+                string message = DiagnosticSanitizer.SanitizeText(error);
+                pluginFailures.Add(message);
+                if (diagnosticLog.IsEnabled)
+                    diagnosticLog.Write(DiagnosticCategory.Plugin, message);
+            }
+        }
         ApplicationServices Finish()
         {
             var moduleCatalog = new NativeModuleCatalog(pluginRuntime);

@@ -6,6 +6,13 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <PackageId>CSharpFar.Plugin.Abstractions</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>DimonSmart</Authors>
+    <Description>Public contracts for native CSharpFar plugins.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/DimonSmart/CSharpFar</RepositoryUrl>
+    <PackageTags>CSharpFar;plugins;SDK</PackageTags>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>

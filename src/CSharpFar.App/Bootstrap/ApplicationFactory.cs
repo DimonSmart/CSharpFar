@@ -116,7 +116,8 @@ public static class ApplicationFactory
         PlatformKind? platform = null,
         IEnumerable<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>? additionalPlugins = null,
         Func<INetworkTrafficMonitor>? networkTrafficMonitorFactory = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyList<string>? initialPluginErrors = null)
     {
         var services = await ApplicationServicesBuilder.CreateAsync(
             screen,
@@ -149,7 +150,8 @@ public static class ApplicationFactory
             fileUsage,
             additionalPlugins: additionalPlugins,
             networkTrafficMonitorFactory: networkTrafficMonitorFactory,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+            cancellationToken: cancellationToken,
+            initialPluginErrors: initialPluginErrors).ConfigureAwait(false);
         services.CommandContext.UserMenu.RuntimePlatform = platform ?? DetectCurrentPlatform();
         return new Application(services);
     }

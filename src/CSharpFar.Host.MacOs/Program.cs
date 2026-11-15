@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using CSharpFar.Shell;
 using CSharpFar.App.Updates;
 using CSharpFar.App.Bootstrap;
+using CSharpFar.App.Plugins;
 using CSharpFar.App.Diagnostics;
 using CSharpFar.App.Settings;
 using CSharpFar.Console.Ansi;
@@ -11,6 +12,9 @@ using CSharpFar.Platform.MacOs;
 try
 {
     if (args is ["--version"]) { PrintVersion(); return 0; }
+    if (args is ["--self-test-extensions", var extensionConfig])
+        return await ExternalPluginPackageSmokeTest.VerifyAsync(extensionConfig);
+
     if (args is ["--self-test"]) { using var startup = ApplicationStartupContext.Create(ApplicationRunOptions.Normal, MacOsPlatformServices.CreateDefaultSettings, ValidateShellSettings); return RunSelfTest(startup.SettingsStore); }
     if (args is ["--check-system-git"]) return RunSystemGitCheck();
     if (args is ["--check-terminal"]) return RunTerminalCheck();
@@ -19,7 +23,7 @@ try
     if (!ApplicationRunOptionsParser.TryParse(args, out var options, out string? error) || !ApplicationRunOptionsValidator.TryValidate(options, out error)) { Console.Error.WriteLine(error); return 2; }
     using var context = ApplicationStartupContext.Create(options, MacOsPlatformServices.CreateDefaultSettings, ValidateShellSettings);
     using var platform = MacOsPlatformServices.Create(context.SettingsStore.ConfigDirectory, context.SettingsStore.Settings.Shell);
-    ApplicationBootstrap.Run(platform.ConsoleDriver, platform, context.SettingsStore, options); return 0;
+    await ApplicationBootstrap.RunAsync(platform.ConsoleDriver, platform, context.SettingsStore, options); return 0;
 }
 catch (Exception ex) { string? report = ApplicationCrashReport.Write(ex); Console.Error.WriteLine(report is null ? ex.ToString() : $"CSharpFar stopped because of an unexpected error. Details were saved to: {report}"); return 1; }
 

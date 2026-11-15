@@ -1,5 +1,6 @@
 using CSharpFar.App.Updates;
 using CSharpFar.App.Bootstrap;
+using CSharpFar.App.Plugins;
 using CSharpFar.App.Diagnostics;
 using CSharpFar.App.Settings;
 using CSharpFar.Console.Ansi;
@@ -18,6 +19,9 @@ try
         PrintVersion();
         return 0;
     }
+
+    if (args is ["--self-test-extensions", var extensionConfig])
+        return await ExternalPluginPackageSmokeTest.VerifyAsync(extensionConfig);
 
     if (args is ["--self-test"])
     {
@@ -58,7 +62,7 @@ try
 
     try
     {
-        ApplicationBootstrap.Run(platform.ConsoleDriver, platform, settingsStore, runOptions);
+        await ApplicationBootstrap.RunAsync(platform.ConsoleDriver, platform, settingsStore, runOptions);
         return 0;
     }
     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)

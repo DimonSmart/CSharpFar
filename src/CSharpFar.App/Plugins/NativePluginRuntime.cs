@@ -18,7 +18,7 @@ internal sealed class NativePluginRuntime
     private readonly Action<Exception>? _reportCleanupError;
     private readonly Action<PluginDescriptor, Exception>? _reportInitializationError;
     private readonly string _demoRoot = Path.Combine(Path.GetTempPath(), "CSharpFar-Demo-Plugins", Guid.NewGuid().ToString("N"));
-    private readonly Dictionary<string, Registration> _plugins = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Registration> _plugins = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, PluginCommandAddress> _prefixes = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<PluginMenuRegistration> _menus = [];
     private readonly object _stateGate = new();
@@ -58,9 +58,15 @@ internal sealed class NativePluginRuntime
             if (string.IsNullOrWhiteSpace(descriptor.Id) ||
                 !descriptor.Id.All(ch => char.IsAsciiLetterOrDigit(ch) || ch is '-' or '_' or '.') ||
                 descriptor.Id is "." or ".." || string.IsNullOrWhiteSpace(descriptor.Title))
+            {
+                await DisposeRejectedPluginAsync(plugin);
                 return new(false, "Plugin ID must be a safe single path component and title must not be empty.");
+            }
             if (_plugins.ContainsKey(descriptor.Id))
-                return new(false, $"Plugin '{descriptor.Id}' is already registered.");
+            {
+                await DisposeRejectedPluginAsync(plugin);
+                return new(false, $"Plugin '{descriptor.Id}' is already registered (case-insensitive).");
+            }
 
             return await RegisterCoreAsync(descriptor, plugin, cancellationToken);
         }
@@ -73,7 +79,7 @@ internal sealed class NativePluginRuntime
     private async ValueTask<PluginInitializationResult> RegisterCoreAsync(
         PluginDescriptor descriptor, ICSharpFarPlugin plugin, CancellationToken cancellationToken)
     {
-        var stage = new Registration(descriptor);
+        var stage = new Registration(descriptor, plugin);
         try
         {
             var settings = new ScopedSettings(
@@ -183,6 +189,18 @@ internal sealed class NativePluginRuntime
             catch (IOException error) { ReportCleanupError(error); }
             catch (UnauthorizedAccessException error) { ReportCleanupError(error); }
         }
+    }
+
+    private async ValueTask DisposeRejectedPluginAsync(ICSharpFarPlugin plugin)
+    {
+        try
+        {
+            if (plugin is IAsyncDisposable asyncDisposable)
+                await asyncDisposable.DisposeAsync();
+            else if (plugin is IDisposable disposable)
+                disposable.Dispose();
+        }
+        catch (Exception error) { ReportCleanupError(error); }
     }
 
     private void ReportCleanupError(Exception error)
@@ -334,9 +352,10 @@ internal sealed class NativePluginRuntime
         if (_sealed || _aborted) throw new InvalidOperationException("Plugin initialization is closed.");
     }
 
-    private sealed class Registration(PluginDescriptor descriptor)
+    private sealed class Registration(PluginDescriptor descriptor, ICSharpFarPlugin plugin)
     {
         public PluginDescriptor Descriptor { get; } = descriptor;
+        public ICSharpFarPlugin Plugin { get; } = plugin;
         public Dictionary<string, PluginCommandDescriptor> Commands { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, IPanelProvider> Providers { get; } = new(StringComparer.Ordinal);
         public List<IFileOpenHandler> OpenHandlers { get; } = [];
@@ -384,6 +403,14 @@ internal sealed class NativePluginRuntime
             }
             Providers.Clear();
             OpenHandlers.Clear();
+            try
+            {
+                if (Plugin is IAsyncDisposable asyncDisposable)
+                    await asyncDisposable.DisposeAsync();
+                else if (Plugin is IDisposable disposable)
+                    disposable.Dispose();
+            }
+            catch (Exception error) { (failures ??= []).Add(error); }
             if (failures is not null)
                 throw new AggregateException("Plugin provider cleanup failed.", failures);
         }
