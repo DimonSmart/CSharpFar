@@ -10,7 +10,7 @@ public static class ExternalPluginPackageSmokeTest
     {
         var discovery = ExternalPluginLoader.Discover(configDirectory);
         foreach (string error in discovery.Errors)
-            Console.Error.WriteLine(error);
+            System.Console.Error.WriteLine(error);
         if (discovery.Errors.Count != 0 || discovery.Plugins.Count != 2)
             return 1;
 
@@ -29,7 +29,7 @@ public static class ExternalPluginPackageSmokeTest
                 var result = await runtime.RegisterAsync(descriptor, plugin);
                 if (!result.Success)
                 {
-                    Console.Error.WriteLine(result.Error);
+                    System.Console.Error.WriteLine(result.Error);
                     success = false;
                 }
             }
@@ -47,7 +47,7 @@ public static class ExternalPluginPackageSmokeTest
                         address, PluginCommandOrigin.CommandLine, PanelSide.Left);
                     if (result.Kind != PluginCommandResultKind.Completed)
                     {
-                        Console.Error.WriteLine($"Extension command '{prefix}': {result.Error}");
+                        System.Console.Error.WriteLine($"Extension command '{prefix}': {result.Error}");
                         success = false;
                     }
                 }
@@ -62,7 +62,7 @@ public static class ExternalPluginPackageSmokeTest
             ui.Messages.Any(message => message.Contains("1.0.0", StringComparison.Ordinal)) &&
             ui.Messages.Any(message => message.Contains("2.0.0", StringComparison.Ordinal)) &&
             File.Exists(Path.Combine(configDirectory, "plugins", "hello-world", "disposed.marker"));
-        Console.WriteLine(verified
+        System.Console.WriteLine(verified
             ? "External plugin self-test passed: two DLLs, isolated versions, commands and disposal."
             : "External plugin self-test failed.");
         return verified ? 0 : 1;
