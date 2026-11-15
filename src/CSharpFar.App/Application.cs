@@ -3,6 +3,7 @@ using CSharpFar.App.Bootstrap;
 using CSharpFar.App.CommandLine;
 using CSharpFar.App.Commands;
 using CSharpFar.App.Dialogs;
+using CSharpFar.App.Diagnostics;
 using CSharpFar.App.Editor;
 using CSharpFar.App.Files;
 using CSharpFar.App.FunctionKeys;
@@ -208,6 +209,13 @@ public sealed class Application
     {
         _commandContext.ExternalPlugins = manager;
         manager.Complete(_pluginRuntime, _startupPluginErrors);
+        if (_commandContext.DiagnosticLog.IsEnabled)
+        {
+            foreach (var entry in manager.Entries.Where(item => item.DiagnosticDetails is not null))
+                _commandContext.DiagnosticLog.Write(
+                    DiagnosticCategory.Plugin,
+                    $"Extension '{entry.FolderName}' [{entry.FailureStage}]: {entry.DiagnosticDetails}");
+        }
     }
 
     private void BindKeyboardInputContext(KeyboardInputContext context)
