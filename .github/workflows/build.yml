@@ -62,9 +62,26 @@ jobs:
         shell: pwsh
         run: ./eng/testing/download-archive-fixtures.ps1
 
+      - name: Build independent external plugin binaries
+        shell: pwsh
+        run: |
+          ./eng/pack-plugin-sdk.ps1
+          foreach ($plugin in @('HelloWorld', 'GoodbyeWorld')) {
+            $project = "samples/CSharpFar.Plugin.$plugin/CSharpFar.Plugin.$plugin.csproj"
+            $feed = Join-Path $PWD "artifacts/plugin-sdk"
+            dotnet restore $project --source $feed --source https://api.nuget.org/v3/index.json
+            if ($LASTEXITCODE -ne 0) { throw "External sample restore failed: $plugin" }
+            $output = "artifacts/external-$($plugin.ToLowerInvariant().Replace('world', ''))"
+            dotnet publish $project -c Release --no-restore -o $output
+            if ($LASTEXITCODE -ne 0) { throw "External sample publish failed: $plugin" }
+            Copy-Item "samples/CSharpFar.Plugin.$plugin/plugin.json" $output
+          }
+
       - name: Test
         env:
           CSHARPFAR_ARCHIVE_FIXTURES: ${{ github.workspace }}/tests/archive-fixtures
+          CSHARPFAR_EXTERNAL_HELLO: ${{ github.workspace }}/artifacts/external-hello
+          CSHARPFAR_EXTERNAL_GOODBYE: ${{ github.workspace }}/artifacts/external-goodbye
         run: dotnet test CSharpFar.slnx --configuration Release --no-build --verbosity minimal
 
       - name: Verify Unix child interruption and panel restoration
