@@ -11,6 +11,7 @@ public sealed class ListDialogOptions<T, TResult>
     public string DefaultItemActionId { get; init; } = "default";
     public string CancelActionId { get; init; } = "cancel";
     public string? DeleteActionId { get; init; }
+    public string? DetailsActionId { get; init; }
     public string EmptyText { get; init; } = string.Empty;
     public int DialogWidth { get; init; } = 68;
     public int MinDialogWidth { get; init; } = 40;
@@ -70,6 +71,7 @@ internal sealed class ListDialog<T, TResult>
             DefaultListActionId = options.DefaultItemActionId,
             CancelActionId = options.CancelActionId,
             DeleteActionId = options.DeleteActionId,
+            DetailsActionId = options.DetailsActionId,
         };
 
         return dialog.Show(_modalDialogs, action =>
