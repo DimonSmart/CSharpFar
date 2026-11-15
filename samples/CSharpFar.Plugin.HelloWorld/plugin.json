@@ -1,0 +1,8 @@
+{
+  "id": "hello-world",
+  "name": "Hello World",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "assembly": "HelloWorld.dll",
+  "entryType": "HelloWorld.Plugin"
+}
