@@ -77,6 +77,21 @@ jobs:
             Copy-Item "samples/CSharpFar.Plugin.$plugin/plugin.json" $output
           }
 
+      - name: Verify self-contained single-file external plugin loading
+        shell: pwsh
+        run: |
+          $platform = switch ($env:RUNNER_OS) {
+            'Windows' { 'Windows' }
+            'Linux' { 'Linux' }
+            'macOS' { 'MacOs' }
+          }
+          $rid = switch ($env:RUNNER_OS) {
+            'Windows' { 'win-x64' }
+            'Linux' { 'linux-x64' }
+            'macOS' { if ($env:RUNNER_ARCH -eq 'ARM64') { 'osx-arm64' } else { 'osx-x64' } }
+          }
+          ./eng/testing/verify-external-plugins-published.ps1 -Project "src/CSharpFar.Host.$platform/CSharpFar.Host.$platform.csproj" -RuntimeIdentifier $rid
+
       - name: Test
         env:
           CSHARPFAR_ARCHIVE_FIXTURES: ${{ github.workspace }}/tests/archive-fixtures
