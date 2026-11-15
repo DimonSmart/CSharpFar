@@ -132,7 +132,7 @@ internal sealed class ExternalPluginManager
         var registered = runtime?.RegisteredDescriptors ?? [];
         foreach (ExternalPluginEntry entry in _entries)
         {
-            if (entry.Descriptor is null || entry.Status == ExternalPluginStatus.Disabled)
+            if (entry.Descriptor is null)
                 continue;
 
             if (registered.Any(descriptor => ReferenceEquals(descriptor, entry.Descriptor)))
