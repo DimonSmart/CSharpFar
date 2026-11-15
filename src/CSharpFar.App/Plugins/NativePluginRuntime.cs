@@ -43,6 +43,10 @@ internal sealed class NativePluginRuntime
     }
 
     public IReadOnlyList<PluginMenuRegistration> MenuItems => _menus.ToArray();
+
+    // Read-only composition result; this does not duplicate live command registration.
+    internal IReadOnlyList<PluginDescriptor> RegisteredDescriptors =>
+        _plugins.Values.Select(registration => registration.Descriptor).ToArray();
     public IReadOnlyCollection<string> CommandPrefixes => _prefixes.Keys.ToArray();
 
     public async ValueTask<PluginInitializationResult> RegisterAsync(

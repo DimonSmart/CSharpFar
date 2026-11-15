@@ -12,6 +12,7 @@ public static class ApplicationRunOptionsParser
         ApplicationRunMode mode = ApplicationRunMode.Normal;
         string? demoRootPath = null;
         bool diagnosticsEnabled = false;
+        bool noExtensions = false;
 
         for (int index = 0; index < args.Count; index++)
         {
@@ -23,6 +24,14 @@ public static class ApplicationRunOptionsParser
                     return FailUnknown(out options, out error);
 
                 diagnosticsEnabled = true;
+                continue;
+            }
+
+            if (string.Equals(argument, "--no-extensions", StringComparison.Ordinal))
+            {
+                if (noExtensions)
+                    return FailUnknown(out options, out error);
+                noExtensions = true;
                 continue;
             }
 
@@ -48,7 +57,7 @@ public static class ApplicationRunOptionsParser
             return FailUnknown(out options, out error);
         }
 
-        options = new ApplicationRunOptions(mode, demoRootPath, diagnosticsEnabled);
+        options = new ApplicationRunOptions(mode, demoRootPath, diagnosticsEnabled, noExtensions);
         error = null;
         return true;
     }

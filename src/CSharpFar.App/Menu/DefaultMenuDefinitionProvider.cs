@@ -161,6 +161,8 @@ public sealed class DefaultMenuDefinitionProvider
                 MenuCommandIds.SettingsOpenPanelSettings),
             Command("Options.directoryShortcuts", "Directory shortcuts...", 'T',
                 MenuCommandIds.SettingsOpenDirectoryShortcuts),
+            Command("Options.plugins", "Plugins...", 'P',
+                MenuCommandIds.SettingsOpenPlugins),
             Command("Options.userMenu", "User menu...", 'N',
                 MenuCommandIds.SettingsOpenUserMenu),
             Command("Options.localUserMenu", "Local user menu...", 'L',

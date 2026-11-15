@@ -59,6 +59,8 @@ internal sealed class ListWithButtonsDialog<T>
 
     public string? DeleteActionId { get; set; }
 
+    public string? DetailsActionId { get; set; }
+
     public int SelectedIndex
     {
         get => _list.SelectedIndex;
@@ -146,6 +148,8 @@ internal sealed class ListWithButtonsDialog<T>
             return CreateResult(DefaultListActionId);
         if (semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Delete } && DeleteActionId is not null && _list.HasItems)
             return CreateResult(DeleteActionId);
+        if (semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F4 } && DetailsActionId is not null && _list.HasItems)
+            return CreateResult(DetailsActionId);
         return null;
     }
 
@@ -190,7 +194,8 @@ internal sealed class ListWithButtonsDialog<T>
         ListWithButtonsFrame frame,
         UiInputRouteContext route)
     {
-        if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Delete } && DeleteActionId is not null && _list.HasItems)
+        if ((input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Delete } && DeleteActionId is not null && _list.HasItems) ||
+            (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F4 } && DetailsActionId is not null && _list.HasItems))
         {
             return (
                 new ListWithButtonsInput(input, FormInputResult.NotHandled, ScrollableListInputResult.Handled),

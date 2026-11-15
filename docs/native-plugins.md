@@ -209,3 +209,19 @@ its staged `IFileOperationBatch` view and commits once. Existing FTP, SFTP,
 and local providers do not have to change. See
 [archive infrastructure](archive-provider-infrastructure.md) for the
 contracts, ownership and remaining limitations.
+
+## Managing installed extensions
+
+Use **Options → Plugins…** to view external packages (including broken
+manifests), see installation paths and errors, and enable or disable by folder.
+**Enter** toggles, **F4** shows details, and **Esc** closes. Changes are saved
+immediately in `<config>/extensions-state.json` but take effect only after
+restarting CSharpFar. A plugin already loaded into the current process remains
+active until restart. Built-in plugins are not affected.
+
+If an installed extension prevents normal startup, launch
+`csharpfar --no-extensions`. This skips all external DLLs for that session
+without changing your saved choices, so you can open Options → Plugins… and
+disable the broken package before restarting normally. The `disabled` array
+stores **installation folder names**, regardless of manifest IDs or whether a
+folder currently exists.

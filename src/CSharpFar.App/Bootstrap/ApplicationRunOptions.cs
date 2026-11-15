@@ -9,7 +9,8 @@ public enum ApplicationRunMode
 public sealed record ApplicationRunOptions(
     ApplicationRunMode Mode,
     string? DemoRootPath = null,
-    bool DiagnosticsEnabled = false)
+    bool DiagnosticsEnabled = false,
+    bool NoExtensions = false)
 {
     public static ApplicationRunOptions Normal { get; } = new(ApplicationRunMode.Normal);
 }

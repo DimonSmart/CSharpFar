@@ -122,6 +122,133 @@ public sealed class ExternalPluginDllTests : IDisposable
         finally { await runtime.DisposeAsync(); }
     }
 
+
+    [Fact]
+    public async Task DisabledExtension_DoesNotExecuteAndCanBeReenabledWithoutLosingSettings()
+    {
+        if (!SamplesAvailable()) return;
+
+        Install("a-hello", "hello", "hello-world", "HelloWorld", "HelloWorld.Plugin");
+        Install("b-goodbye", "goodbye", "goodbye-world", "GoodbyeWorld", "GoodbyeWorld.Plugin");
+
+        var manager = ExternalPluginLoader.Discover(_root, noExtensions: true).Manager;
+        var hello = Assert.Single(manager.Entries, item => item.FolderName == "a-hello");
+        Assert.True(manager.TrySetEnabled(hello, enabled: false, out _));
+        Assert.True(hello.RequiresRestart);
+
+        var disabled = ExternalPluginLoader.Discover(_root);
+        Assert.Empty(disabled.Errors);
+        Assert.Single(disabled.Plugins);
+        Assert.Equal("goodbye-world", disabled.Plugins[0].Descriptor.Id);
+        Assert.Equal(ExternalPluginStatus.Disabled,
+            Assert.Single(disabled.Manager.Entries, item => item.FolderName == "a-hello").Status);
+
+        var runtime = CreateRuntime(new RecordingUi());
+        try
+        {
+            foreach (var (descriptor, plugin) in disabled.Plugins)
+                Assert.True((await runtime.RegisterAsync(descriptor, plugin)).Success);
+            disabled.Manager.Complete(runtime, []);
+            Assert.False(runtime.TryResolvePrefix("hello", out _, out _));
+            Assert.True(runtime.TryResolvePrefix("goodbye", out _, out _));
+            Assert.Equal(ExternalPluginStatus.Loaded,
+                Assert.Single(disabled.Manager.Entries, item => item.FolderName == "b-goodbye").Status);
+        }
+        finally { await runtime.DisposeAsync(); }
+        Assert.False(File.Exists(Path.Combine(_root, "plugins", "hello-world", "counter.txt")));
+
+        string preserved = Path.Combine(_root, "plugins", "hello-world", "saved.txt");
+        Directory.CreateDirectory(Path.GetDirectoryName(preserved)!);
+        File.WriteAllText(preserved, "keep me");
+        Assert.True(disabled.Manager.TrySetEnabled(
+            Assert.Single(disabled.Manager.Entries, item => item.FolderName == "a-hello"),
+            enabled: true, out _));
+
+        var enabled = ExternalPluginLoader.Discover(_root);
+        Assert.Equal(2, enabled.Plugins.Count);
+        var restored = CreateRuntime(new RecordingUi());
+        try
+        {
+            foreach (var (descriptor, plugin) in enabled.Plugins)
+                Assert.True((await restored.RegisterAsync(descriptor, plugin)).Success);
+            Assert.True(restored.TryResolvePrefix("hello", out _, out _));
+        }
+        finally { await restored.DisposeAsync(); }
+        Assert.Equal("keep me", File.ReadAllText(preserved));
+    }
+
+    [Fact]
+    public void BrokenManifest_CanBeDisabledByFolderName()
+    {
+        string folder = Path.Combine(_root, "extensions", "broken");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "plugin.json"), "{invalid json");
+
+        var discovery = ExternalPluginLoader.Discover(_root);
+        Assert.Single(discovery.Errors);
+        var broken = Assert.Single(discovery.Manager.Entries);
+        Assert.Equal(ExternalPluginStatus.Error, broken.Status);
+        Assert.Equal("manifest", broken.FailureStage);
+        Assert.Null(broken.Id);
+        Assert.True(discovery.Manager.TrySetEnabled(broken, false, out _));
+
+        var afterRestart = ExternalPluginLoader.Discover(_root);
+        Assert.Empty(afterRestart.Errors);
+        Assert.Empty(afterRestart.Plugins);
+        Assert.Equal(ExternalPluginStatus.Disabled, Assert.Single(afterRestart.Manager.Entries).Status);
+        Assert.Contains("broken", File.ReadAllText(Path.Combine(_root, "extensions-state.json")));
+    }
+
+    [Fact]
+    public void NoExtensions_SkipsDllLoadingWithoutChangingConfiguration()
+    {
+        if (!SamplesAvailable()) return;
+        Install("hello", "hello", "hello-world", "HelloWorld", "HelloWorld.Plugin");
+        var normal = ExternalPluginLoader.Discover(_root);
+        Assert.Single(normal.Plugins);
+
+        var safe = ExternalPluginLoader.Discover(_root, noExtensions: true);
+        Assert.Empty(safe.Plugins);
+        Assert.Empty(safe.Errors);
+        Assert.Single(safe.Manager.Entries);
+        Assert.True(safe.Manager.Entries[0].Enabled);
+        Assert.Equal(ExternalPluginStatus.Disabled, safe.Manager.Entries[0].Status);
+        Assert.False(File.Exists(Path.Combine(_root, "extensions-state.json")));
+    }
+
+    [Fact]
+    public void FailedStateWrite_DoesNotPretendToApplyChange()
+    {
+        string folder = Path.Combine(_root, "extensions", "broken");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "plugin.json"), "{");
+        var discovery = ExternalPluginLoader.Discover(_root);
+        var item = Assert.Single(discovery.Manager.Entries);
+        Directory.CreateDirectory(Path.Combine(_root, "extensions-state.json"));
+
+        Assert.False(discovery.Manager.TrySetEnabled(item, false, out string? error));
+        Assert.False(string.IsNullOrWhiteSpace(error));
+        Assert.True(item.Enabled);
+        Assert.False(item.RequiresRestart);
+    }
+
+    [Fact]
+    public void DisabledFolderState_IsCaseInsensitiveAndPreservedWhenFolderIsMissing()
+    {
+        File.WriteAllText(Path.Combine(_root, "extensions-state.json"),
+            "{\"disabled\":[\"HELLO\",\"temporarily-absent\"]}");
+        string folder = Path.Combine(_root, "extensions", "hello");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "plugin.json"), "{");
+        var discovery = ExternalPluginLoader.Discover(_root);
+        Assert.Empty(discovery.Errors);
+        Assert.Equal(ExternalPluginStatus.Disabled, Assert.Single(discovery.Manager.Entries).Status);
+        Assert.True(discovery.Manager.TrySetEnabled(discovery.Manager.Entries[0], true, out _));
+        string state = File.ReadAllText(Path.Combine(_root, "extensions-state.json"));
+        Assert.DoesNotContain("HELLO", state, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("temporarily-absent", state);
+    }
+
     private NativePluginRuntime CreateRuntime(RecordingUi ui) => new(
         new ApplicationContext(),
         _ => new Settings(_root),

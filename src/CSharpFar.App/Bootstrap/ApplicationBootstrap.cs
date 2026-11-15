@@ -76,7 +76,7 @@ public static class ApplicationBootstrap
 
         try
         {
-        var discovery = ExternalPluginLoader.Discover(settingsStore.ConfigDirectory);
+        var discovery = ExternalPluginLoader.Discover(settingsStore.ConfigDirectory, runOptions.NoExtensions);
         var application = await ApplicationFactory.CreateAsync(
             renderer,
             fs,
@@ -106,6 +106,7 @@ public static class ApplicationBootstrap
             initialPluginErrors: discovery.Errors,
             cancellationToken: cancellationToken).ConfigureAwait(false);
 
+            application.ConfigureExternalPlugins(discovery.Manager);
             application.Run();
 
             if (CaptureLastPanelDirectories(

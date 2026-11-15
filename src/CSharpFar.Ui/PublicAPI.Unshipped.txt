@@ -783,6 +783,8 @@ CSharpFar.Ui.ListDialogOptions<T, TResult>.DefaultItemActionId.get -> string!
 CSharpFar.Ui.ListDialogOptions<T, TResult>.DefaultItemActionId.init -> void
 CSharpFar.Ui.ListDialogOptions<T, TResult>.DeleteActionId.get -> string?
 CSharpFar.Ui.ListDialogOptions<T, TResult>.DeleteActionId.init -> void
+CSharpFar.Ui.ListDialogOptions<T, TResult>.DetailsActionId.get -> string?
+CSharpFar.Ui.ListDialogOptions<T, TResult>.DetailsActionId.init -> void
 CSharpFar.Ui.ListDialogOptions<T, TResult>.DialogWidth.get -> int
 CSharpFar.Ui.ListDialogOptions<T, TResult>.DialogWidth.init -> void
 CSharpFar.Ui.ListDialogOptions<T, TResult>.EmptyText.get -> string!
