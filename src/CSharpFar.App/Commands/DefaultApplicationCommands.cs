@@ -49,6 +49,7 @@ internal static class DefaultApplicationCommands
         new PrintTerminalDiagnosticsCommand(),
         new OpenSettingsCommand(),
         new OpenDirectoryShortcutEditorCommand(),
+        new OpenPluginsCommand(),
         new OpenUserMenuEditorCommand(),
         new OpenUserMenuEditorCommand(local: true),
         new NavigateToDirectoryShortcutCommand(),
