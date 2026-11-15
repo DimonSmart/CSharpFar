@@ -96,9 +96,16 @@ internal sealed class ExternalPluginManager
             }
 
             // Even malformed manifests must be manageable by folder name.
-            if (!entry.Enabled || _noExtensions || _stateUnavailable)
+            if (!entry.Enabled)
             {
                 entry.Status = ExternalPluginStatus.Disabled;
+                continue;
+            }
+
+            if (_noExtensions || _stateUnavailable)
+            {
+                if (entry.Error is null)
+                    entry.Status = ExternalPluginStatus.Disabled;
                 continue;
             }
 
