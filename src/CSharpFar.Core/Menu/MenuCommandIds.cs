@@ -13,6 +13,7 @@ public static class MenuCommandIds
 
     public const string SettingsOpenPanelSettings = "settings.openPanelSettings";
     public const string SettingsOpenDirectoryShortcuts = "settings.openDirectoryShortcuts";
+    public const string SettingsOpenPlugins = "settings.openPlugins";
     public const string SettingsOpenUserMenu = "settings.openUserMenu";
     public const string SettingsOpenLocalUserMenu = "settings.openLocalUserMenu";
     public const string SettingsToggleShowHiddenAndSystemFiles = "settings.toggleShowHiddenAndSystemFiles";
