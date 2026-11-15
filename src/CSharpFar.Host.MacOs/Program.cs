@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using CSharpFar.Shell;
 using CSharpFar.App.Updates;
 using CSharpFar.App.Bootstrap;
+using CSharpFar.App.Plugins;
 using CSharpFar.App.Diagnostics;
 using CSharpFar.App.Settings;
 using CSharpFar.Console.Ansi;
@@ -11,6 +12,9 @@ using CSharpFar.Platform.MacOs;
 try
 {
     if (args is ["--version"]) { PrintVersion(); return 0; }
+    if (args is ["--self-test-extensions", var extensionConfig])
+        return await ExternalPluginPackageSmokeTest.VerifyAsync(extensionConfig);
+
     if (args is ["--self-test"]) { using var startup = ApplicationStartupContext.Create(ApplicationRunOptions.Normal, MacOsPlatformServices.CreateDefaultSettings, ValidateShellSettings); return RunSelfTest(startup.SettingsStore); }
     if (args is ["--check-system-git"]) return RunSystemGitCheck();
     if (args is ["--check-terminal"]) return RunTerminalCheck();
