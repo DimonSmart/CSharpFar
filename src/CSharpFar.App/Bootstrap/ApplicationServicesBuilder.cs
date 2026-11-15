@@ -612,7 +612,17 @@ internal static class ApplicationServicesBuilder
 
         // The final assembly closes over shared services, so both factories reuse
         // exactly the same preparation and finalization pipeline.
-        var pluginFailures = new List<string>(initialPluginErrors ?? []);
+        var pluginFailures = new List<string>();
+        if (initialPluginErrors is not null)
+        {
+            foreach (string error in initialPluginErrors)
+            {
+                string message = DiagnosticSanitizer.SanitizeText(error);
+                pluginFailures.Add(message);
+                if (diagnosticLog.IsEnabled)
+                    diagnosticLog.Write(DiagnosticCategory.Plugin, message);
+            }
+        }
         ApplicationServices Finish()
         {
             var moduleCatalog = new NativeModuleCatalog(pluginRuntime);
