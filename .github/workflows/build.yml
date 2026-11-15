@@ -69,7 +69,7 @@ jobs:
           foreach ($plugin in @('HelloWorld', 'GoodbyeWorld')) {
             $project = "samples/CSharpFar.Plugin.$plugin/CSharpFar.Plugin.$plugin.csproj"
             $feed = Join-Path $PWD "artifacts/plugin-sdk"
-            dotnet restore $project --source $feed --source https://api.nuget.org/v3/index.json
+            dotnet restore $project --source $feed
             if ($LASTEXITCODE -ne 0) { throw "External sample restore failed: $plugin" }
             $output = "artifacts/external-$($plugin.ToLowerInvariant().Replace('world', ''))"
             dotnet publish $project -c Release --no-restore -o $output
