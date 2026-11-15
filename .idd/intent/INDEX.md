@@ -59,7 +59,7 @@ is non-normative engineering history.
 | IDD-0056 | spec | Built-in cd panel navigation |  |  |
 | IDD-0059 | spec | Panel cursor normalization |  |  |
 | IDD-0060 | spec | File rename operation |  |  |
-| IDD-0061 | spec | Native plugin system |  |  |
+| IDD-0061 | spec | Native plugin system | Built-in and manually installed external extensions, SDK and loading lifecycle |  |
 | IDD-0062 | spec | Console UI component library | Reusable component semantics only; frame/routing/mouse capture in IDD-0067 and scrollbar mechanics in IDD-0020/0021 |  |
 | IDD-0063 | spec | File attributes dialog |  |  |
 | IDD-0064 | spec | Unix terminal input |  |  |
