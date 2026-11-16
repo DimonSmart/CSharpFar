@@ -32,7 +32,7 @@ public sealed class FileOperationSafetyRegressionTests : IDisposable
             provider, FileOperationKind.Copy, ["/source.txt"], "/target.txt", resolver);
 
         Assert.Equal(2, resolver.CallCount);
-        Assert.Equal(["/target.txt", "/occupied.txt"], resolver.Conflicts.Select(c => c.DestinationPath));
+        Assert.Equal(new[] { "/target.txt", "/occupied.txt" }, resolver.Conflicts.Select(c => c.DestinationPath));
         Assert.Equal(1, result.SkippedCount);
         Assert.Equal("original", await ReadDemo(provider, "/target.txt"));
         Assert.Equal("protected", await ReadDemo(provider, "/occupied.txt"));
