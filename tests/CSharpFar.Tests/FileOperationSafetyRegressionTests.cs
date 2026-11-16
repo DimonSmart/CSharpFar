@@ -208,7 +208,7 @@ public sealed class FileOperationSafetyRegressionTests : IDisposable
 
         string source = Write(_root, "item.txt", "data");
         string destination = Path.Combine(_root, "ITEM.txt");
-        await ExecuteLocal(FileOperationKind.Move, [source], destination);
+        await ExecuteLocal(FileOperationKind.Move, [source], "ITEM.txt");
 
         Assert.False(File.Exists(source));
         Assert.Equal("data", File.ReadAllText(destination));
