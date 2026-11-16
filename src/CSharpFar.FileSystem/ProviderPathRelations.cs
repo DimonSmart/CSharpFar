@@ -1,11 +1,18 @@
 using CSharpFar.Core.Abstractions;
+using CSharpFar.Core.Services;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.FileSystem;
 
 internal static class ProviderPathRelations
 {
+    private static StringComparer Comparer(IFilePanelSource source) =>
+        source.SourceId == PanelSourceId.Local
+            ? LocalFileSystemPathComparer.Current
+            : StringComparer.Ordinal;
+
     public static bool PathsEqual(IFilePanelSource source, string left, string right) =>
-        string.Equals(source.NormalizePath(left), source.NormalizePath(right), StringComparison.Ordinal);
+        Comparer(source).Equals(source.NormalizePath(left), source.NormalizePath(right));
 
     public static bool IsDescendantOf(IFilePanelSource source, string path, string possibleAncestor)
     {
@@ -14,10 +21,10 @@ internal static class ProviderPathRelations
         if (current is null)
             return false;
 
-        var visited = new HashSet<string>(StringComparer.Ordinal);
+        var visited = new HashSet<string>(Comparer(source));
         while (current is not null && visited.Add(current))
         {
-            if (string.Equals(current, ancestor, StringComparison.Ordinal))
+            if (Comparer(source).Equals(current, ancestor))
                 return true;
 
             if (source.IsRootPath(current))
@@ -40,7 +47,7 @@ internal static class ProviderPathRelations
             return null;
 
         string normalizedParent = source.NormalizePath(parent);
-        return string.Equals(normalizedParent, normalized, StringComparison.Ordinal)
+        return Comparer(source).Equals(normalizedParent, normalized)
             ? null
             : normalizedParent;
     }
