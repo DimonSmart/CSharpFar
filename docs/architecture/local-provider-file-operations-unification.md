@@ -22,19 +22,61 @@ archive mutation batches have since been implemented.
 - Existing Reliable/FastSalvage, platform metadata, symlink, provider batch
   commits and safe replacement/rollback paths are deliberately unchanged.
 
-**Remaining migration boundaries:**
+### Stage 2 — recursive provider Copy discovery (2026-11-16)
 
-1. Unify recursive discovery and preflight into one provider-neutral transfer
-   plan. Today unmasked provider directories still enumerate during execution,
-   and provider total-byte progress may be incomplete.
-2. Establish explicit typed capabilities for direct rename, resumable streams,
-   metadata and link operations; avoid `SourceId.Local` branching in the
-   generic plan builder.
-3. Route Local Normal Copy through the shared provider pipeline under parity
-   contract tests, then migrate Move; retain advanced local strategies behind
-   capability services.
-4. Once behavior and failure recovery are equivalent, remove the redundant
-   local/provider executors and the legacy string-only request addressing.
+Provider Copy and cross-provider Move now build a complete source directory
+tree *before* any destination mutation. The plan contains immutable
+source/destination mappings for every discovered file and directory, and
+execution walks the planned children rather than re-enumerating providers
+while writing. Public preview and archive batch plans include descendants.
+The scan reports all known file sizes and the total planned item count.
+
+This preserves archive transactional publication and cross-provider
+copy-before-delete behavior. An unreadable directory or cancelled scan fails
+before starting the destination mutation batch, rather than leaving a partial
+tree. For files whose providers do not expose a size, progress counts only
+known bytes; the result does not imply unknown sizes are measured exactly.
+
+Same-provider direct Move remains cheap and does not recursively scan
+directories merely for a rename. Local Copy retains its specialized file
+streams and metadata strategy. Ordinary local copies now use the shared
+traversal executor when eligible;
+Reliable/FastSalvage and other advanced modes continue through the legacy
+planner/executor until their specific capability parity is proven.
+
+### Stage 3 — ordinary Local Copy on the shared executor (2026-11-16)
+
+The full provider transfer tree now also executes ordinary **Local Normal Copy**
+when a registered Local provider is present, source and destination paths are
+fully qualified, no name mask/template is requested, and the conflict mode is
+not `OnlyNewer`. This is the existing user-facing Local copy composition.
+For such operations a specialized Local file-copy strategy still calls the
+existing `ResolveDestinationPathAsync`, `CopyFileContentsAsync`,
+`CopyReparsePoint` and platform metadata services. Directory metadata is
+preserved on exit from each planned subtree; parent directories are finalized
+after their children. The shared plan supplies recursion, progress and
+preflight rather than introducing a second stream-copy implementation.
+
+The legacy local planner/executor is retained for Reliable, FastSalvage,
+OnlyNewer, masked and destination-template copies, as well as services built
+without the Local provider registry. Internal Move copy/delete fallback is
+also unchanged. Further parity tests should precede extending routing to
+these cases; removing the legacy engine today would discard behavior.
+
+**Remaining migration boundaries after Stage 3:**
+
+1. Extend canonical planning to local masked/template Copy, same-provider Move
+   and direct Local Move. Unmasked provider directory Copy already uses eager
+   recursive discovery. Direct same-provider renames deliberately avoid a
+   needless full scan.
+2. Introduce typed provider capabilities for random access/resumable streams,
+   metadata, links and safe direct rename. These capabilities should replace
+   Local-specific policy checks, without silently degrading user options.
+3. Expand shared execution to Reliable/FastSalvage and other advanced Local
+   modes only after contract tests prove resume, partial-file recovery,
+   symlink, ACL and timestamp parity. Retain copy-before-delete guarantees.
+4. Remove the legacy local planners/executors and redundant string-only
+   request addressing only after equivalent failure and rollback coverage.
 
 Do **not** replace both execution paths in a single change. The common plan
 mapping and conflict policy are an intermediate, testable migration seam, not

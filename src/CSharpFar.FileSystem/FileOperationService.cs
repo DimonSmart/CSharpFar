@@ -115,6 +115,15 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                 return state.ToResult();
             }
 
+            // Migrate ordinary Local Copy to the shared tree executor while retaining
+            // the local stream, metadata and symlink mechanics.
+            if (CanRouteLocalNormalCopy(request))
+            {
+                await CopyProviderAsync(request, conflictResolver, state, cancellationToken,
+                    useLocalStrategy: true).ConfigureAwait(false);
+                return state.ToResult();
+            }
+
             switch (request.Kind)
             {
                 case FileOperationKind.Copy:
@@ -207,10 +216,23 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
     }
 
     private static FileOperationPlan ToPublicPlan(IEnumerable<ProviderOperationPlanItem> plan, PanelSourceId destinationSourceId) =>
-        new(plan.Where(item => item.Item is not null).Select(item =>
+        new(FlattenProviderPlan(plan).Where(item => item.Item is not null).Select(item =>
             item.Mapping.Destination.SourceId == destinationSourceId
                 ? item.Mapping
                 : item.Mapping with { Destination = new PanelLocation(destinationSourceId, item.TargetPath) }).ToArray());
+
+    private static IEnumerable<ProviderOperationPlanItem> FlattenProviderPlan(IEnumerable<ProviderOperationPlanItem> roots)
+    {
+        foreach (ProviderOperationPlanItem root in roots)
+        {
+            yield return root;
+            foreach (ProviderOperationPlanItem child in FlattenProviderPlan(root.Children))
+                yield return child;
+        }
+    }
+
+    private static int CountProviderPlanItems(IEnumerable<ProviderOperationPlanItem> roots) =>
+        FlattenProviderPlan(roots).Count();
 
     private static bool UsesProviderLocations(FileOperationRequest request)
     {
@@ -221,6 +243,26 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         bool hasRemoteDestination = request.DestinationLocation is { SourceId: var sourceId } &&
                                     sourceId != PanelSourceId.Local;
         return hasRemoteSource || hasRemoteDestination;
+    }
+
+    private bool CanRouteLocalNormalCopy(FileOperationRequest request)
+    {
+        if (request.Kind != FileOperationKind.Copy ||
+            _sources is null ||
+            !_sources.TryGetSource(PanelSourceId.Local, out _) ||
+            request.Options.CopyMode != CopyMode.Normal ||
+            request.Options.DefaultConflictDecision == ConflictDecisionMode.OnlyNewer ||
+            HasFileMask(request.Options) ||
+            request.UseDestinationTemplate ||
+            request.SourceLocations?.Any(location => location.SourceId != PanelSourceId.Local) == true ||
+            request.DestinationLocation is { SourceId: var id } && id != PanelSourceId.Local)
+            return false;
+
+        IReadOnlyList<PanelLocation> sources = RequireSourceLocations(request);
+        PanelLocation destination = RequireDestinationLocation(request);
+        return sources.Count > 0 &&
+            sources.All(location => Path.IsPathFullyQualified(location.SourcePath)) &&
+            Path.IsPathFullyQualified(destination.SourcePath);
     }
 
     private void ValidateAccessibleSources(FileOperationRequest request)
@@ -269,16 +311,17 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         FileOperationRequest request,
         IFileOperationConflictResolver conflictResolver,
         OperationState state,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool useLocalStrategy = false)
     {
         ValidateProviderCopyOptions(request.Options);
 
         var destination = RequireDestinationLocation(request);
         var sources = RequireSourceLocations(request);
         var destinationSource = _sources!.GetSource(destination.SourceId);
-        var plan = BuildProviderCopyPlan(sources, destination, request.Options, request.UseDestinationTemplate, cancellationToken);
+        var plan = BuildProviderCopyPlan(sources, destination, request.Options, request.UseDestinationTemplate, cancellationToken, state);
 
-        state.SetTotals(CalculateProviderPlanSize(plan), plan.Count);
+        state.SetTotals(CalculateProviderPlanSize(plan), CountProviderPlanItems(plan));
         state.StartProgressTimer();
 
         if (destinationSource is IFileOperationBatchProvider batching)
@@ -289,7 +332,8 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             try
             {
                 await CopyProviderPlanItemsAsync(plan, batch, request.Options,
-                    conflictResolver, state, cancellationToken).ConfigureAwait(false);
+                    conflictResolver, state, cancellationToken,
+                    useLocalStrategy: useLocalStrategy).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 state.ReportCommitting(destination.SourcePath);
                 await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -304,7 +348,8 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         else
         {
             await CopyProviderPlanItemsAsync(plan, destinationSource, request.Options,
-                conflictResolver, state, cancellationToken).ConfigureAwait(false);
+                conflictResolver, state, cancellationToken,
+                useLocalStrategy: useLocalStrategy).ConfigureAwait(false);
         }
     }
 
@@ -316,7 +361,8 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         OperationState state,
         CancellationToken cancellationToken,
         ICollection<string>? copiedFiles = null,
-        ICollection<string>? copiedFolders = null)
+        ICollection<string>? copiedFolders = null,
+        bool useLocalStrategy = false)
     {
         foreach (var plannedItem in plan)
         {
@@ -329,25 +375,27 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             }
 
             await CopyProviderItemAsync(
-                plannedItem.Source, plannedItem.SourcePath,
-                destinationSource, plannedItem.TargetPath, plannedItem.Item,
-                options, conflictResolver, state, cancellationToken, copiedFiles, copiedFolders).ConfigureAwait(false);
+                plannedItem, destinationSource,
+                options, conflictResolver, state, cancellationToken, copiedFiles, copiedFolders,
+                useLocalStrategy).ConfigureAwait(false);
         }
     }
 
     private async Task CopyProviderItemAsync(
-        IFilePanelSource source,
-        string sourcePath,
+        ProviderOperationPlanItem plannedItem,
         IFilePanelSource destinationSource,
-        string destinationPath,
-        FilePanelItem sourceItem,
         FileOperationOptions options,
         IFileOperationConflictResolver conflictResolver,
         OperationState state,
         CancellationToken cancellationToken,
         ICollection<string>? copiedFiles = null,
-        ICollection<string>? copiedFolders = null)
+        ICollection<string>? copiedFolders = null,
+        bool useLocalStrategy = false)
     {
+        IFilePanelSource source = plannedItem.Source;
+        string sourcePath = plannedItem.SourcePath;
+        string destinationPath = plannedItem.TargetPath;
+        FilePanelItem sourceItem = plannedItem.Item ?? throw new InvalidOperationException("Missing planned source item.");
         if (sourceItem.IsDirectory)
         {
             if (source.SourceId == destinationSource.SourceId ||
@@ -357,26 +405,26 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             await destinationSource.CreateDirectoryAsync(destinationPath, cancellationToken).ConfigureAwait(false);
             state.CompleteFolder();
 
-            foreach (var child in source.EnumerateDirectory(sourcePath, cancellationToken).Where(i => !i.IsParentDirectory))
+            foreach (ProviderOperationPlanItem child in plannedItem.Children)
             {
-                string childDestination = CombineProviderPath(
-                    destinationSource.SourceId,
-                    destinationPath,
-                    child.Name);
+                cancellationToken.ThrowIfCancellationRequested();
                 await CopyProviderItemAsync(
-                        source,
-                        child.SourcePath,
-                        destinationSource,
-                        childDestination,
                         child,
+                        destinationSource,
                         options,
                         conflictResolver,
                         state,
                         cancellationToken,
                         copiedFiles,
-                        copiedFolders)
+                        copiedFolders,
+                        useLocalStrategy)
                     .ConfigureAwait(false);
             }
+
+            if (useLocalStrategy)
+                PreserveDirectoryTargetsMetadata(
+                    [new CopyDirectoryPlanItem(sourcePath, destinationPath)],
+                    options, state, cancellationToken);
 
             copiedFolders?.Add(sourcePath);
             state.CompleteItem();
@@ -384,6 +432,13 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         }
 
         state.WaitIfPaused(cancellationToken);
+        if (useLocalStrategy)
+        {
+            await CopyLocalPlannedFileAsync(
+                plannedItem, options, conflictResolver, state, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
         if ((source.SourceId == destinationSource.SourceId ||
             SamePhysicalContainer(source, destinationSource)) &&
             ProviderPathRelations.PathsEqual(source, sourcePath, destinationPath))
@@ -459,6 +514,40 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         copiedFiles?.Add(sourcePath);
         state.CopiedCount++;
         state.CompleteItem();
+    }
+
+    private async Task CopyLocalPlannedFileAsync(
+        ProviderOperationPlanItem item,
+        FileOperationOptions options,
+        IFileOperationConflictResolver conflictResolver,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        string sourcePath = item.SourcePath;
+        CopyResumeSourceSnapshot snapshot = GetSourceSnapshot(sourcePath);
+        var file = new CopyFilePlanItem(
+            sourcePath, item.TargetPath, snapshot.Length, snapshot.LastWriteTimeUtc);
+        CopyDestination target = await ResolveDestinationPathAsync(
+            file, options, conflictResolver, state, cancellationToken).ConfigureAwait(false);
+        if (target.Path.Length == 0)
+            return;
+
+        Directory.CreateDirectory(Path.GetDirectoryName(target.Path)!);
+        if (target.Action == CopyDestinationAction.CreateOrOverwrite &&
+            IsReparsePoint(sourcePath) && options.SymlinkMode == SymlinkCopyMode.CopyLink)
+        {
+            if (!CopyReparsePoint(sourcePath, target.Path, options, state))
+                return;
+            state.CopiedCount++;
+            state.AddBytes(file.Size);
+            state.CompleteItem();
+            state.Report(sourcePath, target.Path, file.Size, file.Size);
+            return;
+        }
+
+        await CopyFileContentsAsync(
+            file, target, options, conflictResolver, state, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async Task MoveProviderAsync(
@@ -565,8 +654,8 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             throw new NotSupportedException("Cross-provider move requires verified copy and delete capabilities.");
 
         var plan = BuildProviderCopyPlan(sources, destination, request.Options,
-            request.UseDestinationTemplate, cancellationToken);
-        state.SetTotals(CalculateProviderPlanSize(plan), plan.Count);
+            request.UseDestinationTemplate, cancellationToken, state);
+        state.SetTotals(CalculateProviderPlanSize(plan), CountProviderPlanItems(plan));
         state.StartProgressTimer();
         var copiedFiles = new List<string>();
         var copiedFolders = new List<string>();
@@ -2576,7 +2665,8 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         PanelLocation destination,
         FileOperationOptions options,
         bool useDestinationTemplate,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        OperationState? state = null)
     {
         DestinationPattern destinationPattern = useDestinationTemplate
             ? default
@@ -2637,7 +2727,78 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
 
         if (template is not null || destinationPattern.HasWildcards)
             ValidateProviderPlanCollisions(destination.SourceId, plan.Select(item => item.TargetPath));
+
+        // Ordinary provider directory copy is fully discovered before any destination
+        // mutation, including for archive batches and cross-provider moves.
+        if (!hasMask)
+        {
+            int scannedFiles = 0;
+            int scannedFolders = 0;
+            long knownBytes = 0;
+            var expanded = new List<ProviderOperationPlanItem>(plan.Count);
+            foreach (ProviderOperationPlanItem root in plan)
+            {
+                var visiting = new HashSet<string>(
+                    root.Location.SourceId == PanelSourceId.Local
+                        ? LocalFileSystemPathComparer.Current : StringComparer.Ordinal);
+                expanded.Add(ExpandProviderCopyItem(
+                    root, visiting, state, ref scannedFiles, ref scannedFolders, ref knownBytes, cancellationToken));
+            }
+            return expanded;
+        }
         return plan;
+    }
+
+    private static ProviderOperationPlanItem ExpandProviderCopyItem(
+        ProviderOperationPlanItem item,
+        HashSet<string> visiting,
+        OperationState? state,
+        ref int scannedFiles,
+        ref int scannedFolders,
+        ref long knownBytes,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (item.Item is not { } sourceItem)
+            return item;
+
+        if (!sourceItem.IsDirectory)
+        {
+            scannedFiles++;
+            knownBytes = checked(knownBytes + (sourceItem.Size ?? 0));
+            state?.ReportScanning(item.SourcePath, scannedFiles, scannedFolders, knownBytes);
+            return item;
+        }
+
+        string normalizedPath = item.Source.NormalizePath(item.SourcePath);
+        if (!visiting.Add(normalizedPath))
+            throw new IOException($"Cyclic provider directory traversal: {normalizedPath}");
+
+        try
+        {
+            scannedFolders++;
+            state?.ReportScanning(item.SourcePath, scannedFiles, scannedFolders, knownBytes);
+            var children = new List<ProviderOperationPlanItem>();
+            foreach (FilePanelItem child in item.Source.EnumerateDirectory(item.SourcePath, cancellationToken))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (child.IsParentDirectory)
+                    continue;
+                string targetPath = CombineProviderPath(
+                    item.Mapping.Destination.SourceId, item.TargetPath, child.Name);
+                var childPlan = new ProviderOperationPlanItem(
+                    child.Location, item.Source, item.Source.NormalizePath(child.SourcePath),
+                    child, targetPath, item.Mapping.Destination.SourceId);
+                children.Add(ExpandProviderCopyItem(
+                    childPlan, visiting, state, ref scannedFiles, ref scannedFolders, ref knownBytes,
+                    cancellationToken));
+            }
+            return item with { Children = children };
+        }
+        finally
+        {
+            visiting.Remove(normalizedPath);
+        }
     }
 
     private List<ProviderOperationPlanItem> BuildProviderMovePlan(
@@ -2823,7 +2984,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
     }
 
     private static long CalculateProviderPlanSize(IEnumerable<ProviderOperationPlanItem> plan) =>
-        plan.Sum(item => item.Item?.Size ?? 0);
+        FlattenProviderPlan(plan).Sum(item => item.Item?.Size ?? 0);
 
     private static async Task EnsureProviderDestinationDirectoryAsync(
         IFilePanelSource destinationSource,
@@ -3139,7 +3300,9 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         public PanelLocation Location => Mapping.Source;
         public string SourcePath => Mapping.Source.SourcePath;
         public string TargetPath => Mapping.Destination.SourcePath;
+        public IReadOnlyList<ProviderOperationPlanItem> Children { get; init; } = [];
     }
+
     private enum CopyDestinationAction
     {
         CreateOrOverwrite,
