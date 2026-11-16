@@ -38,8 +38,9 @@ tree. For files whose providers do not expose a size, progress counts only
 known bytes; the result does not imply unknown sizes are measured exactly.
 
 Same-provider direct Move remains cheap and does not recursively scan
-directories merely for a rename. Local Copy retains its specialized file streams and metadata strategy.
-Ordinary local copies now use the shared traversal executor when eligible;
+directories merely for a rename. Local Copy retains its specialized file
+streams and metadata strategy. Ordinary local copies now use the shared
+traversal executor when eligible;
 Reliable/FastSalvage and other advanced modes continue through the legacy
 planner/executor until their specific capability parity is proven.
 
@@ -62,19 +63,20 @@ without the Local provider registry. Internal Move copy/delete fallback is
 also unchanged. Further parity tests should precede extending routing to
 these cases; removing the legacy engine today would discard behavior.
 
-**Remaining migration boundaries:**
+**Remaining migration boundaries after Stage 3:**
 
-1. Unify recursive discovery and preflight into one provider-neutral transfer
-   plan. Today unmasked provider directories still enumerate during execution,
-   and provider total-byte progress may be incomplete.
-2. Establish explicit typed capabilities for direct rename, resumable streams,
-   metadata and link operations; avoid `SourceId.Local` branching in the
-   generic plan builder.
-3. Route Local Normal Copy through the shared provider pipeline under parity
-   contract tests, then migrate Move; retain advanced local strategies behind
-   capability services.
-4. Once behavior and failure recovery are equivalent, remove the redundant
-   local/provider executors and the legacy string-only request addressing.
+1. Extend canonical planning to local masked/template Copy, same-provider Move
+   and direct Local Move. Unmasked provider directory Copy already uses eager
+   recursive discovery. Direct same-provider renames deliberately avoid a
+   needless full scan.
+2. Introduce typed provider capabilities for random access/resumable streams,
+   metadata, links and safe direct rename. These capabilities should replace
+   Local-specific policy checks, without silently degrading user options.
+3. Expand shared execution to Reliable/FastSalvage and other advanced Local
+   modes only after contract tests prove resume, partial-file recovery,
+   symlink, ACL and timestamp parity. Retain copy-before-delete guarantees.
+4. Remove the legacy local planners/executors and redundant string-only
+   request addressing only after equivalent failure and rollback coverage.
 
 Do **not** replace both execution paths in a single change. The common plan
 mapping and conflict policy are an intermediate, testable migration seam, not
