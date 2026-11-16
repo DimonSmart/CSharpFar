@@ -38,10 +38,29 @@ tree. For files whose providers do not expose a size, progress counts only
 known bytes; the result does not imply unknown sizes are measured exactly.
 
 Same-provider direct Move remains cheap and does not recursively scan
-directories merely for a rename. Local Copy still uses its specialized
-streaming and metadata strategies; full routing through the provider executor
-needs dedicated capability parity (metadata, symlinks, reliable resume,
-partial-file cleanup) and remains an explicit subsequent step.
+directories merely for a rename. Local Copy retains its specialized file streams and metadata strategy.
+Ordinary local copies now use the shared traversal executor when eligible;
+Reliable/FastSalvage and other advanced modes continue through the legacy
+planner/executor until their specific capability parity is proven.
+
+### Stage 3 — ordinary Local Copy on the shared executor (2026-11-16)
+
+The full provider transfer tree now also executes ordinary **Local Normal Copy**
+when a registered Local provider is present, source and destination paths are
+fully qualified, no name mask/template is requested, and the conflict mode is
+not `OnlyNewer`. This is the existing user-facing Local copy composition.
+For such operations a specialized Local file-copy strategy still calls the
+existing `ResolveDestinationPathAsync`, `CopyFileContentsAsync`,
+`CopyReparsePoint` and platform metadata services. Directory metadata is
+preserved on exit from each planned subtree; parent directories are finalized
+after their children. The shared plan supplies recursion, progress and
+preflight rather than introducing a second stream-copy implementation.
+
+The legacy local planner/executor is retained for Reliable, FastSalvage,
+OnlyNewer, masked and destination-template copies, as well as services built
+without the Local provider registry. Internal Move copy/delete fallback is
+also unchanged. Further parity tests should precede extending routing to
+these cases; removing the legacy engine today would discard behavior.
 
 **Remaining migration boundaries:**
 
