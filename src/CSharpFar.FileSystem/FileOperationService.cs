@@ -164,8 +164,8 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
     {
         var plan = BuildCopyPlan(request.Sources, RequireDestination(request), request.Options, request.UseDestinationTemplate, new OperationState(request.Kind, null, null), cancellationToken);
         return new FileOperationPlan([
-            .. plan.Directories.Select(item => new FileOperationPlanItem(PanelLocation.Local(item.SourcePath), PanelLocation.Local(item.DestinationPath), true)),
-            .. plan.Files.Select(item => new FileOperationPlanItem(PanelLocation.Local(item.SourcePath), PanelLocation.Local(item.DestinationPath), false)),
+            .. plan.Directories.Select(item => item.Mapping),
+            .. plan.Files.Select(item => item.Mapping),
         ]);
     }
 
@@ -175,8 +175,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         bool singleRename = request.Sources.Count == 1 && !IsPath(destination);
         string effectiveDestination = singleRename ? Path.Combine(Path.GetDirectoryName(request.Sources[0])!, destination) : destination;
         var plan = BuildLocalMovePlan(request.Sources, effectiveDestination, singleRename, request.Options, request.UseDestinationTemplate, cancellationToken);
-        return new FileOperationPlan(plan.Select(item => new FileOperationPlanItem(
-            PanelLocation.Local(item.SourcePath), PanelLocation.Local(item.TargetPath), Directory.Exists(item.SourcePath))).ToArray());
+        return new FileOperationPlan(plan.Select(item => item.Mapping).ToArray());
     }
 
     private FileOperationPlan BuildProviderPlan(FileOperationRequest request, CancellationToken cancellationToken)
@@ -208,10 +207,10 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
     }
 
     private static FileOperationPlan ToPublicPlan(IEnumerable<ProviderOperationPlanItem> plan, PanelSourceId destinationSourceId) =>
-        new(plan.Where(item => item.Item is not null).Select(item => new FileOperationPlanItem(
-            item.Location with { SourcePath = item.SourcePath },
-            new PanelLocation(destinationSourceId, item.TargetPath),
-            item.Item!.IsDirectory)).ToArray());
+        new(plan.Where(item => item.Item is not null).Select(item =>
+            item.Mapping.Destination.SourceId == destinationSourceId
+                ? item.Mapping
+                : item.Mapping with { Destination = new PanelLocation(destinationSourceId, item.TargetPath) }).ToArray());
 
     private static bool UsesProviderLocations(FileOperationRequest request)
     {
@@ -392,9 +391,10 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         bool overwriteApproved = false;
         while (destinationSource.GetItem(destinationPath, cancellationToken) is { } destinationItem)
         {
-            ConflictDecisionMode configured = ResolveConfiguredConflictDecision(options, state);
-            var decision = configured == ConflictDecisionMode.Ask
-                ? conflictResolver.Resolve(new FileOperationConflict
+            var decision = state.Conflicts.Resolve(
+                options,
+                conflictResolver,
+                () => new FileOperationConflict
                 {
                     SourcePath = sourcePath,
                     DestinationPath = destinationPath,
@@ -404,10 +404,9 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                     DestinationSize = destinationItem.Size,
                     SourceLastWriteTime = sourceItem.LastWriteTime,
                     DestinationLastWriteTime = destinationItem.LastWriteTime,
-                })
-                : FileOperationConflictDecision.FromMode(configured);
+                });
 
-            switch (NormalizeRememberedConflictDecision(decision.Mode, state))
+            switch (decision.Mode)
             {
                 case ConflictDecisionMode.Skip:
                     state.SkippedCount++;
@@ -798,21 +797,12 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         string destinationPath,
         FileOperationOptions options,
         IFileOperationConflictResolver conflictResolver,
-        OperationState state)
-    {
-        ConflictDecisionMode configured = ResolveConfiguredConflictDecision(options, state);
-        if (sourceItem.IsDirectory &&
-            destinationItem.IsDirectory &&
-            configured is ConflictDecisionMode.Overwrite or ConflictDecisionMode.OverwriteAll)
-        {
-            configured = ConflictDecisionMode.Ask;
-        }
-
-        FileOperationConflictDecision decision = configured == ConflictDecisionMode.Ask
-            ? conflictResolver.Resolve(BuildProviderConflict(sourceItem, destinationItem, destinationPath))
-            : FileOperationConflictDecision.FromMode(configured);
-        return decision with { Mode = NormalizeRememberedConflictDecision(decision.Mode, state) };
-    }
+        OperationState state) =>
+        state.Conflicts.Resolve(
+            options,
+            conflictResolver,
+            () => BuildProviderConflict(sourceItem, destinationItem, destinationPath),
+            requiresExplicitDirectoryDecision: sourceItem.IsDirectory && destinationItem.IsDirectory);
 
     private async Task MergeProviderDirectoriesAsync(
         IFilePanelSource source,
@@ -1366,21 +1356,12 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         bool destinationIsDirectory,
         FileOperationOptions options,
         IFileOperationConflictResolver conflictResolver,
-        OperationState state)
-    {
-        ConflictDecisionMode configured = ResolveConfiguredConflictDecision(options, state);
-        if (sourceIsDirectory &&
-            destinationIsDirectory &&
-            configured is ConflictDecisionMode.Overwrite or ConflictDecisionMode.OverwriteAll)
-        {
-            configured = ConflictDecisionMode.Ask;
-        }
-
-        FileOperationConflictDecision decision = configured == ConflictDecisionMode.Ask
-            ? conflictResolver.Resolve(BuildConflict(source, destination))
-            : FileOperationConflictDecision.FromMode(configured);
-        return decision with { Mode = NormalizeRememberedConflictDecision(decision.Mode, state) };
-    }
+        OperationState state) =>
+        state.Conflicts.Resolve(
+            options,
+            conflictResolver,
+            () => BuildConflict(source, destination),
+            requiresExplicitDirectoryDecision: sourceIsDirectory && destinationIsDirectory);
 
     private async Task MergeLocalDirectoriesAsync(
         string source,
@@ -1916,7 +1897,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         string destinationPath = file.DestinationPath;
         while (File.Exists(destinationPath) || Directory.Exists(destinationPath))
         {
-            ConflictDecisionMode mode = ResolveConfiguredConflictDecision(options, state);
+            ConflictDecisionMode mode = state.Conflicts.Current(options.DefaultConflictDecision);
             string? newDestination = null;
 
             if (options.CopyMode == CopyMode.Reliable)
@@ -1947,14 +1928,10 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                 }
             }
 
-            if (mode == ConflictDecisionMode.Ask)
-            {
-                var decision = conflictResolver.Resolve(BuildConflict(file.SourcePath, destinationPath));
-                mode = decision.Mode;
-                newDestination = decision.NewDestinationPath;
-            }
-
-            mode = NormalizeRememberedConflictDecision(mode, state);
+            FileOperationConflictDecision decision = state.Conflicts.Resolve(
+                options, conflictResolver, () => BuildConflict(file.SourcePath, destinationPath));
+            mode = decision.Mode;
+            newDestination = decision.NewDestinationPath;
 
             switch (mode)
             {
@@ -1991,39 +1968,6 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         }
 
         return new CopyDestination(destinationPath, CopyDestinationAction.CreateOrOverwrite);
-    }
-
-    private static ConflictDecisionMode ResolveConfiguredConflictDecision(
-        FileOperationOptions options,
-        OperationState state)
-    {
-        return state.StickyConflictDecision switch
-        {
-            ConflictDecisionMode.Skip => ConflictDecisionMode.Skip,
-            ConflictDecisionMode.Overwrite => ConflictDecisionMode.Overwrite,
-            ConflictDecisionMode.Rename => ConflictDecisionMode.Rename,
-            _ => options.DefaultConflictDecision,
-        };
-    }
-
-    private static ConflictDecisionMode NormalizeRememberedConflictDecision(
-        ConflictDecisionMode mode,
-        OperationState state)
-    {
-        switch (mode)
-        {
-            case ConflictDecisionMode.OverwriteAll:
-                state.StickyConflictDecision = ConflictDecisionMode.Overwrite;
-                return ConflictDecisionMode.Overwrite;
-            case ConflictDecisionMode.SkipAll:
-                state.StickyConflictDecision = ConflictDecisionMode.Skip;
-                return ConflictDecisionMode.Skip;
-            case ConflictDecisionMode.RenameAll:
-                state.StickyConflictDecision = ConflictDecisionMode.Rename;
-                return ConflictDecisionMode.Rename;
-            default:
-                return mode;
-        }
     }
 
     private CopyDestination? TryResolveTailValidatedResume(
@@ -2654,7 +2598,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             string normalizedSourcePath = source.NormalizePath(location.SourcePath);
             if (item is null)
             {
-                plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, null, string.Empty));
+                plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, null, string.Empty, destination.SourceId));
                 continue;
             }
 
@@ -2676,7 +2620,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             {
                 if (location.SourceId == destination.SourceId)
                     ValidateProviderCopyTarget(source, normalizedSourcePath, targetPath, item.IsDirectory);
-                plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, item, targetPath));
+                plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, item, targetPath, destination.SourceId));
                 continue;
             }
 
@@ -2720,7 +2664,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             string normalizedSourcePath = source.NormalizePath(location.SourcePath);
             if (item is null)
             {
-                plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, null, string.Empty));
+                plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, null, string.Empty, source.SourceId));
                 continue;
             }
 
@@ -2738,7 +2682,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             if (!hasMask)
             {
                 ValidateProviderMoveTarget(source, normalizedSourcePath, targetPath, item.IsDirectory);
-                plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, item, targetPath));
+                plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, item, targetPath, source.SourceId));
                 continue;
             }
 
@@ -2774,7 +2718,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             if (matcher.IsMatch(fileMask, rootItem.Name, groups))
             {
                 validateTarget(rootTargetPath);
-                plan.Add(new ProviderOperationPlanItem(rootLocation, source, rootSourcePath, rootItem, rootTargetPath));
+                plan.Add(new ProviderOperationPlanItem(rootLocation, source, rootSourcePath, rootItem, rootTargetPath, destinationSourceId));
             }
             return;
         }
@@ -2790,7 +2734,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             string sourcePath = source.NormalizePath(file.SourcePath);
             string relativePath = GetProviderRelativePath(source.SourceId, rootSourcePath, sourcePath);
             string targetPath = CombineProviderRelativePath(destinationSourceId, rootTargetPath, relativePath);
-            plan.Add(new ProviderOperationPlanItem(file.Location, source, sourcePath, file, targetPath));
+            plan.Add(new ProviderOperationPlanItem(file.Location, source, sourcePath, file, targetPath, destinationSourceId));
         }
     }
 
@@ -3081,29 +3025,17 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         Path.GetFullPath(path)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-    private static void ValidateLocalPlanCollisions(IEnumerable<string> targetPaths)
-    {
-        var targets = new HashSet<string>(LocalFileSystemPathComparer.Current);
-        foreach (string targetPath in targetPaths)
-        {
-            ValidateLocalTargetPath(targetPath);
-            if (!targets.Add(NormalizePath(targetPath)))
-                throw new IOException($"Multiple source items resolve to the same destination: {targetPath}");
-        }
-    }
+    private static void ValidateLocalPlanCollisions(IEnumerable<string> targetPaths) =>
+        FileOperationPlanPreflight.ValidateDistinctTargets(
+            targetPaths, NormalizePath, LocalFileSystemPathComparer.Current, ValidateLocalTargetPath);
 
     private static void ValidateLocalMovePlan(IEnumerable<LocalMovePlanItem> plan, bool validateCollisions)
     {
-        var targets = new HashSet<string>(LocalFileSystemPathComparer.Current);
+        if (validateCollisions)
+            ValidateLocalPlanCollisions(plan.Select(item => item.TargetPath));
+
         foreach (var item in plan)
         {
-            if (validateCollisions)
-            {
-                ValidateLocalTargetPath(item.TargetPath);
-                if (!targets.Add(NormalizePath(item.TargetPath)))
-                    throw new IOException($"Multiple source items resolve to the same destination: {item.TargetPath}");
-            }
-
             if (validateCollisions && PathsEqual(item.SourcePath, item.TargetPath))
                 throw new IOException("Source and destination file are the same.");
             if (Directory.Exists(item.SourcePath) && IsPathInside(item.TargetPath, item.SourcePath))
@@ -3131,14 +3063,15 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
     private void ValidateProviderPlanCollisions(PanelSourceId sourceId, IEnumerable<string> targetPaths)
     {
         IFilePanelSource destinationSource = _sources!.GetSource(sourceId);
-        var targets = new HashSet<string>(StringComparer.Ordinal);
-        foreach (string targetPath in targetPaths.Where(path => !string.IsNullOrEmpty(path)))
-        {
-            if (targetPath.IndexOfAny(['*', '?']) >= 0)
-                throw new IOException("Destination pattern produced an invalid file name.");
-            if (!targets.Add(destinationSource.NormalizePath(targetPath)))
-                throw new IOException($"Multiple source items resolve to the same destination: {targetPath}");
-        }
+        FileOperationPlanPreflight.ValidateDistinctTargets(
+            targetPaths.Where(path => !string.IsNullOrEmpty(path)),
+            destinationSource.NormalizePath,
+            sourceId == PanelSourceId.Local ? LocalFileSystemPathComparer.Current : StringComparer.Ordinal,
+            path =>
+            {
+                if (path.IndexOfAny(['*', '?']) >= 0)
+                    throw new IOException("Destination pattern produced an invalid file name.");
+            });
     }
 
     private static string GetProviderParentPath(string path)
@@ -3147,21 +3080,66 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         return slash <= 0 ? "/" : path[..slash];
     }
 
-    private sealed record CopyFilePlanItem(string SourcePath, string DestinationPath, long Size, DateTime LastWriteTimeUtc);
+    // The canonical item mapping is shared by Local, provider execution and previews.
+    // Wrappers retain only strategy-specific execution metadata.
+    private sealed record CopyFilePlanItem(FileOperationPlanItem Mapping, long Size, DateTime LastWriteTimeUtc)
+    {
+        public CopyFilePlanItem(string source, string target, long size, DateTime lastWriteTimeUtc)
+            : this(new FileOperationPlanItem(PanelLocation.Local(source), PanelLocation.Local(target), false),
+                size, lastWriteTimeUtc) { }
+
+        public string SourcePath => Mapping.Source.SourcePath;
+        public string DestinationPath => Mapping.Destination.SourcePath;
+    }
+
     private sealed record DeletePlanItem(string Path, long Size);
     private sealed record DeletePlan(IReadOnlyList<DeletePlanItem> Items, long TotalBytes);
     private sealed record ProviderDeletePlanItem(PanelLocation Location, long Size);
     private sealed record DeleteProviderPlan(IReadOnlyList<ProviderDeletePlanItem> Items, long TotalBytes);
     private sealed record CopyAttemptResult(FileInfo SourceInfo, FileAttributes SourceAttributes);
-    private sealed record CopyDirectoryPlanItem(string SourcePath, string DestinationPath);
-    private sealed record LocalMovePlanItem(string SourcePath, string TargetPath);
+
+    private sealed record CopyDirectoryPlanItem(FileOperationPlanItem Mapping)
+    {
+        public CopyDirectoryPlanItem(string source, string target)
+            : this(new FileOperationPlanItem(PanelLocation.Local(source), PanelLocation.Local(target), true)) { }
+
+        public string SourcePath => Mapping.Source.SourcePath;
+        public string DestinationPath => Mapping.Destination.SourcePath;
+    }
+
+    private sealed record LocalMovePlanItem(FileOperationPlanItem Mapping)
+    {
+        public LocalMovePlanItem(string source, string target)
+            : this(new FileOperationPlanItem(
+                PanelLocation.Local(source), PanelLocation.Local(target), Directory.Exists(source))) { }
+
+        public string SourcePath => Mapping.Source.SourcePath;
+        public string TargetPath => Mapping.Destination.SourcePath;
+    }
+
     private readonly record struct CopyOutcome(bool CopiedSomething, bool Completed, IReadOnlyList<string> SuccessfullyCopiedSources);
-    private sealed record ProviderOperationPlanItem(
-        PanelLocation Location,
-        IFilePanelSource Source,
-        string SourcePath,
-        FilePanelItem? Item,
-        string TargetPath);
+
+    private sealed record ProviderOperationPlanItem(FileOperationPlanItem Mapping, IFilePanelSource Source, FilePanelItem? Item)
+    {
+        public ProviderOperationPlanItem(
+            PanelLocation sourceLocation,
+            IFilePanelSource source,
+            string sourcePath,
+            FilePanelItem? item,
+            string targetPath,
+            PanelSourceId destinationSourceId)
+            : this(
+                new FileOperationPlanItem(
+                    sourceLocation with { SourcePath = sourcePath },
+                    new PanelLocation(destinationSourceId, targetPath),
+                    item?.IsDirectory ?? false),
+                source,
+                item) { }
+
+        public PanelLocation Location => Mapping.Source;
+        public string SourcePath => Mapping.Source.SourcePath;
+        public string TargetPath => Mapping.Destination.SourcePath;
+    }
     private enum CopyDestinationAction
     {
         CreateOrOverwrite,
@@ -3228,7 +3206,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         public int SkippedCount { get; set; }
         public bool Cancelled { get; set; }
         public bool PartiallyMoved { get; set; }
-        public ConflictDecisionMode? StickyConflictDecision { get; set; }
+        public FileConflictDecisionPolicy Conflicts { get; } = new();
         public List<FileOperationItemError> Errors { get; } = [];
 
         public void SetTotals(long totalBytes, int totalItems)
