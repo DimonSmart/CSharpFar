@@ -207,10 +207,23 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
     }
 
     private static FileOperationPlan ToPublicPlan(IEnumerable<ProviderOperationPlanItem> plan, PanelSourceId destinationSourceId) =>
-        new(plan.Where(item => item.Item is not null).Select(item =>
+        new(FlattenProviderPlan(plan).Where(item => item.Item is not null).Select(item =>
             item.Mapping.Destination.SourceId == destinationSourceId
                 ? item.Mapping
                 : item.Mapping with { Destination = new PanelLocation(destinationSourceId, item.TargetPath) }).ToArray());
+
+    private static IEnumerable<ProviderOperationPlanItem> FlattenProviderPlan(IEnumerable<ProviderOperationPlanItem> roots)
+    {
+        foreach (ProviderOperationPlanItem root in roots)
+        {
+            yield return root;
+            foreach (ProviderOperationPlanItem child in FlattenProviderPlan(root.Children))
+                yield return child;
+        }
+    }
+
+    private static int CountProviderPlanItems(IEnumerable<ProviderOperationPlanItem> roots) =>
+        FlattenProviderPlan(roots).Count();
 
     private static bool UsesProviderLocations(FileOperationRequest request)
     {
@@ -276,9 +289,9 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         var destination = RequireDestinationLocation(request);
         var sources = RequireSourceLocations(request);
         var destinationSource = _sources!.GetSource(destination.SourceId);
-        var plan = BuildProviderCopyPlan(sources, destination, request.Options, request.UseDestinationTemplate, cancellationToken);
+        var plan = BuildProviderCopyPlan(sources, destination, request.Options, request.UseDestinationTemplate, cancellationToken, state);
 
-        state.SetTotals(CalculateProviderPlanSize(plan), plan.Count);
+        state.SetTotals(CalculateProviderPlanSize(plan), CountProviderPlanItems(plan));
         state.StartProgressTimer();
 
         if (destinationSource is IFileOperationBatchProvider batching)
@@ -329,18 +342,14 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             }
 
             await CopyProviderItemAsync(
-                plannedItem.Source, plannedItem.SourcePath,
-                destinationSource, plannedItem.TargetPath, plannedItem.Item,
+                plannedItem, destinationSource,
                 options, conflictResolver, state, cancellationToken, copiedFiles, copiedFolders).ConfigureAwait(false);
         }
     }
 
     private async Task CopyProviderItemAsync(
-        IFilePanelSource source,
-        string sourcePath,
+        ProviderOperationPlanItem plannedItem,
         IFilePanelSource destinationSource,
-        string destinationPath,
-        FilePanelItem sourceItem,
         FileOperationOptions options,
         IFileOperationConflictResolver conflictResolver,
         OperationState state,
@@ -348,6 +357,10 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         ICollection<string>? copiedFiles = null,
         ICollection<string>? copiedFolders = null)
     {
+        IFilePanelSource source = plannedItem.Source;
+        string sourcePath = plannedItem.SourcePath;
+        string destinationPath = plannedItem.TargetPath;
+        FilePanelItem sourceItem = plannedItem.Item ?? throw new InvalidOperationException("Missing planned source item.");
         if (sourceItem.IsDirectory)
         {
             if (source.SourceId == destinationSource.SourceId ||
@@ -357,18 +370,12 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             await destinationSource.CreateDirectoryAsync(destinationPath, cancellationToken).ConfigureAwait(false);
             state.CompleteFolder();
 
-            foreach (var child in source.EnumerateDirectory(sourcePath, cancellationToken).Where(i => !i.IsParentDirectory))
+            foreach (ProviderOperationPlanItem child in plannedItem.Children)
             {
-                string childDestination = CombineProviderPath(
-                    destinationSource.SourceId,
-                    destinationPath,
-                    child.Name);
+                cancellationToken.ThrowIfCancellationRequested();
                 await CopyProviderItemAsync(
-                        source,
-                        child.SourcePath,
-                        destinationSource,
-                        childDestination,
                         child,
+                        destinationSource,
                         options,
                         conflictResolver,
                         state,
@@ -565,8 +572,8 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             throw new NotSupportedException("Cross-provider move requires verified copy and delete capabilities.");
 
         var plan = BuildProviderCopyPlan(sources, destination, request.Options,
-            request.UseDestinationTemplate, cancellationToken);
-        state.SetTotals(CalculateProviderPlanSize(plan), plan.Count);
+            request.UseDestinationTemplate, cancellationToken, state);
+        state.SetTotals(CalculateProviderPlanSize(plan), CountProviderPlanItems(plan));
         state.StartProgressTimer();
         var copiedFiles = new List<string>();
         var copiedFolders = new List<string>();
@@ -2576,7 +2583,8 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         PanelLocation destination,
         FileOperationOptions options,
         bool useDestinationTemplate,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        OperationState? state = null)
     {
         DestinationPattern destinationPattern = useDestinationTemplate
             ? default
@@ -2637,7 +2645,78 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
 
         if (template is not null || destinationPattern.HasWildcards)
             ValidateProviderPlanCollisions(destination.SourceId, plan.Select(item => item.TargetPath));
+
+        // Ordinary provider directory copy is fully discovered before any destination
+        // mutation, including for archive batches and cross-provider moves.
+        if (!hasMask)
+        {
+            int scannedFiles = 0;
+            int scannedFolders = 0;
+            long knownBytes = 0;
+            var expanded = new List<ProviderOperationPlanItem>(plan.Count);
+            foreach (ProviderOperationPlanItem root in plan)
+            {
+                var visiting = new HashSet<string>(
+                    root.Location.SourceId == PanelSourceId.Local
+                        ? LocalFileSystemPathComparer.Current : StringComparer.Ordinal);
+                expanded.Add(ExpandProviderCopyItem(
+                    root, visiting, state, ref scannedFiles, ref scannedFolders, ref knownBytes, cancellationToken));
+            }
+            return expanded;
+        }
         return plan;
+    }
+
+    private static ProviderOperationPlanItem ExpandProviderCopyItem(
+        ProviderOperationPlanItem item,
+        HashSet<string> visiting,
+        OperationState? state,
+        ref int scannedFiles,
+        ref int scannedFolders,
+        ref long knownBytes,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (item.Item is not { } sourceItem)
+            return item;
+
+        if (!sourceItem.IsDirectory)
+        {
+            scannedFiles++;
+            knownBytes = checked(knownBytes + (sourceItem.Size ?? 0));
+            state?.ReportScanning(item.SourcePath, scannedFiles, scannedFolders, knownBytes);
+            return item;
+        }
+
+        string normalizedPath = item.Source.NormalizePath(item.SourcePath);
+        if (!visiting.Add(normalizedPath))
+            throw new IOException($"Cyclic provider directory traversal: {normalizedPath}");
+
+        try
+        {
+            scannedFolders++;
+            state?.ReportScanning(item.SourcePath, scannedFiles, scannedFolders, knownBytes);
+            var children = new List<ProviderOperationPlanItem>();
+            foreach (FilePanelItem child in item.Source.EnumerateDirectory(item.SourcePath, cancellationToken))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (child.IsParentDirectory)
+                    continue;
+                string targetPath = CombineProviderPath(
+                    item.Mapping.Destination.SourceId, item.TargetPath, child.Name);
+                var childPlan = new ProviderOperationPlanItem(
+                    child.Location, item.Source, item.Source.NormalizePath(child.SourcePath),
+                    child, targetPath, item.Mapping.Destination.SourceId);
+                children.Add(ExpandProviderCopyItem(
+                    childPlan, visiting, state, ref scannedFiles, ref scannedFolders, ref knownBytes,
+                    cancellationToken));
+            }
+            return item with { Children = children };
+        }
+        finally
+        {
+            visiting.Remove(normalizedPath);
+        }
     }
 
     private List<ProviderOperationPlanItem> BuildProviderMovePlan(
@@ -2823,7 +2902,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
     }
 
     private static long CalculateProviderPlanSize(IEnumerable<ProviderOperationPlanItem> plan) =>
-        plan.Sum(item => item.Item?.Size ?? 0);
+        FlattenProviderPlan(plan).Sum(item => item.Item?.Size ?? 0);
 
     private static async Task EnsureProviderDestinationDirectoryAsync(
         IFilePanelSource destinationSource,
@@ -3139,7 +3218,9 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         public PanelLocation Location => Mapping.Source;
         public string SourcePath => Mapping.Source.SourcePath;
         public string TargetPath => Mapping.Destination.SourcePath;
+        public IReadOnlyList<ProviderOperationPlanItem> Children { get; init; } = [];
     }
+
     private enum CopyDestinationAction
     {
         CreateOrOverwrite,
