@@ -1,5 +1,6 @@
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 using CSharpFar.FileSystem;
 
 namespace CSharpFar.Tests;
