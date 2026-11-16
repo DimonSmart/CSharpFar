@@ -26,10 +26,10 @@ public sealed class RecursiveTransferPlanTests : IDisposable
         Assert.Equal(
             new[] {
                 "/dest/src",
+                "/dest/src/beta.txt",
                 "/dest/src/nested",
                 "/dest/src/nested/alpha.txt",
                 "/dest/src/nested/empty",
-                "/dest/src/beta.txt",
             },
             preview.Items.Select(item => item.Destination.SourcePath).ToArray());
         Assert.Equal(2, preview.Items.Count(item => !item.IsDirectory));
