@@ -1,5 +1,45 @@
 # Local Copy / Provider Copy unification research
 
+## Implementation status (2026-11-16): incremental migration
+
+This research began at commit `340d9fafa` and sections 1–13 below describe that
+historical baseline. They should not be read as an exact inventory of today's
+implementation. In particular, capability-gated cross-provider moves and
+archive mutation batches have since been implemented.
+
+**Stage 1 — shared planning and decisions (implemented):**
+
+- `FileOperationPlanItem` is the canonical source/destination mapping carried
+  by Local Copy, Local Move and provider Copy/Move internal plan entries. Local
+  snapshots and provider handles remain execution-specific metadata.
+- `FileConflictDecisionPolicy` owns the operation-scoped `*All` decisions across
+  Local and provider Copy/Move, including the requirement to explicitly confirm
+  directory replacement.
+- `FileOperationPlanPreflight` provides the shared destination-collision rule,
+  with path normalization/comparison supplied by the selected provider.
+- Contract tests exercise common planning and conflict behavior against the
+  local filesystem, demo provider, and a transactional in-memory batch provider.
+- Existing Reliable/FastSalvage, platform metadata, symlink, provider batch
+  commits and safe replacement/rollback paths are deliberately unchanged.
+
+**Remaining migration boundaries:**
+
+1. Unify recursive discovery and preflight into one provider-neutral transfer
+   plan. Today unmasked provider directories still enumerate during execution,
+   and provider total-byte progress may be incomplete.
+2. Establish explicit typed capabilities for direct rename, resumable streams,
+   metadata and link operations; avoid `SourceId.Local` branching in the
+   generic plan builder.
+3. Route Local Normal Copy through the shared provider pipeline under parity
+   contract tests, then migrate Move; retain advanced local strategies behind
+   capability services.
+4. Once behavior and failure recovery are equivalent, remove the redundant
+   local/provider executors and the legacy string-only request addressing.
+
+Do **not** replace both execution paths in a single change. The common plan
+mapping and conflict policy are an intermediate, testable migration seam, not
+a claim that all provider capabilities or transaction semantics are equivalent.
+
 Baseline: `master` at `340d9fafafac1841cbfed5f2a9328d68c6ff0ae4` (`Fix explicit target paths in copy operations`).
 
 Scope: architecture research only. This document does not propose a big-bang rewrite and does not require changing user-visible file-operation behavior as part of the research commit.
