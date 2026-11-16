@@ -392,9 +392,10 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         bool overwriteApproved = false;
         while (destinationSource.GetItem(destinationPath, cancellationToken) is { } destinationItem)
         {
-            ConflictDecisionMode configured = ResolveConfiguredConflictDecision(options, state);
-            var decision = configured == ConflictDecisionMode.Ask
-                ? conflictResolver.Resolve(new FileOperationConflict
+            var decision = state.Conflicts.Resolve(
+                options,
+                conflictResolver,
+                () => new FileOperationConflict
                 {
                     SourcePath = sourcePath,
                     DestinationPath = destinationPath,
@@ -404,10 +405,9 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                     DestinationSize = destinationItem.Size,
                     SourceLastWriteTime = sourceItem.LastWriteTime,
                     DestinationLastWriteTime = destinationItem.LastWriteTime,
-                })
-                : FileOperationConflictDecision.FromMode(configured);
+                });
 
-            switch (NormalizeRememberedConflictDecision(decision.Mode, state))
+            switch (decision.Mode)
             {
                 case ConflictDecisionMode.Skip:
                     state.SkippedCount++;
@@ -798,21 +798,12 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         string destinationPath,
         FileOperationOptions options,
         IFileOperationConflictResolver conflictResolver,
-        OperationState state)
-    {
-        ConflictDecisionMode configured = ResolveConfiguredConflictDecision(options, state);
-        if (sourceItem.IsDirectory &&
-            destinationItem.IsDirectory &&
-            configured is ConflictDecisionMode.Overwrite or ConflictDecisionMode.OverwriteAll)
-        {
-            configured = ConflictDecisionMode.Ask;
-        }
-
-        FileOperationConflictDecision decision = configured == ConflictDecisionMode.Ask
-            ? conflictResolver.Resolve(BuildProviderConflict(sourceItem, destinationItem, destinationPath))
-            : FileOperationConflictDecision.FromMode(configured);
-        return decision with { Mode = NormalizeRememberedConflictDecision(decision.Mode, state) };
-    }
+        OperationState state) =>
+        state.Conflicts.Resolve(
+            options,
+            conflictResolver,
+            () => BuildProviderConflict(sourceItem, destinationItem, destinationPath),
+            requiresExplicitDirectoryDecision: sourceItem.IsDirectory && destinationItem.IsDirectory);
 
     private async Task MergeProviderDirectoriesAsync(
         IFilePanelSource source,
@@ -1366,21 +1357,12 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         bool destinationIsDirectory,
         FileOperationOptions options,
         IFileOperationConflictResolver conflictResolver,
-        OperationState state)
-    {
-        ConflictDecisionMode configured = ResolveConfiguredConflictDecision(options, state);
-        if (sourceIsDirectory &&
-            destinationIsDirectory &&
-            configured is ConflictDecisionMode.Overwrite or ConflictDecisionMode.OverwriteAll)
-        {
-            configured = ConflictDecisionMode.Ask;
-        }
-
-        FileOperationConflictDecision decision = configured == ConflictDecisionMode.Ask
-            ? conflictResolver.Resolve(BuildConflict(source, destination))
-            : FileOperationConflictDecision.FromMode(configured);
-        return decision with { Mode = NormalizeRememberedConflictDecision(decision.Mode, state) };
-    }
+        OperationState state) =>
+        state.Conflicts.Resolve(
+            options,
+            conflictResolver,
+            () => BuildConflict(source, destination),
+            requiresExplicitDirectoryDecision: sourceIsDirectory && destinationIsDirectory);
 
     private async Task MergeLocalDirectoriesAsync(
         string source,
@@ -1916,7 +1898,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         string destinationPath = file.DestinationPath;
         while (File.Exists(destinationPath) || Directory.Exists(destinationPath))
         {
-            ConflictDecisionMode mode = ResolveConfiguredConflictDecision(options, state);
+            ConflictDecisionMode mode = state.Conflicts.Current(options.DefaultConflictDecision);
             string? newDestination = null;
 
             if (options.CopyMode == CopyMode.Reliable)
@@ -1947,14 +1929,10 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                 }
             }
 
-            if (mode == ConflictDecisionMode.Ask)
-            {
-                var decision = conflictResolver.Resolve(BuildConflict(file.SourcePath, destinationPath));
-                mode = decision.Mode;
-                newDestination = decision.NewDestinationPath;
-            }
-
-            mode = NormalizeRememberedConflictDecision(mode, state);
+            FileOperationConflictDecision decision = state.Conflicts.Resolve(
+                options, conflictResolver, () => BuildConflict(file.SourcePath, destinationPath));
+            mode = decision.Mode;
+            newDestination = decision.NewDestinationPath;
 
             switch (mode)
             {
@@ -1991,39 +1969,6 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         }
 
         return new CopyDestination(destinationPath, CopyDestinationAction.CreateOrOverwrite);
-    }
-
-    private static ConflictDecisionMode ResolveConfiguredConflictDecision(
-        FileOperationOptions options,
-        OperationState state)
-    {
-        return state.StickyConflictDecision switch
-        {
-            ConflictDecisionMode.Skip => ConflictDecisionMode.Skip,
-            ConflictDecisionMode.Overwrite => ConflictDecisionMode.Overwrite,
-            ConflictDecisionMode.Rename => ConflictDecisionMode.Rename,
-            _ => options.DefaultConflictDecision,
-        };
-    }
-
-    private static ConflictDecisionMode NormalizeRememberedConflictDecision(
-        ConflictDecisionMode mode,
-        OperationState state)
-    {
-        switch (mode)
-        {
-            case ConflictDecisionMode.OverwriteAll:
-                state.StickyConflictDecision = ConflictDecisionMode.Overwrite;
-                return ConflictDecisionMode.Overwrite;
-            case ConflictDecisionMode.SkipAll:
-                state.StickyConflictDecision = ConflictDecisionMode.Skip;
-                return ConflictDecisionMode.Skip;
-            case ConflictDecisionMode.RenameAll:
-                state.StickyConflictDecision = ConflictDecisionMode.Rename;
-                return ConflictDecisionMode.Rename;
-            default:
-                return mode;
-        }
     }
 
     private CopyDestination? TryResolveTailValidatedResume(
@@ -3228,7 +3173,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         public int SkippedCount { get; set; }
         public bool Cancelled { get; set; }
         public bool PartiallyMoved { get; set; }
-        public ConflictDecisionMode? StickyConflictDecision { get; set; }
+        public FileConflictDecisionPolicy Conflicts { get; } = new();
         public List<FileOperationItemError> Errors { get; } = [];
 
         public void SetTotals(long totalBytes, int totalItems)
