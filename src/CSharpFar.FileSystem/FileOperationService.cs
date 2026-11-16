@@ -389,10 +389,11 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             SamePhysicalContainer(source, destinationSource)) &&
             ProviderPathRelations.PathsEqual(source, sourcePath, destinationPath))
             throw new IOException("Cannot copy an archive entry onto itself.");
-        var destinationItem = destinationSource.GetItem(destinationPath, cancellationToken);
-        if (destinationItem is not null)
+        bool overwriteApproved = false;
+        while (destinationSource.GetItem(destinationPath, cancellationToken) is { } destinationItem)
         {
-            var decision = options.DefaultConflictDecision == ConflictDecisionMode.Ask
+            ConflictDecisionMode configured = ResolveConfiguredConflictDecision(options, state);
+            var decision = configured == ConflictDecisionMode.Ask
                 ? conflictResolver.Resolve(new FileOperationConflict
                 {
                     SourcePath = sourcePath,
@@ -404,38 +405,42 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                     SourceLastWriteTime = sourceItem.LastWriteTime,
                     DestinationLastWriteTime = destinationItem.LastWriteTime,
                 })
-                : FileOperationConflictDecision.FromMode(options.DefaultConflictDecision);
+                : FileOperationConflictDecision.FromMode(configured);
 
-            switch (decision.Mode)
+            switch (NormalizeRememberedConflictDecision(decision.Mode, state))
             {
                 case ConflictDecisionMode.Skip:
-                case ConflictDecisionMode.SkipAll:
                     state.SkippedCount++;
                     state.CompleteItem();
                     return;
                 case ConflictDecisionMode.Rename:
-                case ConflictDecisionMode.RenameAll:
                     destinationPath = string.IsNullOrWhiteSpace(decision.NewDestinationPath)
                         ? GenerateProviderName(destinationSource, destinationPath, cancellationToken)
                         : decision.NewDestinationPath;
-                    if (source.SourceId == destinationSource.SourceId)
+                    if (source.SourceId == destinationSource.SourceId ||
+                        SamePhysicalContainer(source, destinationSource))
                         ValidateProviderCopyTarget(source, sourcePath, destinationPath, sourceItem.IsDirectory);
-                    break;
+                    continue;
                 case ConflictDecisionMode.Cancel:
                     throw new OperationCanceledException("File operation cancelled by user.");
                 case ConflictDecisionMode.Overwrite:
-                case ConflictDecisionMode.OverwriteAll:
+                    if (destinationItem.IsDirectory)
+                        throw new IOException("Cannot overwrite a directory with a file.");
                     if (destinationSource is not IFileOperationBatch)
                         await destinationSource.DeleteAsync(destinationPath, recursive: false, cancellationToken).ConfigureAwait(false);
+                    overwriteApproved = true;
                     break;
                 case ConflictDecisionMode.OnlyNewer:
                     throw new InvalidOperationException("Only newer is not supported for provider copy.");
+                default:
+                    throw new InvalidOperationException($"Unsupported copy conflict decision: {decision.Mode}.");
             }
+            break;
         }
 
         await EnsureProviderDestinationDirectoryAsync(destinationSource, destinationPath, cancellationToken).ConfigureAwait(false);
         await using var input = await source.OpenReadAsync(sourcePath, cancellationToken).ConfigureAwait(false);
-        await using var output = await destinationSource.OpenWriteAsync(destinationPath, overwrite: true, cancellationToken).ConfigureAwait(false);
+        await using var output = await destinationSource.OpenWriteAsync(destinationPath, overwrite: overwriteApproved, cancellationToken).ConfigureAwait(false);
 
         byte[] buffer = new byte[CopyBufferSize];
         long done = 0;
@@ -709,7 +714,8 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                     destinationItem,
                     targetPath,
                     options,
-                    conflictResolver);
+                    conflictResolver,
+                    state);
 
                 switch (decision.Mode)
                 {
@@ -791,9 +797,10 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         FilePanelItem destinationItem,
         string destinationPath,
         FileOperationOptions options,
-        IFileOperationConflictResolver conflictResolver)
+        IFileOperationConflictResolver conflictResolver,
+        OperationState state)
     {
-        ConflictDecisionMode configured = options.DefaultConflictDecision;
+        ConflictDecisionMode configured = ResolveConfiguredConflictDecision(options, state);
         if (sourceItem.IsDirectory &&
             destinationItem.IsDirectory &&
             configured is ConflictDecisionMode.Overwrite or ConflictDecisionMode.OverwriteAll)
@@ -801,9 +808,10 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             configured = ConflictDecisionMode.Ask;
         }
 
-        return configured == ConflictDecisionMode.Ask
+        FileOperationConflictDecision decision = configured == ConflictDecisionMode.Ask
             ? conflictResolver.Resolve(BuildProviderConflict(sourceItem, destinationItem, destinationPath))
             : FileOperationConflictDecision.FromMode(configured);
+        return decision with { Mode = NormalizeRememberedConflictDecision(decision.Mode, state) };
     }
 
     private async Task MergeProviderDirectoriesAsync(
@@ -1249,7 +1257,8 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                     sourceIsDirectory,
                     destinationIsDirectory,
                     options,
-                    conflictResolver);
+                    conflictResolver,
+                    state);
 
                 switch (decision.Mode)
                 {
@@ -1356,9 +1365,10 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         bool sourceIsDirectory,
         bool destinationIsDirectory,
         FileOperationOptions options,
-        IFileOperationConflictResolver conflictResolver)
+        IFileOperationConflictResolver conflictResolver,
+        OperationState state)
     {
-        ConflictDecisionMode configured = options.DefaultConflictDecision;
+        ConflictDecisionMode configured = ResolveConfiguredConflictDecision(options, state);
         if (sourceIsDirectory &&
             destinationIsDirectory &&
             configured is ConflictDecisionMode.Overwrite or ConflictDecisionMode.OverwriteAll)
@@ -1366,9 +1376,10 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             configured = ConflictDecisionMode.Ask;
         }
 
-        return configured == ConflictDecisionMode.Ask
+        FileOperationConflictDecision decision = configured == ConflictDecisionMode.Ask
             ? conflictResolver.Resolve(BuildConflict(source, destination))
             : FileOperationConflictDecision.FromMode(configured);
+        return decision with { Mode = NormalizeRememberedConflictDecision(decision.Mode, state) };
     }
 
     private async Task MergeLocalDirectoriesAsync(
@@ -3052,7 +3063,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
     }
 
     private static bool PathsEqual(string left, string right) =>
-        string.Equals(NormalizePath(left), NormalizePath(right), StringComparison.OrdinalIgnoreCase);
+        LocalFileSystemPathComparer.Current.Equals(NormalizePath(left), NormalizePath(right));
 
     private static bool IsPathInside(string path, string possibleParent)
     {
@@ -3061,7 +3072,9 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         if (!parent.EndsWith(Path.DirectorySeparatorChar))
             parent += Path.DirectorySeparatorChar;
 
-        return child.StartsWith(parent, StringComparison.OrdinalIgnoreCase);
+        return child.StartsWith(parent, OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal);
     }
 
     private static string NormalizePath(string path) =>
@@ -3070,7 +3083,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
 
     private static void ValidateLocalPlanCollisions(IEnumerable<string> targetPaths)
     {
-        var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var targets = new HashSet<string>(LocalFileSystemPathComparer.Current);
         foreach (string targetPath in targetPaths)
         {
             ValidateLocalTargetPath(targetPath);
@@ -3081,7 +3094,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
 
     private static void ValidateLocalMovePlan(IEnumerable<LocalMovePlanItem> plan, bool validateCollisions)
     {
-        var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var targets = new HashSet<string>(LocalFileSystemPathComparer.Current);
         foreach (var item in plan)
         {
             if (validateCollisions)
