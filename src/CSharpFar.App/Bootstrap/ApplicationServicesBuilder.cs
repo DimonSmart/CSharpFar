@@ -283,19 +283,6 @@ internal static class ApplicationServicesBuilder
                 session.App.QuickView = quickView;
             },
             SetRunning = running => session.App.Running = running,
-            SetFunctionKeyLayer = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            ExecuteRegisteredCommand = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            ToggleSelectAllPanelItems = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            CopyCommandLineSelection = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            PasteTextIntoCommandLine = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            OnCommandLineTextEdited = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            CloseSearchResultsPanel = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            ExecuteCommand = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            BrowseCommandHistory = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            HideCommandCompletion = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            ResetCommandHistoryNavigation = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            TryGoUp = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            OpenPanelItem = (_, _, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
         };
         var shortcutTextProvider = new CommandShortcutTextProvider(
             new DefaultKeyboardShortcutBindingProvider().GetBindings(),
@@ -418,70 +405,16 @@ internal static class ApplicationServicesBuilder
             topMenu);
         var quickViewDirectorySize = rendering.QuickViewDirectorySize;
         var fileUsagePanel = rendering.FileUsagePanel;
-        keyboardInputContext.ToggleFileUsage = () =>
-        {
-            if (session.App.FileUsage)
-            {
-                session.App.FileUsage = false;
-                session.App.QuickView = session.App.RestoreQuickViewAfterFileUsage;
-                fileUsagePanel.Update(false, PanelSourceId.Local, null);
-            }
-            else
-            {
-                session.App.RestoreQuickViewAfterFileUsage = session.App.QuickView;
-                session.App.QuickView = false;
-                session.App.FileUsage = true;
-            }
-            return true;
-        };
-        keyboardInputContext.MoveFileUsageOwnerSelection = offset =>
-            session.App.FileUsage && fileUsagePanel.MoveSelection(offset);
-        keyboardInputContext.UnlockFileUsageOwner = () =>
-            session.App.FileUsage && fileUsagePanel.RequestUnlock(message =>
-                new MessageDialog(modalDialogs).ShowButtons("Unlock owner", message, ["Unlock", "Cancel"]) == 0);
-        mouseInputContext.SelectFileUsageOwner = index =>
-            session.App.FileUsage && fileUsagePanel.SelectOwner(index);
-        keyboardInputContext.ToggleQuickViewDirectoryMonitor = () =>
-        {
-            if (!session.App.QuickView)
-                return false;
-            quickViewDirectorySize.ToggleMonitor();
-            return true;
-        };
-        keyboardInputContext.ActivateQuickViewDirectoryMonitorChange = () =>
-        {
-            if (!session.App.QuickView || !quickViewDirectorySize.TryGetSelectedMonitorTarget(out string target))
-                return false;
-
-            PanelSide targetSide = panelWorkspace.ActiveSide;
-            FilePanelState targetPanel = targetSide == PanelSide.Left ? session.Panels.Left : session.Panels.Right;
-            if (targetPanel.SourceId != PanelSourceId.Local || targetPanel.ContentKind != PanelContentKind.Source)
-                return false;
-
-            string? parent = Path.GetDirectoryName(target);
-            if (parent is null || !controller.TryLoadDirectory(targetPanel, parent, callbacks.PanelOptions()))
-                return false;
-            controller.SetCursorByName(targetPanel, Path.GetFileName(target), callbacks.VisibleRowsForSide(targetSide));
-            callbacks.StartWatching(targetPanel, targetSide);
-            return true;
-        };
-        mouseInputContext.ActivateQuickViewDirectoryMonitorChange = changeId =>
-        {
-            if (!session.App.QuickView || !quickViewDirectorySize.SelectMonitorChange(changeId))
-                return false;
-            return keyboardInputContext.ActivateQuickViewDirectoryMonitorChange();
-        };
-        mouseInputContext.ToggleQuickViewDirectoryMonitor = keyboardInputContext.ToggleQuickViewDirectoryMonitor;
-        mouseInputContext.HandleQuickViewRecentChangesInput = confirmed =>
-        {
-            if (!session.App.QuickView) return false;
-            quickViewDirectorySize.SynchronizeRecentChangesSelection();
-            return !confirmed || keyboardInputContext.ActivateQuickViewDirectoryMonitorChange();
-        };
-        keyboardInputContext.MoveQuickViewDirectoryMonitorSelection = offset =>
-            session.App.QuickView && quickViewDirectorySize.MoveMonitorSelection(offset);
-        keyboardInputContext.MoveQuickViewDirectoryMonitorSelectionByPage = direction =>
-            session.App.QuickView && quickViewDirectorySize.MoveMonitorSelectionByPage(direction);
+        ApplicationAuxiliaryInputBindings.Bind(
+            keyboardInputContext,
+            mouseInputContext,
+            session,
+            controller,
+            callbacks,
+            panelWorkspace,
+            quickViewDirectorySize,
+            fileUsagePanel,
+            modalDialogs);
         var dialogs = new DialogService(modalDialogs, formFields);
         var searchResults = new PanelSearchResultsService(
             dialogs,
@@ -557,38 +490,14 @@ internal static class ApplicationServicesBuilder
             (descriptor, error) => diagnosticLog.WriteException(
                 DiagnosticCategory.Plugin, error, $"Plugin '{descriptor.Id}' initialization"));
 
-        // Only the composition root knows which built-in implementations are enabled.
-        var pluginComposition = new List<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>();
-        if (enableBuiltInNetworkModules)
-        {
-            var sftp = sftpModule ?? new SftpModule();
-            sftp.Initialize(moduleStartup);
-            pluginComposition.Add((
-                new PluginDescriptor { Id = SftpModuleIds.ModuleId.ToString("D"), Title = "SFTP" }, sftp));
-
-            var ftp = ftpModule ?? new FtpModule();
-            ftp.Initialize(moduleStartup);
-            pluginComposition.Add((
-                new PluginDescriptor { Id = FtpModuleIds.ModuleId.ToString("D"), Title = "FTP/FTPS" }, ftp));
-        }
-
-        var ports = new ProcessesAndPortsModule(
-            processesAndPorts ?? new UnsupportedProcessesAndPortsPlatformService());
-        ports.Initialize(moduleStartup);
-        pluginComposition.Add((
-            new PluginDescriptor
-            {
-                Id = ProcessesAndPortsModuleIds.MenuActionId.ToString("D"),
-                Title = "Processes and Ports",
-            }, ports));
-
-        pluginComposition.Add((
-            new PluginDescriptor { Id = NetworkTrafficPlugin.Id, Title = "Network Traffic" },
-            new NetworkTrafficPlugin(moduleUiServices, networkTrafficMonitorFactory)));
-
-        pluginComposition.Add((
-            new PluginDescriptor { Id = ArchivePlugin.Id, Title = "Archives" },
-            new ArchivePlugin()));
+        var pluginComposition = BuiltInPluginCompositionFactory.Create(
+            enableBuiltInNetworkModules,
+            moduleStartup,
+            moduleUiServices,
+            sftpModule,
+            ftpModule,
+            processesAndPorts,
+            networkTrafficMonitorFactory);
 
         void ReleaseFailedPreparation()
         {
