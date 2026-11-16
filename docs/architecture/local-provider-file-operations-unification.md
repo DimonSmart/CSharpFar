@@ -22,6 +22,27 @@ archive mutation batches have since been implemented.
 - Existing Reliable/FastSalvage, platform metadata, symlink, provider batch
   commits and safe replacement/rollback paths are deliberately unchanged.
 
+### Stage 2 — recursive provider Copy discovery (2026-11-16)
+
+Provider Copy and cross-provider Move now build a complete source directory
+tree *before* any destination mutation. The plan contains immutable
+source/destination mappings for every discovered file and directory, and
+execution walks the planned children rather than re-enumerating providers
+while writing. Public preview and archive batch plans include descendants.
+The scan reports all known file sizes and the total planned item count.
+
+This preserves archive transactional publication and cross-provider
+copy-before-delete behavior. An unreadable directory or cancelled scan fails
+before starting the destination mutation batch, rather than leaving a partial
+tree. For files whose providers do not expose a size, progress counts only
+known bytes; the result does not imply unknown sizes are measured exactly.
+
+Same-provider direct Move remains cheap and does not recursively scan
+directories merely for a rename. Local Copy still uses its specialized
+streaming and metadata strategies; full routing through the provider executor
+needs dedicated capability parity (metadata, symlinks, reliable resume,
+partial-file cleanup) and remains an explicit subsequent step.
+
 **Remaining migration boundaries:**
 
 1. Unify recursive discovery and preflight into one provider-neutral transfer

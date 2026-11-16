@@ -26,6 +26,8 @@ internal class MemoryFilePanelView : IFilePanelSource
     public IReadOnlyCollection<char> PathSeparators => ['/'];
     public bool FailRead { get; set; }
     public bool FailWrite { get; set; }
+    public string? FailEnumeratePath { get; set; }
+    public int EnumerationCount { get; private set; }
 
     public string NormalizePath(string path)
     {
@@ -54,6 +56,9 @@ internal class MemoryFilePanelView : IFilePanelSource
         path = NormalizePath(path);
         lock (_gate)
         {
+            EnumerationCount++;
+            if (FailEnumeratePath == path)
+                throw new IOException("Simulated provider enumeration failure.");
             if (!Entries.TryGetValue(path, out var directory) || directory is not null)
                 throw new DirectoryNotFoundException(path);
             return Entries.Where(entry => entry.Key != path && GetParentPath(entry.Key) == path)
