@@ -110,7 +110,7 @@ folder. For a plain class library without the template:
 ```sh
 dotnet new classlib -n MyExtension -f net10.0
 cd MyExtension
-dotnet add package CSharpFar.Plugin.Abstractions --version 1.0.0 --source /path/to/plugin-sdk
+dotnet add package CSharpFar.Plugin.Abstractions --version 1.1.0 --source /path/to/plugin-sdk
 ```
 
 A minimal `Plugin.cs` can be written as:
