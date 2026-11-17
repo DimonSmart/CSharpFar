@@ -348,11 +348,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+
+      - name: Verify binary compatibility with v1.0.0 SDK
+        shell: pwsh
+        run: ./eng/testing/verify-plugin-sdk-compatibility.ps1
 
       - name: Package SDK and templates
         shell: pwsh
@@ -364,6 +370,14 @@ jobs:
             $hash = (Get-FileHash -LiteralPath $package.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($package.Name)" | Set-Content "$($package.FullName).sha256" -Encoding ascii
           }
+
+      - name: Validate SDK package contents
+        shell: pwsh
+        run: ./eng/testing/verify-plugin-sdk-packages.ps1
+
+      - name: Verify template from packaged SDK
+        shell: pwsh
+        run: ./eng/testing/verify-plugin-template.ps1
 
       - name: Upload SDK packages
         uses: actions/upload-artifact@v4

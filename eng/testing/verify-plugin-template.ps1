@@ -4,7 +4,8 @@ param([string]$SdkFeed = 'artifacts/plugin-sdk')
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $feed = Join-Path $root $SdkFeed
-$package = Join-Path $feed 'CSharpFar.Plugin.Templates.1.0.0.nupkg'
+$version = ([xml](Get-Content -LiteralPath (Join-Path $root 'eng/PluginSdk.props') -Raw)).Project.PropertyGroup.PluginSdkVersion
+$package = Join-Path $feed "CSharpFar.Plugin.Templates.$version.nupkg"
 if (-not (Test-Path -LiteralPath $package)) {
     throw "Template NuGet package not found: $package"
 }

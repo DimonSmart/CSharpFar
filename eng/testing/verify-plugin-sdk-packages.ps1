@@ -39,6 +39,16 @@ foreach ($name in @('CSharpFar.Core', 'CSharpFar.Plugin.Abstractions', 'CSharpFa
             }
         }
 
+        if ($name -eq 'CSharpFar.Plugin.Templates') {
+            $projectFile = Join-Path $root 'templates/csharpfar-plugin/CSharpFar.Plugin.Template.csproj'
+            [xml]$templateProject = Get-Content -LiteralPath $projectFile -Raw
+            $sdkReference = @($templateProject.Project.ItemGroup.PackageReference |
+                Where-Object Include -EQ 'CSharpFar.Plugin.Abstractions')
+            if ($sdkReference.Count -ne 1 -or $sdkReference[0].Version -ne $version) {
+                throw 'Update the generated template dependency when the SDK version changes.'
+            }
+        }
+
         if ($name -eq 'CSharpFar.Plugin.Abstractions') {
             $dependency = $nuspec.SelectSingleNode(
                 "//*[local-name()='dependency' and @id='CSharpFar.Core']")

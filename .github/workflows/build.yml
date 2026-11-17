@@ -73,6 +73,10 @@ jobs:
         shell: pwsh
         run: ./eng/testing/build-external-plugin-samples.ps1
 
+      - name: Verify plugin SDK package contents
+        shell: pwsh
+        run: ./eng/testing/verify-plugin-sdk-packages.ps1
+
       - name: Verify packaged dotnet new plugin template
         if: runner.os == 'Linux'
         shell: pwsh
