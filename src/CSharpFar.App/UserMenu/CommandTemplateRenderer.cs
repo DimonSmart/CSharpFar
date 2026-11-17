@@ -126,7 +126,7 @@ internal static class CommandTemplateRenderer
         {
             // cmd.exe has no lossless quoting rule for embedded quotes, percent/delayed expansion or caret.
             // Reject ambiguous input rather than interpolating partially escaped shell syntax.
-            if (value.IndexOfAny('"', '%', '!', '^') >= 0)
+            if (value.IndexOfAny(['"', '%', '!', '^']) >= 0)
                 throw new ArgumentException(
                     $"Input parameter '{name}' contains characters unsafe for cmd.exe (double quote, %, ! or ^).");
             return context == QuoteContext.Double ? value : "\"" + value + "\"";
