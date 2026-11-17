@@ -62,6 +62,18 @@ public sealed class CommandTemplateTests
     }
 
     [Fact]
+    public void ShellScanner_IgnoresQuoteCharactersInPriorParameterNames()
+    {
+        CommandTemplate template = CommandTemplateParser.Parse(
+            "echo {input:First\"Name} && echo {input:Second}");
+        CommandTemplateRenderer.ValidatePlacement(template, PlatformKind.Linux);
+
+        Assert.Equal("echo 'one' && echo 'two'", CommandTemplateRenderer.Expand(
+            template, new Dictionary<string, string> { ["First\"Name"] = "one", ["Second"] = "two" },
+            static literal => literal, InputShellDialect.Unix));
+    }
+
+    [Fact]
     public void Rendering_NeverRecursivelyExpandsValues()
     {
         CommandTemplate template = CommandTemplateParser.Parse("echo \"{input:First}\" \"{input:Second}\" {panelDir}");
