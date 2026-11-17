@@ -3,6 +3,9 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <NoBuild>true</NoBuild>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
     <IsPackable>true</IsPackable>
     <IncludeContentInPack>true</IncludeContentInPack>
     <ContentTargetFolders>content</ContentTargetFolders>
