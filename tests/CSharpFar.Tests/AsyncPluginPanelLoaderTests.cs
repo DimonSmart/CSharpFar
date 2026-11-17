@@ -191,7 +191,8 @@ public sealed class AsyncPluginPanelLoaderTests
         fixture.Loader.Load(fixture.State, new PanelLocation(source.SourceId, "/"), new(),
             onSuccess: () => fixture.Applied++);
         await source.WaitForRequestAsync("/");
-        fixture.Loader.Shutdown();
+        Task shutdown = fixture.Loader.Shutdown();
+        Assert.False(shutdown.IsCompleted);
 
         int disposed = 0;
         fixture.Registry.DisposeOwnedSources(_ => Interlocked.Increment(ref disposed));
@@ -199,6 +200,7 @@ public sealed class AsyncPluginPanelLoaderTests
         Assert.Equal(0, fixture.Applied);
 
         source.Release("/");
+        await shutdown.WaitAsync(TimeSpan.FromSeconds(10));
         await EventuallyAsync(() => Volatile.Read(ref disposed) == 1);
         fixture.Pump();
         Assert.Equal(0, fixture.Applied);

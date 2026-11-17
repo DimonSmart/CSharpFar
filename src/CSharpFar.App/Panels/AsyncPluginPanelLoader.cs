@@ -17,6 +17,7 @@ internal sealed class AsyncPluginPanelLoader
     private readonly Action<Exception>? _reportError;
     private readonly object _gate = new();
     private readonly Dictionary<FilePanelState, Pending> _pending = new(ReferenceEqualityComparer.Instance);
+    private readonly HashSet<Task> _running = [];
     private bool _stopping;
 
     public AsyncPluginPanelLoader(
@@ -89,7 +90,21 @@ internal sealed class AsyncPluginPanelLoader
         }
         if (previous is not null)
             RequestCancellation(previous);
-        _ = PrepareAndPostAsync(request);
+        Task work = PrepareAndPostAsync(request);
+        lock (_gate)
+            _running.Add(work);
+        _ = ObserveWorkAsync(work);
+    }
+
+    private async Task ObserveWorkAsync(Task work)
+    {
+        try { await work.ConfigureAwait(false); }
+        catch (Exception error) { ReportError(error); }
+        finally
+        {
+            lock (_gate)
+                _running.Remove(work);
+        }
     }
 
     private async Task PrepareAndPostAsync(Pending request)
@@ -181,18 +196,24 @@ internal sealed class AsyncPluginPanelLoader
         }
     }
 
-    /// <summary>Stop accepting completions before the source registry begins shutdown.</summary>
-    public void Shutdown()
+    /// <summary>
+    /// Stop accepting UI completions and return the outstanding work to the
+    /// application's bounded shutdown wait. Do not synchronously block here.
+    /// </summary>
+    public Task Shutdown()
     {
         Pending[] active;
+        Task[] running;
         lock (_gate)
         {
             _stopping = true;
             active = [.. _pending.Values];
+            running = [.. _running];
             _pending.Clear();
         }
         foreach (var request in active)
             RequestCancellation(request);
+        return Task.WhenAll(running);
     }
 
     private void RequestCancellation(Pending request)

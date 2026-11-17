@@ -400,14 +400,14 @@ internal sealed class ModulePanelOpener
         }
         if (firstShutdown)
         {
-            _asyncLoads?.Shutdown();
+            Task panelLoads = _asyncLoads?.Shutdown() ?? Task.CompletedTask;
             // Do not execute arbitrary plugin cancellation callbacks on the UI thread.
             Task cancellation = _operationCancellation.CancelAsync();
 
             // In-process code may ignore cancellation; shutdown must remain bounded.
             try
             {
-                await Task.WhenAll(running.Append(cancellation))
+                await Task.WhenAll(running.Append(cancellation).Append(panelLoads))
                     .WaitAsync(ShutdownGracePeriod).ConfigureAwait(false);
             }
             catch (TimeoutException)
