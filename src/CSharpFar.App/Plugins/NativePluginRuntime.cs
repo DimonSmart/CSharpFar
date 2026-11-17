@@ -281,8 +281,8 @@ internal sealed class NativePluginRuntime
     }
 
     /// <summary>
-    /// Finds exactly one handler in registration order. Conflicting claims fail closed
-    /// rather than silently selecting a format handler.
+    /// Collect claims before invocation. Multiple owners are resolved by the user
+    /// on the UI thread; no plugin wins silently by registration order.
     /// </summary>
     public bool TryOpenFile(
         IFilePanelSource source, FilePanelItem item, PanelSide side,
@@ -290,7 +290,7 @@ internal sealed class NativePluginRuntime
         CancellationToken cancellationToken = default)
     {
         invocation = default;
-        (Registration Registration, IFileOpenHandler Handler)? match = null;
+        var matches = new List<(Registration Registration, IFileOpenHandler Handler)>();
         foreach (var registration in _plugins.Values)
         {
             foreach (var handler in registration.OpenHandlers)
@@ -303,22 +303,50 @@ internal sealed class NativePluginRuntime
                         $"File opener '{registration.Descriptor.Id}/{handler.Id}': {error.Message}"));
                     return true;
                 }
-                if (!canOpen)
-                    continue;
-                if (match is not null)
-                {
-                    invocation = ValueTask.FromResult(PluginFileOpenResult.Failed(
-                        $"Ambiguous file open handlers: '{match.Value.Registration.Descriptor.Id}/{match.Value.Handler.Id}' " +
-                        $"and '{registration.Descriptor.Id}/{handler.Id}'."));
-                    return true;
-                }
-                match = (registration, handler);
+                if (canOpen)
+                    matches.Add((registration, handler));
             }
         }
-        if (match is null)
+        if (matches.Count == 0)
             return false;
 
-        invocation = InvokeFileOpenAsync(match.Value.Registration, match.Value.Handler,
+        int selectedIndex = 0;
+        if (matches.Count > 1)
+        {
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                string[] choices = [.. matches.Select(match =>
+                    $"{match.Registration.Descriptor.Title} ({match.Registration.Descriptor.Id}/{match.Handler.Id})"),
+                    "Open normally (without plugins)"];
+                int? selected = matches[0].Registration.Host!.Ui.ShowMenu(
+                    $"Open {item.Name} with...", choices, selected: 0);
+                if (selected is null)
+                {
+                    invocation = ValueTask.FromResult(PluginFileOpenResult.Cancelled());
+                    return true;
+                }
+                selectedIndex = selected.Value;
+                if (selectedIndex == matches.Count)
+                    return false; // Existing application launcher/viewer.
+                if (selectedIndex < 0 || selectedIndex >= matches.Count)
+                    throw new InvalidOperationException("Invalid file handler selection.");
+            }
+            catch (OperationCanceledException)
+            {
+                invocation = ValueTask.FromResult(PluginFileOpenResult.Cancelled());
+                return true;
+            }
+            catch (Exception error)
+            {
+                invocation = ValueTask.FromResult(PluginFileOpenResult.Failed(
+                    $"Cannot choose file opener: {error.Message}"));
+                return true;
+            }
+        }
+
+        var match = matches[selectedIndex];
+        invocation = InvokeFileOpenAsync(match.Registration, match.Handler,
             source, item, side, cancellationToken);
         return true;
     }

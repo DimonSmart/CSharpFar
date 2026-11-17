@@ -260,3 +260,23 @@ without changing your saved choices, so you can open Options → Plugins… and
 disable the broken package before restarting normally. The `disabled` array
 stores **installation folder names**, regardless of manifest IDs or whether a
 folder currently exists.
+
+## Plugin UI and conflicting file handlers
+
+The neutral `IPluginUiService` facade supports `ShowMessage`, `Input`,
+`ShowMenu`, `Confirm`, `ShowChoice` and `ShowHelp`. Confirmation and
+choice dialogs are synchronous terminal modal operations; they **must** be
+requested from the input/UI thread, not after a background `await`.
+For example:
+
+```csharp
+bool accepted = context.Ui.Confirm("Delete", "Delete item?", itemName);
+int? button = context.Ui.ShowChoice("Options", "Continue?", ["Continue", "Cancel"]);
+context.Ui.ShowHelp("Plugin help", ["First action", "Second action"]);
+```
+
+When two or more registered file handlers claim an item, CSharpFar shows a
+chooser instead of aborting with an ambiguity error. The chooser includes a
+normal-open option and Escape cancels without launching any handler.
+A plugin's `CanOpen` should remain inexpensive, deterministic and free of
+modal UI: it is called before presenting the chooser.

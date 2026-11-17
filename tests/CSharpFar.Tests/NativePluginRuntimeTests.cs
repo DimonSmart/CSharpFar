@@ -50,7 +50,7 @@ public sealed class NativePluginRuntimeTests
     }
 
     [Fact]
-    public async Task AmbiguousOrThrowingFileOpenHandler_FailsWithoutSystemFallback()
+    public async Task AmbiguousOrThrowingFileOpenHandler_CanBeCancelledWithoutSystemFallback()
     {
         var runtime = CreateRuntime(new TestApplication());
         var source = new InMemoryBatchFilePanelSource();
@@ -68,7 +68,7 @@ public sealed class NativePluginRuntimeTests
             return ValueTask.CompletedTask;
         }))).Success);
         Assert.True(runtime.TryOpenFile(source, item, PanelSide.Left, out var ambiguous));
-        Assert.Equal(PluginFileOpenResultKind.Failed, (await ambiguous).Kind);
+        Assert.Equal(PluginFileOpenResultKind.Cancelled, (await ambiguous).Kind);
 
         var throwing = CreateRuntime(new TestApplication());
         Assert.True((await throwing.RegisterAsync(Descriptor("throwing"), new TestPlugin((host, _) =>
@@ -79,6 +79,64 @@ public sealed class NativePluginRuntimeTests
         }))).Success);
         Assert.True(throwing.TryOpenFile(source, item, PanelSide.Left, out var failed));
         Assert.Equal(PluginFileOpenResultKind.Failed, (await failed).Kind);
+    }
+
+    [Theory]
+    [InlineData(0, "first")]
+    [InlineData(1, "second")]
+    public async Task ConflictingFileOpenHandlers_AllowExplicitSelection(int selectedIndex, string expected)
+    {
+        var ui = new SelectingUi { Selected = selectedIndex };
+        var runtime = CreateRuntime(new TestApplication(), ui: ui);
+        var source = new InMemoryBatchFilePanelSource();
+        var item = new FilePanelItem { Name = "shared.bin", FullPath = "/shared.bin",
+            SourceId = source.SourceId, IsDirectory = false };
+        string? invoked = null;
+        foreach (string id in new[] { "first", "second" })
+        {
+            string handlerId = id;
+            Assert.True((await runtime.RegisterAsync(Descriptor(id), new TestPlugin((host, _) =>
+            {
+                host.RegisterFileOpenHandler(new TestFileHandler("open", _ => true,
+                    (_, _) =>
+                    {
+                        invoked = handlerId;
+                        return ValueTask.FromResult(PluginFileOpenResult.NotHandled());
+                    }));
+                return ValueTask.CompletedTask;
+            }))).Success);
+        }
+        runtime.Seal();
+
+        Assert.True(runtime.TryOpenFile(source, item, PanelSide.Left, out var task));
+        Assert.Equal(PluginFileOpenResultKind.NotHandled, (await task).Kind);
+        Assert.Equal(expected, invoked);
+        Assert.Equal(3, ui.Choices!.Count);
+        Assert.Contains("first", ui.Choices[0]);
+        Assert.Contains("second", ui.Choices[1]);
+        Assert.Contains("normally", ui.Choices[2], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ConflictingFileOpenHandlers_OpenNormallyDefersToApplicationFallback()
+    {
+        var ui = new SelectingUi { Selected = 2 };
+        var runtime = CreateRuntime(new TestApplication(), ui: ui);
+        foreach (string id in new[] { "first", "second" })
+        {
+            Assert.True((await runtime.RegisterAsync(Descriptor(id), new TestPlugin((host, _) =>
+            {
+                host.RegisterFileOpenHandler(new TestFileHandler("open", _ => true,
+                    (_, _) => throw new InvalidOperationException("Must not invoke either handler.")));
+                return ValueTask.CompletedTask;
+            }))).Success);
+        }
+        var source = new InMemoryBatchFilePanelSource();
+        var item = new FilePanelItem { Name = "shared.bin", FullPath = "/shared.bin",
+            SourceId = source.SourceId, IsDirectory = false };
+
+        Assert.False(runtime.TryOpenFile(source, item, PanelSide.Left, out _));
+        Assert.Equal(3, ui.Choices!.Count);
     }
 
     [Fact]
@@ -293,10 +351,11 @@ public sealed class NativePluginRuntimeTests
         new() { Id = id, Title = id, CommandId = commandId };
 
     private static NativePluginRuntime CreateRuntime(
-        TestApplication app, TestSettings? settings = null, TestCredentials? credentials = null)
+        TestApplication app, TestSettings? settings = null, TestCredentials? credentials = null,
+        IPluginUiService? ui = null)
         => new(app,
             _ => settings ?? new TestSettings(Path.Combine(Path.GetTempPath(), "CSharpFarPluginTests")),
-            _ => new TestUi(),
+            _ => ui ?? new TestUi(),
             _ => credentials ?? new TestCredentials());
 
     private sealed class TestFileHandler(
@@ -333,6 +392,19 @@ public sealed class NativePluginRuntimeTests
         public string? TryReadPassword(string credentialId) => null;
         public void SavePassword(string credentialId, string password) => Writes++;
         public void DeletePassword(string credentialId) => Writes++;
+    }
+
+    private sealed class SelectingUi : IPluginUiService
+    {
+        public int? Selected { get; init; }
+        public IReadOnlyList<string>? Choices { get; private set; }
+        public void ShowMessage(string title, string message) { }
+        public string? Input(string title, string prompt, string? initialText = null) => null;
+        public int? ShowMenu(string title, IReadOnlyList<string> items, int selected)
+        {
+            Choices = items;
+            return Selected;
+        }
     }
 
     private sealed class TestUi : IPluginUiService
