@@ -138,6 +138,32 @@ public sealed class CommandTemplateTests
     }
 
     [Fact]
+    public void Quoting_CmdDoesNotExecuteAmpersandInInteractiveValue()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        const string value = "video&echo SHOULD_NOT_RUN";
+        CommandTemplate template = CommandTemplateParser.Parse("echo \"{input:URL}\"");
+        string command = CommandTemplateRenderer.Expand(template,
+            new Dictionary<string, string> { ["URL"] = value },
+            static literal => literal, InputShellDialect.Cmd);
+
+        Assert.Equal("\"" + value + "\"",
+            ExecuteShell(new WindowsShellCommandLineBuilder(), command).Trim());
+    }
+
+    [Fact]
+    public void Quoting_PowerShellDoesNotEvaluateInputExpressions()
+    {
+        const string value = "video$(Write-Output SHOULD_NOT_RUN) & | `";
+        CommandTemplate template = CommandTemplateParser.Parse("ps: Write-Output \"{input:URL}\"");
+        string command = CommandTemplateRenderer.Expand(template,
+            new Dictionary<string, string> { ["URL"] = value },
+            static literal => literal, InputShellDialect.PowerShell);
+
+        Assert.Equal(value, ExecuteShell(new PowerShellCommandLineBuilder(), command[4..]).Trim());
+    }
+
+    [Fact]
     public void OrdinaryCommandsRetainContextPlaceholders()
     {
         CommandTemplate template = CommandTemplateParser.Parse("cd \"{panelDir}\" && echo {selected}");
