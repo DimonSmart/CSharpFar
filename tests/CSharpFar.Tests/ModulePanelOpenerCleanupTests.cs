@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using CSharpFar.App.Modules;
+using CSharpFar.App.Panels;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
