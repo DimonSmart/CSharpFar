@@ -58,7 +58,6 @@ jobs:
 
           $version = $env:GITHUB_REF_NAME.Substring(1)
           "VERSION=$version" >> $env:GITHUB_ENV
-          "ASSEMBLY_VERSION=$version.0" >> $env:GITHUB_ENV
 
       - name: Checkout
         uses: actions/checkout@v4
