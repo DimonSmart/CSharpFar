@@ -101,10 +101,7 @@ jobs:
             /p:IncludeNativeLibrariesForSelfExtract=true `
             /p:DebugType=None `
             /p:DebugSymbols=false `
-            /p:Version=$env:VERSION `
-            /p:AssemblyVersion=$env:ASSEMBLY_VERSION `
-            /p:FileVersion=$env:ASSEMBLY_VERSION `
-            /p:InformationalVersion=$env:GITHUB_REF_NAME
+            /p:CSharpFarReleaseVersion=$env:VERSION
 
       - name: Verify publish output
         shell: pwsh

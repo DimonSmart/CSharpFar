@@ -1,4 +1,16 @@
 <Project>
+  <!-- CSharpFar application release metadata must never override the stable binary
+       identity of the public plugin contract assemblies. -->
+  <PropertyGroup Condition="'$(CSharpFarReleaseVersion)' != '' and
+                            ('$(MSBuildProjectName)' == 'CSharpFar.Host.Windows' or
+                             '$(MSBuildProjectName)' == 'CSharpFar.Host.Linux' or
+                             '$(MSBuildProjectName)' == 'CSharpFar.Host.MacOs')">
+    <Version>$(CSharpFarReleaseVersion)</Version>
+    <AssemblyVersion>$(CSharpFarReleaseVersion).0</AssemblyVersion>
+    <FileVersion>$(CSharpFarReleaseVersion).0</FileVersion>
+    <InformationalVersion>v$(CSharpFarReleaseVersion)</InformationalVersion>
+  </PropertyGroup>
+
   <PropertyGroup>
     <HuskyRoot Condition="'$(HuskyRoot)' == ''">$(MSBuildThisFileDirectory)</HuskyRoot>
   </PropertyGroup>
