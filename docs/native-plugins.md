@@ -76,22 +76,36 @@ The public contracts are distributed in two versioned .NET 10 NuGet packages:
 No reference to `CSharpFar.App` or checkout of the application is needed by
 third-party authors.
 
-The package publishing feed is independent of this repository. Until the SDK is
-available in a public NuGet feed, a reproducible local NuGet feed can be created
-from the CSharpFar source release **once**, then shared as binary `.nupkg`
-files to plugin authors:
+The SDK package version is independent of the CSharpFar application version.
+`eng/PluginSdk.props` is the single source for the SDK NuGet version and stable
+assembly version. Releases include downloadable `CSharpFar.Core` and
+`CSharpFar.Plugin.Abstractions` packages, along with
+`CSharpFar.Plugin.Templates` for `dotnet new`. Until SDK packages are
+published to a public NuGet feed, the binary `.nupkg` files can be shared
+from GitHub Releases or generated locally using:
 
 ```pwsh
 ./eng/pack-plugin-sdk.ps1
 ```
 
-This creates `artifacts/plugin-sdk/CSharpFar.Core.1.0.0.nupkg` and
-`CSharpFar.Plugin.Abstractions.1.0.0.nupkg`. To publish to NuGet.org, an
-authorized maintainer can use `dotnet nuget push artifacts/plugin-sdk/*.nupkg
---source https://api.nuget.org/v3/index.json --api-key <key>`;
-credentials must be supplied securely outside source control.
+This creates `artifacts/plugin-sdk/CSharpFar.Core.1.0.0.nupkg`,
+`CSharpFar.Plugin.Abstractions.1.0.0.nupkg`, and
+`CSharpFar.Plugin.Templates.1.0.0.nupkg`. Public NuGet.org publishing is
+not automated: a maintainer must publish explicitly, with credentials stored
+outside source control. Do not attempt to push a package version that already
+exists in the feed.
 
-To create a plugin from an empty directory:
+To generate a working plugin from the versioned template package:
+
+```sh
+dotnet new install artifacts/plugin-sdk/CSharpFar.Plugin.Templates.1.0.0.nupkg
+dotnet new csharpfar-plugin -n MyExtension --PluginId my-extension --PluginTitle "My Extension"
+dotnet restore MyExtension.csproj --source /path/to/plugin-sdk
+dotnet publish MyExtension.csproj -c Release -o ./extension
+```
+
+The generated project automatically copies `plugin.json` into the published
+folder. For a plain class library without the template:
 
 ```sh
 dotnet new classlib -n MyExtension -f net10.0
@@ -137,6 +151,27 @@ Create `plugin.json` as above, replacing `id`, `name`, `assembly` with
 directory, and distribute the folder. The published output includes
 `.deps.json` and required private libraries. See the complete independent
 [sample](../samples/CSharpFar.Plugin.HelloWorld/README.md).
+
+## SDK compatibility policy
+
+`apiVersion: 1` in the manifest selects the public v1 plugin contract. For
+binary-compatible SDK releases, the assembly identities of
+`CSharpFar.Core` and `CSharpFar.Plugin.Abstractions` remain at 1.0.0.0
+even if NuGet package versions advance within major version 1.
+
+The CI check `eng/testing/verify-plugin-sdk-compatibility.ps1` builds the
+initial v1.0.0 contract from the pinned Git commit
+`6d9873abc0c855d93325d5227b34fe6f8eabadb8` and compares both assemblies
+with `Microsoft.DotNet.ApiCompat.Tool`. This is an API compatibility check,
+not a guarantee about every runtime behavior. Keep the old baseline intact for
+v1-compatible releases; do not suppress breaking changes by silently moving
+the baseline. An intentionally incompatible SDK needs a reviewed major API
+migration and independent compatibility tests.
+
+Build and release pipelines load the binary-only sample extensions. The release
+pipeline additionally executes external DLLs against the exact self-contained,
+single-file executable it packages. The template package is tested by generating
+and publishing a separate project in CI.
 
 ## Dependency and lifetime rules
 

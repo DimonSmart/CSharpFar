@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "DimonSmart",
+  "classifications": [
+    "CSharpFar",
+    "Plugins",
+    "Console"
+  ],
+  "identity": "CSharpFar.Plugin.Templates.NativePlugin",
+  "name": "CSharpFar Native Plugin",
+  "shortName": "csharpfar-plugin",
+  "sourceName": "CSharpFar.Plugin.Template",
+  "preferNameDirectory": false,
+  "symbols": {
+    "PluginId": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "sample-extension",
+      "replaces": "sample-extension",
+      "description": "Globally unique plugin ID (ASCII alphanumeric, underscore, dot, dash)."
+    },
+    "PluginTitle": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "Sample Extension",
+      "replaces": "Sample Extension",
+      "description": "Display title for the plugin."
+    }
+  }
+}

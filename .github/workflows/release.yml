@@ -76,7 +76,14 @@ jobs:
       - name: Build
         run: dotnet build CSharpFar.slnx --configuration Release --no-restore
 
+      - name: Build independent external plugin binaries
+        shell: pwsh
+        run: ./eng/testing/build-external-plugin-samples.ps1
+
       - name: Test
+        env:
+          CSHARPFAR_EXTERNAL_HELLO: ${{ github.workspace }}/artifacts/external-hello
+          CSHARPFAR_EXTERNAL_GOODBYE: ${{ github.workspace }}/artifacts/external-goodbye
         run: dotnet test CSharpFar.slnx --configuration Release --no-build --verbosity minimal
 
       - name: Publish
@@ -132,6 +139,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "--self-test failed for $binaryPath"
           }
+
+      - name: Verify external plugins on the exact release executable
+        shell: pwsh
+        run: |
+          ./eng/testing/verify-external-plugins-published.ps1 `
+            -Project "${{ matrix.project }}" `
+            -RuntimeIdentifier "${{ matrix.runtime }}" `
+            -PublishedDirectory $env:PUBLISH_DIR
 
       - name: Verify macOS native architecture and system Git launch
         if: startsWith(matrix.runtime, 'osx-')
@@ -326,10 +341,48 @@ jobs:
         with:
           subject-path: ${{ env.MACOS_APP_ASSET_PATH }}
 
+  sdk:
+    name: Package public plugin SDK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Package SDK and templates
+        shell: pwsh
+        run: |
+          ./eng/pack-plugin-sdk.ps1
+          $packages = @(Get-ChildItem artifacts/plugin-sdk -Filter '*.nupkg' -File)
+          if ($packages.Count -ne 3) { throw 'Expected two SDK packages and one template package.' }
+          foreach ($package in $packages) {
+            $hash = (Get-FileHash -LiteralPath $package.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($package.Name)" | Set-Content "$($package.FullName).sha256" -Encoding ascii
+          }
+
+      - name: Upload SDK packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: CSharpFar-plugin-sdk
+          path: |
+            artifacts/plugin-sdk/*.nupkg
+            artifacts/plugin-sdk/*.nupkg.sha256
+          if-no-files-found: error
+
+      - name: Attest SDK packages
+        uses: actions/attest@v4
+        with:
+          subject-path: artifacts/plugin-sdk/*.nupkg
+
   release:
     name: Create release
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, sdk]
 
     steps:
       - name: Checkout
@@ -407,6 +460,10 @@ jobs:
             "- macOS Intel CLI: download ``$macX64Asset``, unpack it and run ``csharpfar``.",
             "",
             "The macOS app is currently unsigned and not notarized. On first launch macOS may require using Open from the Finder context menu.",
+            "",
+            "### Plugin SDK",
+            "- The release includes versioned NuGet packages for CSharpFar.Core, CSharpFar.Plugin.Abstractions and CSharpFar.Plugin.Templates.",
+            "- Install the template with `dotnet new install CSharpFar.Plugin.Templates.<version>.nupkg` and refer to docs/native-plugins.md for building against the binary SDK.",
             "",
             "### Install on Ubuntu/Debian",
             "``````bash",
