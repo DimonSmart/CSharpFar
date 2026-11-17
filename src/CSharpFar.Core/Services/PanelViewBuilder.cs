@@ -41,12 +41,12 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
         }
 
         IFilePanelSource? source = isLocal ? null : ResolveSource(location.SourceId);
-        string sourcePath = source?.NormalizePath(location.SourcePath) ?? request.DirectoryPath;
+        string sourcePath = source is null ? request.DirectoryPath : FromProvider(source, () => source.NormalizePath(location.SourcePath));
 
         // 1. Read raw entries (no .., no filtering, no sorting)
         var raw = isLocal
             ? _fs.ReadDirectory(sourcePath)
-            : source!.EnumerateDirectory(sourcePath);
+            : FromProvider(source!, () => source!.EnumerateDirectory(sourcePath));
 
         // 2. Map + detect mount points
         var items = new List<FilePanelItem>(raw.Count + 1);
@@ -91,8 +91,8 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
         }
 
         // 4. Add .. (or not)
-        bool isRoot = source?.IsRootPath(sourcePath) ?? IsRootDirectory(sourcePath, opts);
-        string? sourceParentPath = source?.GetParentPath(sourcePath);
+        bool isRoot = source is null ? IsRootDirectory(sourcePath, opts) : FromProvider(source, () => source.IsRootPath(sourcePath));
+        string? sourceParentPath = source is null ? null : FromProvider(source, () => source.GetParentPath(sourcePath));
         string? localParentPath = isLocal ? _pathSemantics.GetParentPath(sourcePath) : null;
         bool showParentDirectory = ShouldShowParentDirectory(
             isRoot,
@@ -170,8 +170,22 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
             Summary = summary,
             AutoRefreshState = new PanelAutoRefreshState(),
             IsRootDirectory = isRoot,
-            ProviderCapabilities = source?.Capabilities ?? PanelProviderCapabilities.LocalFileSystem,
+            ProviderCapabilities = source is null ? PanelProviderCapabilities.LocalFileSystem : FromProvider(source, () => source.Capabilities),
         };
+    }
+
+    // Protect the panel from arbitrary exceptions thrown by third-party source calls.
+    // Do not mask exceptions in core sorting, layout or state updates.
+    private static T FromProvider<T>(IFilePanelSource source, Func<T> operation)
+    {
+        try { return operation(); }
+        catch (Exception error) when (error is not IOException
+            and not UnauthorizedAccessException
+            and not OperationCanceledException
+            and not PanelSourceUnavailableException)
+        {
+            throw new IOException($"Panel provider '{source.SourceId}' failed: {error.Message}", error);
+        }
     }
 
     private IFilePanelSource ResolveSource(PanelSourceId sourceId)
