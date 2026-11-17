@@ -58,7 +58,7 @@ public sealed class FilePanelSourceRegistry : IFilePanelSourceRegistry
     }
 
     /// <summary>
-    /// Protect temporary sources used by background file operations while their panel is closed.
+    /// Protect owned plugin sources used by background operations while their panel is closed.
     /// A lease is acquired before starting asynchronous work and released on completion.
     /// </summary>
     public IDisposable AcquireUsage(params PanelSourceId[] sourceIds)
@@ -70,7 +70,7 @@ public sealed class FilePanelSourceRegistry : IFilePanelSourceRegistry
             foreach (var id in sourceIds.Distinct())
             {
                 if (!_sources.TryGetValue(id, out var source) ||
-                    source is not ITemporaryFilePanelSource { IsTemporary: true })
+                    !_ownedSources.Contains(source))
                     continue;
                 _activeUses[id] = _activeUses.GetValueOrDefault(id) + 1;
                 held.Add(id);
@@ -158,7 +158,7 @@ public sealed class FilePanelSourceRegistry : IFilePanelSourceRegistry
             dispose(source);
     }
 
-    /// <summary>Release sources at shutdown, deferring active temporary work until its last lease ends.</summary>
+    /// <summary>Release sources at shutdown, deferring active plugin work until its last lease ends.</summary>
     public void DisposeOwnedSources() => DisposeOwnedSources(DisposeSource);
 
     /// <summary>
@@ -174,8 +174,7 @@ public sealed class FilePanelSourceRegistry : IFilePanelSourceRegistry
             foreach (var source in _ownedSources.ToArray())
             {
                 var id = source.SourceId;
-                if (source is ITemporaryFilePanelSource { IsTemporary: true } &&
-                    _activeUses.GetValueOrDefault(id) > 0)
+                if (_activeUses.GetValueOrDefault(id) > 0)
                 {
                     _pendingRetirement[id] = dispose;
                     continue;

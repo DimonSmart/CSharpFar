@@ -27,6 +27,7 @@ internal sealed class ModulePanelOpener
     private readonly Action<Action>? _postToUi;
     private readonly Action? _drainUiActions;
     private readonly Action<Exception>? _reportOperationError;
+    private readonly AsyncPluginPanelLoader? _asyncLoads;
     private readonly CancellationTokenSource _operationCancellation = new();
     private readonly object _operationsGate = new();
     private readonly HashSet<Task> _activeOperations = [];
@@ -49,7 +50,8 @@ internal sealed class ModulePanelOpener
         Action<string, string>? showMessage = null,
         PanelNavigationService? navigation = null,
         Action? drainUiActions = null,
-        Action<Exception>? reportOperationError = null)
+        Action<Exception>? reportOperationError = null,
+        AsyncPluginPanelLoader? asyncLoads = null)
     {
         _moduleCatalog = moduleCatalog;
         _navigation = navigation;
@@ -64,6 +66,7 @@ internal sealed class ModulePanelOpener
         _postToUi = postToUi;
         _drainUiActions = drainUiActions;
         _reportOperationError = reportOperationError;
+        _asyncLoads = asyncLoads;
     }
 
     public ApplicationCommandResult OpenMenuItem(Guid actionId, PanelSide activeSide) =>
@@ -166,39 +169,57 @@ internal sealed class ModulePanelOpener
             }
         }
 
-        bool loaded = _controller.TryLoadLocation(
-            state,
-            new PanelLocation(source.SourceId, request.InitialDirectory),
-            _panelOptions(),
-            preserveOnError: true);
-        if (!loaded)
+        var destination = new PanelLocation(source.SourceId, request.InitialDirectory);
+        void Rollback()
         {
             if (newlyRegistered && _sourceRegistry.RemoveIfSame(source.SourceId, source))
                 _cleanup.Discard(source);
-            _showMessage("Plugin", "Unable to open plugin panel. The existing panel was not changed.");
+        }
+        void CompleteOpen()
+        {
+            // A previously nested or shared source may have a pending retirement.
+            _sourceRegistry.RetainSource(source.SourceId);
+            if (returnPoint is not null)
+                _navigation!.EnterNestedSource(state, panelSide, returnPoint);
+            else
+                _navigation?.ClearNavigation(panelSide);
+
+            _controller.SetSourceDisplay(state, request.Title, showCurrentItemFullPath: true);
+            try
+            {
+                (source as IFilePanelSourceActivation)?.OnPanelOpened();
+            }
+            catch (Exception ex)
+            {
+                _showMessage("Plugin", $"Panel opened, but connection settings could not be saved: {ex.Message}");
+            }
+            _setQuickView(false);
+            _setActiveSide(panelSide);
+        }
+
+        if (_asyncLoads is not null)
+        {
+            _asyncLoads.Load(state, destination, _panelOptions(),
+                onSuccess: CompleteOpen,
+                onFailure: error =>
+                {
+                    Rollback();
+                    ReportOperationError(error);
+                    _showMessage("Plugin", "Unable to open plugin panel. The existing panel was not changed.");
+                },
+                onAbandoned: Rollback);
             return;
         }
 
-        // A previously nested or shared source may have a pending retirement.
-        // It is visible now, before any old navigation leases are released.
-        _sourceRegistry.RetainSource(source.SourceId);
-        if (returnPoint is not null)
-            _navigation!.EnterNestedSource(state, panelSide, returnPoint);
-        else
-            _navigation?.ClearNavigation(panelSide);
-
-        _controller.SetSourceDisplay(state, request.Title, showCurrentItemFullPath: true);
-        try
+        bool loaded = _controller.TryLoadLocation(
+            state, destination, _panelOptions(), preserveOnError: true);
+        if (!loaded)
         {
-            // Persist opt-in connection settings only after initial panel loading succeeded.
-            (source as IFilePanelSourceActivation)?.OnPanelOpened();
+            Rollback();
+            _showMessage("Plugin", "Unable to open plugin panel. The existing panel was not changed.");
+            return;
         }
-        catch (Exception ex)
-        {
-            _showMessage("Plugin", $"Panel opened, but connection settings could not be saved: {ex.Message}");
-        }
-        _setQuickView(false);
-        _setActiveSide(panelSide);
+        CompleteOpen();
     }
 
     /// <summary>Handles Enter for plugin-owned file types without blocking the UI input loop.</summary>
@@ -375,6 +396,7 @@ internal sealed class ModulePanelOpener
         }
         if (firstShutdown)
         {
+            _asyncLoads?.Shutdown();
             // Do not execute arbitrary plugin cancellation callbacks on the UI thread.
             Task cancellation = _operationCancellation.CancelAsync();
 
