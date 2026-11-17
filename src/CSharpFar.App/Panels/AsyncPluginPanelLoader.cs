@@ -75,18 +75,21 @@ internal sealed class AsyncPluginPanelLoader
             state, state.CurrentLocation, location, options, refresh, visibleRows,
             onSuccess, onFailure, onAbandoned, lease);
         Pending? previous = null;
+        bool stopping;
         lock (_gate)
         {
-            if (_stopping)
+            stopping = _stopping;
+            if (!stopping)
             {
-                lease.Dispose();
-                request.Cancellation.Dispose();
-                return;
+                if (_pending.TryGetValue(state, out previous))
+                    _pending.Remove(state);
+                _pending.Add(state, request);
             }
-
-            if (_pending.TryGetValue(state, out previous))
-                _pending.Remove(state);
-            _pending.Add(state, request);
+        }
+        if (stopping)
+        {
+            request.Release();
+            return;
         }
         if (previous is not null)
             RequestCancellation(previous);
@@ -128,23 +131,28 @@ internal sealed class AsyncPluginPanelLoader
             failure = error;
         }
 
+        bool discarded;
+        Exception? postingError = null;
         lock (_gate)
         {
-            if (_stopping)
+            discarded = _stopping;
+            if (!discarded)
             {
-                request.Release();
-                return;
+                try { _postToUi(() => FinishOnUi(request, view, failure)); }
+                catch (Exception error)
+                {
+                    postingError = error;
+                    discarded = true;
+                }
             }
-
-            try
-            {
-                _postToUi(() => FinishOnUi(request, view, failure));
-            }
-            catch (Exception error)
-            {
-                ReportError(error);
-                request.Release();
-            }
+        }
+        // Releasing a usage lease may invoke arbitrary plugin disposal. Never do
+        // that while holding the loader lock: shutdown must stay responsive.
+        if (discarded)
+        {
+            if (postingError is not null)
+                ReportError(postingError);
+            request.Release();
         }
     }
 
