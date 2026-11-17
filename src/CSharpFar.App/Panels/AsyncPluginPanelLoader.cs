@@ -199,7 +199,7 @@ internal sealed class AsyncPluginPanelLoader
     {
         // A plugin can register a blocking cancellation callback; never execute
         // those callbacks on the terminal thread.
-        _ = ObserveCancellationAsync(request.Cancellation.CancelAsync());
+        _ = ObserveCancellationAsync(request.RequestCancellation());
     }
 
     private async Task ObserveCancellationAsync(Task cancellation)
@@ -230,12 +230,44 @@ internal sealed class AsyncPluginPanelLoader
         public Action<Exception>? OnFailure { get; } = onFailure;
         public Action? OnAbandoned { get; } = onAbandoned;
         public CancellationTokenSource Cancellation { get; } = new();
-        private int _released;
+        private readonly object _lifetimeGate = new();
+        private Task? _cancellationTask;
+        private bool _released;
+
+        public Task RequestCancellation()
+        {
+            lock (_lifetimeGate)
+            {
+                if (_released)
+                    return Task.CompletedTask;
+                return _cancellationTask ??= Cancellation.CancelAsync();
+            }
+        }
+
         public void Release()
         {
-            if (Interlocked.Exchange(ref _released, 1) != 0) return;
-            lease.Dispose();
-            Cancellation.Dispose();
+            Task? cancellation;
+            lock (_lifetimeGate)
+            {
+                if (_released) return;
+                _released = true;
+                cancellation = _cancellationTask;
+            }
+            try { lease.Dispose(); }
+            finally
+            {
+                if (cancellation is null || cancellation.IsCompleted)
+                    Cancellation.Dispose();
+                else
+                    _ = DisposeAfterCancellationAsync(cancellation);
+            }
+        }
+
+        private async Task DisposeAfterCancellationAsync(Task cancellation)
+        {
+            try { await cancellation.ConfigureAwait(false); }
+            catch { /* Cancellation errors are reported by the caller. */ }
+            finally { Cancellation.Dispose(); }
         }
     }
 }

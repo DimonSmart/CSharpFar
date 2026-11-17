@@ -172,8 +172,8 @@ internal sealed class ModulePanelOpener
         var destination = new PanelLocation(source.SourceId, request.InitialDirectory);
         void Rollback()
         {
-            if (newlyRegistered && _sourceRegistry.RemoveIfSame(source.SourceId, source))
-                _cleanup.Discard(source);
+            if (newlyRegistered)
+                _sourceRegistry.RetireOwnedWhenIdle(source.SourceId, source, _cleanup.Discard);
         }
         void CompleteOpen()
         {

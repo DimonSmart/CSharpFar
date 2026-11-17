@@ -142,6 +142,28 @@ public sealed class AsyncPluginPanelLoaderTests
     }
 
     [Fact]
+    public void RetiringRejectedOwnedSource_IsDeferredUntilLastLeaseAndCanBeRescued()
+    {
+        var source = new MemoryFilePanelView(new PanelSourceId("plugin:owned"));
+        var registry = new FilePanelSourceRegistry([]);
+        Assert.True(registry.TryAddOwned(source));
+        int disposed = 0;
+        using (var lease = registry.AcquireUsage(source.SourceId))
+        {
+            Assert.True(registry.RetireOwnedWhenIdle(source.SourceId, source, _ => disposed++));
+            Assert.Equal(0, disposed);
+            registry.RetainSource(source.SourceId); // A second panel chose this source.
+        }
+        Assert.Equal(0, disposed);
+        Assert.True(registry.TryGetSource(source.SourceId, out _));
+
+        using (registry.AcquireUsage(source.SourceId))
+            Assert.True(registry.RetireOwnedWhenIdle(source.SourceId, source, _ => disposed++));
+        Assert.Equal(1, disposed);
+        Assert.False(registry.TryGetSource(source.SourceId, out _));
+    }
+
+    [Fact]
     public async Task Shutdown_DoesNotBlockOnProviderIgnoringCancellationOrDisposeUsedSourceEarly()
     {
         var source = new DeferredSource();

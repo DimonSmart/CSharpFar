@@ -58,6 +58,36 @@ public sealed class FilePanelSourceRegistry : IFilePanelSourceRegistry
     }
 
     /// <summary>
+    /// Request retirement of a rejected owned source after its active operations
+    /// release their leases. A successful panel commit may cancel retirement.
+    /// </summary>
+    public bool RetireOwnedWhenIdle(
+        PanelSourceId sourceId, IFilePanelSource source, Action<IFilePanelSource> dispose)
+    {
+        ArgumentNullException.ThrowIfNull(dispose);
+        bool releaseNow;
+        lock (_gate)
+        {
+            if (!_sources.TryGetValue(sourceId, out var current) ||
+                !ReferenceEquals(source, current) || !_ownedSources.Contains(source))
+                return false;
+
+            if (_activeUses.GetValueOrDefault(sourceId) > 0)
+            {
+                _pendingRetirement[sourceId] = dispose;
+                return true;
+            }
+            _pendingRetirement.Remove(sourceId);
+            _sources.Remove(sourceId);
+            _ownedSources.Remove(source);
+            releaseNow = true;
+        }
+        if (releaseNow)
+            dispose(source);
+        return true;
+    }
+
+    /// <summary>
     /// Protect owned plugin sources used by background operations while their panel is closed.
     /// A lease is acquired before starting asynchronous work and released on completion.
     /// </summary>
