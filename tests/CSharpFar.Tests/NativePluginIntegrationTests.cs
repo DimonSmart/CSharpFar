@@ -95,7 +95,7 @@ public sealed class NativePluginIntegrationTests
         queue.Drain();
 
         Assert.Equal(1, executed);
-        Assert.Contains(Assert.Single(failures).Message, "bad plugin callback", StringComparison.Ordinal);
+        Assert.Contains("bad plugin callback", Assert.Single(failures).Message, StringComparison.Ordinal);
     }
 
     private sealed class IndependentPlugin(VirtualPanelSource source) : ICSharpFarPlugin

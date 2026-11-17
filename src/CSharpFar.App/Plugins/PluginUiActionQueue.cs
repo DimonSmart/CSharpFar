@@ -11,7 +11,14 @@ internal sealed class PluginUiActionQueue(Action wakeInputLoop, Action<Exception
     {
         ArgumentNullException.ThrowIfNull(action);
         _actions.Enqueue(action);
-        wakeInputLoop();
+        try { wakeInputLoop(); }
+        catch (Exception error)
+        {
+            // The action is already queued; reporting the wake failure must not
+            // make its producer dispose a result that the queue still owns.
+            try { reportError?.Invoke(error); }
+            catch { /* Diagnostics must not terminate a plugin operation. */ }
+        }
     }
 
     public void Drain()

@@ -133,7 +133,16 @@ internal sealed class ModulePanelOpener
         {
             if (!ReferenceEquals(source, existing))
             {
-                if (existing is IReusableFilePanelSource reusable && reusable.CanReuse(source))
+                bool reusableSource = false;
+                try
+                {
+                    reusableSource = existing is IReusableFilePanelSource reusable && reusable.CanReuse(source);
+                }
+                catch (Exception error)
+                {
+                    ReportOperationError(new IOException("Plugin panel source reuse check failed.", error));
+                }
+                if (reusableSource)
                 {
                     _cleanup.Discard(source);
                     source = existing;
@@ -302,21 +311,24 @@ internal sealed class ModulePanelOpener
 
     private void PostCompletion(Action action, PluginPanelOpenRequest? panel)
     {
-        if (Volatile.Read(ref _shuttingDown) != 0)
-        {
-            DiscardUnusedPanel(panel);
-            return;
-        }
-
         try
         {
-            _postToUi!(() =>
+            // Synchronize enqueueing with shutdown's final drain.
+            lock (_operationsGate)
             {
-                if (Volatile.Read(ref _shuttingDown) != 0)
-                    DiscardUnusedPanel(panel);
-                else
-                    action();
-            });
+                if (_shuttingDown == 0)
+                {
+                    _postToUi!(() =>
+                    {
+                        if (Volatile.Read(ref _shuttingDown) != 0)
+                            DiscardUnusedPanel(panel);
+                        else
+                            action();
+                    });
+                    return;
+                }
+            }
+            DiscardUnusedPanel(panel);
         }
         catch (Exception error)
         {
@@ -353,13 +365,18 @@ internal sealed class ModulePanelOpener
     /// </summary>
     public async Task ShutdownAsync()
     {
-        if (Interlocked.Exchange(ref _shuttingDown, 1) == 0)
+        bool firstShutdown;
+        Task[] running;
+        lock (_operationsGate)
+        {
+            firstShutdown = _shuttingDown == 0;
+            _shuttingDown = 1;
+            running = [.. _activeOperations];
+        }
+        if (firstShutdown)
         {
             // Do not execute arbitrary plugin cancellation callbacks on the UI thread.
             Task cancellation = _operationCancellation.CancelAsync();
-            Task[] running;
-            lock (_operationsGate)
-                running = [.. _activeOperations];
 
             // In-process code may ignore cancellation; shutdown must remain bounded.
             try
