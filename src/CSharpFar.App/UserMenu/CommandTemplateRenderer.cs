@@ -90,6 +90,19 @@ internal static class CommandTemplateRenderer
         QuoteContext state = QuoteContext.Bare;
         for (int i = 0; i < end; i++)
         {
+            // Placeholder names are metadata, not shell text. Do not let their
+            // characters alter quote-state analysis of later parameters.
+            if ((i == 0 || command[i - 1] != '{') &&
+                command.AsSpan(i).StartsWith("{input:", StringComparison.Ordinal))
+            {
+                int closing = command.IndexOf('}', i + 7);
+                if (closing >= 0 && closing < end)
+                {
+                    i = closing;
+                    continue;
+                }
+            }
+
             char c = command[i];
             if (dialect == InputShellDialect.Cmd)
             {
