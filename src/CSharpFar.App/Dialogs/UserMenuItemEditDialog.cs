@@ -7,7 +7,7 @@ namespace CSharpFar.App.Dialogs;
 internal sealed class UserMenuItemEditDialog
 {
     private const int DialogWidth = 64;
-    private const int DialogHeight = 20;
+    private const int DialogHeight = 22;
 
     private static readonly PlatformKind?[] PlatformValues =
     [
@@ -59,6 +59,7 @@ internal sealed class UserMenuItemEditDialog
                 FormControls.Label("Available placeholders:"),
                 FormControls.Label("{current} {selected} {panelDir}"),
                 FormControls.Label("{otherPanelDir} {menuDir}"),
+                FormControls.Label("{input:Name} {input:Name=Default}"),
             ],
             footer: () => [actions],
             submit: () => Validate(title, command, id, platformRow));
@@ -78,6 +79,17 @@ internal sealed class UserMenuItemEditDialog
             return FormSubmit.Invalid<UserMenuItem>("ID must start with a-z and contain 1-64 lowercase letters, digits, '.', '_' or '-'.", id);
 
         string normalizedTitle = title.Text.Trim();
+        string effectiveCommand = string.IsNullOrWhiteSpace(command.Text) ? normalizedTitle : command.Text;
+        try
+        {
+            CommandTemplate template = CommandTemplateParser.Parse(effectiveCommand);
+            CommandTemplateRenderer.ValidatePlacement(template, platform.Value);
+        }
+        catch (FormatException ex)
+        {
+            return FormSubmit.Invalid<UserMenuItem>(ex.Message, command);
+        }
+
         return FormSubmit.Success(new UserMenuItem
         {
             Title = normalizedTitle,
