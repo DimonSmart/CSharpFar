@@ -22,7 +22,7 @@ public sealed class CommandParameterDialogTests
         Assert.Equal("video.mov", result.Values["Source file"]);
         Assert.Equal("20", result.Values["Quality"]);
         Assert.Equal("video.mp4", result.Values["Output file"]);
-        string screen = string.Join('\n', Enumerable.Range(0, 35).Select(driver.GetRow));
+        string screen = string.Join('\n', Enumerable.Range(0, driver.GetSize().Height).Select(driver.GetRow));
         Assert.Contains("Source file", screen);
         Assert.Contains("Quality", screen);
         Assert.Contains("Output file", screen);
