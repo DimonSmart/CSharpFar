@@ -1,3 +1,4 @@
+using CSharpFar.App.Dialogs;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.UserMenu;
 using CSharpFar.Core.Models;
@@ -99,7 +100,46 @@ internal sealed class UserMenuCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        string expanded = operands.Expand(UserMenuItemRules.EffectiveCommand(chosen.Item), chosen.MenuDirectory);
+        string expanded;
+        try
+        {
+            CommandTemplate template = CommandTemplateParser.Parse(UserMenuItemRules.EffectiveCommand(chosen.Item));
+            CommandTemplateRenderer.ValidatePlacement(template, platform);
+
+            IReadOnlyDictionary<string, string> values = new Dictionary<string, string>();
+            if (template.Parameters.Count > 0)
+            {
+                CommandParameterDialogResult? input = new CommandParameterDialog(context.Dialogs, context.Fields)
+                    .Show(chosen.Item.Title, template.Parameters, candidate =>
+                    {
+                        try
+                        {
+                            _ = CommandTemplateRenderer.Expand(
+                                template, candidate, literal => operands.Expand(literal, chosen.MenuDirectory),
+                                CommandTemplateRenderer.Dialect(template.Original, platform));
+                            return null;
+                        }
+                        catch (ArgumentException ex)
+                        {
+                            return ex.Message;
+                        }
+                    });
+                if (input is null)
+                    return ApplicationCommandResult.Rendered();
+                values = input.Values;
+            }
+
+            expanded = CommandTemplateRenderer.Expand(
+                template, values,
+                literal => operands.Expand(literal, chosen.MenuDirectory),
+                CommandTemplateRenderer.Dialect(template.Original, platform));
+        }
+        catch (Exception ex) when (ex is FormatException or ArgumentException)
+        {
+            context.Dialogs.Message("User Menu", ex.Message);
+            return ApplicationCommandResult.Rendered();
+        }
+
         context.ExecuteCommand(expanded);
         return ApplicationCommandResult.Rendered();
     }

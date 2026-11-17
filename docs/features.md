@@ -48,6 +48,30 @@ entry. `{panelDir}` remains the active panel directory, which is also the
 working directory for external commands. Paths needing quotes must be quoted
 explicitly in the command template.
 
+User-menu commands can ask for values when selected. Define fields directly in
+the command using `{input:Name}` or `{input:Name=Default}`, for example:
+
+```text
+git clone "{input:Repository URL}"
+yt-dlp "{input:Video URL}"
+ffmpeg -i "{input:Source file}" -crf {input:Quality=20} "{input:Output file}"
+```
+
+All fields appear in one dialog titled after the menu item. Defaults are editable,
+repeated names use one field, and every field requires a nonblank value.
+Press Enter or **Run** to execute, or Esc/**Cancel** to leave without running
+anything. Use `{{input:Name}}` for a literal placeholder. Malformed names and
+conflicting defaults produce an error when saving.
+
+Input placeholders must be complete shell arguments, optionally inside their
+own matching quotes. For example, `--output="{input:File}"` is supported
+but `"prefix-{input:File}"` is not. Values are shell-quoted for Windows
+`cmd.exe`, Unix shells, or commands prefixed with `ps:`/`pwsh:` for
+PowerShell. Windows `cmd.exe` rejects interactive values containing double
+quotes, percent signs, exclamation marks or carets, because reliable escaping
+is not available for those characters. Line breaks and NUL are rejected.
+Existing raw panel placeholders retain their previous behavior.
+
 `Shift+F2` opens the global menu only. `Options → User menu...` edits only
 the global menu, while `Options → Local user menu...` edits only the local file
 in the active folder (available for real local filesystem panels). Opening the
