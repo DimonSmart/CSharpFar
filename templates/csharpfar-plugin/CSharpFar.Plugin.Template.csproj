@@ -6,7 +6,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="CSharpFar.Plugin.Abstractions" Version="1.0.0" />
+    <PackageReference Include="CSharpFar.Plugin.Abstractions" Version="1.1.0" />
     <None Update="plugin.json" CopyToPublishDirectory="Always" />
   </ItemGroup>
 </Project>

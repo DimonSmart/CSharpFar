@@ -88,9 +88,9 @@ from GitHub Releases or generated locally using:
 ./eng/pack-plugin-sdk.ps1
 ```
 
-This creates `artifacts/plugin-sdk/CSharpFar.Core.1.0.0.nupkg`,
-`CSharpFar.Plugin.Abstractions.1.0.0.nupkg`, and
-`CSharpFar.Plugin.Templates.1.0.0.nupkg`. Public NuGet.org publishing is
+This creates `artifacts/plugin-sdk/CSharpFar.Core.1.1.0.nupkg`,
+`CSharpFar.Plugin.Abstractions.1.1.0.nupkg`, and
+`CSharpFar.Plugin.Templates.1.1.0.nupkg`. Public NuGet.org publishing is
 not automated: a maintainer must publish explicitly, with credentials stored
 outside source control. Do not attempt to push a package version that already
 exists in the feed.
@@ -98,7 +98,7 @@ exists in the feed.
 To generate a working plugin from the versioned template package:
 
 ```sh
-dotnet new install artifacts/plugin-sdk/CSharpFar.Plugin.Templates.1.0.0.nupkg
+dotnet new install artifacts/plugin-sdk/CSharpFar.Plugin.Templates.1.1.0.nupkg
 dotnet new csharpfar-plugin -n MyExtension --PluginId my-extension --PluginTitle "My Extension"
 dotnet restore MyExtension.csproj --source /path/to/plugin-sdk
 dotnet publish MyExtension.csproj -c Release -o ./extension
