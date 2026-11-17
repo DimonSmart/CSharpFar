@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using CSharpFar.App.Panels;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
@@ -10,6 +11,85 @@ namespace CSharpFar.Tests;
 
 public sealed class NestedPanelNavigationTests
 {
+    [Fact]
+    public async Task AsyncNestedReturn_RestoresOriginalPanelOnlyAfterUiCompletion()
+    {
+        var outer = new InMemoryBatchFilePanelSource();
+        var inner = new InMemoryBatchFilePanelSource();
+        outer.SeedFile("/container.bin", "container");
+        inner.SeedFile("/inside.txt", "inside");
+        var registry = new FilePanelSourceRegistry([]);
+        Assert.True(registry.TryAddOwned(outer));
+        Assert.True(registry.TryAddOwned(inner));
+        var controller = new PanelController(
+            new PanelViewBuilder(new FakeFileSystemService(), new PanelSortService(), sources: registry));
+        var options = new AppSettings.PanelOptionsSettings();
+        var queue = new ConcurrentQueue<Action>();
+        var state = new FilePanelState();
+        var navigation = new PanelNavigationService(controller, new History(),
+            () => options, _ => 10, _ => { }, (_, _) => { }, registry)
+        {
+            AsyncLoads = new AsyncPluginPanelLoader(controller, registry, queue.Enqueue)
+        };
+
+        controller.LoadLocation(state, new PanelLocation(outer.SourceId, "/"));
+        var frame = navigation.CaptureReturnPoint(state, Assert.Single(state.Items));
+        controller.LoadLocation(state, new PanelLocation(inner.SourceId, "/"));
+        navigation.EnterNestedSource(state, PanelSide.Left, frame);
+        Assert.Contains(state.Items, item => item.IsParentDirectory);
+
+        navigation.TryGoUp(state, PanelSide.Left);
+        Assert.Equal(inner.SourceId, state.SourceId);
+        await PumpUntilAsync(queue, () => state.SourceId == outer.SourceId);
+        Assert.Equal("container.bin", state.Items[state.CursorIndex].Name);
+        Assert.True(registry.TryGetSource(outer.SourceId, out _));
+    }
+
+    [Fact]
+    public async Task AsyncDirectoryEnterAndUp_KeepPreviousLocationUntilCommit()
+    {
+        var source = new InMemoryBatchFilePanelSource();
+        source.SeedDirectory("/child");
+        source.SeedFile("/child/file.txt", "contents");
+        var registry = new FilePanelSourceRegistry([]);
+        Assert.True(registry.TryAddOwned(source));
+        var controller = new PanelController(
+            new PanelViewBuilder(new FakeFileSystemService(), new PanelSortService(), sources: registry));
+        var options = new AppSettings.PanelOptionsSettings();
+        var queue = new ConcurrentQueue<Action>();
+        var state = new FilePanelState();
+        var navigation = new PanelNavigationService(controller, new History(),
+            () => options, _ => 10, _ => { }, (_, _) => { }, registry)
+        {
+            AsyncLoads = new AsyncPluginPanelLoader(controller, registry, queue.Enqueue)
+        };
+        controller.LoadLocation(state, new PanelLocation(source.SourceId, "/"));
+        var child = Assert.Single(state.Items, item => item.Name == "child");
+
+        navigation.OpenDirectoryItem(state, PanelSide.Right, child);
+        Assert.Equal("/", state.SourcePath);
+        await PumpUntilAsync(queue, () => state.SourcePath == "/child");
+        Assert.Contains(state.Items, item => item.Name == "file.txt");
+
+        navigation.TryGoUp(state, PanelSide.Right);
+        Assert.Equal("/child", state.SourcePath);
+        await PumpUntilAsync(queue, () => state.SourcePath == "/");
+        Assert.Equal("child", state.Items[state.CursorIndex].Name);
+    }
+
+    private static async Task PumpUntilAsync(ConcurrentQueue<Action> actions, Func<bool> predicate)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (true)
+        {
+            while (actions.TryDequeue(out var action)) action();
+            if (predicate()) return;
+            if (DateTime.UtcNow > deadline)
+                throw new TimeoutException("Expected asynchronous navigation was not completed.");
+            await Task.Delay(10);
+        }
+    }
+
     [Fact]
     public void LeavingNestedRoot_RestoresOriginItemAndReleasesNavigationLease()
     {

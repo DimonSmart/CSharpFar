@@ -3,7 +3,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Core.Services;
 
-public sealed class PanelViewBuilder : IPanelViewBuilder
+public sealed class PanelViewBuilder : IAsyncPanelViewBuilder
 {
     private readonly IFileSystemService _fs;
     private readonly IPanelSortService _sort;
@@ -28,8 +28,51 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
         _pathSemantics = pathSemantics ?? PanelPathSemantics.Current;
     }
 
-    public PanelView Build(PanelViewRequest request)
+    public PanelView Build(PanelViewRequest request) =>
+        BuildCore(request, CancellationToken.None, preloadedEntries: null);
+
+    public PanelView Build(PanelViewRequest request, CancellationToken cancellationToken) =>
+        BuildCore(request, cancellationToken, preloadedEntries: null);
+
+    /// <summary>
+    /// Run synchronous providers on a worker; let providers implementing the optional
+    /// async contract perform actual asynchronous I/O. No panel state is touched here.
+    /// </summary>
+    public Task<PanelView> BuildAsync(PanelViewRequest request, CancellationToken cancellationToken = default) =>
+        Task.Run(async () =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var location = request.Location ?? PanelLocation.Local(request.DirectoryPath);
+            if (location.SourceId == PanelSourceId.Local)
+                return BuildCore(request, cancellationToken, preloadedEntries: null);
+
+            var source = ResolveSource(location.SourceId);
+            if (source is not IAsyncFilePanelSource asyncSource)
+                return BuildCore(request, cancellationToken, preloadedEntries: null);
+
+            string path = FromProvider(source, () => source.NormalizePath(location.SourcePath));
+            IReadOnlyList<FilePanelItem> entries;
+            try
+            {
+                entries = await asyncSource.EnumerateDirectoryAsync(path, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception error) when (error is not IOException
+                and not UnauthorizedAccessException
+                and not OperationCanceledException
+                and not PanelSourceUnavailableException)
+            {
+                throw new IOException($"Panel provider '{source.SourceId}' failed: {error.Message}", error);
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            return BuildCore(request, cancellationToken, entries);
+        }, cancellationToken);
+
+    private PanelView BuildCore(
+        PanelViewRequest request, CancellationToken cancellationToken,
+        IReadOnlyList<FilePanelItem>? preloadedEntries)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var opts = request.Options;
         var location = request.Location ?? PanelLocation.Local(request.DirectoryPath);
         bool isLocal = location.SourceId == PanelSourceId.Local;
@@ -44,14 +87,15 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
         string sourcePath = source is null ? request.DirectoryPath : FromProvider(source, () => source.NormalizePath(location.SourcePath));
 
         // 1. Read raw entries (no .., no filtering, no sorting)
-        var raw = isLocal
+        var raw = preloadedEntries ?? (isLocal
             ? _fs.ReadDirectory(sourcePath)
-            : FromProvider(source!, () => source!.EnumerateDirectory(sourcePath));
+            : FromProvider(source!, () => source!.EnumerateDirectory(sourcePath, cancellationToken)));
 
         // 2. Map + detect mount points
         var items = new List<FilePanelItem>(raw.Count + 1);
         foreach (var item in raw)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (item.IsParentDirectory)
                 continue; // skip any .. that leaked from old fs
 
@@ -164,6 +208,7 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
             VolumeSpaceUnavailable = vsUnavail,
         };
 
+        cancellationToken.ThrowIfCancellationRequested();
         return new PanelView
         {
             Items = sorted,

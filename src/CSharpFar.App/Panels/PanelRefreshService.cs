@@ -7,6 +7,8 @@ namespace CSharpFar.App.Panels;
 internal sealed class PanelRefreshService
 {
     public Action<FilePanelState>? RefreshRequested { get; set; }
+    public AsyncPluginPanelLoader? AsyncLoads { get; set; }
+    public Action<string>? ReportLoadFailure { get; set; }
     private readonly PanelController _controller;
     private readonly Action<FilePanelState>? _afterRefresh;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
@@ -50,6 +52,15 @@ internal sealed class PanelRefreshService
         if (state.ContentKind == PanelContentKind.Virtual)
             return;
 
+        if (AsyncLoads is not null && AsyncPluginPanelLoader.CanLoad(state.CurrentLocation))
+        {
+            AsyncLoads.Refresh(state, visibleRows, _panelOptions(),
+                onSuccess: () => _afterRefresh?.Invoke(state),
+                onFailure: error => ReportLoadFailure?.Invoke(error.Message));
+            return;
+        }
+
+        AsyncLoads?.CancelPending(state);
         if (_controller.TryRefreshDirectory(state, visibleRows, _panelOptions()))
             _afterRefresh?.Invoke(state);
     }

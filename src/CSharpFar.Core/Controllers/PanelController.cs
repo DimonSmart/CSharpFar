@@ -78,6 +78,58 @@ public sealed class PanelController
         }
     }
 
+    /// <summary>
+    /// Capture immutable request inputs on the UI thread and construct a view in
+    /// the background. Call CommitPreparedLocation on the UI thread only.
+    /// </summary>
+    public Task<PanelView> PrepareLocationAsync(
+        FilePanelState state, PanelLocation location,
+        AppSettings.PanelOptionsSettings? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        var request = BuildViewRequest(state, location, SnapshotOptions(options ?? new AppSettings.PanelOptionsSettings()), s_emptySet);
+        return PrepareViewAsync(request, cancellationToken);
+    }
+
+    public void CommitPreparedLocation(FilePanelState state, PanelLocation location, PanelView view) =>
+        ApplyLoadedLocation(state, NormalizeLocation(location), view);
+
+    public Task<PanelView> PrepareRefreshAsync(
+        FilePanelState state, AppSettings.PanelOptionsSettings? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        var selected = state.SelectedPaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var request = BuildViewRequest(state, state.CurrentLocation,
+            SnapshotOptions(options ?? new AppSettings.PanelOptionsSettings()), selected);
+        return PrepareViewAsync(request, cancellationToken);
+    }
+
+    private static AppSettings.PanelOptionsSettings SnapshotOptions(AppSettings.PanelOptionsSettings options) =>
+        new()
+        {
+            ShowHiddenAndSystemFiles = options.ShowHiddenAndSystemFiles,
+            SelectFolders = options.SelectFolders,
+            RightClickSelectsFiles = options.RightClickSelectsFiles,
+            SortFoldersByExtension = options.SortFoldersByExtension,
+            RememberLastDirectories = options.RememberLastDirectories,
+            DetectVolumeMountPoints = options.DetectVolumeMountPoints,
+            ShowStatusLine = options.ShowStatusLine,
+            ShowFilesTotalInformation = options.ShowFilesTotalInformation,
+            ShowFreeSize = options.ShowFreeSize,
+            ShowSortModeLetter = options.ShowSortModeLetter,
+            ShowParentDirectoryInRootFolders = options.ShowParentDirectoryInRootFolders,
+            AutoRefresh = new AppSettings.PanelAutoRefreshSettings
+            {
+                DisableIfObjectCountExceeds = options.AutoRefresh.DisableIfObjectCountExceeds,
+                NetworkDrivesAutoRefresh = options.AutoRefresh.NetworkDrivesAutoRefresh,
+            },
+        };
+
+    private Task<PanelView> PrepareViewAsync(PanelViewRequest request, CancellationToken cancellationToken) =>
+        _viewBuilder is IAsyncPanelViewBuilder asyncBuilder
+            ? asyncBuilder.BuildAsync(request, cancellationToken)
+            : Task.Run(() => _viewBuilder.Build(request), cancellationToken);
+
     public void SetAutoRefreshState(
         FilePanelState state,
         PanelAutoRefreshState? autoRefreshState)
@@ -125,6 +177,7 @@ public sealed class PanelController
             });
 
         state.CurrentLocation = NormalizeLocation(content.Location);
+        state.ContentVersion++;
         state.Items.Clear();
         state.Items.AddRange(sortedItems);
         state.SelectedPaths.Clear();
@@ -162,6 +215,7 @@ public sealed class PanelController
     {
         bool sameSource = state.ContentKind == PanelContentKind.Source && state.SourceId == location.SourceId;
         state.CurrentLocation = location;
+        state.ContentVersion++;
         state.Items.Clear();
         state.Items.AddRange(view.Items);
         state.Summary = view.Summary;
@@ -187,9 +241,15 @@ public sealed class PanelController
         FilePanelState state,
         PanelLocation location,
         AppSettings.PanelOptionsSettings options,
-        IReadOnlySet<string> selectedPaths)
-    {
-        return _viewBuilder.Build(new PanelViewRequest
+        IReadOnlySet<string> selectedPaths) =>
+        _viewBuilder.Build(BuildViewRequest(state, location, options, selectedPaths));
+
+    private static PanelViewRequest BuildViewRequest(
+        FilePanelState state,
+        PanelLocation location,
+        AppSettings.PanelOptionsSettings options,
+        IReadOnlySet<string> selectedPaths) =>
+        new PanelViewRequest
         {
             DirectoryPath = location.SourcePath,
             Location = location,
@@ -197,8 +257,7 @@ public sealed class PanelController
             SortMode = state.SortMode,
             SortDescending = state.SortDescending,
             SelectedPaths = selectedPaths,
-        });
-    }
+        };
 
     public void GoToParent(
         FilePanelState state,
@@ -382,6 +441,15 @@ public sealed class PanelController
         int visibleRows,
         AppSettings.PanelOptionsSettings? options = null)
     {
+        options ??= new AppSettings.PanelOptionsSettings();
+        var view = BuildView(state, state.CurrentLocation, options,
+            state.SelectedPaths.ToHashSet(StringComparer.OrdinalIgnoreCase));
+        CommitPreparedRefresh(state, view, visibleRows);
+    }
+
+    /// <summary>Apply an already-built refresh view without losing current UI selection/cursor.</summary>
+    public void CommitPreparedRefresh(FilePanelState state, PanelView view, int visibleRows)
+    {
         int previousCursorIndex = state.CursorIndex;
         var previousItem = CurrentItem(state);
         PanelLocation? previousLocation = previousItem?.Location;
@@ -389,16 +457,7 @@ public sealed class PanelController
         string? previousName = previousItem?.Name;
         var selectedPaths = state.SelectedPaths.ToList();
 
-        options ??= new AppSettings.PanelOptionsSettings();
-        var view = _viewBuilder.Build(new PanelViewRequest
-        {
-            DirectoryPath = state.SourcePath,
-            Location = state.CurrentLocation,
-            Options = options,
-            SortMode = state.SortMode,
-            SortDescending = state.SortDescending,
-            SelectedPaths = selectedPaths.ToHashSet(StringComparer.OrdinalIgnoreCase),
-        });
+        state.ContentVersion++;
         state.Items.Clear();
         state.Items.AddRange(view.Items);
         state.Summary = view.Summary;
@@ -593,6 +652,7 @@ public sealed class PanelController
         int visibleRows,
         AppSettings.PanelOptionsSettings? options = null)
     {
+        state.ContentVersion++;
         if (state.SortMode == mode)
             state.SortDescending = !state.SortDescending;
         else
@@ -818,6 +878,7 @@ public sealed class PanelController
     {
         bool sameSource = state.ContentKind == PanelContentKind.Source && state.SourceId == location.SourceId;
         state.CurrentLocation = location;
+        state.ContentVersion++;
         state.Items.Clear();
         state.SelectedPaths.Clear();
         state.SelectedLocations.Clear();

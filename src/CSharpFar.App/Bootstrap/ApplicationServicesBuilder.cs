@@ -537,6 +537,13 @@ internal static class ApplicationServicesBuilder
             var moduleCatalog = new NativeModuleCatalog(pluginRuntime);
             var pluginUiActions = new PluginUiActionQueue(autoRefresh.WakeInputLoop,
                 error => diagnosticLog.WriteException(DiagnosticCategory.Plugin, error, "Plugin UI action"));
+            var asyncPanelLoader = new AsyncPluginPanelLoader(
+                controller, effectiveSourceRegistry, pluginUiActions.Post,
+                error => diagnosticLog.WriteException(DiagnosticCategory.Plugin, error, "Async panel load"));
+            panelNavigation.AsyncLoads = asyncPanelLoader;
+            panelNavigation.ReportLoadFailure = message => dialogs.Message("Plugin panel", message);
+            panelRefresh.AsyncLoads = asyncPanelLoader;
+            panelRefresh.ReportLoadFailure = message => dialogs.Message("Plugin panel", message);
             var modulePanelOpener = new ModulePanelOpener(
                 moduleCatalog,
                 effectiveSourceRegistry,
@@ -554,7 +561,8 @@ internal static class ApplicationServicesBuilder
                 navigation: panelNavigation,
                 drainUiActions: pluginUiActions.Drain,
                 reportOperationError: error => diagnosticLog.WriteException(
-                    DiagnosticCategory.Plugin, error, "Plugin operation"));
+                    DiagnosticCategory.Plugin, error, "Plugin operation"),
+                asyncLoads: asyncPanelLoader);
             var workspaceModeController = new ApplicationWorkspaceModeController(
                 screen,
                 session,
