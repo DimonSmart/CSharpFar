@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using CSharpFar.App.UserMenu;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Abstractions;
 using CSharpFar.Shell;
 
 namespace CSharpFar.Tests;
