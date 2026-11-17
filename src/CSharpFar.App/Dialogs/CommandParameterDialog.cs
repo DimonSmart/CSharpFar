@@ -16,7 +16,9 @@ internal sealed class CommandParameterDialog
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
-    public CommandParameterDialogResult? Show(string title, IReadOnlyList<CommandTemplateParameter> parameters)
+    public CommandParameterDialogResult? Show(
+        string title, IReadOnlyList<CommandTemplateParameter> parameters,
+        Func<IReadOnlyDictionary<string, string>, string?>? validate = null)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         if (parameters.Count == 0)
@@ -44,7 +46,7 @@ internal sealed class CommandParameterDialog
             new FormDialogOptions(title, PreferredWidth: 64,
                 PreferredHeight: Math.Min(30, 9 + 3 * fields.Length), SubmitOnEnter: true)
             {
-                ResizeMode = DialogResizeMode.Both,
+                ResizeMode = DialogResizeMode.None,
                 InitialFocus = fields[0].Field,
             },
             rows: () => rows,
@@ -58,8 +60,12 @@ internal sealed class CommandParameterDialog
                             $"'{entry.Parameter.Name}' is required.", entry.Field);
                 }
 
-                return FormSubmit.Success(new CommandParameterDialogResult(
-                    fields.ToDictionary(entry => entry.Parameter.Name, entry => entry.Field.Text, StringComparer.Ordinal)));
+                var values = fields.ToDictionary(
+                    entry => entry.Parameter.Name, entry => entry.Field.Text, StringComparer.Ordinal);
+                string? error = validate?.Invoke(values);
+                if (error is not null)
+                    return FormSubmit.Invalid<CommandParameterDialogResult>(error, fields[0].Field);
+                return FormSubmit.Success(new CommandParameterDialogResult(values));
             });
     }
 }
