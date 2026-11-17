@@ -87,7 +87,7 @@ public sealed class PanelController
         AppSettings.PanelOptionsSettings? options = null,
         CancellationToken cancellationToken = default)
     {
-        var request = BuildViewRequest(state, location, options ?? new AppSettings.PanelOptionsSettings(), s_emptySet);
+        var request = BuildViewRequest(state, location, SnapshotOptions(options ?? new AppSettings.PanelOptionsSettings()), s_emptySet);
         return PrepareViewAsync(request, cancellationToken);
     }
 
@@ -100,9 +100,30 @@ public sealed class PanelController
     {
         var selected = state.SelectedPaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var request = BuildViewRequest(state, state.CurrentLocation,
-            options ?? new AppSettings.PanelOptionsSettings(), selected);
+            SnapshotOptions(options ?? new AppSettings.PanelOptionsSettings()), selected);
         return PrepareViewAsync(request, cancellationToken);
     }
+
+    private static AppSettings.PanelOptionsSettings SnapshotOptions(AppSettings.PanelOptionsSettings options) =>
+        new()
+        {
+            ShowHiddenAndSystemFiles = options.ShowHiddenAndSystemFiles,
+            SelectFolders = options.SelectFolders,
+            RightClickSelectsFiles = options.RightClickSelectsFiles,
+            SortFoldersByExtension = options.SortFoldersByExtension,
+            RememberLastDirectories = options.RememberLastDirectories,
+            DetectVolumeMountPoints = options.DetectVolumeMountPoints,
+            ShowStatusLine = options.ShowStatusLine,
+            ShowFilesTotalInformation = options.ShowFilesTotalInformation,
+            ShowFreeSize = options.ShowFreeSize,
+            ShowSortModeLetter = options.ShowSortModeLetter,
+            ShowParentDirectoryInRootFolders = options.ShowParentDirectoryInRootFolders,
+            AutoRefresh = new AppSettings.PanelAutoRefreshSettings
+            {
+                DisableIfObjectCountExceeds = options.AutoRefresh.DisableIfObjectCountExceeds,
+                NetworkDrivesAutoRefresh = options.AutoRefresh.NetworkDrivesAutoRefresh,
+            },
+        };
 
     private Task<PanelView> PrepareViewAsync(PanelViewRequest request, CancellationToken cancellationToken) =>
         _viewBuilder is IAsyncPanelViewBuilder asyncBuilder
