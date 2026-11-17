@@ -147,7 +147,8 @@ internal sealed class AsyncPluginPanelLoader
         try
         {
             if (!isCurrent || request.Cancellation.IsCancellationRequested ||
-                request.State.CurrentLocation != request.Origin)
+                request.State.CurrentLocation != request.Origin ||
+                request.State.ContentVersion != request.OriginVersion)
             {
                 request.OnAbandoned?.Invoke();
                 return;
@@ -220,6 +221,7 @@ internal sealed class AsyncPluginPanelLoader
     {
         public FilePanelState State { get; } = state;
         public PanelLocation Origin { get; } = origin;
+        public long OriginVersion { get; } = state.ContentVersion;
         public PanelLocation Destination { get; } = destination;
         public AppSettings.PanelOptionsSettings Options { get; } = options;
         public bool Refresh { get; } = refresh;

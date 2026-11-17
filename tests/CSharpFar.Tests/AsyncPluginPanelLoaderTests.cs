@@ -19,7 +19,7 @@ public sealed class AsyncPluginPanelLoaderTests
         source.SeedFile("/slow/result.txt", "payload");
         var fixture = new Fixture(source);
         var original = fixture.State.CurrentLocation;
-        fixture.State.Items.Add(new FilePanelItem { Name = "old.txt", FullPath = "/old.txt" });
+        fixture.State.Items.Add(new FilePanelItem { Name = "old.txt", FullPath = "/old.txt", IsDirectory = false });
 
         fixture.Loader.Load(fixture.State, new PanelLocation(source.SourceId, "/slow"), new(),
             onSuccess: () => fixture.Applied++);
@@ -63,6 +63,34 @@ public sealed class AsyncPluginPanelLoaderTests
         Assert.Equal("/newer", fixture.State.SourcePath);
         Assert.Contains(fixture.State.Items, item => item.Name == "new.txt");
         Assert.DoesNotContain(fixture.State.Items, item => item.Name == "old.txt");
+    }
+
+    [Fact]
+    public async Task SynchronousPanelReplacement_InvalidatesPendingLoadEvenWithSameOrigin()
+    {
+        var source = new DeferredSource();
+        source.SeedDirectory("/late");
+        var fixture = new Fixture(source);
+        int discarded = 0;
+
+        fixture.Loader.Load(fixture.State, new PanelLocation(source.SourceId, "/late"), new(),
+            onAbandoned: () => discarded++);
+        await source.WaitForRequestAsync("/late");
+        var origin = fixture.State.CurrentLocation;
+        var newView = new PanelView
+        {
+            Items = [new FilePanelItem { Name = "replacement.txt", FullPath = "/replacement.txt",
+                IsDirectory = false }],
+            Summary = new PanelSummary(),
+            AutoRefreshState = new PanelAutoRefreshState(),
+            IsRootDirectory = false,
+        };
+        fixture.Controller.CommitPreparedLocation(fixture.State, origin, newView);
+
+        source.Release("/late");
+        await fixture.PumpUntilAsync(() => discarded == 1);
+        Assert.Equal(origin, fixture.State.CurrentLocation);
+        Assert.Equal("replacement.txt", Assert.Single(fixture.State.Items).Name);
     }
 
     [Fact]

@@ -156,6 +156,7 @@ public sealed class PanelController
             });
 
         state.CurrentLocation = NormalizeLocation(content.Location);
+        state.ContentVersion++;
         state.Items.Clear();
         state.Items.AddRange(sortedItems);
         state.SelectedPaths.Clear();
@@ -193,6 +194,7 @@ public sealed class PanelController
     {
         bool sameSource = state.ContentKind == PanelContentKind.Source && state.SourceId == location.SourceId;
         state.CurrentLocation = location;
+        state.ContentVersion++;
         state.Items.Clear();
         state.Items.AddRange(view.Items);
         state.Summary = view.Summary;
@@ -434,6 +436,7 @@ public sealed class PanelController
         string? previousName = previousItem?.Name;
         var selectedPaths = state.SelectedPaths.ToList();
 
+        state.ContentVersion++;
         state.Items.Clear();
         state.Items.AddRange(view.Items);
         state.Summary = view.Summary;
@@ -628,6 +631,7 @@ public sealed class PanelController
         int visibleRows,
         AppSettings.PanelOptionsSettings? options = null)
     {
+        state.ContentVersion++;
         if (state.SortMode == mode)
             state.SortDescending = !state.SortDescending;
         else
@@ -853,6 +857,7 @@ public sealed class PanelController
     {
         bool sameSource = state.ContentKind == PanelContentKind.Source && state.SourceId == location.SourceId;
         state.CurrentLocation = location;
+        state.ContentVersion++;
         state.Items.Clear();
         state.SelectedPaths.Clear();
         state.SelectedLocations.Clear();
