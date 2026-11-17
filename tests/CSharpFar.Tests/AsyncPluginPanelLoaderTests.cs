@@ -71,6 +71,9 @@ public sealed class AsyncPluginPanelLoaderTests
         var source = new DeferredSource();
         source.SeedDirectory("/late");
         var fixture = new Fixture(source);
+        // Start on the same remote source so committing a new view leaves the
+        // location unchanged; only ContentVersion can invalidate the old task.
+        fixture.Controller.LoadLocation(fixture.State, new PanelLocation(source.SourceId, "/"));
         int discarded = 0;
 
         fixture.Loader.Load(fixture.State, new PanelLocation(source.SourceId, "/late"), new(),
