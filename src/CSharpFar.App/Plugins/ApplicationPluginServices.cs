@@ -46,6 +46,25 @@ internal sealed class ApplicationPluginUi(ModuleUiServices ui) : IPluginUiServic
         EnsureUiThread();
         return ui.ShowMenu(title, items, selected);
     }
+
+    public bool Confirm(string title, string question, string itemName)
+    {
+        EnsureUiThread();
+        return ui.Confirm(title, question, itemName);
+    }
+
+    public int? ShowChoice(string title, string message, IReadOnlyList<string> buttons)
+    {
+        EnsureUiThread();
+        int choice = ui.ShowMessage(title, message, buttons);
+        return choice >= 0 ? choice : null;
+    }
+
+    public void ShowHelp(string title, IReadOnlyList<string> lines)
+    {
+        EnsureUiThread();
+        ui.ShowHelp(title, lines);
+    }
 }
 
 internal sealed class ApplicationPluginSettings(string configDirectory) : IPluginSettingsService
