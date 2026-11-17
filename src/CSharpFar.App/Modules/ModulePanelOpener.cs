@@ -25,6 +25,13 @@ internal sealed class ModulePanelOpener
     private readonly Action<PanelSide> _setActiveSide;
     private readonly Action<bool> _setQuickView;
     private readonly Action<Action>? _postToUi;
+    private readonly Action? _drainUiActions;
+    private readonly Action<Exception>? _reportOperationError;
+    private readonly CancellationTokenSource _operationCancellation = new();
+    private readonly object _operationsGate = new();
+    private readonly HashSet<Task> _activeOperations = [];
+    private int _shuttingDown;
+    private static readonly TimeSpan ShutdownGracePeriod = TimeSpan.FromSeconds(2);
 
     public ModulePanelOpener(
         NativeModuleCatalog moduleCatalog,
@@ -40,7 +47,9 @@ internal sealed class ModulePanelOpener
         Action<Action>? postToUi = null,
         Action<Exception>? reportCleanupError = null,
         Action<string, string>? showMessage = null,
-        PanelNavigationService? navigation = null)
+        PanelNavigationService? navigation = null,
+        Action? drainUiActions = null,
+        Action<Exception>? reportOperationError = null)
     {
         _moduleCatalog = moduleCatalog;
         _navigation = navigation;
@@ -53,17 +62,19 @@ internal sealed class ModulePanelOpener
         _setActiveSide = setActiveSide;
         _setQuickView = setQuickView;
         _postToUi = postToUi;
+        _drainUiActions = drainUiActions;
+        _reportOperationError = reportOperationError;
     }
 
     public ApplicationCommandResult OpenMenuItem(Guid actionId, PanelSide activeSide) =>
-        HandleInvocation(_moduleCatalog.OpenFromMenu(actionId, activeSide), activeSide);
+        HandleInvocation(_moduleCatalog.OpenFromMenu(actionId, activeSide, _operationCancellation.Token), activeSide);
 
     public ApplicationCommandResult OpenDiskMenuItem(Guid actionId, PanelSide panelSide) =>
-        HandleInvocation(_moduleCatalog.OpenFromDiskMenu(actionId, panelSide), panelSide);
+        HandleInvocation(_moduleCatalog.OpenFromDiskMenu(actionId, panelSide, _operationCancellation.Token), panelSide);
 
     public bool TryOpenFromCommandLine(string command, PanelSide activeSide)
     {
-        if (!_moduleCatalog.TryOpenFromCommandLine(command, activeSide, out var task))
+        if (!_moduleCatalog.TryOpenFromCommandLine(command, activeSide, out var task, _operationCancellation.Token))
             return false;
 
         HandleInvocation(task, activeSide);
@@ -79,10 +90,11 @@ internal sealed class ModulePanelOpener
         if (_postToUi is null)
         {
             _showMessage("Plugin", "Asynchronous plugin commands require a UI completion queue.");
+            TrackOperation(DiscardCommandResultAsync(invocation));
             return ApplicationCommandResult.Rendered();
         }
 
-        _ = CompleteAsync(invocation, targetSide);
+        TrackOperation(CompleteAsync(invocation, targetSide));
         return ApplicationCommandResult.Rendered();
     }
 
@@ -102,7 +114,7 @@ internal sealed class ModulePanelOpener
             result = PluginCommandResult.Failed(e.Message);
         }
 
-        _postToUi!(() => HandleOpenResult(result, targetSide));
+        PostCompletion(() => HandleOpenResult(result, targetSide), result.Panel);
     }
 
     public void OpenPanel(PanelSide panelSide, IModulePanel panel) =>
@@ -186,7 +198,7 @@ internal sealed class ModulePanelOpener
         Action<FilePanelState, FilePanelItem> fallback)
     {
         if (!_sourceRegistry.TryGetSource(item.SourceId, out var source) ||
-            !_moduleCatalog.TryOpenFile(source, item, side, out var invocation))
+            !_moduleCatalog.TryOpenFile(source, item, side, out var invocation, _operationCancellation.Token))
             return false;
 
         var origin = state.CurrentLocation;
@@ -199,9 +211,10 @@ internal sealed class ModulePanelOpener
         if (_postToUi is null)
         {
             _showMessage("Open file", "Asynchronous file handlers require a UI completion queue.");
+            TrackOperation(DiscardFileResultAsync(invocation));
             return true;
         }
-        _ = AwaitFileOpenAsync(invocation, state, side, item, origin, fallback);
+        TrackOperation(AwaitFileOpenAsync(invocation, state, side, item, origin, fallback));
         return true;
     }
 
@@ -214,7 +227,7 @@ internal sealed class ModulePanelOpener
         try { result = await invocation.ConfigureAwait(false); }
         catch (OperationCanceledException) { result = PluginFileOpenResult.Cancelled(); }
         catch (Exception error) { result = PluginFileOpenResult.Failed(error.Message); }
-        _postToUi!(() => CompleteFileOpen(result, state, side, item, origin, fallback));
+        PostCompletion(() => CompleteFileOpen(result, state, side, item, origin, fallback), result.Panel);
     }
 
     private void CompleteFileOpen(
@@ -224,9 +237,7 @@ internal sealed class ModulePanelOpener
     {
         if (state.CurrentLocation != origin)
         {
-            if (result.Panel is { Source: var unused } &&
-                !_sourceRegistry.TryGetSource(unused.SourceId, out _))
-                _cleanup.Discard(unused);
+            DiscardUnusedPanel(result.Panel);
             return;
         }
 
@@ -259,6 +270,76 @@ internal sealed class ModulePanelOpener
         return ApplicationCommandResult.Rendered();
     }
 
+    private void TrackOperation(Task operation)
+    {
+        lock (_operationsGate)
+            _activeOperations.Add(operation);
+        _ = ObserveOperationAsync(operation);
+    }
+
+    private async Task ObserveOperationAsync(Task operation)
+    {
+        try { await operation.ConfigureAwait(false); }
+        catch (Exception error) { ReportOperationError(error); }
+        finally
+        {
+            lock (_operationsGate)
+                _activeOperations.Remove(operation);
+        }
+    }
+
+    private async Task DiscardCommandResultAsync(ValueTask<PluginCommandResult> invocation)
+    {
+        try { DiscardUnusedPanel((await invocation.ConfigureAwait(false)).Panel); }
+        catch (Exception error) { ReportOperationError(error); }
+    }
+
+    private async Task DiscardFileResultAsync(ValueTask<PluginFileOpenResult> invocation)
+    {
+        try { DiscardUnusedPanel((await invocation.ConfigureAwait(false)).Panel); }
+        catch (Exception error) { ReportOperationError(error); }
+    }
+
+    private void PostCompletion(Action action, PluginPanelOpenRequest? panel)
+    {
+        if (Volatile.Read(ref _shuttingDown) != 0)
+        {
+            DiscardUnusedPanel(panel);
+            return;
+        }
+
+        try
+        {
+            _postToUi!(() =>
+            {
+                if (Volatile.Read(ref _shuttingDown) != 0)
+                    DiscardUnusedPanel(panel);
+                else
+                    action();
+            });
+        }
+        catch (Exception error)
+        {
+            DiscardUnusedPanel(panel);
+            ReportOperationError(error);
+        }
+    }
+
+    private void DiscardUnusedPanel(PluginPanelOpenRequest? panel)
+    {
+        if (panel?.Source is not { } source)
+            return;
+        if (!_sourceRegistry.TryGetSource(source.SourceId, out var registered) ||
+            !ReferenceEquals(registered, source))
+            _cleanup.Discard(source);
+    }
+
+    private void ReportOperationError(Exception error)
+    {
+        try { _reportOperationError?.Invoke(error); }
+        catch { /* Diagnostics cannot interfere with shutdown. */ }
+    }
+
     /// <summary>Retire temporary sources after neither panel needs them and operations have finished.</summary>
     public void CleanupUnusedTemporarySources() =>
         _sourceRegistry.RemoveUnusedTemporarySources(
@@ -272,6 +353,30 @@ internal sealed class ModulePanelOpener
     /// </summary>
     public async Task ShutdownAsync()
     {
+        if (Interlocked.Exchange(ref _shuttingDown, 1) == 0)
+        {
+            // Do not execute arbitrary plugin cancellation callbacks on the UI thread.
+            Task cancellation = _operationCancellation.CancelAsync();
+            Task[] running;
+            lock (_operationsGate)
+                running = [.. _activeOperations];
+
+            // In-process code may ignore cancellation; shutdown must remain bounded.
+            try
+            {
+                await Task.WhenAll(running.Append(cancellation))
+                    .WaitAsync(ShutdownGracePeriod).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                ReportOperationError(new TimeoutException(
+                    "Plugin operations did not stop within the shutdown grace period."));
+            }
+            catch (Exception error) { ReportOperationError(error); }
+        }
+
+        // Callbacks posted before shutdown are abandoned, not executed against dead panels.
+        _drainUiActions?.Invoke();
         _navigation?.ClearNavigation(PanelSide.Left);
         _navigation?.ClearNavigation(PanelSide.Right);
         _sourceRegistry.DisposeOwnedSources(_cleanup.Discard);

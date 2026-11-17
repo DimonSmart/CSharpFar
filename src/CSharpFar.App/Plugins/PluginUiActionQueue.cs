@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 namespace CSharpFar.App.Plugins;
 
 /// <summary>Returns asynchronous plugin completions to the application's owning input/UI thread.</summary>
-internal sealed class PluginUiActionQueue(Action wakeInputLoop)
+internal sealed class PluginUiActionQueue(Action wakeInputLoop, Action<Exception>? reportError = null)
 {
     private readonly ConcurrentQueue<Action> _actions = new();
 
@@ -17,6 +17,13 @@ internal sealed class PluginUiActionQueue(Action wakeInputLoop)
     public void Drain()
     {
         while (_actions.TryDequeue(out var action))
-            action();
+        {
+            try { action(); }
+            catch (Exception error)
+            {
+                try { reportError?.Invoke(error); }
+                catch { /* Diagnostics must not terminate the input loop. */ }
+            }
+        }
     }
 }

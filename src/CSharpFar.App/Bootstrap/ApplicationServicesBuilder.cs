@@ -535,7 +535,8 @@ internal static class ApplicationServicesBuilder
         ApplicationServices Finish()
         {
             var moduleCatalog = new NativeModuleCatalog(pluginRuntime);
-            var pluginUiActions = new PluginUiActionQueue(autoRefresh.WakeInputLoop);
+            var pluginUiActions = new PluginUiActionQueue(autoRefresh.WakeInputLoop,
+                error => diagnosticLog.WriteException(DiagnosticCategory.Plugin, error, "Plugin UI action"));
             var modulePanelOpener = new ModulePanelOpener(
                 moduleCatalog,
                 effectiveSourceRegistry,
@@ -550,7 +551,10 @@ internal static class ApplicationServicesBuilder
                 pluginUiActions.Post,
                 error => diagnosticLog.WriteException(
                     DiagnosticCategory.Plugin, error, "Rejected plugin panel source cleanup"),
-                navigation: panelNavigation);
+                navigation: panelNavigation,
+                drainUiActions: pluginUiActions.Drain,
+                reportOperationError: error => diagnosticLog.WriteException(
+                    DiagnosticCategory.Plugin, error, "Plugin operation"));
             var workspaceModeController = new ApplicationWorkspaceModeController(
                 screen,
                 session,

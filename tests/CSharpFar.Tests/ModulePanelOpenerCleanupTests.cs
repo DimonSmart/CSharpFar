@@ -137,6 +137,35 @@ public sealed class ModulePanelOpenerCleanupTests
 
 
     [Fact]
+    public void UnexpectedProviderFailure_DuringOpenPreservesPreviousPanel()
+    {
+        var fixture = new Fixture();
+        var source = new SyncSource { ThrowUnexpectedOnRead = true };
+
+        fixture.Opener.OpenPanel(PanelSide.Right, Request(source));
+
+        Assert.False(fixture.Registry.TryGetSource(source.SourceId, out _));
+        Assert.Equal(1, source.DisposeCalls);
+        Assert.Equal(fixture.InitialLocation, fixture.State.CurrentLocation);
+        Assert.Equal(PanelSide.Left, fixture.ActiveSide);
+        Assert.True(fixture.QuickView);
+        Assert.Contains(fixture.Messages, message => message.Contains("not changed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void UnexpectedProviderFailure_DuringRefreshBecomesPanelLoadError()
+    {
+        var fixture = new Fixture();
+        var source = new SyncSource();
+        fixture.Opener.OpenPanel(PanelSide.Right, Request(source));
+        source.ThrowUnexpectedOnRead = true;
+
+        Assert.False(fixture.Controller.TryRefreshDirectory(fixture.State, 20));
+        Assert.NotNull(fixture.State.LoadError);
+        Assert.Contains("provider", fixture.State.LoadError.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void TemporarySource_IsReleasedOnlyAfterNeitherPanelReferencesIt()
     {
         var registry = new FilePanelSourceRegistry([]);
@@ -293,13 +322,14 @@ public sealed class ModulePanelOpenerCleanupTests
         public bool QuickView { get; private set; } = true;
         public PanelLocation InitialLocation => PanelLocation.Local(Path.GetTempPath());
         public ModulePanelOpener Opener { get; }
+        public PanelController Controller { get; }
 
         public Fixture()
         {
-            var controller = new PanelController(new PanelViewBuilder(
+            Controller = new PanelController(new PanelViewBuilder(
                 new FakeFileSystemService(), new PanelSortService(), sources: Registry));
             Opener = new ModulePanelOpener(
-                null!, Registry, controller, null!, null!, null!,
+                null!, Registry, Controller, null!, null!, null!,
                 () => new AppSettings.PanelOptionsSettings(),
                 _ => State,
                 side => ActiveSide = side,
@@ -313,6 +343,7 @@ public sealed class ModulePanelOpenerCleanupTests
     {
         public bool AllowReuse { get; init; }
         public bool FailLoad { get; init; }
+        public bool ThrowUnexpectedOnRead { get; set; }
         public PanelSourceId SourceId { get; init; } = new("plugin:test:connections");
         public string DisplayName => "Test";
         public PanelProviderCapabilities Capabilities => PanelProviderCapabilities.Enumerate;
@@ -326,6 +357,8 @@ public sealed class ModulePanelOpenerCleanupTests
         {
             if (FailLoad)
                 throw new IOException("Unable to read test panel.");
+            if (ThrowUnexpectedOnRead)
+                throw new InvalidOperationException("Unexpected provider error.");
             return [];
         }
         public FilePanelItem? GetItem(string sourcePath, CancellationToken cancellationToken = default) => null;

@@ -83,6 +83,21 @@ public sealed class NativePluginIntegrationTests
         Assert.Equal(drainThread, calledOn);
     }
 
+    [Fact]
+    public void AsyncCompletionQueue_IsolatesFailedCallbackAndContinues()
+    {
+        var failures = new List<Exception>();
+        var queue = new PluginUiActionQueue(() => { }, failures.Add);
+        int executed = 0;
+        queue.Post(() => throw new InvalidOperationException("bad plugin callback"));
+        queue.Post(() => executed++);
+
+        queue.Drain();
+
+        Assert.Equal(1, executed);
+        Assert.Contains(Assert.Single(failures).Message, "bad plugin callback", StringComparison.Ordinal);
+    }
+
     private sealed class IndependentPlugin(VirtualPanelSource source) : ICSharpFarPlugin
     {
         public PanelSide LastCommandSide { get; private set; }

@@ -17,17 +17,18 @@ internal sealed class NativeModuleCatalog(NativePluginRuntime plugins)
     public IReadOnlyCollection<string> CommandPrefixes => plugins.CommandPrefixes;
 
     public bool TryOpenFile(IFilePanelSource source, FilePanelItem item, PanelSide side,
-        out ValueTask<PluginFileOpenResult> invocation) =>
-        plugins.TryOpenFile(source, item, side, out invocation);
+        out ValueTask<PluginFileOpenResult> invocation, CancellationToken cancellationToken = default) =>
+        plugins.TryOpenFile(source, item, side, out invocation, cancellationToken);
 
-    public ValueTask<PluginCommandResult> OpenFromMenu(Guid actionId, PanelSide panelSide) =>
-        InvokeMenu(actionId, PluginMenuPlacement.Plugins, PluginCommandOrigin.PluginsMenu, panelSide);
+    public ValueTask<PluginCommandResult> OpenFromMenu(Guid actionId, PanelSide panelSide, CancellationToken cancellationToken = default) =>
+        InvokeMenu(actionId, PluginMenuPlacement.Plugins, PluginCommandOrigin.PluginsMenu, panelSide, cancellationToken);
 
-    public ValueTask<PluginCommandResult> OpenFromDiskMenu(Guid actionId, PanelSide panelSide) =>
-        InvokeMenu(actionId, PluginMenuPlacement.Disk, PluginCommandOrigin.DiskMenu, panelSide);
+    public ValueTask<PluginCommandResult> OpenFromDiskMenu(Guid actionId, PanelSide panelSide, CancellationToken cancellationToken = default) =>
+        InvokeMenu(actionId, PluginMenuPlacement.Disk, PluginCommandOrigin.DiskMenu, panelSide, cancellationToken);
 
     public bool TryOpenFromCommandLine(
-        string commandLine, PanelSide panelSide, out ValueTask<PluginCommandResult> result)
+        string commandLine, PanelSide panelSide, out ValueTask<PluginCommandResult> result,
+        CancellationToken cancellationToken = default)
     {
         if (!plugins.TryResolvePrefix(commandLine, out var address, out string arguments))
         {
@@ -36,19 +37,21 @@ internal sealed class NativeModuleCatalog(NativePluginRuntime plugins)
         }
 
         result = plugins.ExecuteAsync(address, PluginCommandOrigin.CommandLine,
-            panelSide, commandLine, arguments);
+            panelSide, commandLine, arguments, cancellationToken);
         return true;
     }
 
     private ValueTask<PluginCommandResult> InvokeMenu(
-        Guid actionId, PluginMenuPlacement placement, PluginCommandOrigin origin, PanelSide side)
+        Guid actionId, PluginMenuPlacement placement, PluginCommandOrigin origin, PanelSide side,
+        CancellationToken cancellationToken)
     {
         foreach (var item in plugins.MenuItems)
         {
             if (item.Item.Placement == placement && PluginMenuActionIds.Get(item.PluginId, item.Item) == actionId)
             {
                 return plugins.ExecuteAsync(
-                    new PluginCommandAddress(item.PluginId, item.Item.CommandId), origin, side);
+                    new PluginCommandAddress(item.PluginId, item.Item.CommandId), origin, side,
+                    cancellationToken: cancellationToken);
             }
         }
 
