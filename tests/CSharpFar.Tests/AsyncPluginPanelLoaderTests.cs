@@ -12,6 +12,23 @@ namespace CSharpFar.Tests;
 public sealed class AsyncPluginPanelLoaderTests
 {
     [Fact]
+    public async Task LegacySynchronousProvider_EnumeratesOnWorkerAndReceivesCancellation()
+    {
+        var source = new BlockingLegacySource();
+        var fixture = new Fixture(source);
+        var original = fixture.State.CurrentLocation;
+
+        fixture.Loader.Load(fixture.State, new PanelLocation(source.SourceId, "/"), new());
+        await source.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(original, fixture.State.CurrentLocation);
+        fixture.Loader.CancelPending(fixture.State);
+        await source.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        fixture.Pump();
+        Assert.Equal(original, fixture.State.CurrentLocation);
+    }
+
+    [Fact]
     public async Task PendingAsyncEnumeration_DoesNotBlockUiOrMutatePanelBeforeCompletion()
     {
         var source = new DeferredSource();
@@ -224,6 +241,33 @@ public sealed class AsyncPluginPanelLoaderTests
 
         public Task PumpUntilAsync(Func<bool> predicate) =>
             EventuallyAsync(() => { Pump(); return predicate(); });
+    }
+
+    private sealed class BlockingLegacySource : MemoryFilePanelView, IFilePanelSource
+    {
+        private readonly ManualResetEventSlim _gate = new(initialState: false);
+        public TaskCompletionSource Started { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Cancelled { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public BlockingLegacySource() : base(new PanelSourceId("plugin:legacy")) { }
+
+        IReadOnlyList<FilePanelItem> IFilePanelSource.EnumerateDirectory(
+            string sourcePath, CancellationToken cancellationToken)
+        {
+            Started.TrySetResult();
+            try
+            {
+                _gate.Wait(cancellationToken);
+                return base.EnumerateDirectory(sourcePath, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                Cancelled.TrySetResult();
+                throw;
+            }
+        }
     }
 
     private sealed class DeferredSource : MemoryFilePanelView, IAsyncFilePanelSource
