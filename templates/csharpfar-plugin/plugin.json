@@ -1,0 +1,8 @@
+{
+  "id": "sample-extension",
+  "name": "Sample Extension",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "assembly": "CSharpFar.Plugin.Template.dll",
+  "entryType": "CSharpFar.Plugin.Template.Plugin"
+}

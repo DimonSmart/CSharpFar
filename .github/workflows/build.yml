@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -34,6 +36,11 @@ jobs:
 
       - name: Build
         run: dotnet build CSharpFar.slnx --configuration Release --no-restore
+
+      - name: Verify plugin SDK binary compatibility
+        if: runner.os == 'Linux'
+        shell: pwsh
+        run: ./eng/testing/verify-plugin-sdk-compatibility.ps1
 
       - name: Enforce CA1416 platform guards
         run: dotnet build CSharpFar.slnx --configuration Release --no-restore -warnaserror:CA1416
@@ -64,18 +71,16 @@ jobs:
 
       - name: Build independent external plugin binaries
         shell: pwsh
-        run: |
-          ./eng/pack-plugin-sdk.ps1
-          foreach ($plugin in @('HelloWorld', 'GoodbyeWorld')) {
-            $project = "samples/CSharpFar.Plugin.$plugin/CSharpFar.Plugin.$plugin.csproj"
-            $feed = Join-Path $PWD "artifacts/plugin-sdk"
-            dotnet restore $project --source $feed
-            if ($LASTEXITCODE -ne 0) { throw "External sample restore failed: $plugin" }
-            $output = "artifacts/external-$($plugin.ToLowerInvariant().Replace('world', ''))"
-            dotnet publish $project -c Release --no-restore -o $output
-            if ($LASTEXITCODE -ne 0) { throw "External sample publish failed: $plugin" }
-            Copy-Item "samples/CSharpFar.Plugin.$plugin/plugin.json" $output
-          }
+        run: ./eng/testing/build-external-plugin-samples.ps1
+
+      - name: Verify plugin SDK package contents
+        shell: pwsh
+        run: ./eng/testing/verify-plugin-sdk-packages.ps1
+
+      - name: Verify packaged dotnet new plugin template
+        if: runner.os == 'Linux'
+        shell: pwsh
+        run: ./eng/testing/verify-plugin-template.ps1
 
       - name: Verify self-contained single-file external plugin loading
         shell: pwsh

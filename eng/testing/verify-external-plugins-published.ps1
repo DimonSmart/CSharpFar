@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$Project,
-    [Parameter(Mandatory=$true)][string]$RuntimeIdentifier
+    [Parameter(Mandatory=$true)][string]$RuntimeIdentifier,
+    # For release validation, reuse the exact finished binary instead of rebuilding.
+    [string]$PublishedDirectory
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,13 +13,17 @@ $platform = if ($RuntimeIdentifier -like 'win-*') { 'Windows' }
     elseif ($RuntimeIdentifier -like 'osx-*') { 'MacOs' }
     else { throw "Unsupported runtime identifier $RuntimeIdentifier" }
 $output = Join-Path $root "artifacts/external-singlefile/$RuntimeIdentifier"
-$published = Join-Path $output 'published'
 $config = Join-Path $output 'config'
 Remove-Item $output -Recurse -Force -ErrorAction Ignore
-New-Item -ItemType Directory -Path $published -Force | Out-Null
-
-& dotnet publish (Join-Path $root $Project) -c Release -r $RuntimeIdentifier --self-contained true -p:PublishSingleFile=true -p:PublishReadyToRun=false -o $published
-if ($LASTEXITCODE -ne 0) { throw "Single-file publish failed: $RuntimeIdentifier" }
+if ($PublishedDirectory) {
+    $published = (Resolve-Path -LiteralPath $PublishedDirectory).Path
+}
+else {
+    $published = Join-Path $output 'published'
+    New-Item -ItemType Directory -Path $published -Force | Out-Null
+    & dotnet publish (Join-Path $root $Project) -c Release -r $RuntimeIdentifier --self-contained true -p:PublishSingleFile=true -p:PublishReadyToRun=false -o $published
+    if ($LASTEXITCODE -ne 0) { throw "Single-file publish failed: $RuntimeIdentifier" }
+}
 $executable = Join-Path $published $(if ($platform -eq 'Windows') { 'CSharpFar.exe' } else { 'csharpfar' })
 if (-not (Test-Path $executable -PathType Leaf)) {
     throw "Single-file host executable was not produced: $executable"

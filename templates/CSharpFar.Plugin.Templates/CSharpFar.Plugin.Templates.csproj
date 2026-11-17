@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../../eng/PluginSdk.props" />
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <NoBuild>true</NoBuild>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <IsPackable>true</IsPackable>
+    <IncludeContentInPack>true</IncludeContentInPack>
+    <ContentTargetFolders>content</ContentTargetFolders>
+    <PackageType>Template</PackageType>
+    <PackageId>CSharpFar.Plugin.Templates</PackageId>
+    <Version>$(PluginSdkVersion)</Version>
+    <Authors>DimonSmart</Authors>
+    <Description>dotnet new template for trusted native CSharpFar .NET plugins.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/DimonSmart/CSharpFar</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <Content Include="../csharpfar-plugin/.template.config/template.json" Pack="true"
+             PackagePath="content/csharpfar-plugin/.template.config/template.json" />
+    <Content Include="../csharpfar-plugin/*.csproj;../csharpfar-plugin/*.cs;../csharpfar-plugin/*.json;../csharpfar-plugin/*.md"
+             Pack="true" PackagePath="content/csharpfar-plugin/" />
+  </ItemGroup>
+</Project>
