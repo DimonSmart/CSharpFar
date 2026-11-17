@@ -110,7 +110,20 @@ internal sealed class UserMenuCommand : IApplicationCommand
             if (template.Parameters.Count > 0)
             {
                 CommandParameterDialogResult? input = new CommandParameterDialog(context.Dialogs, context.Fields)
-                    .Show(chosen.Item.Title, template.Parameters);
+                    .Show(chosen.Item.Title, template.Parameters, candidate =>
+                    {
+                        try
+                        {
+                            _ = CommandTemplateRenderer.Expand(
+                                template, candidate, literal => operands.Expand(literal, chosen.MenuDirectory),
+                                CommandTemplateRenderer.Dialect(template.Original, platform));
+                            return null;
+                        }
+                        catch (ArgumentException ex)
+                        {
+                            return ex.Message;
+                        }
+                    });
                 if (input is null)
                     return ApplicationCommandResult.Rendered();
                 values = input.Values;
