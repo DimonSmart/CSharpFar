@@ -192,6 +192,28 @@ public class UserMenuStoreTests : IDisposable
         Assert.Equal(originalJson, File.ReadAllText(filePath));
     }
 
+
+    [Fact]
+    public void LegacyIdsAreIgnoredAndNotWrittenBack()
+    {
+        string path = Path.Combine(_tempDir, "user-menu.json");
+        File.WriteAllText(path, """
+            [
+              {"id":"build","title":"First","command":"dotnet build"},
+              {"id":"build","title":"Second","command":"dotnet test"}
+            ]
+            """);
+
+        var store = new UserMenuStore(_tempDir);
+        Assert.Equal(["First", "Second"], store.Items.Select(item => item.Title));
+
+        store.Save(store.Items);
+
+        string json = File.ReadAllText(path);
+        Assert.DoesNotContain("\"id\"", json, StringComparison.Ordinal);
+        Assert.Equal(["First", "Second"], new UserMenuStore(_tempDir).Items.Select(item => item.Title));
+    }
+
     [Fact]
     public void CorruptJsonThrows()
     {
