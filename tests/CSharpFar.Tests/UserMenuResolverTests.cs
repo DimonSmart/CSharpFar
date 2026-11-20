@@ -129,7 +129,7 @@ public sealed class UserMenuResolverTests : IDisposable
               {"id":"build","title":"Second build","command":"dotnet build Second.csproj"}
             ]
             """);
-        var global = Global(new() { Title = "Global build" });
+        var global = Global(new UserMenuItem { Title = "Global build" });
 
         var resolved = UserMenuResolver.Resolve(global, PlatformKind.Windows, src);
 
