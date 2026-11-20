@@ -48,7 +48,6 @@ internal static class UserMenuResolver
             throw new InvalidDataException("Invalid user menu '" + global.FilePath + "': " + globalError);
 
         sources.Add(("Global", global.FilePath, UserMenuItemRules.CloneItems(global.Items)));
-        var seenIds = new HashSet<string>(StringComparer.Ordinal);
         var sections = new List<ResolvedUserMenuSection>();
         foreach (var source in sources)
         {
@@ -56,8 +55,6 @@ internal static class UserMenuResolver
             foreach (UserMenuItem item in source.Items)
             {
                 if (!UserMenuAvailability.IsAvailableOn(item, platform))
-                    continue;
-                if (item.Id is { } id && !seenIds.Add(id))
                     continue;
                 visible.Add(new ResolvedUserMenuItem(item, source.Path, Path.GetDirectoryName(source.Path)!));
             }

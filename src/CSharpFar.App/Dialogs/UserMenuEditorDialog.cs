@@ -152,8 +152,7 @@ internal sealed class UserMenuEditorDialog
     internal static bool SameItem(UserMenuItem left, UserMenuItem right) =>
         left.Title == right.Title &&
         left.Command == right.Command &&
-        left.Platform == right.Platform &&
-        left.Id == right.Id;
+        left.Platform == right.Platform;
 
     internal static UserMenuItem[] CloneItems(IEnumerable<UserMenuItem> items) =>
         UserMenuItemRules.CloneItems(items);

@@ -13,7 +13,7 @@ public sealed class UserMenuResolverTests : IDisposable
     public void Dispose() => Directory.Delete(_root, recursive: true);
 
     [Fact]
-    public void MergesClosestFirst_PreservesOrder_AndOverridesOnlyMatchingIds()
+    public void MergesClosestFirst_PreservesAllCommandsIncludingLegacyIdCollisions()
     {
         string project = Path.Combine(_root, "Workspace", "Project");
         string src = Path.Combine(project, "src");
@@ -34,7 +34,7 @@ public sealed class UserMenuResolverTests : IDisposable
         WriteMenu(src, "[]");
 
         var global = Global(
-            new() { Title = "Global build", Id = "build" },
+            new() { Title = "Global build" },
             new() { Title = "Global command" });
 
         var resolved = UserMenuResolver.Resolve(global, PlatformKind.Linux, src);
@@ -42,7 +42,7 @@ public sealed class UserMenuResolverTests : IDisposable
         Assert.True(resolved.HasLocalMenus);
         Assert.Equal(["Project", "Workspace", "Global"], resolved.Sections.Select(x => x.Label));
         Assert.Equal(
-            ["Project build", "Files", "Lint", "Files", "Global command"],
+            ["Project build", "Files", "Shared build", "Lint", "Files", "Global build", "Global command"],
             resolved.Sections.SelectMany(x => x.Items).Select(x => x.Item.Title));
         Assert.Equal(project, resolved.Sections[0].Items[0].MenuDirectory);
         Assert.Equal(Path.Combine(_root, "Workspace"), resolved.Sections[1].Items[0].MenuDirectory);
@@ -50,7 +50,7 @@ public sealed class UserMenuResolverTests : IDisposable
     }
 
     [Fact]
-    public void PlatformFilteringPrecedesOverrideAndDisjointSameFileIdsAreAllowed()
+    public void PlatformFilteringKeepsDistinctCommandsWithLegacyIds()
     {
         string src = Path.Combine(_root, "A");
         WriteMenu(src, """
@@ -60,14 +60,14 @@ public sealed class UserMenuResolverTests : IDisposable
             ]
             """);
         var global = Global(
-            new() { Title = "Fallback", Id = "build" },
+            new() { Title = "Fallback" },
             new() { Title = "Other" });
 
         var mac = UserMenuResolver.Resolve(global, PlatformKind.MacOs, src);
         Assert.Equal(["Fallback", "Other"], mac.Sections.SelectMany(x => x.Items).Select(x => x.Item.Title));
 
         var linux = UserMenuResolver.Resolve(global, PlatformKind.Linux, src);
-        Assert.Equal(["Linux build", "Other"], linux.Sections.SelectMany(x => x.Items).Select(x => x.Item.Title));
+        Assert.Equal(["Linux build", "Fallback", "Other"], linux.Sections.SelectMany(x => x.Items).Select(x => x.Item.Title));
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class UserMenuResolverTests : IDisposable
     {
         string src = Path.Combine(_root, "A");
         WriteMenu(src, """
-            [{"id":"build","title":"One"}, {"id":"build","title":"Two"}]
+            [{"title":" "}, {"title":"Two"}]
             """);
         var global = Global(new UserMenuItem { Title = "Global" });
 
@@ -89,7 +89,7 @@ public sealed class UserMenuResolverTests : IDisposable
     }
 
     [Fact]
-    public void InvalidJsonAndInvalidIdReportExactFileAndDoNotDamageExistingContent()
+    public void InvalidJsonAndInvalidTitleReportExactFileAndDoNotDamageExistingContent()
     {
         string src = Path.Combine(_root, "A");
         WriteMenu(src, "{\"items\":[]}");
@@ -100,22 +100,42 @@ public sealed class UserMenuResolverTests : IDisposable
 
         string path = Path.Combine(src, UserMenuResolver.LocalFileName);
         string original = File.ReadAllText(path);
-        var invalid = new UserMenuItem[] { new() { Title = "Bad", Id = "Invalid ID" } };
+        var invalid = new UserMenuItem[] { new() { Title = " " } };
         Assert.Throws<InvalidDataException>(() => UserMenuFile.WriteSafely(path, invalid));
         Assert.Equal(original, File.ReadAllText(path));
     }
 
     [Fact]
-    public void NoLocalMenuKeepsGlobalOnlyAndNewIdsRoundtrip()
+    public void NoLocalMenuKeepsGlobalOnly()
     {
         string src = Path.Combine(_root, "NoLocal");
         Directory.CreateDirectory(src);
-        var global = Global(new UserMenuItem { Title = "Run", Id = "run.tests" });
+        var global = Global(new UserMenuItem { Title = "Run" });
 
         var resolved = UserMenuResolver.Resolve(global, PlatformKind.Windows, src);
         Assert.False(resolved.HasLocalMenus);
         Assert.Equal("Global", Assert.Single(resolved.Sections).Label);
-        Assert.Equal("run.tests", Assert.Single(new UserMenuStore(Path.Combine(_root, "global")).Items).Id);
+        Assert.Equal("Run", Assert.Single(new UserMenuStore(Path.Combine(_root, "global")).Items).Title);
+    }
+
+
+    [Fact]
+    public void DuplicateLegacyIdsWithinOneFileRemainDistinct()
+    {
+        string src = Path.Combine(_root, "DuplicateIds");
+        WriteMenu(src, """
+            [
+              {"id":"build","title":"First build","command":"dotnet build First.csproj"},
+              {"id":"build","title":"Second build","command":"dotnet build Second.csproj"}
+            ]
+            """);
+        var global = Global(new UserMenuItem { Title = "Global build" });
+
+        var resolved = UserMenuResolver.Resolve(global, PlatformKind.Windows, src);
+
+        Assert.Equal(
+            ["First build", "Second build", "Global build"],
+            resolved.Sections.SelectMany(x => x.Items).Select(x => x.Item.Title));
     }
 
     private UserMenuStore Global(params UserMenuItem[] items)
