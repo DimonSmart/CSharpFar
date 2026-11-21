@@ -249,8 +249,7 @@ internal sealed class ExternalPluginManager
 
     private void Fail(ExternalPluginEntry entry, string stage, Exception error, bool reportAtStartup)
     {
-        Exception cause = error is TargetInvocationException { InnerException: not null } invocation
-            ? invocation.InnerException : error;
+        Exception cause = (error as TargetInvocationException)?.InnerException ?? error;
         entry.Status = ExternalPluginStatus.Error;
         entry.FailureStage = stage;
         entry.Error = Clean(cause.Message);
