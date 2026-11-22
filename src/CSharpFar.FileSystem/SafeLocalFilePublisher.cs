@@ -49,6 +49,13 @@ internal static class SafeLocalFilePublisher
             throw new IOException($"Cannot safely replace a file with a directory link: '{destination}'.");
 
         string backup = CreateStagingPath(destination) + ".backup";
+        // File.Replace rejects ReadOnly destinations on Windows. A backed-up
+        // rename is the available fallback: not an atomic transaction, so the
+        // original stays at the known backup path until commit succeeds.
+        if (OperatingSystem.IsWindows() &&
+            (File.GetAttributes(destination) & FileAttributes.ReadOnly) != 0)
+            return PublishReadOnlyWindowsFile(staging, destination, backup);
+
         try { File.Replace(staging, destination, backup); }
         catch (Exception error)
         {
@@ -65,6 +72,39 @@ internal static class SafeLocalFilePublisher
         }
 
         try { File.Delete(backup); return null; }
+        catch (IOException) { return backup; }
+        catch (UnauthorizedAccessException) { return backup; }
+    }
+    private static string? PublishReadOnlyWindowsFile(string staging, string destination, string backup)
+    {
+        File.Move(destination, backup);
+        try
+        {
+            File.Move(staging, destination);
+        }
+        catch (Exception error)
+        {
+            try { File.Move(backup, destination); }
+            catch (Exception restoreError)
+            {
+                throw new IOException(
+                    $"Publishing '{staging}' to '{destination}' failed and rollback failed. " +
+                    $"Original file is retained at '{backup}'.",
+                    new AggregateException(error, restoreError));
+            }
+            throw new IOException(
+                $"Publishing '{staging}' to '{destination}' failed; original destination restored.",
+                error);
+        }
+
+        // The successful new file is now published. Removing the old backup
+        // may require clearing ReadOnly; never touch the published destination.
+        try
+        {
+            File.SetAttributes(backup, File.GetAttributes(backup) & ~FileAttributes.ReadOnly);
+            File.Delete(backup);
+            return null;
+        }
         catch (IOException) { return backup; }
         catch (UnauthorizedAccessException) { return backup; }
     }
