@@ -140,7 +140,7 @@ public sealed class Spec019ReliableCopyTests : IDisposable
         Assert.Equal(1, result.CopiedCount);
         Assert.Equal(1, resolver.CallCount);
         Assert.Equal(1, analyses);
-        Assert.Equal([TimeSpan.FromSeconds(1)], retryDelays);
+        Assert.Equal(new[] { TimeSpan.FromSeconds(1) }, retryDelays);
         Assert.Equal(File.ReadAllBytes(source), File.ReadAllBytes(destination));
     }
 

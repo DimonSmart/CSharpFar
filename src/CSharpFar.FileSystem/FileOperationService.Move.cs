@@ -1128,7 +1128,7 @@ public sealed partial class FileOperationService
                 }
 
                 FileCopyPlanBuilder.AddMaskedProviderPlanItems(
-                    plan, location, source, normalizedSourcePath, item, targetPath, options.FileMask!, matcher, groups,
+                    plan, location, source, normalizedSourcePath, item, targetPath, options.FileMask!, options.SymlinkMode, matcher, groups,
                     source.SourceId,
                     validateTarget: path => ValidateProviderMoveTarget(source, normalizedSourcePath, path, item.IsDirectory),
                     cancellationToken);
