@@ -270,6 +270,52 @@ public partial class FileViewerTests
             () => cache.ReadBlockAsync(0, cancellation.Token));
     }
 
+    [Fact]
+    public async Task ShortReads_MatchMemoryReaderForTextLinesAndSearch()
+    {
+        byte[] content = Encoding.UTF8.GetBytes("first line\nsecond needle line\nthird line\n");
+        var shortReader = new ShortReadByteReader(content);
+        var normalReader = new MemoryFileByteReader(content);
+        var shortCache = new BlockCache(shortReader, blockSize: 8, capacity: 2);
+        var normalCache = new BlockCache(normalReader, blockSize: 8, capacity: 2);
+        var shortScanner = await LineScanner.CreateAsync(shortCache, shortReader);
+        var normalScanner = await LineScanner.CreateAsync(normalCache, normalReader);
+
+        ScannedLines actual = await shortScanner.ReadLinesAsync(0, 3, 256);
+        ScannedLines expected = await normalScanner.ReadLinesAsync(0, 3, 256);
+        Assert.Equal(expected.Lines, actual.Lines);
+        Assert.Equal(expected.NextOffset, actual.NextOffset);
+
+        var request = new ViewerSearchRequest("needle", CaseSensitive: true,
+            WholeWords: false, UseRegex: false, SearchHex: false);
+        var shortMatch = ViewerSearchEngine.Find(shortReader,
+            new LargeFileViewerState(shortCache, shortScanner), request, searchBackward: false);
+        var normalMatch = ViewerSearchEngine.Find(normalReader,
+            new LargeFileViewerState(normalCache, normalScanner), request, searchBackward: false);
+        Assert.Equal(normalMatch, shortMatch);
+        Assert.NotNull(shortMatch);
+    }
+
+    [Fact]
+    public async Task ShortReads_HexSearchFindsNeedleAcrossBlockBoundaries()
+    {
+        byte[] bytes = [0, 1, 2, 3, 4, 5, 0xDE, 0xAD, 0xBE, 0xEF, 10, 11, 12];
+        var shortReader = new ShortReadByteReader(bytes);
+        var cache = new BlockCache(shortReader, blockSize: 8, capacity: 2);
+        var scanner = await LineScanner.CreateAsync(cache, shortReader);
+        var state = new LargeFileViewerState(cache, scanner);
+        var request = new ViewerSearchRequest("DE AD BE EF", CaseSensitive: true,
+            WholeWords: false, UseRegex: false, SearchHex: true);
+
+        var found = ViewerSearchEngine.Find(shortReader, state, request, searchBackward: false);
+        Assert.NotNull(found);
+        Assert.Equal(6, found.ByteOffset);
+        Assert.True(found.IsHex);
+        byte[] output = new byte[8];
+        Assert.Equal(7, await cache.ReadAsync(6, output));
+        Assert.Equal(bytes.Skip(6), output.Take(7));
+    }
+
     private sealed class ShortReadByteReader(byte[] data) : IFileByteReader
     {
         private byte[] _data = data;
