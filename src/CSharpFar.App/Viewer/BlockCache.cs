@@ -44,17 +44,37 @@ internal sealed class BlockCache
         }
 
         var buffer = new byte[BlockSize];
-        int totalRead = await _reader
-            .ReadAsync(blockStart, buffer, cancellationToken)
-            .ConfigureAwait(false);
+        int totalRead = 0;
+        while (totalRead < buffer.Length)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            long remaining = _reader.Length - (blockStart + totalRead);
+            if (remaining <= 0)
+                break;
 
+            int requested = (int)Math.Min(buffer.Length - totalRead, remaining);
+            int read = await _reader.ReadAsync(
+                blockStart + totalRead, buffer.AsMemory(totalRead, requested), cancellationToken)
+                .ConfigureAwait(false);
+            if (read == 0)
+                break;
+
+            totalRead += read;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
         if (totalRead != buffer.Length)
             Array.Resize(ref buffer, totalRead);
 
-        var entry = new CacheEntry(buffer, ++_lastAccess);
-        _entries[blockStart] = entry;
-        EvictIfNeeded();
-        return entry.Bytes;
+        // A provider might report a transient zero read before its advertised EOF.
+        // Do not cache that incomplete interior block.
+        if (blockStart + totalRead >= _reader.Length || totalRead == BlockSize)
+        {
+            var entry = new CacheEntry(buffer, ++_lastAccess);
+            _entries[blockStart] = entry;
+            EvictIfNeeded();
+        }
+        return buffer;
     }
 
     public async Task<int> ReadAsync(
@@ -91,10 +111,11 @@ internal sealed class BlockCache
 
     private bool IsFresh(CacheEntry entry, long blockStart)
     {
-        if (entry.Bytes.Length == BlockSize)
-            return true;
-
-        return blockStart + entry.Bytes.Length >= _reader.Length;
+        long length = _reader.Length;
+        if (blockStart + entry.Bytes.Length > length)
+            return false; // A previously cached block is stale after a shrink.
+        return entry.Bytes.Length == BlockSize ||
+            blockStart + entry.Bytes.Length >= length;
     }
 
     private void EvictIfNeeded()

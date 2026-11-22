@@ -50,6 +50,43 @@ public sealed class NativePluginRuntimeTests
     }
 
     [Fact]
+    public async Task ThrowingCanOpenHandlers_DoNotBlockOtherHandlersOrNormalFallback()
+    {
+        var errors = new List<string>();
+        var runtime = CreateRuntime(new TestApplication(), fileOpenHandlerError:
+            (plugin, handlerId, error) => errors.Add($"{plugin.Id}/{handlerId}: {error.Message}"));
+        var source = new InMemoryBatchFilePanelSource();
+        var item = new FilePanelItem
+        {
+            Name = "data.bin", FullPath = "/data.bin", SourceId = source.SourceId, IsDirectory = false,
+        };
+        foreach (string id in new[] { "broken-a", "broken-b" })
+        {
+            Assert.True((await runtime.RegisterAsync(Descriptor(id), new TestPlugin((host, _) =>
+            {
+                host.RegisterFileOpenHandler(new TestFileHandler("probe",
+                    _ => throw new IOException("probe failed"),
+                    (_, _) => throw new InvalidOperationException("Must not be invoked")));
+                return ValueTask.CompletedTask;
+            }))).Success);
+        }
+        Assert.False(runtime.TryOpenFile(source, item, PanelSide.Left, out _));
+        Assert.Equal(2, errors.Count);
+        Assert.Contains("broken-a/probe", errors[0]);
+        Assert.Contains("broken-b/probe", errors[1]);
+
+        Assert.True((await runtime.RegisterAsync(Descriptor("working"), new TestPlugin((host, _) =>
+        {
+            host.RegisterFileOpenHandler(new TestFileHandler("open", _ => true,
+                (_, _) => ValueTask.FromResult(PluginFileOpenResult.NotHandled())));
+            return ValueTask.CompletedTask;
+        }))).Success);
+        Assert.True(runtime.TryOpenFile(source, item, PanelSide.Left, out var invocation));
+        Assert.Equal(PluginFileOpenResultKind.NotHandled, (await invocation).Kind);
+        Assert.Equal(4, errors.Count); // Both faulty probes are retried independently.
+    }
+
+    [Fact]
     public async Task AmbiguousOrThrowingFileOpenHandler_CanBeCancelledWithoutSystemFallback()
     {
         var runtime = CreateRuntime(new TestApplication());
@@ -352,11 +389,13 @@ public sealed class NativePluginRuntimeTests
 
     private static NativePluginRuntime CreateRuntime(
         TestApplication app, TestSettings? settings = null, TestCredentials? credentials = null,
-        IPluginUiService? ui = null)
+        IPluginUiService? ui = null,
+        Action<PluginDescriptor, string, Exception>? fileOpenHandlerError = null)
         => new(app,
             _ => settings ?? new TestSettings(Path.Combine(Path.GetTempPath(), "CSharpFarPluginTests")),
             _ => ui ?? new TestUi(),
-            _ => credentials ?? new TestCredentials());
+            _ => credentials ?? new TestCredentials(),
+            reportFileOpenHandlerError: fileOpenHandlerError);
 
     private sealed class TestFileHandler(
         string id, Func<FilePanelItem, bool> canOpen,

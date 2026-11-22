@@ -17,6 +17,7 @@ internal sealed class NativePluginRuntime
     private readonly Func<PluginDescriptor, IPluginCredentialService> _credentialFactory;
     private readonly Action<Exception>? _reportCleanupError;
     private readonly Action<PluginDescriptor, Exception>? _reportInitializationError;
+    private readonly Action<PluginDescriptor, string, Exception>? _reportFileOpenHandlerError;
     private readonly string _demoRoot = Path.Combine(Path.GetTempPath(), "CSharpFar-Demo-Plugins", Guid.NewGuid().ToString("N"));
     private readonly Dictionary<string, Registration> _plugins = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, PluginCommandAddress> _prefixes = new(StringComparer.OrdinalIgnoreCase);
@@ -32,7 +33,8 @@ internal sealed class NativePluginRuntime
         Func<PluginDescriptor, IPluginUiService> uiFactory,
         Func<PluginDescriptor, IPluginCredentialService> credentialFactory,
         Action<Exception>? reportCleanupError = null,
-        Action<PluginDescriptor, Exception>? reportInitializationError = null)
+        Action<PluginDescriptor, Exception>? reportInitializationError = null,
+        Action<PluginDescriptor, string, Exception>? reportFileOpenHandlerError = null)
     {
         _application = application ?? throw new ArgumentNullException(nameof(application));
         _settingsFactory = settingsFactory ?? throw new ArgumentNullException(nameof(settingsFactory));
@@ -40,6 +42,7 @@ internal sealed class NativePluginRuntime
         _credentialFactory = credentialFactory ?? throw new ArgumentNullException(nameof(credentialFactory));
         _reportCleanupError = reportCleanupError;
         _reportInitializationError = reportInitializationError;
+        _reportFileOpenHandlerError = reportFileOpenHandlerError;
     }
 
     public IReadOnlyList<PluginMenuRegistration> MenuItems => _menus.ToArray();
@@ -299,9 +302,10 @@ internal sealed class NativePluginRuntime
                 try { canOpen = handler.CanOpen(item); }
                 catch (Exception error)
                 {
-                    invocation = ValueTask.FromResult(PluginFileOpenResult.Failed(
-                        $"File opener '{registration.Descriptor.Id}/{handler.Id}': {error.Message}"));
-                    return true;
+                    // A faulty claim must not prevent another handler or normal opening.
+                    try { _reportFileOpenHandlerError?.Invoke(registration.Descriptor, handler.Id, error); }
+                    catch { /* Diagnostics must not affect file opening. */ }
+                    continue;
                 }
                 if (canOpen)
                     matches.Add((registration, handler));

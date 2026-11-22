@@ -488,7 +488,9 @@ internal static class ApplicationServicesBuilder
             descriptor => new ApplicationPluginCredentials(credentialStore, descriptor.Id),
             error => diagnosticLog.WriteException(DiagnosticCategory.Plugin, error, "Plugin provider cleanup"),
             (descriptor, error) => diagnosticLog.WriteException(
-                DiagnosticCategory.Plugin, error, $"Plugin '{descriptor.Id}' initialization"));
+                DiagnosticCategory.Plugin, error, $"Plugin '{descriptor.Id}' initialization"),
+            (descriptor, handlerId, error) => diagnosticLog.WriteException(
+                DiagnosticCategory.Plugin, error, $"File opener '{descriptor.Id}/{handlerId}' CanOpen"));
 
         var pluginComposition = BuiltInPluginCompositionFactory.Create(
             enableBuiltInNetworkModules,
