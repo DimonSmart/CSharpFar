@@ -14,6 +14,104 @@ public sealed class LocalCopySharedPipelineTests : IDisposable
 
     public void Dispose() => Directory.Delete(_root, recursive: true);
 
+    [Theory]
+    [InlineData(CopyMode.Normal)]
+    [InlineData(CopyMode.Reliable)]
+    [InlineData(CopyMode.FastSalvage)]
+    public async Task AllLocalCopyModes_UseTheSameMaskedPlan(CopyMode mode)
+    {
+        string source = Path.Combine(_root, "modes-source");
+        string nested = Path.Combine(source, "nested");
+        string destination = Path.Combine(_root, "modes-destination");
+        Directory.CreateDirectory(nested);
+        Directory.CreateDirectory(destination);
+        await File.WriteAllTextAsync(Path.Combine(source, "one.txt"), "one");
+        await File.WriteAllTextAsync(Path.Combine(nested, "two.txt"), "two");
+        await File.WriteAllTextAsync(Path.Combine(nested, "ignore.bin"), "ignored");
+
+        var request = new FileOperationRequest
+        {
+            Kind = FileOperationKind.Copy,
+            Sources = [source],
+            Destination = destination,
+            Options = new FileOperationOptions { CopyMode = mode, FileMask = "*.txt" },
+        };
+        var service = new FileOperationService();
+        FileOperationPlan preview = service.BuildPlan(request);
+        string targetRoot = Path.Combine(destination, "modes-source");
+        string[] expected =
+        [
+            Path.Combine(targetRoot, "one.txt"),
+            Path.Combine(targetRoot, "nested", "two.txt"),
+        ];
+
+        Assert.Equal(expected.Order(), preview.Items.Select(item => item.Destination.SourcePath).Order());
+        FileOperationResult result = await service.ExecuteAsync(request, null, new Resolver());
+
+        Assert.Empty(result.Errors);
+        Assert.Equal(2, result.CopiedCount);
+        Assert.Equal("one", await File.ReadAllTextAsync(expected[0]));
+        Assert.Equal("two", await File.ReadAllTextAsync(expected[1]));
+        Assert.False(File.Exists(Path.Combine(targetRoot, "nested", "ignore.bin")));
+    }
+
+    [Fact]
+    public async Task LocalCopy_PreviewAndExecutionAcceptLocationsWithoutLegacyPathFields()
+    {
+        string source = Path.Combine(_root, "locations-source.txt");
+        string target = Path.Combine(_root, "locations-target.txt");
+        await File.WriteAllTextAsync(source, "source data");
+        var request = new FileOperationRequest
+        {
+            Kind = FileOperationKind.Copy,
+            Sources = [],
+            SourceLocations = [PanelLocation.Local(source)],
+            DestinationLocation = PanelLocation.Local(target),
+            Options = new FileOperationOptions(),
+        };
+        var service = new FileOperationService();
+        FileOperationPlan preview = service.BuildPlan(request);
+        Assert.Equal(target, Assert.Single(preview.Items).Destination.SourcePath);
+
+        FileOperationResult result = await service.ExecuteAsync(request, null, new Resolver());
+
+        Assert.Empty(result.Errors);
+        Assert.Equal(1, result.CopiedCount);
+        Assert.Equal("source data", await File.ReadAllTextAsync(target));
+    }
+
+    [Fact]
+    public async Task MoveFallback_ReusesCopyPipelineForExactDirectoryTarget()
+    {
+        string source = Path.Combine(_root, "fallback-source");
+        string sourceFolder = Path.Combine(source, "tree");
+        string destination = Path.Combine(_root, "fallback-destination");
+        Directory.CreateDirectory(sourceFolder);
+        Directory.CreateDirectory(destination);
+        await File.WriteAllTextAsync(Path.Combine(sourceFolder, "file.txt"), "moved");
+
+        var dependencies = FileOperationServiceDependencies.Default with
+        {
+            ForceMoveFallback = static (_, _) => true,
+        };
+        var request = new FileOperationRequest
+        {
+            Kind = FileOperationKind.Move,
+            Sources = [sourceFolder],
+            Destination = destination,
+            Options = new FileOperationOptions(),
+        };
+
+        FileOperationResult result = await new FileOperationService(dependencies)
+            .ExecuteAsync(request, null, new Resolver());
+
+        Assert.Empty(result.Errors);
+        Assert.False(Directory.Exists(sourceFolder));
+        Assert.Equal("moved", await File.ReadAllTextAsync(
+            Path.Combine(destination, "tree", "file.txt")));
+        Assert.False(Directory.Exists(Path.Combine(destination, "tree", "tree")));
+    }
+
     [Fact]
     public async Task DefaultLocalCopy_UsesRecursivePlanAndPreservesFileAndDirectoryTimestamps()
     {
