@@ -316,6 +316,37 @@ public partial class FileViewerTests
         Assert.Equal(bytes.Skip(6), output.Take(7));
     }
 
+
+    [Fact]
+    public void VirtualViewer_EscapeCancelsPendingInitialRead()
+    {
+        var reader = new PendingInitialReadReader();
+        var driver = new CSharpFar.Tests.Fakes.FakeConsoleDriver(width: 80, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        FileViewerFor(new ScreenRenderer(driver)).Show("remote:/slow.txt", reader);
+
+        Assert.True(reader.CancellationObserved);
+    }
+
+    private sealed class PendingInitialReadReader : IFileByteReader
+    {
+        public long Length => 32;
+        public bool CancellationObserved { get; private set; }
+
+        public Task<int> ReadAsync(long offset, Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            var completion = new TaskCompletionSource<int>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            cancellationToken.Register(() =>
+            {
+                CancellationObserved = true;
+                completion.TrySetCanceled(cancellationToken);
+            });
+            return completion.Task;
+        }
+    }
     private sealed class ShortReadByteReader(byte[] data) : IFileByteReader
     {
         private byte[] _data = data;
