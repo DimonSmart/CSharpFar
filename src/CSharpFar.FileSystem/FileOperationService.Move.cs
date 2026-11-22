@@ -1076,9 +1076,6 @@ public sealed partial class FileOperationService
                 ? Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories).Sum(GetFileSize)
                 : 0;
 
-    private static long GetFileSize(string path) =>
-        File.Exists(path) ? new FileInfo(path).Length : 0;
-
     private static void ValidateMoveConflictDecision(ConflictDecisionMode mode)
     {
         if (mode == ConflictDecisionMode.OnlyNewer)

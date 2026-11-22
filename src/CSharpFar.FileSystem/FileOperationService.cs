@@ -1069,6 +1069,9 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         };
     }
 
+    private static long GetFileSize(string path) =>
+        File.Exists(path) ? new FileInfo(path).Length : 0;
+
     private static DateTime? GetLastWriteTime(string path)
     {
         if (File.Exists(path))
