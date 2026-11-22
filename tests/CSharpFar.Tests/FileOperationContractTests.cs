@@ -89,6 +89,18 @@ public sealed class FileOperationContractTests : IDisposable
         var resolver = new ScriptedResolver(
             FileOperationConflictDecision.FromMode(ConflictDecisionMode.OverwriteAll));
 
+        if (backend == "demo")
+        {
+            await Assert.ThrowsAsync<NotSupportedException>(() =>
+                fixture.Service.ExecuteAsync(
+                    fixture.Request(FileOperationKind.Copy, ["src/a.txt", "src/b.txt"], "dest"),
+                    progress: null, conflictResolver: resolver));
+            Assert.Equal(1, resolver.CallCount);
+            Assert.Equal("old-a", await fixture.ReadAsync("dest/a.txt"));
+            Assert.Equal("old-b", await fixture.ReadAsync("dest/b.txt"));
+            return;
+        }
+
         FileOperationResult result = await fixture.Service.ExecuteAsync(
             fixture.Request(FileOperationKind.Copy, ["src/a.txt", "src/b.txt"], "dest"),
             progress: null, conflictResolver: resolver);

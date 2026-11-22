@@ -263,7 +263,8 @@ public sealed class Spec010FileOperationTests : IDisposable
 
         Assert.Equal(1, result.FailedCount);
         Assert.False(File.Exists(Path.Combine(_destination, "bad.txt")));
-        Assert.True(File.Exists(Path.Combine(_destination, "bad.txt.partial")));
+        // Opening the source failed before any staging bytes were produced.
+        Assert.Empty(Directory.EnumerateFiles(_destination, "*.partial*", SearchOption.AllDirectories));
     }
 
     [Fact]
@@ -283,7 +284,8 @@ public sealed class Spec010FileOperationTests : IDisposable
                     share,
                     bufferSize,
                     options);
-                return path == badDestination && access != FileAccess.Read
+                return path.StartsWith(Path.Combine(_destination, ".bad.txt.csharpfar-"), StringComparison.Ordinal) &&
+                    access != FileAccess.Read
                     ? new ThrowingWriteStream(stream)
                     : stream;
             },

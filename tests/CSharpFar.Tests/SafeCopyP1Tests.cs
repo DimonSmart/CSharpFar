@@ -51,8 +51,19 @@ public sealed class SafeCopyP1Tests : IDisposable
                     ? throw new IOException("Simulated source error")
                     : FileOperationServiceDependencies.Default.OpenFileStream(path, fileMode, access, share, bufferSize, options),
         };
-        await Assert.ThrowsAsync<IOException>(() =>
-            new FileOperationService(dependencies).ExecuteAsync(Request(source, destination, mode), null, new OverwriteResolver()));
+        if (mode == CopyMode.FastSalvage)
+        {
+            FileOperationResult skipped = await new FileOperationService(dependencies)
+                .ExecuteAsync(Request(source, destination, mode), null, new OverwriteResolver());
+            Assert.Equal(1, skipped.SkippedCount);
+            Assert.Equal(1, skipped.FailedCount);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<IOException>(() =>
+                new FileOperationService(dependencies).ExecuteAsync(
+                    Request(source, destination, mode), null, new OverwriteResolver()));
+        }
         Assert.Equal("ORIGINAL", File.ReadAllText(destination));
         Assert.Equal("NEW", File.ReadAllText(source));
         AssertNoStaging();
@@ -188,7 +199,7 @@ public sealed class SafeCopyP1Tests : IDisposable
         if (!TryLink(() => Directory.CreateSymbolicLink(link, "tree")) ||
             !TryLink(() => File.CreateSymbolicLink(broken, "not-found.txt"))) return;
         var service = new FileOperationService();
-        await service.ExecuteAsync(Request(link, Path.Combine(_dst, "shortcut")), null, new OverwriteResolver());
+        await service.ExecuteAsync(Request(link, _dst), null, new OverwriteResolver());
         await service.ExecuteAsync(Request(broken, Path.Combine(_dst, "broken")), null, new OverwriteResolver());
         Assert.Equal("tree", new DirectoryInfo(Path.Combine(_dst, "shortcut")).LinkTarget);
         Assert.Equal("not-found.txt", new FileInfo(Path.Combine(_dst, "broken")).LinkTarget);
