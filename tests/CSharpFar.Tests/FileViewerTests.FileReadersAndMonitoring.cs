@@ -321,7 +321,7 @@ public partial class FileViewerTests
     public void VirtualViewer_EscapeCancelsPendingInitialRead()
     {
         var reader = new PendingInitialReadReader();
-        var driver = new CSharpFar.Tests.Fakes.FakeConsoleDriver(width: 80, height: 12);
+        var driver = new CSharpFar.Testing.FakeConsoleDriver(width: 80, height: 12);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
         FileViewerFor(new ScreenRenderer(driver)).Show("remote:/slow.txt", reader);
