@@ -371,7 +371,7 @@ public sealed class SafeCopyP1Tests : IDisposable
             Options = new FileOperationOptions { SymlinkMode = SymlinkCopyMode.CopyTargetContents },
         };
         var service = new FileOperationService();
-        Assert.Equal(6, service.BuildPlan(request).Items.Count);
+        Assert.Equal(7, service.BuildPlan(request).Items.Count);
         FileOperationResult result = await service.ExecuteAsync(request, null, new OverwriteResolver());
         Assert.Equal(3, result.CopiedCount);
         string destination = Path.Combine(_dst, "src");
