@@ -40,15 +40,9 @@ public sealed class Spec019ReliableCopyTests : IDisposable
 
         Assert.Equal(1, result.CopiedCount);
         Assert.Equal(File.ReadAllBytes(source), File.ReadAllBytes(destination));
-        Assert.Contains(progress, p =>
-            p.Phase == FileOperationPhase.Validating &&
-            p.StatusMessage == "Tail validation passed" &&
-            p.ResumeOffset == 1536 * 1024 &&
-            p.ResumeRollbackBytes == 0);
-        Assert.Contains(progress, p =>
-            p.Phase == FileOperationPhase.Copying &&
-            p.CurrentBytesDone >= 1536 * 1024 &&
-            p.TotalBytesDone >= 1536 * 1024);
+        // Existing destination bytes are user data, never a resumable staging file.
+        Assert.DoesNotContain(progress, p => p.StatusMessage == "Tail validation passed");
+        Assert.Contains(progress, p => p.Phase == FileOperationPhase.Copying);
     }
 
     [Fact]
@@ -67,11 +61,7 @@ public sealed class Spec019ReliableCopyTests : IDisposable
 
         Assert.Equal(1, result.CopiedCount);
         Assert.Equal(File.ReadAllBytes(source), File.ReadAllBytes(destination));
-        Assert.Contains(progress, p =>
-            p.Phase == FileOperationPhase.Validating &&
-            p.StatusMessage == "Tail mismatch detected" &&
-            p.ResumeOffset.HasValue &&
-            p.ResumeRollbackBytes > 0);
+        Assert.DoesNotContain(progress, p => p.StatusMessage == "Tail mismatch detected");
     }
 
     [Fact]
@@ -108,14 +98,15 @@ public sealed class Spec019ReliableCopyTests : IDisposable
     }
 
     [Fact]
-    public async Task ReliableCopy_AutomaticallyRetriesAnalyzerSourceReadFailure()
+    public async Task ReliableCopy_AnalyzerFailureNeverTurnsUserDestinationIntoResumeFile()
     {
         string source = CreateDeterministicFile(_source, "analyzer-retry.bin", 3 * 1024 * 1024);
         string destination = Path.Combine(_destination, "analyzer-retry.bin");
         CopyPrefix(source, destination, 1024 * 1024);
-        var resolver = new RecordingConflictResolver(ConflictDecisionMode.Skip);
+        var resolver = new RecordingConflictResolver(ConflictDecisionMode.Overwrite);
         var retryDelays = new List<TimeSpan>();
-        int analyzeCalls = 0;
+        int analyses = 0;
+        int readFailures = 1;
         var dependencies = FileOperationServiceDependencies.Default with
         {
             DelayAsync = (delay, _) =>
@@ -123,32 +114,33 @@ public sealed class Spec019ReliableCopyTests : IDisposable
                 retryDelays.Add(delay);
                 return Task.CompletedTask;
             },
-            AnalyzeResume = (sourcePath, destinationPath, sourceSnapshot, cancellationToken) =>
+            AnalyzeResume = (sourcePath, stagePath, sourceSnapshot, cancellationToken) =>
             {
-                analyzeCalls++;
-                if (analyzeCalls == 1)
-                {
-                    return CopyResumePlan.CannotResume(
-                        sourceSnapshot?.Length ?? 0,
-                        new FileInfo(destinationPath).Length,
-                        "Source is temporarily unavailable.",
-                        CopyResumeReadFailureSide.Source);
-                }
-
-                return new CopyResumeAnalyzer().Analyze(sourcePath, destinationPath, sourceSnapshot, cancellationToken);
+                Assert.NotEqual(destination, stagePath);
+                analyses++;
+                return CopyResumePlan.CannotResume(
+                    sourceSnapshot?.Length ?? 0,
+                    new FileInfo(stagePath).Length,
+                    "Temporary source read failure.",
+                    CopyResumeReadFailureSide.Source);
+            },
+            OpenFileStream = (path, mode, access, share, bufferSize, options) =>
+            {
+                Stream stream = FileOperationServiceDependencies.Default.OpenFileStream(
+                    path, mode, access, share, bufferSize, options);
+                if (path == source && access == FileAccess.Read && readFailures > 0)
+                    return new ThrowingReadStream(stream, 1024 * 1024, () => readFailures--);
+                return stream;
             },
         };
 
         FileOperationResult result = await CopyWithReliableAsync(
-            [source],
-            _destination,
-            resolver,
-            dependencies: dependencies);
+            [source], _destination, resolver, dependencies: dependencies);
 
         Assert.Equal(1, result.CopiedCount);
-        Assert.Equal(0, resolver.CallCount);
-        Assert.Equal(new[] { TimeSpan.FromSeconds(1) }, retryDelays);
-        Assert.True(analyzeCalls >= 2);
+        Assert.Equal(1, resolver.CallCount);
+        Assert.Equal(1, analyses);
+        Assert.Equal([TimeSpan.FromSeconds(1)], retryDelays);
         Assert.Equal(File.ReadAllBytes(source), File.ReadAllBytes(destination));
     }
 
@@ -253,7 +245,8 @@ public sealed class Spec019ReliableCopyTests : IDisposable
             OpenFileStream = (path, mode, access, share, bufferSize, options) =>
             {
                 Stream stream = FileOperationServiceDependencies.Default.OpenFileStream(path, mode, access, share, bufferSize, options);
-                return path == destination && access != FileAccess.Read && writeFailuresRemaining > 0
+                return path.Contains(".csharpfar-", StringComparison.Ordinal) &&
+                    access != FileAccess.Read && writeFailuresRemaining > 0
                     ? new ThrowingWriteStream(stream, () => writeFailuresRemaining--)
                     : stream;
             },
