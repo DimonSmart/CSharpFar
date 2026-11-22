@@ -1,5 +1,6 @@
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.FileMasks;
+using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
 
@@ -272,26 +273,26 @@ internal sealed class FileCopyPlanBuilder(
 
 }
 
-    internal sealed record ProviderOperationPlanItem(FileOperationPlanItem Mapping, IFilePanelSource Source, FilePanelItem? Item)
-    {
-        public ProviderOperationPlanItem(
-            PanelLocation sourceLocation,
-            IFilePanelSource source,
-            string sourcePath,
-            FilePanelItem? item,
-            string targetPath,
-            PanelSourceId destinationSourceId)
-            : this(
-                new FileOperationPlanItem(
-                    sourceLocation with { SourcePath = sourcePath },
-                    new PanelLocation(destinationSourceId, targetPath),
-                    item?.IsDirectory ?? false),
-                source,
-                item) { }
+internal sealed record ProviderOperationPlanItem(FileOperationPlanItem Mapping, IFilePanelSource Source, FilePanelItem? Item)
+{
+    public ProviderOperationPlanItem(
+        PanelLocation sourceLocation,
+        IFilePanelSource source,
+        string sourcePath,
+        FilePanelItem? item,
+        string targetPath,
+        PanelSourceId destinationSourceId)
+        : this(
+            new FileOperationPlanItem(
+                sourceLocation with { SourcePath = sourcePath },
+                new PanelLocation(destinationSourceId, targetPath),
+                item?.IsDirectory ?? false),
+            source,
+            item) { }
 
-        public PanelLocation Location => Mapping.Source;
-        public string SourcePath => Mapping.Source.SourcePath;
-        public string TargetPath => Mapping.Destination.SourcePath;
-        public IReadOnlyList<ProviderOperationPlanItem> Children { get; init; } = [];
-    }
+    public PanelLocation Location => Mapping.Source;
+    public string SourcePath => Mapping.Source.SourcePath;
+    public string TargetPath => Mapping.Destination.SourcePath;
+    public IReadOnlyList<ProviderOperationPlanItem> Children { get; init; } = [];
+}
 
