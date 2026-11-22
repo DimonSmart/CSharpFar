@@ -73,51 +73,157 @@ internal sealed class PanelFileViewerService
             return;
         }
 
-        var source = _sourceRegistry.GetSource(item.SourceId);
-        using var usage = _sourceRegistry.AcquireUsage(item.SourceId);
-        using var input = source.OpenReadAsync(item.SourcePath).GetAwaiter().GetResult();
-        string? spool = null;
-        IFileByteReader reader;
+        RemoteViewerInput? opened;
         try
         {
+            opened = OpenRemoteViewerInput(item);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            _dialogs.Message("Viewer", ex.Message);
+            return;
+        }
+
+        if (opened is null)
+            return;
+
+        using (opened)
+        {
+            _history.AddFile(new FileHistoryItem { Path = BuildHistoryPath(item) });
+            new FileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette()).Show(
+                item.SourcePath, opened.Reader, new LargeFileViewerOptions
+                {
+                    Clipboard = _clipboard,
+                    FileLauncher = _fileLauncher,
+                    UriLauncher = _uriLauncher,
+                    EditCurrentFile = () => EditPanelFile(state, item),
+                });
+        }
+    }
+
+    private RemoteViewerInput? OpenRemoteViewerInput(FilePanelItem item)
+    {
+        // Use the existing cancellable operation dialog to keep input responsive
+        // during remote stream opening and non-seekable disk spooling.
+        var gate = new object();
+        bool abandoned = false;
+        RemoteViewerInput? prepared = null;
+        return _dialogs.Operation<string, RemoteViewerInput?, RemoteViewerInput?>(
+            new OperationDialogDefinition<string, RemoteViewerInput?, RemoteViewerInput?>
+            {
+                Title = "Opening viewer",
+                PreferredWidth = 54,
+                PreferredHeight = 8,
+                MinWidth = 30,
+                MinHeight = 8,
+                Operation = async cancellationToken =>
+                {
+                    RemoteViewerInput opened = await CreateRemoteViewerInputAsync(item, cancellationToken)
+                        .ConfigureAwait(false);
+                    lock (gate)
+                    {
+                        if (abandoned)
+                        {
+                            opened.Dispose();
+                            return null;
+                        }
+                        prepared = opened;
+                        return opened;
+                    }
+                },
+                Synchronize = () => new OperationDialogState<string>(
+                    status: $"Opening {item.Name}... (Esc to cancel)"),
+                HandleCancel = () =>
+                {
+                    lock (gate)
+                    {
+                        abandoned = true;
+                        prepared?.Dispose();
+                        prepared = null;
+                    }
+                    return OperationDialogOutcome<RemoteViewerInput?>.Complete(null);
+                },
+                HandleOperationCompleted = opened =>
+                {
+                    lock (gate)
+                        prepared = null; // Ownership passes to the viewer.
+                    return OperationDialogOutcome<RemoteViewerInput?>.Complete(opened);
+                },
+                Complete = opened => opened,
+            });
+    }
+
+    private async Task<RemoteViewerInput> CreateRemoteViewerInputAsync(
+        FilePanelItem item,
+        CancellationToken cancellationToken)
+    {
+        IDisposable usage = _sourceRegistry.AcquireUsage(item.SourceId);
+        Stream? input = null;
+        string? spool = null;
+        try
+        {
+            var source = _sourceRegistry.GetSource(item.SourceId);
+            input = await source.OpenReadAsync(item.SourcePath, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (input.CanSeek)
+                return new RemoteViewerInput(input, new SeekableStreamFileByteReader(input), usage);
+
+            // Non-seekable streams are buffered on disk, never into an unbounded byte array.
+            spool = Path.Combine(Path.GetTempPath(), "csharpfar-view-" + Guid.NewGuid().ToString("N"));
+            await using (var output = new FileStream(
+                spool, FileMode.CreateNew, FileAccess.Write, FileShare.Read,
+                bufferSize: 81920, options: FileOptions.Asynchronous))
             {
-                reader = new SeekableStreamFileByteReader(input);
-            }
-            else
-            {
-                // Non-seekable remote streams are spooled to bounded disk storage
-                // rather than collecting arbitrarily large byte arrays on the heap.
-                spool = Path.Combine(Path.GetTempPath(), "csharpfar-view-" + Guid.NewGuid().ToString("N"));
-                using (var output = new FileStream(spool, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
-                    input.CopyTo(output);
-                reader = new RandomAccessFileByteReader(spool);
+                await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
             }
 
-            try
-            {
-                _history.AddFile(new FileHistoryItem { Path = BuildHistoryPath(item) });
-                new FileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette()).Show(
-                    item.SourcePath, reader, new LargeFileViewerOptions
-                    {
-                        Clipboard = _clipboard,
-                        FileLauncher = _fileLauncher,
-                        UriLauncher = _uriLauncher,
-                        EditCurrentFile = () => EditPanelFile(state, item),
-                    });
-            }
-            finally
-            {
-                if (reader is IDisposable disposable)
-                    disposable.Dispose();
-            }
+            return new RemoteViewerInput(input, new RandomAccessFileByteReader(spool), usage, spool);
         }
-        finally
+        catch
         {
+            input?.Dispose();
+            usage.Dispose();
             if (spool is not null)
             {
                 try { File.Delete(spool); }
                 catch (FileNotFoundException) { }
+            }
+            throw;
+        }
+    }
+
+    private sealed class RemoteViewerInput(
+        Stream input, IFileByteReader reader, IDisposable usage, string? spool = null) : IDisposable
+    {
+        public IFileByteReader Reader { get; } = reader;
+
+        public void Dispose()
+        {
+            try
+            {
+                if (Reader is IDisposable disposable)
+                    disposable.Dispose();
+            }
+            finally
+            {
+                try { input.Dispose(); }
+                finally
+                {
+                    try { usage.Dispose(); }
+                    finally
+                    {
+                        if (spool is not null)
+                        {
+                            try { File.Delete(spool); }
+                            catch (FileNotFoundException) { }
+                        }
+                    }
+                }
             }
         }
     }
