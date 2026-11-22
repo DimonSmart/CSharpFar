@@ -7,7 +7,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="CSharpFar.Plugin.Abstractions" Version="1.0.0" />
+    <PackageReference Include="CSharpFar.Plugin.Abstractions" Version="1.1.0" />
     <ProjectReference Include="../ExternalPluginDependencies/V1/SharedDependency.csproj" />
   </ItemGroup>
 </Project>

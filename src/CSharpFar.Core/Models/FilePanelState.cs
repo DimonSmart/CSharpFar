@@ -34,6 +34,8 @@ public sealed class FilePanelState
     }
 
     public string? LastLocalDirectory { get; internal set; }
+    /// <summary>Increments whenever the controller replaces panel contents.</summary>
+    public long ContentVersion { get; internal set; }
     public List<FilePanelItem> Items { get; } = new();
     public HashSet<string> SelectedPaths { get; } = new(StringComparer.OrdinalIgnoreCase);
     public HashSet<PanelLocation> SelectedLocations { get; } = new();

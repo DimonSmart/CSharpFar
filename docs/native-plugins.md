@@ -88,9 +88,9 @@ from GitHub Releases or generated locally using:
 ./eng/pack-plugin-sdk.ps1
 ```
 
-This creates `artifacts/plugin-sdk/CSharpFar.Core.1.0.0.nupkg`,
-`CSharpFar.Plugin.Abstractions.1.0.0.nupkg`, and
-`CSharpFar.Plugin.Templates.1.0.0.nupkg`. Public NuGet.org publishing is
+This creates `artifacts/plugin-sdk/CSharpFar.Core.1.1.0.nupkg`,
+`CSharpFar.Plugin.Abstractions.1.1.0.nupkg`, and
+`CSharpFar.Plugin.Templates.1.1.0.nupkg`. Public NuGet.org publishing is
 not automated: a maintainer must publish explicitly, with credentials stored
 outside source control. Do not attempt to push a package version that already
 exists in the feed.
@@ -98,7 +98,7 @@ exists in the feed.
 To generate a working plugin from the versioned template package:
 
 ```sh
-dotnet new install artifacts/plugin-sdk/CSharpFar.Plugin.Templates.1.0.0.nupkg
+dotnet new install artifacts/plugin-sdk/CSharpFar.Plugin.Templates.1.1.0.nupkg
 dotnet new csharpfar-plugin -n MyExtension --PluginId my-extension --PluginTitle "My Extension"
 dotnet restore MyExtension.csproj --source /path/to/plugin-sdk
 dotnet publish MyExtension.csproj -c Release -o ./extension
@@ -110,7 +110,7 @@ folder. For a plain class library without the template:
 ```sh
 dotnet new classlib -n MyExtension -f net10.0
 cd MyExtension
-dotnet add package CSharpFar.Plugin.Abstractions --version 1.0.0 --source /path/to/plugin-sdk
+dotnet add package CSharpFar.Plugin.Abstractions --version 1.1.0 --source /path/to/plugin-sdk
 ```
 
 A minimal `Plugin.cs` can be written as:
@@ -280,3 +280,39 @@ chooser instead of aborting with an ambiguity error. The chooser includes a
 normal-open option and Escape cancels without launching any handler.
 A plugin's `CanOpen` should remain inexpensive, deterministic and free of
 modal UI: it is called before presenting the chooser.
+
+## Non-blocking plugin panel enumeration
+
+The host performs initial plugin panel loading, Enter/up navigation and
+refresh of **non-local** panel sources in the background. It keeps the previous
+panel visible until a complete view is ready and commits that view on the
+terminal/UI thread. If an operation fails, the previous panel stays intact.
+New requests supersede old requests; cancellation is cooperative, and late
+results cannot overwrite a newer panel or a re-sorted view.
+
+An existing `IFilePanelSource` works without code changes: its synchronous
+`EnumerateDirectory(path, cancellationToken)` runs on a worker thread for
+interactive panel loads. Source implementations must therefore be safe to call
+from a background thread and must not display modal UI during enumeration.
+The host forwards cancellation tokens to synchronous enumeration; honor them
+when making remote requests or processing large directories.
+
+For genuinely asynchronous I/O, optionally implement `IAsyncFilePanelSource`
+in addition to the base `IFilePanelSource` contract:
+
+```csharp
+public Task<IReadOnlyList<FilePanelItem>> EnumerateDirectoryAsync(
+    string sourcePath, CancellationToken cancellationToken = default)
+    => ListRemoteFilesAsync(sourcePath, cancellationToken);
+```
+
+This is an opt-in contract. The original synchronous methods remain necessary
+for compatibility with other host and file-operation paths. Do not use
+`Task.Run` inside the plugin just to implement the async method: the host
+already handles synchronous providers off the UI thread. Prefer real
+non-blocking network/file I/O when possible.
+
+The host cannot forcibly terminate a misbehaving in-process plugin. At
+shutdown, active operations are cancelled and further UI commits are skipped;
+source disposal is deferred until the outstanding operations release their
+usage leases.

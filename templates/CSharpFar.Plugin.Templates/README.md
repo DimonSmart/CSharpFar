@@ -1,7 +1,7 @@
 # CSharpFar.Plugin.Templates
 
 Install the local package using
-`dotnet new install CSharpFar.Plugin.Templates.1.0.0.nupkg`,
+`dotnet new install CSharpFar.Plugin.Templates.1.1.0.nupkg`,
 then run:
 
 ```sh

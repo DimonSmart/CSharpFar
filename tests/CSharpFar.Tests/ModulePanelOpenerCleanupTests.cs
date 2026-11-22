@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using CSharpFar.App.Modules;
+using CSharpFar.App.Panels;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
@@ -11,6 +12,40 @@ namespace CSharpFar.Tests;
 
 public sealed class ModulePanelOpenerCleanupTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AsyncOpen_PreservesPreviousPanelAndCommitsOnlyAfterEnumeration(bool fail)
+    {
+        var fixture = new Fixture(asyncPanels: true);
+        var source = new DeferredPanelSource { FailAfterWait = fail };
+
+        fixture.Opener.OpenPanel(PanelSide.Right, Request(source));
+        await source.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(fixture.InitialLocation, fixture.State.CurrentLocation);
+        Assert.Equal(PanelSide.Left, fixture.ActiveSide);
+        Assert.True(fixture.QuickView);
+
+        source.Release();
+        await fixture.PumpUntilAsync(() =>
+            fail ? fixture.Messages.Count > 0 : fixture.State.SourceId == source.SourceId);
+
+        if (fail)
+        {
+            Assert.Equal(fixture.InitialLocation, fixture.State.CurrentLocation);
+            Assert.False(fixture.Registry.TryGetSource(source.SourceId, out _));
+            Assert.Equal(1, source.DisposeCalls);
+            Assert.True(fixture.QuickView);
+        }
+        else
+        {
+            Assert.Equal(source.SourceId, fixture.State.SourceId);
+            Assert.Equal(PanelSide.Right, fixture.ActiveSide);
+            Assert.False(fixture.QuickView);
+            Assert.Empty(fixture.Messages);
+        }
+    }
+
     [Fact]
     public async Task Shutdown_RetiresOwnedTemporarySourcesAndAwaitsAsyncDispose()
     {
@@ -323,19 +358,36 @@ public sealed class ModulePanelOpenerCleanupTests
         public PanelLocation InitialLocation => PanelLocation.Local(Path.GetTempPath());
         public ModulePanelOpener Opener { get; }
         public PanelController Controller { get; }
+        public ConcurrentQueue<Action> UiActions { get; } = new();
 
-        public Fixture()
+        public Fixture(bool asyncPanels = false)
         {
             Controller = new PanelController(new PanelViewBuilder(
                 new FakeFileSystemService(), new PanelSortService(), sources: Registry));
+            var asyncLoader = new AsyncPluginPanelLoader(Controller, Registry, UiActions.Enqueue);
             Opener = new ModulePanelOpener(
                 null!, Registry, Controller, null!, null!, null!,
                 () => new AppSettings.PanelOptionsSettings(),
                 _ => State,
                 side => ActiveSide = side,
                 quickView => QuickView = quickView,
+                postToUi: UiActions.Enqueue,
                 reportCleanupError: Errors.Enqueue,
-                showMessage: (_, message) => Messages.Add(message));
+                showMessage: (_, message) => Messages.Add(message),
+                asyncLoads: asyncPanels ? asyncLoader : null);
+        }
+
+        public async Task PumpUntilAsync(Func<bool> predicate)
+        {
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+            while (true)
+            {
+                while (UiActions.TryDequeue(out var action)) action();
+                if (predicate()) return;
+                if (DateTime.UtcNow > deadline)
+                    throw new TimeoutException("Expected async plugin panel completion was not observed.");
+                await Task.Delay(10);
+            }
         }
     }
 
@@ -386,6 +438,28 @@ public sealed class ModulePanelOpenerCleanupTests
         }
         public void CompleteDisposal() => _completion.SetResult();
         public void FailDisposal(Exception error) => _completion.SetException(error);
+    }
+
+    private sealed class DeferredPanelSource : SyncSource, IFilePanelSource
+    {
+        private readonly TaskCompletionSource _release =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Started { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool FailAfterWait { get; init; }
+
+        IReadOnlyList<FilePanelItem> IFilePanelSource.EnumerateDirectory(
+            string sourcePath, CancellationToken cancellationToken)
+        {
+            Started.TrySetResult();
+            _release.Task.GetAwaiter().GetResult();
+            cancellationToken.ThrowIfCancellationRequested();
+            if (FailAfterWait)
+                throw new IOException("Deferred source failed.");
+            return [];
+        }
+
+        public void Release() => _release.TrySetResult();
     }
 
     private class SyncSource : PanelSource, IDisposable

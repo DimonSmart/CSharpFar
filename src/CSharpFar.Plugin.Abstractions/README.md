@@ -1,6 +1,6 @@
 # CSharpFar.Plugin.Abstractions
 
-Public interfaces for trusted, in-process CSharpFar native extensions, targeting .NET 10.
+Public interfaces for trusted, in-process CSharpFar native extensions, targeting .NET 10. Version 1.1 adds optional asynchronous panel enumeration.
 
 Install this package to implement `ICSharpFarPlugin`, register commands, menus,
 command-line prefixes, file-open handlers and custom panel providers.
