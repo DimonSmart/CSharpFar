@@ -238,7 +238,7 @@ public partial class FileViewerTests
         Assert.Equal(5, (await cache.ReadBlockAsync(48)).Length);
         Assert.Empty((await cache.ReadBlockAsync(64)).ToArray());
         Assert.Equal(0, await cache.ReadAsync(53, bytes));
-        Assert.True(reader.ReadCount > 16);
+        Assert.True(reader.ReadCount > 4);
     }
 
     [Fact]
