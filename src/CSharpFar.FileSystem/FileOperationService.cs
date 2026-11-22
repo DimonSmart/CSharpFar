@@ -85,7 +85,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         ArgumentNullException.ThrowIfNull(dependencies);
         ArgumentNullException.ThrowIfNull(platformOperations);
 
-        _sources = sources;
+        _sources = sources ?? new FilePanelSourceRegistry([new LocalFilePanelSource(new FileSystemService())]);
         _platformOperations = platformOperations;
         _dependencies = dependencies;
     }
@@ -115,19 +115,11 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                 return state.ToResult();
             }
 
-            // Migrate ordinary Local Copy to the shared tree executor while retaining
-            // the local stream, metadata and symlink mechanics.
-            if (CanRouteLocalNormalCopy(request))
-            {
-                await CopyProviderAsync(request, conflictResolver, state, cancellationToken,
-                    useLocalStrategy: true).ConfigureAwait(false);
-                return state.ToResult();
-            }
-
             switch (request.Kind)
             {
                 case FileOperationKind.Copy:
-                    await CopyAsync(request, conflictResolver, state, cancellationToken).ConfigureAwait(false);
+                    await CopyProviderAsync(request, conflictResolver, state, cancellationToken,
+                        useLocalStrategy: true).ConfigureAwait(false);
                     break;
                 case FileOperationKind.Move:
                     await MoveAsync(request, conflictResolver, state, cancellationToken).ConfigureAwait(false);
@@ -169,14 +161,15 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         };
     }
 
-    private FileOperationPlan BuildLocalCopyPlan(FileOperationRequest request, CancellationToken cancellationToken)
-    {
-        var plan = BuildCopyPlan(request.Sources, RequireDestination(request), request.Options, request.UseDestinationTemplate, new OperationState(request.Kind, null, null), cancellationToken);
-        return new FileOperationPlan([
-            .. plan.Directories.Select(item => item.Mapping),
-            .. plan.Files.Select(item => item.Mapping),
-        ]);
-    }
+    private FileOperationPlan BuildLocalCopyPlan(FileOperationRequest request, CancellationToken cancellationToken) =>
+        ToPublicPlan(
+            BuildProviderCopyPlan(
+                RequireSourceLocations(request),
+                RequireDestinationLocation(request),
+                request.Options,
+                request.UseDestinationTemplate,
+                cancellationToken),
+            PanelSourceId.Local);
 
     private FileOperationPlan BuildLocalMoveOperationPlan(FileOperationRequest request, CancellationToken cancellationToken)
     {
@@ -245,26 +238,6 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         return hasRemoteSource || hasRemoteDestination;
     }
 
-    private bool CanRouteLocalNormalCopy(FileOperationRequest request)
-    {
-        if (request.Kind != FileOperationKind.Copy ||
-            _sources is null ||
-            !_sources.TryGetSource(PanelSourceId.Local, out _) ||
-            request.Options.CopyMode != CopyMode.Normal ||
-            request.Options.DefaultConflictDecision == ConflictDecisionMode.OnlyNewer ||
-            HasFileMask(request.Options) ||
-            request.UseDestinationTemplate ||
-            request.SourceLocations?.Any(location => location.SourceId != PanelSourceId.Local) == true ||
-            request.DestinationLocation is { SourceId: var id } && id != PanelSourceId.Local)
-            return false;
-
-        IReadOnlyList<PanelLocation> sources = RequireSourceLocations(request);
-        PanelLocation destination = RequireDestinationLocation(request);
-        return sources.Count > 0 &&
-            sources.All(location => Path.IsPathFullyQualified(location.SourcePath)) &&
-            Path.IsPathFullyQualified(destination.SourcePath);
-    }
-
     private void ValidateAccessibleSources(FileOperationRequest request)
     {
         if (_sources is null)
@@ -307,19 +280,25 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         }
     }
 
-    private async Task CopyProviderAsync(
+    private async Task<CopyOutcome> CopyProviderAsync(
         FileOperationRequest request,
         IFileOperationConflictResolver conflictResolver,
         OperationState state,
         CancellationToken cancellationToken,
-        bool useLocalStrategy = false)
+        bool useLocalStrategy = false,
+        string? rootTarget = null)
     {
-        ValidateProviderCopyOptions(request.Options);
+        if (!useLocalStrategy)
+            ValidateProviderCopyOptions(request.Options);
 
         var destination = RequireDestinationLocation(request);
         var sources = RequireSourceLocations(request);
         var destinationSource = _sources!.GetSource(destination.SourceId);
-        var plan = BuildProviderCopyPlan(sources, destination, request.Options, request.UseDestinationTemplate, cancellationToken, state);
+        var plan = BuildProviderCopyPlan(sources, destination, request.Options, request.UseDestinationTemplate, cancellationToken, state, rootTarget);
+        var copiedFiles = new List<string>();
+        var copiedFolders = new List<string>();
+        int skippedBefore = state.SkippedCount;
+        int errorsBefore = state.Errors.Count;
 
         state.SetTotals(CalculateProviderPlanSize(plan), CountProviderPlanItems(plan));
         state.StartProgressTimer();
@@ -333,7 +312,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             {
                 await CopyProviderPlanItemsAsync(plan, batch, request.Options,
                     conflictResolver, state, cancellationToken,
-                    useLocalStrategy: useLocalStrategy).ConfigureAwait(false);
+                    copiedFiles, copiedFolders, useLocalStrategy: useLocalStrategy).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 state.ReportCommitting(destination.SourcePath);
                 await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -349,8 +328,13 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         {
             await CopyProviderPlanItemsAsync(plan, destinationSource, request.Options,
                 conflictResolver, state, cancellationToken,
-                useLocalStrategy: useLocalStrategy).ConfigureAwait(false);
+                copiedFiles, copiedFolders, useLocalStrategy: useLocalStrategy).ConfigureAwait(false);
         }
+
+        return new CopyOutcome(
+            copiedFiles.Count > 0 || copiedFolders.Count > 0,
+            state.SkippedCount == skippedBefore && state.Errors.Count == errorsBefore,
+            copiedFiles);
     }
 
     private async Task CopyProviderPlanItemsAsync(
@@ -434,9 +418,10 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         state.WaitIfPaused(cancellationToken);
         if (useLocalStrategy)
         {
-            await CopyLocalPlannedFileAsync(
-                plannedItem, options, conflictResolver, state, cancellationToken)
-                .ConfigureAwait(false);
+            if (await CopyLocalPlannedFileAsync(
+                    plannedItem, options, conflictResolver, state, cancellationToken)
+                .ConfigureAwait(false))
+                copiedFiles?.Add(sourcePath);
             return;
         }
         if ((source.SourceId == destinationSource.SourceId ||
@@ -516,7 +501,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         state.CompleteItem();
     }
 
-    private async Task CopyLocalPlannedFileAsync(
+    private async Task<bool> CopyLocalPlannedFileAsync(
         ProviderOperationPlanItem item,
         FileOperationOptions options,
         IFileOperationConflictResolver conflictResolver,
@@ -527,27 +512,48 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         CopyResumeSourceSnapshot snapshot = GetSourceSnapshot(sourcePath);
         var file = new CopyFilePlanItem(
             sourcePath, item.TargetPath, snapshot.Length, snapshot.LastWriteTimeUtc);
-        CopyDestination target = await ResolveDestinationPathAsync(
-            file, options, conflictResolver, state, cancellationToken).ConfigureAwait(false);
-        if (target.Path.Length == 0)
-            return;
-
-        Directory.CreateDirectory(Path.GetDirectoryName(target.Path)!);
-        if (target.Action == CopyDestinationAction.CreateOrOverwrite &&
-            IsReparsePoint(sourcePath) && options.SymlinkMode == SymlinkCopyMode.CopyLink)
+        CopyDestination target = CopyDestination.Skip;
+        try
         {
-            if (!CopyReparsePoint(sourcePath, target.Path, options, state))
-                return;
-            state.CopiedCount++;
-            state.AddBytes(file.Size);
-            state.CompleteItem();
-            state.Report(sourcePath, target.Path, file.Size, file.Size);
-            return;
-        }
+            target = await ResolveDestinationPathAsync(
+                file, options, conflictResolver, state, cancellationToken).ConfigureAwait(false);
+            if (target.Path.Length == 0)
+                return false;
 
-        await CopyFileContentsAsync(
-            file, target, options, conflictResolver, state, cancellationToken)
-            .ConfigureAwait(false);
+            Directory.CreateDirectory(Path.GetDirectoryName(target.Path)!);
+            if (target.Action == CopyDestinationAction.CreateOrOverwrite &&
+                IsReparsePoint(sourcePath) && options.SymlinkMode == SymlinkCopyMode.CopyLink)
+            {
+                if (!CopyReparsePoint(sourcePath, target.Path, options, state))
+                    return false;
+                state.CopiedCount++;
+                state.AddBytes(file.Size);
+                state.CompleteItem();
+                state.Report(sourcePath, target.Path, file.Size, file.Size);
+                return true;
+            }
+
+            return await CopyFileContentsAsync(
+                file, target, options, conflictResolver, state, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (CopyRetryableIOException ex) when (
+            options.CopyMode == CopyMode.FastSalvage && ex.FailureKind == "Read failed")
+        {
+            string partialPath = target.Path.Length == 0 ? file.DestinationPath : target.Path;
+            CleanupPartialDestination(partialPath, options, state);
+            state.AddError(file.SourcePath, ex.Message);
+            state.SkippedCount++;
+            state.CompleteItem();
+            state.ReportValidation(
+                file.SourcePath,
+                partialPath,
+                file.Size,
+                "Read failed, skipping file...",
+                resumeOffset: null,
+                rollbackBytes: null);
+            return false;
+        }
     }
 
     private async Task MoveProviderAsync(
@@ -1112,104 +1118,16 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         state.CompleteItem();
     }
 
-    private async Task<CopyOutcome> CopyAsync(
+    // Move fallbacks and staged replacements reuse the same tree executor as F5 copy.
+    private Task<CopyOutcome> CopyLocalAsync(
         FileOperationRequest request,
         IFileOperationConflictResolver conflictResolver,
         OperationState state,
         CancellationToken cancellationToken,
-        string? rootTarget = null)
-    {
-        string destination = RequireDestination(request);
-        var plan = BuildCopyPlan(request.Sources, destination, request.Options, request.UseDestinationTemplate, state, cancellationToken, rootTarget);
-        bool copiedAny = false;
-        bool completed = true;
-        var successfullyCopiedSources = new List<string>();
-        state.SetTotals(plan.TotalBytes, plan.FileCount + plan.DirectoryCount);
-        state.StartProgressTimer();
-
-        foreach (var directory in plan.Directories)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            CreateDirectoryTarget(directory.DestinationPath);
-            copiedAny = true;
-            state.CompleteItem();
-            state.CompleteFolder();
-        }
-
-        foreach (var file in plan.Files)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            state.WaitIfPaused(cancellationToken);
-            CopyDestination copyTarget = CopyDestination.Skip;
-            try
-            {
-                copyTarget = await ResolveDestinationPathAsync(file, request.Options, conflictResolver, state, cancellationToken)
-                    .ConfigureAwait(false);
-                if (copyTarget.Path.Length == 0)
-                {
-                    completed = false;
-                    continue;
-                }
-
-                Directory.CreateDirectory(Path.GetDirectoryName(copyTarget.Path)!);
-
-                if (copyTarget.Action == CopyDestinationAction.CreateOrOverwrite &&
-                    IsReparsePoint(file.SourcePath) &&
-                    request.Options.SymlinkMode == SymlinkCopyMode.CopyLink)
-                {
-                    if (!CopyReparsePoint(file.SourcePath, copyTarget.Path, request.Options, state))
-                    {
-                        completed = false;
-                        continue;
-                    }
-                    state.CopiedCount++;
-                    state.AddBytes(file.Size);
-                    state.CompleteItem();
-                    state.Report(file.SourcePath, copyTarget.Path, file.Size, file.Size);
-                    copiedAny = true;
-                    successfullyCopiedSources.Add(file.SourcePath);
-                    continue;
-                }
-
-                bool copied = await CopyFileContentsAsync(
-                        file,
-                        copyTarget,
-                        request.Options,
-                        conflictResolver,
-                        state,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-                if (!copied)
-                {
-                    completed = false;
-                    continue;
-                }
-                copiedAny = true;
-                successfullyCopiedSources.Add(file.SourcePath);
-            }
-            catch (CopyRetryableIOException ex) when (
-                request.Options.CopyMode == CopyMode.FastSalvage &&
-                ex.FailureKind == "Read failed")
-            {
-                completed = false;
-                string partialPath = copyTarget.Path.Length == 0 ? file.DestinationPath : copyTarget.Path;
-                CleanupPartialDestination(partialPath, request.Options, state);
-                state.AddError(file.SourcePath, ex.Message);
-                state.SkippedCount++;
-                state.CompleteItem();
-                state.ReportValidation(
-                    file.SourcePath,
-                    partialPath,
-                    file.Size,
-                    "Read failed, skipping file...",
-                    resumeOffset: null,
-                    rollbackBytes: null);
-            }
-        }
-
-        PreserveDirectoryTargetsMetadata(plan.Directories, request.Options, state, cancellationToken);
-        return new CopyOutcome(copiedAny, completed, successfullyCopiedSources);
-    }
+        string? rootTarget = null) =>
+        CopyProviderAsync(
+            request, conflictResolver, state, cancellationToken,
+            useLocalStrategy: true, rootTarget: rootTarget);
 
     private async Task MoveAsync(
         FileOperationRequest request,
@@ -1241,7 +1159,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
 
             if (HasFileMask(request.Options))
             {
-                CopyOutcome outcome = await CopyAsync(
+                CopyOutcome outcome = await CopyLocalAsync(
                     request with
                     {
                         Kind = FileOperationKind.Copy,
@@ -1415,7 +1333,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             if (!allowFallback)
                 throw new IOException("Direct rename is not supported for this source and destination.");
 
-            CopyOutcome outcome = await CopyAsync(
+            CopyOutcome outcome = await CopyLocalAsync(
                 new FileOperationRequest
                 {
                     Kind = FileOperationKind.Copy,
@@ -1552,7 +1470,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         string staging = GenerateReplaceTemporaryPath(destination, "new");
         string backup = GenerateReplaceTemporaryPath(destination, "backup");
 
-        CopyOutcome copyOutcome = await CopyAsync(
+        CopyOutcome copyOutcome = await CopyLocalAsync(
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
@@ -1842,138 +1760,6 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         state.CreatedDirectoryCount++;
         state.SetTotals(0, 1);
         state.CompleteItem();
-    }
-
-    private CopyPlan BuildCopyPlan(
-        IReadOnlyList<string> sources,
-        string destination,
-        FileOperationOptions options,
-        bool useDestinationTemplate,
-        OperationState state,
-        CancellationToken cancellationToken,
-        string? rootTarget = null)
-    {
-        DestinationPattern destinationPattern = useDestinationTemplate
-            ? default
-            : DestinationPattern.Parse(destination, PanelSourceId.Local);
-        DestinationTemplate? template = useDestinationTemplate ? DestinationTemplate.Parse(destination) : null;
-        string destinationDirectory = destinationPattern.HasWildcards ? destinationPattern.ParentPath : destination;
-        bool useExplicitSingleFileTarget =
-            rootTarget is null &&
-            template is null &&
-            !destinationPattern.HasWildcards &&
-            sources.Count == 1 &&
-            IsPath(destination) &&
-            !Directory.Exists(destination) &&
-            !Path.EndsInDirectorySeparator(destination);
-        var files = new List<CopyFilePlanItem>();
-        var directories = new List<CopyDirectoryPlanItem>();
-        var matcher = new FarMaskMatcher();
-        var groups = new Dictionary<string, MaskGroup>(StringComparer.OrdinalIgnoreCase);
-        bool hasMask = !string.IsNullOrWhiteSpace(options.FileMask);
-        long plannedBytes = 0;
-
-        foreach (string source in sources)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (File.Exists(source))
-            {
-                string fileName = Path.GetFileName(source);
-                if (hasMask && !matcher.IsMatch(options.FileMask!, fileName, groups))
-                    continue;
-
-                string target = rootTarget ?? (template is not null
-                    ? template.Evaluate(CreateLocalTemplateContext(source))
-                    : useExplicitSingleFileTarget
-                        ? destination
-                        : Path.Combine(destinationDirectory, destinationPattern.HasWildcards
-                            ? destinationPattern.TransformName(fileName)
-                            : fileName));
-                if (PathsEqual(source, target))
-                    throw new IOException("Source and destination file are the same.");
-                var snapshot = GetSourceSnapshot(source);
-                files.Add(new CopyFilePlanItem(source, target, snapshot.Length, snapshot.LastWriteTimeUtc));
-                plannedBytes += snapshot.Length;
-                state.ReportScanning(Path.GetDirectoryName(source) ?? source, files.Count, directories.Count, plannedBytes);
-                continue;
-            }
-
-            if (!Directory.Exists(source))
-                continue;
-
-            if (hasMask && !DirectoryContainsMatchingFile(source, options.FileMask!, matcher, groups, cancellationToken))
-                continue;
-
-            string rootDestination = rootTarget ?? (template is not null
-                ? template.Evaluate(CreateLocalTemplateContext(source))
-                : Path.Combine(destinationDirectory, destinationPattern.HasWildcards
-                ? destinationPattern.TransformName(Path.GetFileName(source))
-                : Path.GetFileName(source)));
-            if (PathsEqual(source, rootDestination))
-                throw new IOException("Source and destination directory are the same.");
-            if (IsPathInside(rootDestination, source))
-                throw new IOException("Cannot copy a directory into itself.");
-
-            if (!hasMask)
-            {
-                directories.Add(new CopyDirectoryPlanItem(source, rootDestination));
-                state.ReportScanning(source, files.Count, directories.Count, plannedBytes);
-            }
-
-            AddDirectoryPlan(source, rootDestination, hasMask, options.FileMask, matcher, groups, directories, files, ref plannedBytes, state, cancellationToken);
-        }
-
-        if (template is not null || destinationPattern.HasWildcards)
-            ValidateLocalPlanCollisions(files.Select(file => file.DestinationPath).Concat(directories.Select(directory => directory.DestinationPath)));
-
-        return new CopyPlan(
-            files,
-            directories,
-            files.Sum(f => f.Size),
-            files.Count,
-            directories.Count);
-    }
-
-    private static void AddDirectoryPlan(
-        string sourceDirectory,
-        string destinationDirectory,
-        bool hasMask,
-        string? fileMask,
-        FarMaskMatcher matcher,
-        IReadOnlyDictionary<string, MaskGroup> groups,
-        List<CopyDirectoryPlanItem> directories,
-        List<CopyFilePlanItem> files,
-        ref long plannedBytes,
-        OperationState state,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        state.ReportScanning(sourceDirectory, files.Count, directories.Count, plannedBytes);
-
-        foreach (string directory in Directory.GetDirectories(sourceDirectory))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            string target = Path.Combine(destinationDirectory, Path.GetFileName(directory));
-            if (!hasMask)
-            {
-                directories.Add(new CopyDirectoryPlanItem(directory, target));
-                state.ReportScanning(directory, files.Count, directories.Count, plannedBytes);
-            }
-            AddDirectoryPlan(directory, target, hasMask, fileMask, matcher, groups, directories, files, ref plannedBytes, state, cancellationToken);
-        }
-
-        foreach (string file in Directory.GetFiles(sourceDirectory))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            string fileName = Path.GetFileName(file);
-            if (hasMask && !matcher.IsMatch(fileMask!, fileName, groups))
-                continue;
-
-            var snapshot = GetSourceSnapshot(file);
-            files.Add(new CopyFilePlanItem(file, Path.Combine(destinationDirectory, fileName), snapshot.Length, snapshot.LastWriteTimeUtc));
-            plannedBytes += snapshot.Length;
-            state.ReportScanning(sourceDirectory, files.Count, directories.Count, plannedBytes);
-        }
     }
 
     private async Task<CopyDestination> ResolveDestinationPathAsync(
@@ -2388,11 +2174,6 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             ? copyTarget.ResumeOffset
             : 0;
 
-    private static void CreateDirectoryTarget(string destinationPath)
-    {
-        Directory.CreateDirectory(destinationPath);
-    }
-
     private void PreserveDirectoryTargetsMetadata(
         IReadOnlyList<CopyDirectoryPlanItem> directories,
         FileOperationOptions options,
@@ -2666,8 +2447,12 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         FileOperationOptions options,
         bool useDestinationTemplate,
         CancellationToken cancellationToken,
-        OperationState? state = null)
+        OperationState? state = null,
+        string? rootTarget = null)
     {
+        if (rootTarget is not null && sources.Count != 1)
+            throw new ArgumentException("An exact copy target requires one source.", nameof(sources));
+
         DestinationPattern destinationPattern = useDestinationTemplate
             ? default
             : DestinationPattern.Parse(destination.SourcePath, destination.SourceId);
@@ -2692,7 +2477,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                 continue;
             }
 
-            string targetPath = template is not null
+            string targetPath = rootTarget ?? (template is not null
                 ? template.Evaluate(new DestinationTemplateContext(item.Name, item.IsDirectory, item.LastWriteTime, destinationPathSeparators!))
                 : destinationPattern.HasWildcards
                     ? CombineProviderPath(
@@ -2704,7 +2489,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                         item,
                         destination.SourcePath,
                         sources.Count,
-                        cancellationToken);
+                        cancellationToken));
 
             if (!hasMask)
             {
@@ -3317,13 +3102,6 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
     {
         public static CopyDestination Skip { get; } = new(string.Empty, CopyDestinationAction.CreateOrOverwrite);
     }
-
-    private sealed record CopyPlan(
-        IReadOnlyList<CopyFilePlanItem> Files,
-        IReadOnlyList<CopyDirectoryPlanItem> Directories,
-        long TotalBytes,
-        int FileCount,
-        int DirectoryCount);
 
     private sealed class CopyRetryableIOException : IOException
     {
