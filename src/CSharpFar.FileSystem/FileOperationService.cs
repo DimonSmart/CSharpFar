@@ -561,7 +561,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         {
             string partialPath = target.Path.Length == 0 ? file.DestinationPath : target.Path;
             // The staging file is cleaned by CopyFileContentsAsync, never the user destination.
-            state.AddError(file.SourcePath, ex.Message);
+            state.AddError(file.SourcePath, $"Copy to '{partialPath}' failed: {ex.Message}");
             state.SkippedCount++;
             state.CompleteItem();
             state.ReportValidation(
@@ -804,7 +804,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 try
                 {
                     await CopyFileAttemptAsync(file, target, CurrentBytesForTarget(target),
-                        wrap, Account, state, cancellationToken).ConfigureAwait(false);
+                        wrap, Account, state, destination, cancellationToken).ConfigureAwait(false);
                     break;
                 }
                 catch (CopyRetryableIOException ex) when (retry && attempts < ReliableCopyRetryCount)
@@ -854,6 +854,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         bool wrapSourceReadFailures,
         Action<long> accountCurrentBytes,
         OperationState state,
+        string publishedDestination,
         CancellationToken cancellationToken)
     {
         FileInfo sourceInfo;
@@ -909,7 +910,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 .ConfigureAwait(false);
             currentBytes += read;
             accountCurrentBytes(currentBytes);
-            state.Report(file.SourcePath, copyTarget.Path, currentBytes, file.Size);
+            state.Report(file.SourcePath, publishedDestination, currentBytes, file.Size);
         }
 
         return new CopyAttemptResult(sourceInfo, sourceAttributes);

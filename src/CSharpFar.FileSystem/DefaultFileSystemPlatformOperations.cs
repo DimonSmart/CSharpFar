@@ -48,7 +48,10 @@ internal sealed class DefaultFileSystemPlatformOperations : IFileSystemPlatformO
     public bool TryCopySymbolicLink(string sourcePath, string destinationPath, out string? error)
     {
         error = null;
-        string? target = Directory.Exists(sourcePath)
+        // Directory.Exists is false for dangling directory links. Their type
+        // comes from the link attributes, not the accessibility of its target.
+        bool isDirectoryLink = (File.GetAttributes(sourcePath) & FileAttributes.Directory) != 0;
+        string? target = isDirectoryLink
             ? new DirectoryInfo(sourcePath).LinkTarget
             : new FileInfo(sourcePath).LinkTarget;
 
@@ -58,7 +61,7 @@ internal sealed class DefaultFileSystemPlatformOperations : IFileSystemPlatformO
             return false;
         }
 
-        if (Directory.Exists(sourcePath))
+        if (isDirectoryLink)
             Directory.CreateSymbolicLink(destinationPath, target);
         else
             File.CreateSymbolicLink(destinationPath, target);
