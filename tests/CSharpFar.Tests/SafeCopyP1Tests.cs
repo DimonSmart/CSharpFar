@@ -2,6 +2,7 @@ using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
 using CSharpFar.FileSystem;
+using CSharpFar.Tests.Infrastructure;
 
 namespace CSharpFar.Tests;
 
@@ -235,6 +236,188 @@ public sealed class SafeCopyP1Tests : IDisposable
             },
         };
         Assert.Throws<IOException>(() => new FileOperationService().BuildPlan(request));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MidstreamFailure_OnlyRetainsOperationOwnedPartialWhenRequested(bool keepPartial)
+    {
+        string source = Write(_src, "partial.bin", new string('Z', 2 * 1024 * 1024));
+        string destination = Write(_dst, "partial.bin", "ORIGINAL");
+        var dependencies = FileOperationServiceDependencies.Default with
+        {
+            OpenFileStream = (path, mode, access, share, size, options) =>
+            {
+                Stream stream = FileOperationServiceDependencies.Default.OpenFileStream(
+                    path, mode, access, share, size, options);
+                return path == source && access == FileAccess.Read
+                    ? new FailAfterFirstRead(stream) : stream;
+            },
+        };
+        var request = Request(source, destination) with
+        {
+            Options = new FileOperationOptions
+            {
+                DefaultConflictDecision = ConflictDecisionMode.Overwrite,
+                KeepPartialFilesOnError = keepPartial,
+            },
+        };
+        await Assert.ThrowsAsync<IOException>(() =>
+            new FileOperationService(dependencies).ExecuteAsync(request, null, new OverwriteResolver()));
+        Assert.Equal("ORIGINAL", File.ReadAllText(destination));
+        string[] partials = Directory.GetFiles(_dst, "*.partial*", SearchOption.AllDirectories);
+        Assert.Equal(keepPartial ? 1 : 0, partials.Length);
+        if (keepPartial) Assert.NotEmpty(File.ReadAllBytes(partials[0]));
+    }
+
+    [Fact]
+    public async Task TransactionalProvider_PublishesOverwriteOnlyOnSuccessfulCommit()
+    {
+        var provider = new InMemoryBatchFilePanelSource();
+        provider.SeedDirectory("/src");
+        provider.SeedDirectory("/dst");
+        provider.SeedFile("/src/item.txt", "NEW");
+        provider.SeedFile("/dst/item.txt", "ORIGINAL");
+        var registry = new FilePanelSourceRegistry([provider]);
+        var service = new FileOperationService(registry);
+        var request = new FileOperationRequest
+        {
+            Kind = FileOperationKind.Copy,
+            Sources = [],
+            SourceLocations = [new PanelLocation(provider.SourceId, "/src/item.txt")],
+            DestinationLocation = new PanelLocation(provider.SourceId, "/dst/item.txt"),
+            Options = new FileOperationOptions { DefaultConflictDecision = ConflictDecisionMode.Overwrite },
+        };
+
+        provider.FailCommit = true;
+        await Assert.ThrowsAsync<IOException>(() =>
+            service.ExecuteAsync(request, null, new OverwriteResolver()));
+        Assert.Equal("ORIGINAL", provider.ReadText("/dst/item.txt"));
+        Assert.Equal("NEW", provider.ReadText("/src/item.txt"));
+
+        provider.FailCommit = false;
+        FileOperationResult result = await service.ExecuteAsync(request, null, new OverwriteResolver());
+        Assert.Equal(1, result.CopiedCount);
+        Assert.Equal("NEW", provider.ReadText("/dst/item.txt"));
+        Assert.Equal(1, provider.Committed);
+    }
+
+    [Fact]
+    public async Task MoveFallback_PublicationFailurePreservesBothOriginalAndSource()
+    {
+        string source = Write(_src, "move.txt", "NEW");
+        string destination = Write(_dst, "move.txt", "ORIGINAL");
+        var dependencies = FileOperationServiceDependencies.Default with
+        {
+            ForceMoveFallback = static (_, _) => true,
+            PublishLocalFile = (_, _) => throw new IOException("Simulated staging publication error"),
+        };
+        var request = new FileOperationRequest
+        {
+            Kind = FileOperationKind.Move,
+            Sources = [source],
+            Destination = _dst,
+            Options = new FileOperationOptions { DefaultConflictDecision = ConflictDecisionMode.Replace },
+        };
+        await Assert.ThrowsAsync<IOException>(() =>
+            new FileOperationService(dependencies).ExecuteAsync(request, null, new OverwriteResolver()));
+        Assert.Equal("ORIGINAL", File.ReadAllText(destination));
+        Assert.Equal("NEW", File.ReadAllText(source));
+    }
+
+    [Fact]
+    public async Task FileLink_CopyLinkAndCopyContentsHaveDistinctSemantics()
+    {
+        Write(_src, "original.txt", "PAYLOAD");
+        string alias = Path.Combine(_src, "alias.txt");
+        if (!TryLink(() => File.CreateSymbolicLink(alias, "original.txt"))) return;
+
+        var service = new FileOperationService();
+        string copiedLink = Path.Combine(_dst, "alias.txt");
+        FileOperationResult linkResult = await service.ExecuteAsync(
+            Request(alias, copiedLink), null, new OverwriteResolver());
+        Assert.Equal(1, linkResult.CopiedCount);
+        Assert.Equal("original.txt", new FileInfo(copiedLink).LinkTarget);
+
+        string copiedContents = Path.Combine(_dst, "copy.txt");
+        FileOperationResult contentsResult = await service.ExecuteAsync(
+            Request(alias, copiedContents) with
+            {
+                Options = new FileOperationOptions
+                {
+                    SymlinkMode = SymlinkCopyMode.CopyTargetContents,
+                    DefaultConflictDecision = ConflictDecisionMode.Overwrite,
+                },
+            }, null, new OverwriteResolver());
+        Assert.Equal(1, contentsResult.CopiedCount);
+        Assert.Equal("PAYLOAD", File.ReadAllText(copiedContents));
+        Assert.Null(new FileInfo(copiedContents).LinkTarget);
+    }
+
+    [Fact]
+    public async Task CopyTargetContents_AllowsTwoAliasesWithoutCycle()
+    {
+        string shared = Path.Combine(_src, "shared");
+        Directory.CreateDirectory(shared);
+        Write(shared, "contents.txt", "VALUE");
+        string a = Path.Combine(_src, "alias-a");
+        string b = Path.Combine(_src, "alias-b");
+        if (!TryLink(() => Directory.CreateSymbolicLink(a, "shared")) ||
+            !TryLink(() => Directory.CreateSymbolicLink(b, "shared"))) return;
+
+        var request = Request(_src, _dst) with
+        {
+            Options = new FileOperationOptions { SymlinkMode = SymlinkCopyMode.CopyTargetContents },
+        };
+        var service = new FileOperationService();
+        Assert.Equal(6, service.BuildPlan(request).Items.Count);
+        FileOperationResult result = await service.ExecuteAsync(request, null, new OverwriteResolver());
+        Assert.Equal(3, result.CopiedCount);
+        string destination = Path.Combine(_dst, "src");
+        Assert.Equal("VALUE", File.ReadAllText(Path.Combine(destination, "alias-a", "contents.txt")));
+        Assert.Equal("VALUE", File.ReadAllText(Path.Combine(destination, "alias-b", "contents.txt")));
+    }
+
+    [Fact]
+    public void CopyTargetContents_IndirectLinkLoopFailsBeforeWriting()
+    {
+        string a = Path.Combine(_src, "a");
+        string b = Path.Combine(_src, "b");
+        string c = Path.Combine(_src, "c");
+        if (!TryLink(() => Directory.CreateSymbolicLink(a, "b")) ||
+            !TryLink(() => Directory.CreateSymbolicLink(b, "c")) ||
+            !TryLink(() => Directory.CreateSymbolicLink(c, "a"))) return;
+
+        var request = Request(_src, _dst) with
+        {
+            Options = new FileOperationOptions { SymlinkMode = SymlinkCopyMode.CopyTargetContents },
+        };
+        Assert.ThrowsAny<IOException>(() => new FileOperationService().BuildPlan(request));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_dst));
+    }
+
+    [Fact]
+    public async Task CopyLink_MaskedCopyKeepsLinkWithoutWalkingItsTree()
+    {
+        string folder = Path.Combine(_src, "real");
+        Directory.CreateDirectory(folder);
+        Write(folder, "data.txt", "data");
+        string link = Path.Combine(_src, "shortcut.txt");
+        if (!TryLink(() => Directory.CreateSymbolicLink(link, "real"))) return;
+
+        var request = Request(_src, _dst) with
+        {
+            Options = new FileOperationOptions { FileMask = "*.txt", SymlinkMode = SymlinkCopyMode.CopyLink },
+        };
+        var service = new FileOperationService();
+        FileOperationPlan plan = service.BuildPlan(request);
+        Assert.Equal(2, plan.Items.Count);
+        Assert.Contains(plan.Items, item => item.Source.SourcePath == link && !item.IsDirectory);
+
+        FileOperationResult result = await service.ExecuteAsync(request, null, new OverwriteResolver());
+        Assert.Equal(2, result.CopiedCount);
+        Assert.Equal("real", new DirectoryInfo(Path.Combine(_dst, "src", "shortcut.txt")).LinkTarget);
     }
 
     private FileOperationRequest Request(string source, string destination, CopyMode copyMode = CopyMode.Normal) =>
