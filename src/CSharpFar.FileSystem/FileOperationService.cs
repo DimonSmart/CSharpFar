@@ -47,7 +47,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
     private static readonly char[] LocalPathSeparators = [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar];
     private static readonly TimeSpan ReliableCopyRetryDelay = TimeSpan.FromSeconds(1);
     private const int ReliableCopyRetryCount = 20;
-    private readonly IFilePanelSourceRegistry? _sources;
+    private readonly IFilePanelSourceRegistry _sources;
     private readonly FileOperationServiceDependencies _dependencies;
     private readonly IFileSystemPlatformOperations _platformOperations;
 
@@ -182,9 +182,6 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
 
     private FileOperationPlan BuildProviderPlan(FileOperationRequest request, CancellationToken cancellationToken)
     {
-        if (_sources is null)
-            throw new InvalidOperationException("Provider-aware file operations require a panel source registry.");
-
         return request.Kind switch
         {
             FileOperationKind.Copy => ToPublicPlan(BuildProviderCopyPlan(RequireSourceLocations(request), RequireDestinationLocation(request), request.Options, request.UseDestinationTemplate, cancellationToken), RequireDestinationLocation(request).SourceId),
@@ -198,7 +195,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
     {
         var sources = RequireSourceLocations(request);
         var destination = RequireDestinationLocation(request);
-        var source = _sources!.GetSource(sources[0].SourceId);
+        var source = _sources.GetSource(sources[0].SourceId);
         var target = _sources.GetSource(destination.SourceId);
         var plan = source.SourceId == target.SourceId || SamePhysicalContainer(source, target)
             ? BuildProviderMovePlan(source, sources, destination.SourcePath,
@@ -240,9 +237,6 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
 
     private void ValidateAccessibleSources(FileOperationRequest request)
     {
-        if (_sources is null)
-            return;
-
         foreach (PanelSourceId sourceId in EnumerateReferencedSources(request).Distinct())
         {
             if (_sources.TryGetSource(sourceId, out _))
@@ -258,9 +252,6 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         OperationState state,
         CancellationToken cancellationToken)
     {
-        if (_sources is null)
-            throw new InvalidOperationException("Provider-aware file operations require a panel source registry.");
-
         switch (request.Kind)
         {
             case FileOperationKind.Copy:
@@ -293,7 +284,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
 
         var destination = RequireDestinationLocation(request);
         var sources = RequireSourceLocations(request);
-        var destinationSource = _sources!.GetSource(destination.SourceId);
+        var destinationSource = _sources.GetSource(destination.SourceId);
         var plan = BuildProviderCopyPlan(sources, destination, request.Options, request.UseDestinationTemplate, cancellationToken, state, rootTarget);
         var copiedFiles = new List<string>();
         var copiedFolders = new List<string>();
@@ -567,7 +558,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         var destination = RequireDestinationLocation(request);
         if (sources.Any(location =>
             location.SourceId != destination.SourceId &&
-            !SamePhysicalContainer(_sources!.GetSource(location.SourceId),
+            !SamePhysicalContainer(_sources.GetSource(location.SourceId),
                 _sources.GetSource(destination.SourceId))))
         {
             await MoveAcrossProvidersAsync(request, conflictResolver, state, cancellationToken)
@@ -575,7 +566,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             return;
         }
 
-        var source = _sources!.GetSource(sources[0].SourceId);
+        var source = _sources.GetSource(sources[0].SourceId);
         var plan = BuildProviderMovePlan(source, sources, destination.SourcePath,
             request.Options, request.UseDestinationTemplate, cancellationToken);
         state.SetTotals(CalculateProviderPlanSize(plan), plan.Count);
@@ -645,7 +636,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         ValidateProviderCopyOptions(request.Options);
         var sources = RequireSourceLocations(request);
         var destination = RequireDestinationLocation(request);
-        var targetSource = _sources!.GetSource(destination.SourceId);
+        var targetSource = _sources.GetSource(destination.SourceId);
         var sourceSource = _sources.GetSource(sources[0].SourceId);
 
         if (sources.Any(item => item.SourceId != sources[0].SourceId))
@@ -1021,7 +1012,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
 
         foreach (var group in plan.Items.GroupBy(item => item.Location.SourceId))
         {
-            var source = _sources!.GetSource(group.Key);
+            var source = _sources.GetSource(group.Key);
             var items = group.Where(item => !group.Any(parent =>
                 parent != item && ProviderPathRelations.IsDescendantOf(
                     source, item.Location.SourcePath, parent.Location.SourcePath))).ToArray();
@@ -1089,7 +1080,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         CancellationToken cancellationToken)
     {
         var destination = RequireDestinationLocation(request);
-        var source = _sources!.GetSource(destination.SourceId);
+        var source = _sources.GetSource(destination.SourceId);
         if (source is IFileOperationBatchProvider batching)
         {
             var location = new PanelLocation(destination.SourceId, destination.SourcePath);
@@ -2449,7 +2440,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         CancellationToken cancellationToken,
         OperationState? state = null,
         string? rootTarget = null) =>
-        new FileCopyPlanBuilder(_sources!, ValidateProviderPlanCollisions)
+        new FileCopyPlanBuilder(_sources, ValidateProviderPlanCollisions)
             .Build(sources, destination, options, useDestinationTemplate,
                 cancellationToken, state is null ? null : state.ReportScanning, rootTarget);
 
@@ -2570,7 +2561,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var source = _sources!.GetSource(location.SourceId);
+        var source = _sources.GetSource(location.SourceId);
         var item = source.GetItem(location.SourcePath, cancellationToken);
         if (item is null)
             return 0;
@@ -2763,7 +2754,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
 
     private void ValidateProviderPlanCollisions(PanelSourceId sourceId, IEnumerable<string> targetPaths)
     {
-        IFilePanelSource destinationSource = _sources!.GetSource(sourceId);
+        IFilePanelSource destinationSource = _sources.GetSource(sourceId);
         FileOperationPlanPreflight.ValidateDistinctTargets(
             targetPaths.Where(path => !string.IsNullOrEmpty(path)),
             destinationSource.NormalizePath,
