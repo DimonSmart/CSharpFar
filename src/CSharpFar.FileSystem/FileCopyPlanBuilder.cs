@@ -133,6 +133,8 @@ internal sealed class FileCopyPlanBuilder(
         if (isLink && item.Source.SourceId != PanelSourceId.Local)
             throw new NotSupportedException(
                 $"Provider '{item.Source.DisplayName}' cannot reliably resolve symbolic link targets.");
+        if (isLink && symlinkMode == SymlinkCopyMode.CopyTargetContents)
+            ValidateResolvedLink(item.SourcePath);
 
         if (!sourceItem.IsDirectory)
         {
@@ -189,6 +191,13 @@ internal sealed class FileCopyPlanBuilder(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (IsLink(rootItem) && symlinkMode == SymlinkCopyMode.CopyTargetContents)
+        {
+            if (source.SourceId != PanelSourceId.Local)
+                throw new NotSupportedException($"Provider '{source.DisplayName}' cannot resolve symbolic links.");
+            ValidateResolvedLink(rootSourcePath);
+        }
+
         if (!rootItem.IsDirectory || (IsLink(rootItem) && symlinkMode == SymlinkCopyMode.CopyLink))
         {
             if (matcher.IsMatch(fileMask, rootItem.Name, groups))
@@ -258,12 +267,15 @@ internal sealed class FileCopyPlanBuilder(
                 }
                 else if (child.IsDirectory)
                 {
+                    if (isLink) ValidateResolvedLink(child.SourcePath);
                     CollectMatchingProviderFiles(source, child.SourcePath, fileMask,
                         symlinkMode, matcher, groups, files, visiting, cancellationToken);
                 }
-                else if (matcher.IsMatch(fileMask, child.Name, groups))
+                else
                 {
-                    files.Add(child);
+                    if (isLink) ValidateResolvedLink(child.SourcePath);
+                    if (matcher.IsMatch(fileMask, child.Name, groups))
+                        files.Add(child);
                 }
             }
         }
@@ -272,6 +284,21 @@ internal sealed class FileCopyPlanBuilder(
 
     private static bool IsLink(FilePanelItem item) =>
         (item.Attributes & FileAttributes.ReparsePoint) != 0;
+
+    private static void ValidateResolvedLink(string path)
+    {
+        // Validate all links, including ones whose Directory attribute cannot be
+        // determined (e.g. A -> B -> C -> A). They must never disappear from
+        // the preview or turn into a late read failure after destination creation.
+        var file = new FileInfo(path);
+        var directory = new DirectoryInfo(path);
+        FileSystemInfo? resolved = file.LinkTarget is not null
+            ? file.ResolveLinkTarget(returnFinalTarget: true)
+            : directory.ResolveLinkTarget(returnFinalTarget: true);
+        if (resolved is null ||
+            (!File.Exists(resolved.FullName) && !Directory.Exists(resolved.FullName)))
+            throw new IOException($"Cannot resolve symbolic link target: '{path}'.");
+    }
 
     private static string GetDirectoryIdentity(IFilePanelSource source, string path)
     {

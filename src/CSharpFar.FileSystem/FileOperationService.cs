@@ -529,7 +529,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                         options.SymlinkMode == SymlinkCopyMode.CopyLink;
         CopyResumeSourceSnapshot snapshot = copyLink
             ? new CopyResumeSourceSnapshot(0, item.Item.LastWriteTime.ToUniversalTime())
-            : GetSourceSnapshot(sourcePath);
+            : GetSourceSnapshot(sourcePath, followLink: (item.Item.Attributes & FileAttributes.ReparsePoint) != 0);
         var file = new CopyFilePlanItem(
             sourcePath, item.TargetPath, snapshot.Length, snapshot.LastWriteTimeUtc);
         CopyDestination target = CopyDestination.Skip;
@@ -1095,10 +1095,16 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         File.Delete(path);
     }
 
-    private static CopyResumeSourceSnapshot GetSourceSnapshot(string path)
+    private static CopyResumeSourceSnapshot GetSourceSnapshot(string path, bool followLink = false)
     {
         var source = new FileInfo(path);
-        return new CopyResumeSourceSnapshot(source.Length, source.LastWriteTimeUtc);
+        if (!followLink)
+            return new CopyResumeSourceSnapshot(source.Length, source.LastWriteTimeUtc);
+
+        // On Unix, FileInfo.Length may report the byte length of the link itself.
+        // The transfer follows the target, so the expected size must come from it.
+        using Stream resolvedSource = File.OpenRead(path);
+        return new CopyResumeSourceSnapshot(resolvedSource.Length, source.LastWriteTimeUtc);
     }
 
     private static void ValidateProviderCopyOptions(FileOperationOptions options)

@@ -264,7 +264,9 @@ public sealed class Spec010FileOperationTests : IDisposable
         Assert.Equal(1, result.FailedCount);
         Assert.False(File.Exists(Path.Combine(_destination, "bad.txt")));
         // Opening the source failed before any staging bytes were produced.
-        Assert.Empty(Directory.EnumerateFiles(_destination, "*.partial*", SearchOption.AllDirectories));
+        string retained = Assert.Single(Directory.EnumerateFiles(
+            _destination, "*.partial*", SearchOption.AllDirectories));
+        Assert.StartsWith(".bad.txt.csharpfar-", Path.GetFileName(retained));
     }
 
     [Fact]
