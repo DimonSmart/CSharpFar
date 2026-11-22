@@ -39,6 +39,7 @@ internal sealed record FileOperationServiceDependencies
         static (source, destination) => Directory.Move(source, destination);
 
     internal Action<string> BeforeDeletePath { get; init; } = static _ => { };
+    internal Func<string, string, string?> PublishLocalFile { get; init; } = SafeLocalFilePublisher.Publish;
 }
 
 public sealed partial class FileOperationService : IFileOperationService, IFileOperationPlanBuilder
@@ -368,7 +369,10 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         string sourcePath = plannedItem.SourcePath;
         string destinationPath = plannedItem.TargetPath;
         FilePanelItem sourceItem = plannedItem.Item ?? throw new InvalidOperationException("Missing planned source item.");
-        if (sourceItem.IsDirectory)
+        bool isLink = (sourceItem.Attributes & FileAttributes.ReparsePoint) != 0;
+        if (isLink && source.SourceId != PanelSourceId.Local)
+            throw new NotSupportedException($"Symbolic links are unsupported for source provider '{source.DisplayName}'.");
+        if (sourceItem.IsDirectory && !(isLink && options.SymlinkMode == SymlinkCopyMode.CopyLink))
         {
             if (source.SourceId == destinationSource.SourceId ||
                 SamePhysicalContainer(source, destinationSource))
@@ -416,6 +420,8 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
             SamePhysicalContainer(source, destinationSource)) &&
             ProviderPathRelations.PathsEqual(source, sourcePath, destinationPath))
             throw new IOException("Cannot copy an archive entry onto itself.");
+        if (isLink && options.SymlinkMode == SymlinkCopyMode.CopyLink)
+            throw new NotSupportedException("The destination provider cannot create symbolic links safely.");
         bool overwriteApproved = false;
         while (destinationSource.GetItem(destinationPath, cancellationToken) is { } destinationItem)
         {
@@ -453,8 +459,8 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 case ConflictDecisionMode.Overwrite:
                     if (destinationItem.IsDirectory)
                         throw new IOException("Cannot overwrite a directory with a file.");
-                    if (destinationSource is not IFileOperationBatch)
-                        await destinationSource.DeleteAsync(destinationPath, recursive: false, cancellationToken).ConfigureAwait(false);
+                    if (destinationSource is not IFileOperationBatch && destinationSource.SourceId != PanelSourceId.Local)
+                        throw new NotSupportedException($"Provider '{destinationSource.DisplayName}' cannot safely replace an existing file without transactional batch support.");
                     overwriteApproved = true;
                     break;
                 case ConflictDecisionMode.OnlyNewer:
@@ -466,22 +472,44 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         }
 
         await EnsureProviderDestinationDirectoryAsync(destinationSource, destinationPath, cancellationToken).ConfigureAwait(false);
-        await using var input = await source.OpenReadAsync(sourcePath, cancellationToken).ConfigureAwait(false);
-        await using var output = await destinationSource.OpenWriteAsync(destinationPath, overwrite: overwriteApproved, cancellationToken).ConfigureAwait(false);
-
-        byte[] buffer = new byte[CopyBufferSize];
+        // Provider -> local copies also use the same safe publication boundary.
+        string? staging = destinationSource.SourceId == PanelSourceId.Local &&
+                          destinationSource is not IFileOperationBatch
+            ? SafeLocalFilePublisher.CreateStagingPath(destinationPath) : null;
         long done = 0;
-        long total = sourceItem.Size ?? 0;
-        while (true)
+        try
         {
-            int read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false);
-            if (read == 0)
-                break;
-
-            await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-            done += read;
-            state.AddBytes(read);
-            state.Report(sourcePath, destinationPath, done, total);
+            await using (Stream input = await source.OpenReadAsync(sourcePath, cancellationToken).ConfigureAwait(false))
+            await using (Stream output = await destinationSource.OpenWriteAsync(
+                staging ?? destinationPath, overwriteApproved && staging is null, cancellationToken).ConfigureAwait(false))
+            {
+                byte[] buffer = new byte[CopyBufferSize];
+                while (true)
+                {
+                    state.WaitIfPaused(cancellationToken);
+                    int read = await input.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false);
+                    if (read == 0) break;
+                    await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+                    done += read;
+                    state.AddBytes(read);
+                    state.Report(sourcePath, destinationPath, done, sourceItem.Size ?? 0);
+                }
+                await output.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+            if (sourceItem.Size is long expected && done != expected)
+                throw new IOException($"Incomplete copy from '{sourcePath}' to '{destinationPath}' ({done}/{expected} bytes).");
+            cancellationToken.ThrowIfCancellationRequested();
+            if (staging is not null)
+            {
+                string? leftover = _dependencies.PublishLocalFile(staging, destinationPath);
+                if (leftover is not null)
+                    state.AddError(destinationPath, $"Backup cleanup failed after publishing '{destinationPath}'. Backup: {leftover}");
+            }
+        }
+        catch
+        {
+            if (staging is not null) CleanupPartialDestination(staging, options, state);
+            throw;
         }
 
         copiedFiles?.Add(sourcePath);
@@ -497,7 +525,11 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         CancellationToken cancellationToken)
     {
         string sourcePath = item.SourcePath;
-        CopyResumeSourceSnapshot snapshot = GetSourceSnapshot(sourcePath);
+        bool copyLink = (item.Item!.Attributes & FileAttributes.ReparsePoint) != 0 &&
+                        options.SymlinkMode == SymlinkCopyMode.CopyLink;
+        CopyResumeSourceSnapshot snapshot = copyLink
+            ? new CopyResumeSourceSnapshot(0, item.Item.LastWriteTime.ToUniversalTime())
+            : GetSourceSnapshot(sourcePath);
         var file = new CopyFilePlanItem(
             sourcePath, item.TargetPath, snapshot.Length, snapshot.LastWriteTimeUtc);
         CopyDestination target = CopyDestination.Skip;
@@ -509,8 +541,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 return false;
 
             Directory.CreateDirectory(Path.GetDirectoryName(target.Path)!);
-            if (target.Action == CopyDestinationAction.CreateOrOverwrite &&
-                IsReparsePoint(sourcePath) && options.SymlinkMode == SymlinkCopyMode.CopyLink)
+            if (copyLink)
             {
                 if (!CopyReparsePoint(sourcePath, target.Path, options, state))
                     return false;
@@ -529,7 +560,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
             options.CopyMode == CopyMode.FastSalvage && ex.FailureKind == "Read failed")
         {
             string partialPath = target.Path.Length == 0 ? file.DestinationPath : target.Path;
-            CleanupPartialDestination(partialPath, options, state);
+            // The staging file is cleaned by CopyFileContentsAsync, never the user destination.
             state.AddError(file.SourcePath, ex.Message);
             state.SkippedCount++;
             state.CompleteItem();
@@ -613,34 +644,6 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
             ConflictDecisionMode mode = state.Conflicts.Current(options.DefaultConflictDecision);
             string? newDestination = null;
 
-            if (options.CopyMode == CopyMode.Reliable)
-            {
-                while (true)
-                {
-                    CopyDestination? resumeDestination = TryResolveTailValidatedResume(
-                        file,
-                        destinationPath,
-                        options,
-                        state,
-                        cancellationToken,
-                        out CopyResumePlan? sourceReadFailure);
-                    if (resumeDestination is not null)
-                        return resumeDestination.Value;
-
-                    if (sourceReadFailure is null)
-                        break;
-
-                    await WaitForReliableRetryAsync(
-                            file,
-                            destinationPath,
-                            state,
-                            "Read failed",
-                            sourceReadFailure.Reason,
-                            cancellationToken)
-                        .ConfigureAwait(false);
-                }
-            }
-
             FileOperationConflictDecision decision = state.Conflicts.Resolve(
                 options, conflictResolver, () => BuildConflict(file.SourcePath, destinationPath));
             mode = decision.Mode;
@@ -651,7 +654,6 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 case ConflictDecisionMode.Overwrite:
                     if (Directory.Exists(destinationPath))
                         throw new IOException("Cannot overwrite a directory with a file.");
-                    DeleteFileTarget(destinationPath);
                     return new CopyDestination(destinationPath, CopyDestinationAction.CreateOrOverwrite);
                 case ConflictDecisionMode.Skip:
                     state.SkippedCount++;
@@ -665,7 +667,6 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 case ConflictDecisionMode.OnlyNewer:
                     if (File.Exists(destinationPath) && IsSourceNewer(file.SourcePath, destinationPath))
                     {
-                        DeleteFileTarget(destinationPath);
                         return new CopyDestination(destinationPath, CopyDestinationAction.CreateOrOverwrite);
                     }
                     state.SkippedCount++;
@@ -788,71 +789,61 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         OperationState state,
         CancellationToken cancellationToken)
     {
-        bool reliableRetry = options.CopyMode == CopyMode.Reliable;
-        bool wrapFailures = reliableRetry || options.CopyMode == CopyMode.FastSalvage;
-        CopyDestination copyTarget = initialTarget;
-        long currentBytes = CurrentBytesForTarget(copyTarget);
-        long accountedCurrentBytes = 0;
-        int retryNumber = 0;
-        AccountCurrentBytes(currentBytes);
-        state.Report(file.SourcePath, copyTarget.Path, currentBytes, file.Size);
-
-        CopyAttemptResult copyResult;
-        while (true)
+        bool retry = options.CopyMode == CopyMode.Reliable;
+        bool wrap = retry || options.CopyMode == CopyMode.FastSalvage;
+        string destination = initialTarget.Path;
+        string staging = SafeLocalFilePublisher.CreateStagingPath(destination);
+        CopyDestination target = new(staging, CopyDestinationAction.CreateOrOverwrite);
+        long accounted = 0;
+        int attempts = 0;
+        state.Report(file.SourcePath, destination, 0, file.Size);
+        try
         {
-            try
+            while (true)
             {
-                copyResult = await CopyFileAttemptAsync(
-                        file,
-                        copyTarget,
-                        currentBytes,
-                        wrapFailures,
-                        AccountCurrentBytes,
-                        state,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-                break;
+                try
+                {
+                    await CopyFileAttemptAsync(file, target, CurrentBytesForTarget(target),
+                        wrap, Account, state, cancellationToken).ConfigureAwait(false);
+                    break;
+                }
+                catch (CopyRetryableIOException ex) when (retry && attempts < ReliableCopyRetryCount)
+                {
+                    attempts++;
+                    await WaitForReliableRetryAsync(file, destination, state,
+                        ex.FailureKind, ex.InnerException?.Message ?? ex.Message, cancellationToken)
+                        .ConfigureAwait(false);
+                    // Only an operation-owned staging file may be resumed.
+                    target = TryResolveTailValidatedResume(file, staging, options, state,
+                        cancellationToken, out _) ??
+                        new CopyDestination(staging, CopyDestinationAction.CreateOrOverwrite);
+                    Account(CurrentBytesForTarget(target));
+                    state.Report(file.SourcePath, destination, CurrentBytesForTarget(target), file.Size);
+                }
             }
-            catch (CopyRetryableIOException ex) when (reliableRetry && retryNumber < ReliableCopyRetryCount)
-            {
-                retryNumber++;
-                await WaitForReliableRetryAsync(
-                        file,
-                        copyTarget.Path,
-                        state,
-                        ex.FailureKind,
-                        ex.InnerException?.Message ?? ex.Message,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-
-                copyTarget = await ResolveDestinationPathAsync(
-                        file,
-                        options,
-                        conflictResolver,
-                        state,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-                if (copyTarget.Path.Length == 0)
-                    return false;
-
-                currentBytes = CurrentBytesForTarget(copyTarget);
-                AccountCurrentBytes(currentBytes);
-                state.Report(file.SourcePath, copyTarget.Path, currentBytes, file.Size);
-            }
+            cancellationToken.ThrowIfCancellationRequested();
+            if (new FileInfo(staging).Length != file.Size)
+                throw new IOException($"Incomplete copy from '{file.SourcePath}' to '{destination}'.");
+            _platformOperations.PreserveFileMetadata(file.SourcePath, staging, options, state);
+            cancellationToken.ThrowIfCancellationRequested();
+            string? leftover = _dependencies.PublishLocalFile(staging, destination);
+            if (leftover is not null)
+                state.AddError(destination, $"Backup cleanup failed after publishing '{destination}'. Backup: {leftover}");
+            state.CopiedCount++;
+            state.CompleteItem();
+            return true;
+        }
+        catch
+        {
+            CleanupPartialDestination(staging, options, state);
+            throw;
         }
 
-        _platformOperations.PreserveFileMetadata(file.SourcePath, copyTarget.Path, options, state);
-
-        state.CopiedCount++;
-        state.CompleteItem();
-        return true;
-
-        void AccountCurrentBytes(long newCurrentBytes)
+        void Account(long current)
         {
-            long delta = newCurrentBytes - accountedCurrentBytes;
-            if (delta != 0)
-                state.AddBytes(delta);
-            accountedCurrentBytes = newCurrentBytes;
+            long delta = current - accounted;
+            if (delta != 0) state.AddBytes(delta);
+            accounted = current;
         }
     }
 
@@ -1035,13 +1026,20 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         if (options.SymlinkMode == SymlinkCopyMode.CopyTargetContents)
             return true;
 
-        if (!_platformOperations.TryCopySymbolicLink(sourcePath, destinationPath, out string? error))
+        string staging = SafeLocalFilePublisher.CreateStagingPath(destinationPath);
+        try
         {
-            state.AddError(sourcePath, error ?? "Cannot copy symbolic link.");
-            return false;
+            if (!_platformOperations.TryCopySymbolicLink(sourcePath, staging, out string? error))
+            {
+                state.AddError(sourcePath, error ?? "Cannot copy symbolic link.");
+                return false;
+            }
+            string? leftover = _dependencies.PublishLocalFile(staging, destinationPath);
+            if (leftover is not null)
+                state.AddError(destinationPath, $"Backup cleanup failed. Backup: {leftover}");
+            return true;
         }
-
-        return true;
+        finally { SafeLocalFilePublisher.DeleteStagingPath(staging); }
     }
 
     private void DeletePath(string path, bool useRecycleBin) =>
@@ -1117,12 +1115,12 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         FileOperationOptions options,
         OperationState state)
     {
-        if (string.IsNullOrWhiteSpace(destinationPath) || !File.Exists(destinationPath))
+        if (string.IsNullOrWhiteSpace(destinationPath) || !SafeLocalFilePublisher.PathExists(destinationPath))
             return;
 
         if (!options.KeepPartialFilesOnError)
         {
-            DeleteFileTarget(destinationPath);
+            SafeLocalFilePublisher.DeleteStagingPath(destinationPath);
             state.ReportValidation(
                 destinationPath,
                 destinationPath,
@@ -1134,7 +1132,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         }
 
         string partialPath = GeneratePartialName(destinationPath);
-        File.Move(destinationPath, partialPath);
+        SafeLocalFilePublisher.MoveStagingPath(destinationPath, partialPath);
         state.ReportValidation(
             destinationPath,
             partialPath,

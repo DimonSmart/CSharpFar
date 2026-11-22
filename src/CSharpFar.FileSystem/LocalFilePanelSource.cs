@@ -58,39 +58,35 @@ public sealed class LocalFilePanelSource : IFilePanelSource
         cancellationToken.ThrowIfCancellationRequested();
         string path = NormalizePath(sourcePath);
 
-        if (File.Exists(path))
-        {
-            var file = new FileInfo(path);
-            return new FilePanelItem
-            {
-                Name = file.Name,
-                FullPath = file.FullName,
-                SourceId = SourceId,
-                IsDirectory = false,
-                Size = file.Length,
-                LastWriteTime = file.LastWriteTime,
-                Attributes = file.Attributes,
-                IsParentDirectory = false,
-            };
-        }
+        // Exists() hides broken links, but the planner must see their attributes.
+        FileAttributes attributes;
+        try { attributes = File.GetAttributes(path); }
+        catch (FileNotFoundException) { return null; }
+        catch (DirectoryNotFoundException) { return null; }
 
-        if (Directory.Exists(path))
+        bool isDirectory = (attributes & FileAttributes.Directory) != 0;
+        bool isLink = (attributes & FileAttributes.ReparsePoint) != 0;
+        if (isDirectory)
         {
             var directory = new DirectoryInfo(path);
             return DecorateMountPoint(new FilePanelItem
             {
-                Name = directory.Name,
-                FullPath = directory.FullName,
-                SourceId = SourceId,
-                IsDirectory = true,
-                Size = null,
-                LastWriteTime = directory.LastWriteTime,
-                Attributes = directory.Attributes,
-                IsParentDirectory = false,
+                Name = directory.Name, FullPath = directory.FullName,
+                SourceId = SourceId, IsDirectory = true, Size = null,
+                LastWriteTime = isLink && !directory.Exists ? DateTime.MinValue : directory.LastWriteTime,
+                Attributes = attributes, IsParentDirectory = false,
             });
         }
 
-        return null;
+        var file = new FileInfo(path);
+        return new FilePanelItem
+        {
+            Name = file.Name, FullPath = file.FullName,
+            SourceId = SourceId, IsDirectory = false,
+            Size = isLink && !file.Exists ? 0 : file.Length,
+            LastWriteTime = isLink && !file.Exists ? DateTime.MinValue : file.LastWriteTime,
+            Attributes = attributes, IsParentDirectory = false,
+        };
     }
 
     public Task<Stream> OpenReadAsync(
