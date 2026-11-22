@@ -73,7 +73,7 @@ internal sealed class FileCopyPlanBuilder(
             }
 
             AddMaskedProviderPlanItems(
-                plan, location, source, normalizedSourcePath, item, targetPath, options.FileMask!, matcher, groups,
+                plan, location, source, normalizedSourcePath, item, targetPath, options.FileMask!, options.SymlinkMode, matcher, groups,
                 destination.SourceId,
                 validateTarget: path =>
                 {
@@ -100,7 +100,7 @@ internal sealed class FileCopyPlanBuilder(
                     root.Location.SourceId == PanelSourceId.Local
                         ? LocalFileSystemPathComparer.Current : StringComparer.Ordinal);
                 expanded.Add(ExpandProviderCopyItem(
-                    root, visiting, reportScanning, ref scannedFiles, ref scannedFolders, ref knownBytes, cancellationToken));
+                    root, visiting, options.SymlinkMode, reportScanning, ref scannedFiles, ref scannedFolders, ref knownBytes, cancellationToken));
             }
             return expanded;
         }
@@ -110,6 +110,7 @@ internal sealed class FileCopyPlanBuilder(
     private static ProviderOperationPlanItem ExpandProviderCopyItem(
         ProviderOperationPlanItem item,
         HashSet<string> visiting,
+        SymlinkCopyMode symlinkMode,
         Action<string, int, int, long>? reportScanning,
         ref int scannedFiles,
         ref int scannedFolders,
@@ -120,6 +121,19 @@ internal sealed class FileCopyPlanBuilder(
         if (item.Item is not { } sourceItem)
             return item;
 
+        bool isLink = IsLink(sourceItem);
+        if (isLink && symlinkMode == SymlinkCopyMode.CopyLink)
+        {
+            scannedFiles++;
+            reportScanning?.Invoke(item.SourcePath, scannedFiles, scannedFolders, knownBytes);
+            // The preview and execution both see a single link, never its target tree.
+            return item with { Mapping = item.Mapping with { IsDirectory = false } };
+        }
+
+        if (isLink && item.Source.SourceId != PanelSourceId.Local)
+            throw new NotSupportedException(
+                $"Provider '{item.Source.DisplayName}' cannot reliably resolve symbolic link targets.");
+
         if (!sourceItem.IsDirectory)
         {
             scannedFiles++;
@@ -128,9 +142,9 @@ internal sealed class FileCopyPlanBuilder(
             return item;
         }
 
-        string normalizedPath = item.Source.NormalizePath(item.SourcePath);
-        if (!visiting.Add(normalizedPath))
-            throw new IOException($"Cyclic provider directory traversal: {normalizedPath}");
+        string identity = GetDirectoryIdentity(item.Source, item.SourcePath);
+        if (!visiting.Add(identity))
+            throw new IOException($"Cyclic directory traversal through '{item.SourcePath}' (target '{identity}').");
 
         try
         {
@@ -148,14 +162,14 @@ internal sealed class FileCopyPlanBuilder(
                     child.Location, item.Source, item.Source.NormalizePath(child.SourcePath),
                     child, targetPath, item.Mapping.Destination.SourceId);
                 children.Add(ExpandProviderCopyItem(
-                    childPlan, visiting, reportScanning, ref scannedFiles, ref scannedFolders, ref knownBytes,
+                    childPlan, visiting, symlinkMode, reportScanning, ref scannedFiles, ref scannedFolders, ref knownBytes,
                     cancellationToken));
             }
             return item with { Children = children };
         }
         finally
         {
-            visiting.Remove(normalizedPath);
+            visiting.Remove(identity);
         }
     }
 
@@ -167,6 +181,7 @@ internal sealed class FileCopyPlanBuilder(
         FilePanelItem rootItem,
         string rootTargetPath,
         string fileMask,
+        SymlinkCopyMode symlinkMode,
         FarMaskMatcher matcher,
         IReadOnlyDictionary<string, MaskGroup> groups,
         PanelSourceId destinationSourceId,
@@ -174,18 +189,24 @@ internal sealed class FileCopyPlanBuilder(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!rootItem.IsDirectory)
+        if (!rootItem.IsDirectory || (IsLink(rootItem) && symlinkMode == SymlinkCopyMode.CopyLink))
         {
             if (matcher.IsMatch(fileMask, rootItem.Name, groups))
             {
                 validateTarget(rootTargetPath);
-                plan.Add(new ProviderOperationPlanItem(rootLocation, source, rootSourcePath, rootItem, rootTargetPath, destinationSourceId));
+                var linkPlan = new ProviderOperationPlanItem(
+                    rootLocation, source, rootSourcePath, rootItem, rootTargetPath, destinationSourceId);
+                plan.Add(IsLink(rootItem) && symlinkMode == SymlinkCopyMode.CopyLink
+                    ? linkPlan with { Mapping = linkPlan.Mapping with { IsDirectory = false } }
+                    : linkPlan);
             }
             return;
         }
 
         var files = new List<FilePanelItem>();
-        CollectMatchingProviderFiles(source, rootSourcePath, fileMask, matcher, groups, files, cancellationToken);
+        var visiting = new HashSet<string>(
+            source.SourceId == PanelSourceId.Local ? LocalFileSystemPathComparer.Current : StringComparer.Ordinal);
+        CollectMatchingProviderFiles(source, rootSourcePath, fileMask, symlinkMode, matcher, groups, files, visiting, cancellationToken);
         if (files.Count == 0)
             return;
 
@@ -195,7 +216,10 @@ internal sealed class FileCopyPlanBuilder(
             string sourcePath = source.NormalizePath(file.SourcePath);
             string relativePath = GetProviderRelativePath(source.SourceId, rootSourcePath, sourcePath);
             string targetPath = CombineProviderRelativePath(destinationSourceId, rootTargetPath, relativePath);
-            plan.Add(new ProviderOperationPlanItem(file.Location, source, sourcePath, file, targetPath, destinationSourceId));
+            var filePlan = new ProviderOperationPlanItem(file.Location, source, sourcePath, file, targetPath, destinationSourceId);
+            plan.Add(IsLink(file) && symlinkMode == SymlinkCopyMode.CopyLink
+                ? filePlan with { Mapping = filePlan.Mapping with { IsDirectory = false } }
+                : filePlan);
         }
     }
 
@@ -203,23 +227,79 @@ internal sealed class FileCopyPlanBuilder(
         IFilePanelSource source,
         string directoryPath,
         string fileMask,
+        SymlinkCopyMode symlinkMode,
         FarMaskMatcher matcher,
         IReadOnlyDictionary<string, MaskGroup> groups,
         List<FilePanelItem> files,
+        HashSet<string> visiting,
         CancellationToken cancellationToken)
     {
-        foreach (FilePanelItem child in source.EnumerateDirectory(directoryPath, cancellationToken).Where(item => !item.IsParentDirectory))
+        cancellationToken.ThrowIfCancellationRequested();
+        string identity = GetDirectoryIdentity(source, directoryPath);
+        if (!visiting.Add(identity))
+            throw new IOException($"Cyclic masked directory traversal through '{directoryPath}' (target '{identity}').");
+
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (child.IsDirectory)
+            foreach (FilePanelItem child in source.EnumerateDirectory(directoryPath, cancellationToken)
+                         .Where(item => !item.IsParentDirectory))
             {
-                CollectMatchingProviderFiles(source, child.SourcePath, fileMask, matcher, groups, files, cancellationToken);
-            }
-            else if (matcher.IsMatch(fileMask, child.Name, groups))
-            {
-                files.Add(child);
+                cancellationToken.ThrowIfCancellationRequested();
+                bool isLink = IsLink(child);
+                if (isLink && symlinkMode == SymlinkCopyMode.CopyLink)
+                {
+                    if (matcher.IsMatch(fileMask, child.Name, groups))
+                        files.Add(child);
+                }
+                else if (isLink && source.SourceId != PanelSourceId.Local)
+                {
+                    throw new NotSupportedException(
+                        $"Provider '{source.DisplayName}' cannot reliably resolve symbolic link targets.");
+                }
+                else if (child.IsDirectory)
+                {
+                    CollectMatchingProviderFiles(source, child.SourcePath, fileMask,
+                        symlinkMode, matcher, groups, files, visiting, cancellationToken);
+                }
+                else if (matcher.IsMatch(fileMask, child.Name, groups))
+                {
+                    files.Add(child);
+                }
             }
         }
+        finally { visiting.Remove(identity); }
+    }
+
+    private static bool IsLink(FilePanelItem item) =>
+        (item.Attributes & FileAttributes.ReparsePoint) != 0;
+
+    private static string GetDirectoryIdentity(IFilePanelSource source, string path)
+    {
+        if (source.SourceId != PanelSourceId.Local)
+            return source.NormalizePath(path);
+
+        // Resolve every symlinked path component: resolving only the final item
+        // misses aliases such as /root/link/child where child itself is ordinary.
+        string full = Path.GetFullPath(path);
+        string root = Path.GetPathRoot(full)
+            ?? throw new IOException($"Cannot determine filesystem root for '{path}'.");
+        string current = root;
+        foreach (string segment in full[root.Length..].Split(
+                     [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+                     StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = Path.Combine(current, segment);
+            var directory = new DirectoryInfo(current);
+            if (directory.LinkTarget is not null)
+            {
+                FileSystemInfo resolved = directory.ResolveLinkTarget(returnFinalTarget: true)
+                    ?? throw new IOException($"Cannot resolve symbolic link '{current}'.");
+                current = Path.GetFullPath(resolved.FullName);
+            }
+            if (!Directory.Exists(current))
+                throw new IOException($"Cannot traverse broken or inaccessible directory link '{current}'.");
+        }
+        return Path.TrimEndingDirectorySeparator(Path.GetFullPath(current));
     }
 
     private static string GetProviderRelativePath(PanelSourceId sourceId, string rootPath, string childPath)
