@@ -23,7 +23,7 @@ public partial class FileViewerTests
 
         FileViewerFor(screen).Show(path);
 
-        Assert.Contains("closed by f3", WrittenText(driver));
+        Assert.Contains("f3-close.txt", WrittenText(driver));
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public partial class FileViewerTests
         string path = Write("viewer-keybar-mouse-f4.txt", "A B", new UTF8Encoding(false));
         var driver = new FakeConsoleDriver(width: 120, height: 10);
         driver.EnqueueInput(LeftMouse(x: 30, y: 9));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current => WrittenText(current).Contains("HEX", StringComparison.Ordinal));
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
@@ -79,7 +79,9 @@ public partial class FileViewerTests
         string path = Write("viewer-wheel.txt", string.Join('\n', Enumerable.Range(1, 12).Select(i => $"line{i}")), new UTF8Encoding(false));
         var driver = new FakeConsoleDriver(width: 80, height: 8);
         driver.EnqueueInput(MouseWheelDown());
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6))
+                .Contains("line4", StringComparison.Ordinal));
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
@@ -93,7 +95,9 @@ public partial class FileViewerTests
         string path = Write("viewer-wheel-outside.txt", string.Join('\n', Enumerable.Range(1, 12).Select(i => $"line{i}")), new UTF8Encoding(false));
         var driver = new FakeConsoleDriver(width: 80, height: 8);
         driver.EnqueueInput(new MouseConsoleInputEvent(0, 7, MouseButton.WheelDown, MouseEventKind.Wheel, MouseKeyModifiers.None));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6))
+                .Contains("line1", StringComparison.Ordinal));
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
@@ -109,16 +113,28 @@ public partial class FileViewerTests
         string path = Write("viewer-wheel-keybar.txt", string.Join('\n', Enumerable.Range(1, 12).Select(i => $"line{i}")), new UTF8Encoding(false));
         var driver = new FakeConsoleDriver(width: 80, height: 8);
         var wheelRedrawWrites = Array.Empty<FakeConsoleDriver.WriteRecord>();
-        driver.BeforeReadInput = firstRead =>
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
         {
-            firstRead.ClearRecordedOperations();
-            firstRead.BeforeReadInput = secondRead =>
+            string content = current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
+            if (stage == 0 && content.Contains("line1", StringComparison.Ordinal))
             {
-                wheelRedrawWrites = secondRead.WriteRecords.ToArray();
-            };
+                current.ClearRecordedOperations();
+                current.EnqueueInput(MouseWheelDown());
+                stage = 1;
+            }
+            else if (stage == 1 && content.Contains("line4", StringComparison.Ordinal))
+            {
+                wheelRedrawWrites = current.WriteRecords.ToArray();
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 2;
+                return;
+            }
+
+            current.BeforeTryReadInput = advance;
         };
-        driver.EnqueueInput(MouseWheelDown());
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeTryReadInput = advance;
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
@@ -133,7 +149,9 @@ public partial class FileViewerTests
         File.WriteAllBytes(path, [0x41, 0x00, 0x42, 0x0A]);
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         driver.EnqueueKey(Key(ConsoleKey.H, 'h'));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8))
+                .Contains("A B", StringComparison.Ordinal));
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
@@ -158,7 +176,9 @@ public partial class FileViewerTests
         var driver = new FakeConsoleDriver(width: 8, height: 6);
         driver.EnqueueKey(Key(ConsoleKey.RightArrow));
         driver.EnqueueKey(Key(ConsoleKey.RightArrow));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            current.GetCell(0, 1).Character == 'A' &&
+            current.GetCell(1, 1).Character == 'B');
 
         FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
@@ -172,7 +192,9 @@ public partial class FileViewerTests
         string path = Write("wide-wrap.txt", "界AB", new UTF8Encoding(false));
         var driver = new FakeConsoleDriver(width: 3, height: 6);
         driver.EnqueueKey(Key(ConsoleKey.F2));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 3, 4))
+                .Contains("界A", StringComparison.Ordinal));
 
         FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
@@ -191,7 +213,7 @@ public partial class FileViewerTests
         driver.EnqueueKey(Key(ConsoleKey.F7));
         EnqueueText(driver, "target");
         driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current => WrittenText(current).Contains("FIND", StringComparison.Ordinal));
 
         FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
