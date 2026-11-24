@@ -34,6 +34,50 @@ internal sealed class LargeFileViewerState
 
     public bool IsHexMode => ViewMode == LargeFileViewMode.Hex;
 
+    public LargeFileViewerState CreateWorkingCopy()
+    {
+        var copy = new LargeFileViewerState(BlockCache, LineScanner)
+        {
+            TopByteOffset = TopByteOffset,
+            TopWrappedSegmentIndex = TopWrappedSegmentIndex,
+            HorizontalOffset = HorizontalOffset,
+            LiveMode = LiveMode,
+            WrapLines = WrapLines,
+            WordWrap = WordWrap,
+            ViewMode = ViewMode,
+            LastSearch = LastSearch,
+            SearchMatch = SearchMatch,
+            PresentationMode = PresentationMode,
+            LastViewportWidth = LastViewportWidth,
+            LastContentHeight = LastContentHeight,
+        };
+        copy.EncodingSelection = EncodingSelection;
+        copy.LineIndex = LineIndex.Clone();
+        return copy;
+    }
+
+    public void ApplyWorkingCopy(LargeFileViewerState copy)
+    {
+        ArgumentNullException.ThrowIfNull(copy);
+        if (!ReferenceEquals(BlockCache, copy.BlockCache) ||
+            !ReferenceEquals(LineScanner, copy.LineScanner))
+        {
+            throw new InvalidOperationException("Cannot apply a viewer working copy for different content.");
+        }
+
+        TopByteOffset = copy.TopByteOffset;
+        TopWrappedSegmentIndex = copy.TopWrappedSegmentIndex;
+        HorizontalOffset = copy.HorizontalOffset;
+        LiveMode = copy.LiveMode;
+        WrapLines = copy.WrapLines;
+        WordWrap = copy.WordWrap;
+        ViewMode = copy.ViewMode;
+        LastSearch = copy.LastSearch;
+        SearchMatch = copy.SearchMatch;
+        PresentationMode = copy.PresentationMode;
+        LineIndex = copy.LineIndex;
+    }
+
     public void ResetScanner(LineScanner lineScanner, TextEncodingSelection encodingSelection) =>
         ReplaceContent(BlockCache, lineScanner, encodingSelection);
 
