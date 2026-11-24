@@ -152,6 +152,22 @@ internal sealed class ViewerAsyncCoordinator : IDisposable
             handleError);
     }
 
+    public bool CancelLatest(string channel)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(channel);
+        CancellationTokenSource? cancellation;
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            if (!_latest.Remove(channel, out cancellation))
+                return false;
+        }
+
+        cancellation.Cancel();
+        cancellation.Dispose();
+        return true;
+    }
+
     public bool DrainUiCompletions()
     {
         Action[] completions;
