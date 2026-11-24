@@ -222,25 +222,30 @@ internal sealed class LocalFileMonitoringSession : IDisposable
         _monitor?.MarkDirty();
     }
 
+    public void DetectNotifications()
+    {
+        if (_monitor is null)
+            return;
+
+        long currentVersion = _monitor.ChangeVersion;
+        if (currentVersion == _observedChangeVersion)
+            return;
+
+        _observedChangeVersion = currentVersion;
+        PendingRefresh = true;
+    }
+
+    public void ObservePolledSnapshot(LocalFileSnapshot snapshot)
+    {
+        if (LocalFileMonitor.ShouldRefresh(AppliedSnapshot, snapshot, watcherDirty: false))
+            PendingRefresh = true;
+    }
+
     public void DetectChanges()
     {
-        bool notificationDirty = false;
-        if (_monitor is not null)
-        {
-            long currentVersion = _monitor.ChangeVersion;
-            notificationDirty = currentVersion != _observedChangeVersion;
-            _observedChangeVersion = currentVersion;
-        }
-
+        DetectNotifications();
         if (LocalFileMonitor.TryCaptureSnapshot(_filePath, out LocalFileSnapshot snapshot))
-        {
-            if (LocalFileMonitor.ShouldRefresh(AppliedSnapshot, snapshot, notificationDirty))
-                PendingRefresh = true;
-            return;
-        }
-
-        if (notificationDirty)
-            PendingRefresh = true;
+            ObservePolledSnapshot(snapshot);
     }
 
     public long BeginRefresh()
