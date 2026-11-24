@@ -364,7 +364,7 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         var state = new LargeFileViewerState(firstCache, firstScanner);
         IReadOnlyList<ScannedLine> firstLines = (await firstScanner.ReadLinesAsync(0, 3, 256)).Lines;
         Assert.StartsWith("│", (await state.Presentation.PresentAsync(
-            ViewerPresentationMode.Auto, "cache.md", firstScanner, firstLines, 80)[2].Text);
+            ViewerPresentationMode.Auto, "cache.md", firstScanner, firstLines, 80))[2].Text);
 
         var secondReader = new MemoryFileByteReader(Encoding.UTF8.GetBytes("| C | D |\n"));
         var secondCache = new BlockCache(secondReader, blockSize: 64, capacity: 8);
@@ -372,7 +372,7 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         state.ResetScanner(secondScanner, secondScanner.Detection.Selection);
         ScannedLine secondLine = (await secondScanner.ReadLinesAsync(0, 1, 256)).Lines.Single();
 
-        PresentedLine result = state.Presentation.Present(
+        PresentedLine result = (await state.Presentation.PresentAsync(
             ViewerPresentationMode.Auto, "cache.md", secondScanner, [secondLine], 80)).Single();
 
         Assert.Equal(secondLine.Text, result.Text);
