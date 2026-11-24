@@ -173,7 +173,18 @@ internal sealed class ViewerPresentationSession
         string sourcePath,
         LineScanner scanner,
         IReadOnlyList<ScannedLine> visibleLines,
-        int viewportWidth)
+        int viewportWidth) =>
+        PresentAsync(mode, sourcePath, scanner, visibleLines, viewportWidth)
+            .GetAwaiter()
+            .GetResult();
+
+    public async Task<IReadOnlyList<PresentedLine>> PresentAsync(
+        ViewerPresentationMode mode,
+        string sourcePath,
+        LineScanner scanner,
+        IReadOnlyList<ScannedLine> visibleLines,
+        int viewportWidth,
+        CancellationToken cancellationToken = default)
     {
         if (visibleLines.Count == 0 || mode == ViewerPresentationMode.Raw)
             return Raw(visibleLines);
@@ -187,8 +198,13 @@ internal sealed class ViewerPresentationSession
 
         try
         {
-            IReadOnlyList<ScannedLine> before = ReadBoundedContextBefore(scanner, visibleLines[0].StartOffset);
-            IReadOnlyList<ScannedLine> after = ReadBoundedContextAfter(scanner, visibleLines[^1].NextOffset);
+            IReadOnlyList<ScannedLine> before = await ReadBoundedContextBeforeAsync(
+                    scanner, visibleLines[0].StartOffset, cancellationToken)
+                .ConfigureAwait(false);
+            IReadOnlyList<ScannedLine> after = await ReadBoundedContextAfterAsync(
+                    scanner, visibleLines[^1].NextOffset, cancellationToken)
+                .ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             var context = new ViewerPresentationContext(visibleLines, before, after, viewportWidth);
             var presented = _provider.Present(context);
             if (presented.Count != visibleLines.Count)
@@ -196,6 +212,10 @@ internal sealed class ViewerPresentationSession
 
             CachePresentedLines(mode, sourcePath, scanner, presented, viewportWidth);
             return presented;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {
@@ -328,7 +348,10 @@ internal sealed class ViewerPresentationSession
         PresentationCacheKey Key,
         PresentedLine Line);
 
-    private static IReadOnlyList<ScannedLine> ReadBoundedContextBefore(LineScanner scanner, long firstVisibleOffset)
+    private static async Task<IReadOnlyList<ScannedLine>> ReadBoundedContextBeforeAsync(
+        LineScanner scanner,
+        long firstVisibleOffset,
+        CancellationToken cancellationToken)
     {
         if (firstVisibleOffset <= scanner.ContentStartOffset)
             return [];
@@ -339,11 +362,11 @@ internal sealed class ViewerPresentationSession
 
         while (reversed.Count < MaxContextLines && inspectedBytes < MaxContextBytes)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             int remaining = MaxContextBytes - inspectedBytes;
-            long? previous = scanner
-                .TryFindPreviousLineStartAsync(current, remaining)
-                .GetAwaiter()
-                .GetResult();
+            long? previous = await scanner
+                .TryFindPreviousLineStartAsync(current, remaining, cancellationToken)
+                .ConfigureAwait(false);
             if (previous is null || previous.Value >= current)
                 break;
 
@@ -351,10 +374,13 @@ internal sealed class ViewerPresentationSession
             if (byteLength > remaining)
                 break;
 
-            var scanned = scanner
-                .ReadLinesAsync(previous.Value, 1, Math.Min(MaxContextLineBytes, remaining))
-                .GetAwaiter()
-                .GetResult();
+            ScannedLines scanned = await scanner
+                .ReadLinesAsync(
+                    previous.Value,
+                    1,
+                    Math.Min(MaxContextLineBytes, remaining),
+                    cancellationToken)
+                .ConfigureAwait(false);
             if (scanned.Lines.Count == 0 || scanned.Lines[0].NextOffset > current)
                 break;
 
@@ -367,34 +393,41 @@ internal sealed class ViewerPresentationSession
         return reversed;
     }
 
-    private static IReadOnlyList<ScannedLine> ReadBoundedContextAfter(LineScanner scanner, long firstOffset)
-{
-    var result = new List<ScannedLine>(MaxLookAheadLines);
-    long current = firstOffset;
-    int inspectedBytes = 0;
-
-    while (result.Count < MaxLookAheadLines && inspectedBytes < MaxLookAheadBytes)
+    private static async Task<IReadOnlyList<ScannedLine>> ReadBoundedContextAfterAsync(
+        LineScanner scanner,
+        long firstOffset,
+        CancellationToken cancellationToken)
     {
-        int remaining = MaxLookAheadBytes - inspectedBytes;
-        var scanned = scanner
-            .ReadLinesAsync(current, 1, Math.Min(MaxContextLineBytes, remaining))
-            .GetAwaiter()
-            .GetResult();
-        if (scanned.Lines.Count == 0)
-            break;
+        var result = new List<ScannedLine>(MaxLookAheadLines);
+        long current = firstOffset;
+        int inspectedBytes = 0;
 
-        ScannedLine line = scanned.Lines[0];
-        long byteLength = line.NextOffset - line.StartOffset;
-        if (line.StartOffset != current || line.NextOffset <= current || byteLength > remaining)
-            break;
+        while (result.Count < MaxLookAheadLines && inspectedBytes < MaxLookAheadBytes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int remaining = MaxLookAheadBytes - inspectedBytes;
+            ScannedLines scanned = await scanner
+                .ReadLinesAsync(
+                    current,
+                    1,
+                    Math.Min(MaxContextLineBytes, remaining),
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (scanned.Lines.Count == 0)
+                break;
 
-        result.Add(line);
-        inspectedBytes += checked((int)byteLength);
-        current = line.NextOffset;
+            ScannedLine line = scanned.Lines[0];
+            long byteLength = line.NextOffset - line.StartOffset;
+            if (line.StartOffset != current || line.NextOffset <= current || byteLength > remaining)
+                break;
+
+            result.Add(line);
+            inspectedBytes += checked((int)byteLength);
+            current = line.NextOffset;
+        }
+
+        return result;
     }
-
-    return result;
-}
 
     private static IReadOnlyList<PresentedLine> Raw(IReadOnlyList<ScannedLine> source) =>
         source.Select(PresentedLine.Raw).ToArray();
