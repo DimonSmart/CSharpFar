@@ -25,6 +25,47 @@ public partial class FileViewerTests
     }
 
     [Fact]
+    public void LocalViewer_FileChangeDuringInitialReadRetriesWithCurrentContent()
+    {
+        string path = Write("local-initial-change.txt", "OLD", new UTF8Encoding(false));
+        var readerFactory = new ChangingInitialLocalFileByteReaderFactory();
+        var driver = new FakeConsoleDriver(width: 80, height: 10);
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            if (stage == 0)
+            {
+                if (!readerFactory.Current.ReadStarted.Task.Wait(TimeSpan.FromSeconds(5)))
+                    throw new TimeoutException("Initial viewer read did not start.");
+
+                File.WriteAllText(path, "NEW-CONTENT", new UTF8Encoding(false));
+                readerFactory.Current.CompleteFirstRead("OLD"u8.ToArray());
+                stage = 1;
+            }
+            else if (stage == 1 &&
+                current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8))
+                    .Contains("NEW-CONTENT", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 2;
+                return;
+            }
+
+            current.BeforeTryReadInput = advance;
+        };
+        driver.BeforeTryReadInput = advance;
+
+        FileViewerFor(
+            new ScreenRenderer(driver),
+            localFileMonitorFactory: null,
+            localFileByteReaderFactory: readerFactory).Show(path);
+
+        Assert.True(readerFactory.Current.ReadCount >= 2);
+        Assert.Contains("NEW-CONTENT", WrittenText(driver));
+    }
+
+    [Fact]
     public void VirtualViewer_SlowRenderDoesNotBlockClose()
     {
         byte[] data = Enumerable.Repeat((byte)'x', BlockCache.DefaultBlockSize + 4096).ToArray();
@@ -256,6 +297,75 @@ public partial class FileViewerTests
         };
 
         driver.BeforeTryReadInput = poll;
+    }
+
+    private sealed class ChangingInitialLocalFileByteReaderFactory : ILocalFileByteReaderFactory
+    {
+        public ChangingInitialLocalFileByteReader Current { get; private set; } = null!;
+
+        public ILocalFileByteReader Create(string filePath)
+        {
+            Current = new ChangingInitialLocalFileByteReader(filePath);
+            return Current;
+        }
+    }
+
+    private sealed class ChangingInitialLocalFileByteReader(string filePath) : ILocalFileByteReader
+    {
+        private readonly RandomAccessFileByteReader _inner = new(filePath);
+        private readonly object _gate = new();
+        private Memory<byte> _firstBuffer;
+        private TaskCompletionSource<int>? _firstCompletion;
+        private int _readCount;
+
+        public TaskCompletionSource<bool> ReadStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public long Length => _inner.Length;
+        public int TransientFailureVersion => _inner.TransientFailureVersion;
+        public int ReadCount => Volatile.Read(ref _readCount);
+
+        public Task<int> ReadAsync(
+            long offset,
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            int sequence = Interlocked.Increment(ref _readCount);
+            if (sequence != 1)
+                return _inner.ReadAsync(offset, buffer, cancellationToken);
+
+            var completion = new TaskCompletionSource<int>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_gate)
+            {
+                _firstBuffer = buffer;
+                _firstCompletion = completion;
+            }
+
+            cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
+            ReadStarted.TrySetResult(true);
+            return completion.Task;
+        }
+
+        public void CompleteFirstRead(byte[] bytes)
+        {
+            TaskCompletionSource<int> completion;
+            Memory<byte> buffer;
+            lock (_gate)
+            {
+                completion = _firstCompletion
+                    ?? throw new InvalidOperationException("The first read has not started.");
+                buffer = _firstBuffer;
+            }
+
+            int count = Math.Min(bytes.Length, buffer.Length);
+            bytes.AsMemory(0, count).CopyTo(buffer);
+            completion.TrySetResult(count);
+        }
+
+        public void UpdateKnownLength(long length) => _inner.UpdateKnownLength(length);
+
+        public void Dispose() => _inner.Dispose();
     }
 
     private sealed class PendingLocalFileByteReaderFactory : ILocalFileByteReaderFactory
