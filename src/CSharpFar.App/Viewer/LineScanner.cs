@@ -39,6 +39,16 @@ internal sealed class LineScanner
     public string EncodingDisplayName => Detection.DisplayName;
     public int NewLineWidth => _isUtf16 ? 2 : 1;
 
+    public static LineScanner CreateLoading(
+        BlockCache cache,
+        IFileByteReader reader)
+    {
+        var detection = TextEncodingDetector.Detect(
+            ReadOnlySpan<byte>.Empty,
+            encodingSelection: null);
+        return new LineScanner(cache, reader, detection);
+    }
+
     public static async Task<LineScanner> CreateAsync(
         BlockCache cache,
         IFileByteReader reader,
