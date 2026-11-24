@@ -15,19 +15,31 @@ internal sealed partial class LargeFileViewer
 
         long stateVersion = _async.StateVersion;
         BlockCache cache = state.BlockCache;
-        LocalFileSnapshot? expectedSnapshot = localSession?.AppliedSnapshot;
         _async.StartLatest(
             "initial",
             stateVersion,
             async cancellationToken =>
             {
+                LocalFileSnapshot? before = null;
+                if (localSession is not null)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!LocalFileMonitor.TryCaptureSnapshot(sourcePath, out LocalFileSnapshot current))
+                        throw new IOException("Could not read the current file state.");
+                    if (!current.Exists)
+                        throw new FileNotFoundException("File not found.", sourcePath);
+
+                    before = current;
+                    localSession.Reader.UpdateKnownLength(current.Length);
+                }
+
                 LineScanner scanner = await LineScanner.CreateAsync(
                         cache,
                         reader,
                         cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
 
-                if (expectedSnapshot is null || localSession is null)
+                if (before is null || localSession is null)
                     return new InitialContentResult(scanner, null, Retry: false);
 
                 cancellationToken.ThrowIfCancellationRequested();
@@ -36,7 +48,7 @@ internal sealed partial class LargeFileViewer
                 if (!after.Exists)
                     throw new FileNotFoundException("File not found.", sourcePath);
 
-                return after == expectedSnapshot.Value
+                return after == before.Value
                     ? new InitialContentResult(scanner, after, Retry: false)
                     : new InitialContentResult(null, after, Retry: true);
             },
@@ -44,12 +56,6 @@ internal sealed partial class LargeFileViewer
             {
                 if (result.Retry)
                 {
-                    if (localSession is not null && result.Snapshot is { } snapshot)
-                    {
-                        localSession.Reader.UpdateKnownLength(snapshot.Length);
-                        localSession.Commit(snapshot, refreshVersion: 0);
-                    }
-
                     cache.Clear();
                     StartInitialContentLoad(sourcePath, reader, state, localSession);
                     return;
