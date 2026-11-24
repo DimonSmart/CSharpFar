@@ -1,5 +1,4 @@
 using System.Globalization;
-using CSharpFar.Ui;
 
 namespace CSharpFar.App.Viewer;
 
@@ -9,6 +8,7 @@ internal sealed partial class LargeFileViewer
     private ViewerPreparedContent? _preparedRenderContent;
 
     private ViewerPreparedContent? GetOrRequestRenderContent(
+        string sourcePath,
         IFileByteReader reader,
         LargeFileViewerState state,
         int contentHeight,
@@ -16,6 +16,7 @@ internal sealed partial class LargeFileViewer
     {
         long length = reader.Length;
         var key = new ViewerRenderKey(
+            sourcePath,
             state.LineScanner,
             state.BlockCache,
             state.TopByteOffset,
@@ -24,6 +25,8 @@ internal sealed partial class LargeFileViewer
             state.ViewMode,
             state.WrapLines,
             state.WordWrap,
+            state.PresentationMode,
+            state.SearchMatch,
             Math.Max(0, contentHeight),
             Math.Max(0, width),
             length);
@@ -41,7 +44,7 @@ internal sealed partial class LargeFileViewer
         _async.StartLatest(
             "render",
             version,
-            cancellationToken => PrepareRenderContentAsync(key, reader, state, cancellationToken),
+            cancellationToken => PrepareRenderContentAsync(key, cancellationToken),
             prepared =>
             {
                 if (prepared.Key != _requestedRenderKey)
@@ -60,8 +63,6 @@ internal sealed partial class LargeFileViewer
 
     private async Task<ViewerPreparedContent> PrepareRenderContentAsync(
         ViewerRenderKey key,
-        IFileByteReader reader,
-        LargeFileViewerState state,
         CancellationToken cancellationToken)
     {
         if (key.ViewMode == LargeFileViewMode.Hex)
@@ -98,6 +99,8 @@ internal sealed partial class LargeFileViewer
             return new ViewerPreparedHexContent(key, rows, nextOffset);
         }
 
+        var presentation = new ViewerPresentationSession();
+
         if (!key.WrapLines)
         {
             int bytesPerLine = Math.Max(256, (key.HorizontalOffset + key.Width + 32) * 4);
@@ -108,11 +111,22 @@ internal sealed partial class LargeFileViewer
                     bytesPerLine,
                     cancellationToken)
                 .ConfigureAwait(false);
-            return new ViewerPreparedTextContent(key, scanned);
+            IReadOnlyList<PresentedLine> presented = await presentation
+                .PresentAsync(
+                    key.PresentationMode,
+                    key.SourcePath,
+                    key.Scanner,
+                    scanned.Lines,
+                    key.Width,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            var resolved = presented
+                .Select(line => ResolvePresentationForSearch(line, key.SearchMatch))
+                .ToArray();
+            return new ViewerPreparedTextContent(key, scanned, resolved);
         }
 
         List<ScannedLine> candidates = await ReadWrappedCandidateLinesAsync(
-                reader,
                 key.Scanner,
                 key.TopByteOffset,
                 key.ContentHeight,
@@ -120,13 +134,16 @@ internal sealed partial class LargeFileViewer
                 cancellationToken)
             .ConfigureAwait(false);
 
+        var layouts = new Dictionary<long, WrappedLineLayout>();
         var streaming = new Dictionary<long, LongWrappedLineLayout>();
         bool firstPhysicalLine = true;
-        foreach (ScannedLine line in candidates)
+        int index = 0;
+        while (index < candidates.Count)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (RequiresStreamingWrappedLayout(line))
+            if (RequiresStreamingWrappedLayout(candidates[index]))
             {
+                ScannedLine line = candidates[index];
                 int firstSegment = firstPhysicalLine
                     ? Math.Max(0, key.TopWrappedSegmentIndex)
                     : 0;
@@ -139,16 +156,44 @@ internal sealed partial class LargeFileViewer
                     .VisitLineTextChunksAsync(line, builder.Append, cancellationToken)
                     .ConfigureAwait(false);
                 streaming[line.StartOffset] = builder.Complete();
+                firstPhysicalLine = false;
+                index++;
+                continue;
             }
 
-            firstPhysicalLine = false;
+            int groupStart = index;
+            while (index < candidates.Count && !RequiresStreamingWrappedLayout(candidates[index]))
+                index++;
+
+            ScannedLine[] group = candidates
+                .Skip(groupStart)
+                .Take(index - groupStart)
+                .ToArray();
+            IReadOnlyList<PresentedLine> presented = await presentation
+                .PresentAsync(
+                    key.PresentationMode,
+                    key.SourcePath,
+                    key.Scanner,
+                    group,
+                    key.Width,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            for (int i = 0; i < group.Length; i++)
+            {
+                PresentedLine resolved = ResolvePresentationForSearch(presented[i], key.SearchMatch);
+                layouts[group[i].StartOffset] = CreateWrappedLineLayout(
+                    resolved,
+                    key.WordWrap,
+                    key.Width);
+                firstPhysicalLine = false;
+            }
         }
 
-        return new ViewerPreparedWrappedContent(key, candidates, streaming);
+        return new ViewerPreparedWrappedContent(key, candidates, layouts, streaming);
     }
 
     private static async Task<List<ScannedLine>> ReadWrappedCandidateLinesAsync(
-        IFileByteReader reader,
         LineScanner scanner,
         long topByteOffset,
         int contentHeight,
@@ -214,11 +259,13 @@ internal sealed partial class LargeFileViewer
 
     private sealed record ViewerPreparedTextContent(
         ViewerRenderKey Key,
-        ScannedLines Scanned) : ViewerPreparedContent(Key);
+        ScannedLines Scanned,
+        IReadOnlyList<PresentedLine> Presented) : ViewerPreparedContent(Key);
 
     private sealed record ViewerPreparedWrappedContent(
         ViewerRenderKey Key,
         IReadOnlyList<ScannedLine> Lines,
+        IReadOnlyDictionary<long, WrappedLineLayout> Layouts,
         IReadOnlyDictionary<long, LongWrappedLineLayout> StreamingLayouts) : ViewerPreparedContent(Key);
 
     private sealed record ViewerPreparedHexContent(
@@ -227,6 +274,7 @@ internal sealed partial class LargeFileViewer
         long NextOffset) : ViewerPreparedContent(Key);
 
     private sealed record ViewerRenderKey(
+        string SourcePath,
         LineScanner Scanner,
         BlockCache Cache,
         long TopByteOffset,
@@ -235,6 +283,8 @@ internal sealed partial class LargeFileViewer
         LargeFileViewMode ViewMode,
         bool WrapLines,
         bool WordWrap,
+        ViewerPresentationMode PresentationMode,
+        ViewerSearchMatch? SearchMatch,
         int ContentHeight,
         int Width,
         long Length);
