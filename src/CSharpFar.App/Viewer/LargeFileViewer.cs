@@ -34,6 +34,7 @@ internal sealed partial class LargeFileViewer
     private readonly ILocalFileByteReaderFactory _localFileByteReaderFactory;
     private readonly ViewerLayoutCache<WrappedLayoutCacheKey, WrappedLineLayout> _wrappedLayoutCache =
         new(MaxWrappedLayoutCacheEntries);
+    private readonly ViewerAsyncCoordinator _async = new();
     private LargeFileViewerState? _layoutCacheState;
     private LineScanner? _layoutCacheScanner;
     private MaximumViewportCacheEntry? _maximumViewportCache;
@@ -65,7 +66,10 @@ internal sealed partial class LargeFileViewer
 
         try
         {
+            _async.BeginSession();
             session = OpenViewerFile(filePath);
+            if (session is null)
+                return;
 
             while (true)
             {
@@ -102,7 +106,10 @@ internal sealed partial class LargeFileViewer
                 session = null;
 
                 filePath = nextPath;
+                _async.BeginSession();
                 session = OpenViewerFile(filePath);
+                if (session is null)
+                    return;
                 session.State.PresentationMode = presentationMode;
                 options.CurrentFileChanged?.Invoke(filePath);
             }
@@ -114,6 +121,7 @@ internal sealed partial class LargeFileViewer
         finally
         {
             session?.Dispose();
+            _async.Dispose();
         }
     }
 
@@ -123,6 +131,7 @@ internal sealed partial class LargeFileViewer
 
         try
         {
+            _async.BeginSession();
             var cache = new BlockCache(reader);
             LineScanner? scanner = CreateVirtualScanner(cache, reader);
             if (scanner is null)
@@ -146,6 +155,10 @@ internal sealed partial class LargeFileViewer
         catch (Exception ex)
         {
             _dialogs.Message("Viewer", ex.Message);
+        }
+        finally
+        {
+            _async.Dispose();
         }
     }
 
@@ -182,7 +195,7 @@ internal sealed partial class LargeFileViewer
             });
     }
 
-    private LocalViewerSession OpenViewerFile(string filePath)
+    private LocalViewerSession? OpenViewerFile(string filePath)
     {
         ILocalFileByteReader reader = _localFileByteReaderFactory.Create(filePath);
         try
@@ -191,7 +204,13 @@ internal sealed partial class LargeFileViewer
                 throw new FileNotFoundException("File not found.", filePath);
 
             var cache = new BlockCache(reader);
-            var scanner = LineScanner.CreateAsync(cache, reader).GetAwaiter().GetResult();
+            LineScanner? scanner = CreateVirtualScanner(cache, reader);
+            if (scanner is null)
+            {
+                reader.Dispose();
+                return null;
+            }
+
             var state = new LargeFileViewerState(cache, scanner);
             if (state.IsHexMode)
                 state.TopByteOffset = 0;
