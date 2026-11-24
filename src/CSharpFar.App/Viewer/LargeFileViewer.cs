@@ -198,39 +198,102 @@ internal sealed partial class LargeFileViewer
 
     private LocalViewerSession? OpenViewerFile(string filePath)
     {
-        ILocalFileByteReader reader = _localFileByteReaderFactory.Create(filePath);
-        try
-        {
-            if (!LocalFileMonitor.TryCaptureSnapshot(filePath, out LocalFileSnapshot before) || !before.Exists)
-                throw new FileNotFoundException("File not found.", filePath);
+        var gate = new object();
+        bool abandoned = false;
+        LocalViewerSession? prepared = null;
 
-            var cache = new BlockCache(reader);
-            LineScanner? scanner = CreateVirtualScanner(cache, reader);
-            if (scanner is null)
+        return _dialogs.Operation<string, LocalViewerSession?, LocalViewerSession?>(
+            new OperationDialogDefinition<string, LocalViewerSession?, LocalViewerSession?>
             {
-                reader.Dispose();
-                return null;
-            }
+                Title = "Opening viewer",
+                PreferredWidth = 54,
+                PreferredHeight = 8,
+                MinWidth = 30,
+                MinHeight = 8,
+                Operation = async cancellationToken =>
+                {
+                    await Task.Yield();
+                    ILocalFileByteReader? reader = null;
+                    try
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        reader = _localFileByteReaderFactory.Create(filePath);
+                        if (!LocalFileMonitor.TryCaptureSnapshot(
+                                filePath,
+                                out LocalFileSnapshot before) ||
+                            !before.Exists)
+                        {
+                            throw new FileNotFoundException("File not found.", filePath);
+                        }
 
-            var state = new LargeFileViewerState(cache, scanner);
-            if (state.IsHexMode)
-                state.TopByteOffset = 0;
+                        reader.UpdateKnownLength(before.Length);
+                        var cache = new BlockCache(reader);
+                        LineScanner scanner = await LineScanner
+                            .CreateAsync(cache, reader, cancellationToken: cancellationToken)
+                            .ConfigureAwait(false);
+                        var state = new LargeFileViewerState(cache, scanner);
+                        if (state.IsHexMode)
+                            state.TopByteOffset = 0;
 
-            LocalFileSnapshot applied = before;
-            if (LocalFileMonitor.TryCaptureSnapshot(filePath, out LocalFileSnapshot after) && after.Exists)
-                applied = after;
+                        LocalFileSnapshot applied = before;
+                        if (LocalFileMonitor.TryCaptureSnapshot(
+                                filePath,
+                                out LocalFileSnapshot after) &&
+                            after.Exists)
+                        {
+                            applied = after;
+                            reader.UpdateKnownLength(after.Length);
+                        }
 
-            return new LocalViewerSession(
-                filePath,
-                reader,
-                state,
-                new LocalFileMonitoringSession(filePath, applied, _localFileMonitorFactory));
-        }
-        catch
-        {
-            reader.Dispose();
-            throw;
-        }
+                        var session = new LocalViewerSession(
+                            filePath,
+                            reader,
+                            state,
+                            new LocalFileMonitoringSession(
+                                filePath,
+                                applied,
+                                _localFileMonitorFactory));
+                        reader = null; // Session owns it from here.
+
+                        lock (gate)
+                        {
+                            if (abandoned)
+                            {
+                                session.Dispose();
+                                return null;
+                            }
+
+                            prepared = session;
+                            return session;
+                        }
+                    }
+                    catch
+                    {
+                        reader?.Dispose();
+                        throw;
+                    }
+                },
+                Synchronize = () => new OperationDialogState<string>(
+                    status: $"Opening {Path.GetFileName(filePath)}... (Esc to cancel)"),
+                HandleCancel = () =>
+                {
+                    lock (gate)
+                    {
+                        abandoned = true;
+                        prepared?.Dispose();
+                        prepared = null;
+                    }
+
+                    return OperationDialogOutcome<LocalViewerSession?>.Complete(null);
+                },
+                HandleOperationCompleted = session =>
+                {
+                    lock (gate)
+                        prepared = null;
+                    return OperationDialogOutcome<LocalViewerSession?>.Complete(session);
+                },
+                Complete = session => session,
+            });
     }
 
     private DateTimeOffset? GetNextViewerWakeUtc(LargeFileViewerState state)
