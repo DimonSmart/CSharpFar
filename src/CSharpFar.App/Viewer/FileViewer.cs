@@ -37,12 +37,6 @@ internal sealed class FileViewer
 
     public void Show(string filePath)
     {
-        if (!File.Exists(filePath))
-        {
-            _dialogs.Message("Viewer", "File not found.");
-            return;
-        }
-
         new LargeFileViewer(
             _surfaces,
             _modalDialogs,
@@ -55,12 +49,6 @@ internal sealed class FileViewer
 
     internal void Show(string filePath, LargeFileViewerOptions options)
     {
-        if (!File.Exists(filePath))
-        {
-            _dialogs.Message("Viewer", "File not found.");
-            return;
-        }
-
         new LargeFileViewer(
             _surfaces,
             _modalDialogs,
