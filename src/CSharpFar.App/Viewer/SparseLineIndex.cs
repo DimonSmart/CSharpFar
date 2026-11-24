@@ -49,6 +49,13 @@ internal sealed class SparseLineIndex
             _checkpoints.Add(new SparseLineCheckpoint(lineNumber, byteOffset));
     }
 
+    public SparseLineIndex Clone()
+    {
+        var clone = new SparseLineIndex(_lineInterval, _byteInterval);
+        clone._checkpoints.AddRange(_checkpoints);
+        return clone;
+    }
+
     public SparseLineCheckpoint FindNearestLine(long lineNumber)
     {
         if (lineNumber <= 1 || _checkpoints.Count == 0)
