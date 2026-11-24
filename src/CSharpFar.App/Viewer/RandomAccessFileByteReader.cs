@@ -5,6 +5,8 @@ namespace CSharpFar.App.Viewer;
 internal interface ILocalFileByteReader : IFileByteReader, IDisposable
 {
     int TransientFailureVersion { get; }
+
+    void UpdateKnownLength(long length);
 }
 
 internal interface ILocalFileByteReaderFactory
@@ -41,22 +43,12 @@ internal sealed class RandomAccessFileByteReader : ILocalFileByteReader
 
     public int TransientFailureVersion => Volatile.Read(ref _transientFailureVersion);
 
-    public long Length
+    public long Length => Volatile.Read(ref _lastKnownLength);
+
+    public void UpdateKnownLength(long length)
     {
-        get
-        {
-            try
-            {
-                long length = GetLengthCore();
-                Volatile.Write(ref _lastKnownLength, length);
-                return length;
-            }
-            catch (Exception ex) when (IsTransientFileAccess(ex))
-            {
-                Interlocked.Increment(ref _transientFailureVersion);
-                return Volatile.Read(ref _lastKnownLength);
-            }
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(length);
+        Volatile.Write(ref _lastKnownLength, length);
     }
 
     public Task<int> ReadAsync(
