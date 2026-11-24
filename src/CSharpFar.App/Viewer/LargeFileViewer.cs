@@ -724,7 +724,7 @@ internal sealed partial class LargeFileViewer
         LargeFileRenderView view;
         if (prepared is null)
         {
-            DrawLoadingContent(canvas, contentHeight, size.Width);
+            DrawLoadingContent(canvas, contentHeight, size.Width, RenderPlaceholder);
             view = new LargeFileRenderView([], state.TopByteOffset, []);
         }
         else
@@ -786,11 +786,11 @@ internal sealed partial class LargeFileViewer
         return ConsoleTextMetrics.TruncateEndToCells(text, width);
     }
 
-    private void DrawLoadingContent(IUiCanvas canvas, int contentHeight, int width)
+    private void DrawLoadingContent(IUiCanvas canvas, int contentHeight, int width, string placeholder)
     {
         string loading = width <= 0
             ? string.Empty
-            : ConsoleTextMetrics.FitToCells(" Loading...", width);
+            : ConsoleTextMetrics.FitToCells(placeholder, width);
         for (int row = 0; row < contentHeight; row++)
         {
             string text = row == 0 ? loading : string.Empty;
