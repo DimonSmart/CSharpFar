@@ -56,7 +56,7 @@ public partial class FileViewerTests
         var scanner = await LineScanner.CreateAsync(cache, reader);
         var state = new LargeFileViewerState(cache, scanner);
 
-        var match = ViewerSearchEngine.Find(
+        var match = await ViewerSearchEngine.FindAsync(
             reader,
             state,
             new ViewerSearchRequest("enginehit", CaseSensitive: false, WholeWords: false, UseRegex: false, SearchHex: false),
