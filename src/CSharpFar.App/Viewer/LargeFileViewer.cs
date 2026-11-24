@@ -1286,66 +1286,7 @@ internal sealed partial class LargeFileViewer
         bool searchBackward,
         int width)
     {
-        ViewerSearchMatch? match;
-        try
-        {
-            match = ViewerSearchEngine.Find(reader, state, request, searchBackward);
-        }
-        catch (ArgumentException ex)
-        {
-            _dialogs.Message("Find", ex.Message);
-            return;
-        }
-
-        if (match is null)
-        {
-            _dialogs.Message("Find", "Text not found.");
-            return;
-        }
-
-        state.LastSearch = request;
-        state.SearchMatch = match;
-        state.TopByteOffset = match.TopByteOffset;
-        state.TopWrappedSegmentIndex = 0;
-        if (state.LiveMode == ViewerLiveMode.Tail)
-            state.LiveMode = ViewerLiveMode.Watch;
-
-        if (!match.IsHex && !state.WrapLines)
-        {
-            int captureCharacters = Math.Min(1_000_000, match.CharacterIndex + match.CharacterLength + 32);
-            var scanned = state.LineScanner
-                .ReadLinesAsync(match.LineStartOffset, 1, Math.Max(256, captureCharacters * 4))
-                .GetAwaiter()
-                .GetResult();
-            int matchCell = match.CharacterIndex;
-            if (scanned.Lines.Count > 0)
-            {
-                var presented = state.Presentation.Present(
-                    state.PresentationMode,
-                    filePath,
-                    state.LineScanner,
-                    scanned.Lines,
-                    width)[0];
-                presented = ResolvePresentationForSearch(presented, match);
-                if (presented.TryMapSourceRange(
-                        match.CharacterIndex,
-                        match.CharacterLength,
-                        out int presentedMatchStart,
-                        out _))
-                {
-                    matchCell = new ViewerTextLayout(presented.Text)
-                        .CellOffsetFromSourceIndex(presentedMatchStart);
-                }
-            }
-
-            int rightEdge = state.HorizontalOffset + Math.Max(1, width);
-            if (matchCell < state.HorizontalOffset || matchCell >= rightEdge)
-                state.HorizontalOffset = Math.Max(0, matchCell - 4);
-        }
-        else if (match.IsHex)
-        {
-            state.ViewMode = LargeFileViewMode.Hex;
-        }
+        StartSearch(filePath, reader, state, request, searchBackward, width);
     }
 
     private void CopySearchMatch(LargeFileViewerState state, LargeFileViewerOptions options)
