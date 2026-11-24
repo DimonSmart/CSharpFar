@@ -30,6 +30,13 @@ internal sealed class ViewerAsyncCoordinator : IDisposable
         }
     }
 
+    public bool IsChannelPending(string channel)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(channel);
+        lock (_gate)
+            return _latest.ContainsKey(channel);
+    }
+
     public void BeginSession()
     {
         CancellationTokenSource oldSession;
