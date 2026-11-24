@@ -147,6 +147,146 @@ public partial class FileViewerTests
         Assert.Null(applied);
     }
 
+    [Fact]
+    public void VirtualViewer_ReadErrorIsControlledAndViewerRemainsClosable()
+    {
+        byte[] data = Enumerable.Repeat((byte)'x', BlockCache.DefaultBlockSize + 4096).ToArray();
+        var reader = new FailingAfterFirstReadByteReader(data);
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        int attempts = 0;
+        Action<FakeConsoleDriver>? closeWhenError = null;
+        closeWhenError = current =>
+        {
+            if (current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 10))
+                .Contains("Read error:", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                return;
+            }
+
+            if (++attempts > 200)
+                throw new TimeoutException("Viewer did not surface the controlled read error.");
+
+            current.BeforeTryReadInput = closeWhenError;
+        };
+        driver.BeforeTryReadInput = closeWhenError;
+
+        FileViewerFor(new ScreenRenderer(driver)).Show("remote:/read-error.txt", reader);
+
+        Assert.Contains("Read error:", WrittenText(driver));
+        Assert.True(reader.FailureObserved);
+    }
+
+    [Fact]
+    public async Task SeekableStreamReader_DisposeCancelsReadAndDefersStreamDispose()
+    {
+        var stream = new PendingSeekableStream(length: 32);
+        var reader = new SeekableStreamFileByteReader(stream);
+        byte[] buffer = new byte[8];
+
+        Task<int> read = reader.ReadAsync(0, buffer);
+        await stream.ReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        reader.Dispose();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => read);
+        Assert.True(stream.IsDisposed);
+    }
+
+    private sealed class FailingAfterFirstReadByteReader(byte[] data) : IFileByteReader
+    {
+        private int _readCount;
+
+        public long Length => data.LongLength;
+        public bool FailureObserved { get; private set; }
+
+        public Task<int> ReadAsync(
+            long offset,
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int call = Interlocked.Increment(ref _readCount);
+            if (call == 1)
+            {
+                int count = (int)Math.Min(buffer.Length, Math.Max(0, Length - offset));
+                data.AsMemory((int)offset, count).CopyTo(buffer);
+                return Task.FromResult(count);
+            }
+
+            FailureObserved = true;
+            return Task.FromException<int>(new IOException("controlled read failure"));
+        }
+    }
+
+    private sealed class PendingSeekableStream(long length) : Stream
+    {
+        private long _position;
+
+        public TaskCompletionSource<bool> ReadStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool IsDisposed { get; private set; }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => true;
+        public override bool CanWrite => false;
+        public override long Length => length;
+
+        public override long Position
+        {
+            get => _position;
+            set => _position = value;
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            _position = origin switch
+            {
+                SeekOrigin.Begin => offset,
+                SeekOrigin.Current => _position + offset,
+                SeekOrigin.End => length + offset,
+                _ => throw new ArgumentOutOfRangeException(nameof(origin)),
+            };
+            return _position;
+        }
+
+        public override void SetLength(long value) =>
+            throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+
+        public override ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            ReadStarted.TrySetResult(true);
+            return new ValueTask<int>(WaitForCancellationAsync(cancellationToken));
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            IsDisposed = true;
+            base.Dispose(disposing);
+        }
+
+        private static async Task<int> WaitForCancellationAsync(
+            CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken)
+                .ConfigureAwait(false);
+            return 0;
+        }
+    }
+
     private sealed class GatedAfterFirstReadByteReader(byte[] data) : IFileByteReader
     {
         private int _readCount;
