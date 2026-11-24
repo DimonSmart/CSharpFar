@@ -41,6 +41,7 @@ internal sealed partial class LargeFileViewer
                     return null;
                 }
 
+                reader.UpdateKnownLength(before.Length);
                 int failureVersion = reader.TransientFailureVersion;
                 var candidateCache = new BlockCache(reader);
                 LineScanner candidateScanner = await LineScanner
