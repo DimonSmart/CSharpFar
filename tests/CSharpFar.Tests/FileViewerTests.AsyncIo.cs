@@ -85,6 +85,100 @@ public partial class FileViewerTests
     }
 
     [Fact]
+    public void VirtualViewer_RapidNavigationKeepsLatestRequestedPosition()
+    {
+        byte[] data = Encoding.UTF8.GetBytes(
+            "START\n" + new string('a', BlockCache.DefaultBlockSize + 4096) + "\nTAIL");
+        var reader = new GatedAfterFirstReadByteReader(data);
+        var driver = new FakeConsoleDriver(width: 80, height: 10);
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string content = current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8));
+            if (stage == 0 && content.Contains("START", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.End));
+                stage = 1;
+            }
+            else if (stage == 1)
+            {
+                if (!reader.PendingReadStarted.Task.Wait(TimeSpan.FromSeconds(5)))
+                    throw new TimeoutException("End navigation did not request the delayed block.");
+                current.EnqueueKey(Key(ConsoleKey.Home));
+                stage = 2;
+            }
+            else if (stage == 2 && reader.CancellationObserved &&
+                     content.Contains("START", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 3;
+                return;
+            }
+
+            current.BeforeTryReadInput = advance;
+        };
+        driver.BeforeTryReadInput = advance;
+
+        FileViewerFor(new ScreenRenderer(driver)).Show("remote:/rapid-navigation.txt", reader);
+
+        string finalContent = driver.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8));
+        Assert.True(reader.CancellationObserved);
+        Assert.Contains("START", finalContent);
+        Assert.DoesNotContain("TAIL", finalContent);
+    }
+
+    [Fact]
+    public void VirtualViewer_NewSearchCancelsAndSupersedesPendingSearch()
+    {
+        byte[] data = Encoding.UTF8.GetBytes(
+            "START\n" + new string('a', BlockCache.DefaultBlockSize + 4096) + "\nOLDTARGET");
+        var reader = new GatedAfterFirstReadByteReader(data);
+        var driver = new FakeConsoleDriver(width: 80, height: 10);
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string content = current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8));
+            string writes = WrittenText(current);
+            if (stage == 0 && content.Contains("START", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F7));
+                EnqueueText(current, "OLDTARGET");
+                current.EnqueueKey(Key(ConsoleKey.Enter));
+                stage = 1;
+            }
+            else if (stage == 1)
+            {
+                if (!reader.PendingReadStarted.Task.Wait(TimeSpan.FromSeconds(5)))
+                    throw new TimeoutException("First search did not request the delayed block.");
+                current.EnqueueKey(Key(ConsoleKey.F7));
+                EnqueueText(current, "START");
+                current.EnqueueKey(Key(ConsoleKey.Enter));
+                stage = 2;
+            }
+            else if (stage == 2 && reader.CancellationObserved &&
+                     writes.Contains("FIND", StringComparison.Ordinal) &&
+                     content.Contains("START", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 3;
+                return;
+            }
+
+            current.BeforeTryReadInput = advance;
+        };
+        driver.BeforeTryReadInput = advance;
+
+        FileViewerFor(new ScreenRenderer(driver)).Show("remote:/superseded-search.txt", reader);
+
+        Assert.True(reader.CancellationObserved);
+        Assert.Contains("START", WrittenText(driver));
+        Assert.DoesNotContain("OLDTARGET",
+            driver.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8)));
+    }
+
+    [Fact]
     public async Task ViewerSearchEngine_CancellationInterruptsPendingRead()
     {
         byte[] data = Enumerable.Repeat((byte)'a', BlockCache.DefaultBlockSize + 4096).ToArray();
