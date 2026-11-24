@@ -695,7 +695,8 @@ internal sealed partial class LargeFileViewer
         IFileByteReader reader,
         LargeFileViewerState state,
         int contentHeight,
-        int width)
+        int width,
+        LocalViewerSession? localSession)
     {
         string? input = _dialogs.Input(new SingleLineInputDialogOptions
         {
@@ -706,33 +707,34 @@ internal sealed partial class LargeFileViewer
         if (input is null)
             return;
 
+        ViewerNavigationRequest request;
         if (input.EndsWith('%'))
         {
-            int percent = int.Parse(input[..^1], CultureInfo.InvariantCulture);
-            long target = reader.Length * percent / 100;
-            state.TopByteOffset = state.IsHexMode
-                ? Math.Clamp(target, 0, reader.Length)
-                : state.LineScanner
-                    .FindLineStartAtOrBeforeAsync(target)
-                    .GetAwaiter()
-                    .GetResult();
+            request = new ViewerNavigationRequest(
+                ViewerNavigationKind.JumpPercent,
+                int.Parse(input[..^1], CultureInfo.InvariantCulture));
         }
         else if (state.IsHexMode)
         {
-            long offset = long.Parse(input, CultureInfo.InvariantCulture);
-            state.TopByteOffset = Math.Clamp(offset, 0, reader.Length);
+            request = new ViewerNavigationRequest(
+                ViewerNavigationKind.JumpByte,
+                long.Parse(input, CultureInfo.InvariantCulture));
         }
         else
         {
-            long lineNumber = long.Parse(input, CultureInfo.InvariantCulture);
-            state.TopByteOffset = state.LineScanner
-                .FindLineOffsetAsync(lineNumber, state.LineIndex)
-                .GetAwaiter()
-                .GetResult();
+            request = new ViewerNavigationRequest(
+                ViewerNavigationKind.JumpLine,
+                long.Parse(input, CultureInfo.InvariantCulture));
         }
 
-        state.TopWrappedSegmentIndex = 0;
-        NormalizeViewport(sourcePath, reader, state, contentHeight, width, keepTail: false);
+        QueueNavigation(
+            sourcePath,
+            reader,
+            state,
+            contentHeight,
+            width,
+            localSession,
+            request);
     }
 
     private static void ToggleViewMode(LargeFileViewerState state)
