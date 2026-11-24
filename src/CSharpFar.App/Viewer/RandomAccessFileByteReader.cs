@@ -23,7 +23,7 @@ internal sealed class LocalFileByteReaderFactory : ILocalFileByteReaderFactory
     }
 
     public ILocalFileByteReader Create(string filePath) =>
-        new RandomAccessFileByteReader(filePath);
+        new RandomAccessFileByteReader(filePath, probeLength: false);
 }
 
 internal sealed class RandomAccessFileByteReader : ILocalFileByteReader
@@ -32,10 +32,12 @@ internal sealed class RandomAccessFileByteReader : ILocalFileByteReader
     private long _lastKnownLength;
     private int _transientFailureVersion;
 
-    public RandomAccessFileByteReader(string filePath)
+    public RandomAccessFileByteReader(string filePath, bool probeLength = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
         _filePath = Path.GetFullPath(filePath);
+        if (probeLength)
+            _lastKnownLength = GetLengthCore();
     }
 
     public string FilePath => _filePath;
@@ -116,6 +118,12 @@ internal sealed class RandomAccessFileByteReader : ILocalFileByteReader
         }
     }
 
+
+    private long GetLengthCore()
+    {
+        using SafeFileHandle handle = OpenHandle();
+        return RandomAccess.GetLength(handle);
+    }
 
     private SafeFileHandle OpenHandle() =>
         File.OpenHandle(
