@@ -193,6 +193,30 @@ public partial class FileViewerTests
         Assert.True(stream.IsDisposed);
     }
 
+    private static void CloseWhen(
+        FakeConsoleDriver driver,
+        Func<FakeConsoleDriver, bool> condition,
+        int maxAttempts = 240)
+    {
+        int attempts = 0;
+        Action<FakeConsoleDriver>? poll = null;
+        poll = current =>
+        {
+            if (condition(current))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                return;
+            }
+
+            if (++attempts > maxAttempts)
+                throw new TimeoutException("Viewer did not reach the expected state.");
+
+            current.BeforeTryReadInput = poll;
+        };
+
+        driver.BeforeTryReadInput = poll;
+    }
+
     private sealed class FailingAfterFirstReadByteReader(byte[] data) : IFileByteReader
     {
         private int _readCount;
