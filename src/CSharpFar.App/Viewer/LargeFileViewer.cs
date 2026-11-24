@@ -389,25 +389,25 @@ internal sealed partial class LargeFileViewer
                 break;
 
             case ConsoleKey.LeftArrow when control && shift:
-                _async.CancelChannel("search");
+                _async.InvalidateState();
                 state.HorizontalOffset = 0;
                 InvalidatePreparedRender();
                 break;
 
             case ConsoleKey.RightArrow when control && shift:
-                _async.CancelChannel("search");
+                _async.InvalidateState();
                 MoveHorizontalToCurrentLineEnd(state, view, size.Width);
                 InvalidatePreparedRender();
                 break;
 
             case ConsoleKey.LeftArrow when control:
-                _async.CancelChannel("search");
+                _async.InvalidateState();
                 MoveHorizontal(state, -(state.IsHexMode ? 1 : FastHorizontalTextScrollCells));
                 InvalidatePreparedRender();
                 break;
 
             case ConsoleKey.RightArrow when control:
-                _async.CancelChannel("search");
+                _async.InvalidateState();
                 MoveHorizontal(state, state.IsHexMode ? 1 : FastHorizontalTextScrollCells);
                 InvalidatePreparedRender();
                 break;
@@ -418,13 +418,13 @@ internal sealed partial class LargeFileViewer
                 break;
 
             case ConsoleKey.LeftArrow:
-                _async.CancelChannel("search");
+                _async.InvalidateState();
                 MoveHorizontal(state, -1);
                 InvalidatePreparedRender();
                 break;
 
             case ConsoleKey.RightArrow:
-                _async.CancelChannel("search");
+                _async.InvalidateState();
                 MoveHorizontal(state, 1);
                 InvalidatePreparedRender();
                 break;
@@ -601,7 +601,7 @@ internal sealed partial class LargeFileViewer
                 break;
 
             case ConsoleKey.U when control:
-                _async.CancelChannel("search");
+                _async.InvalidateState();
                 state.SearchMatch = null;
                 InvalidatePreparedRender();
                 break;
