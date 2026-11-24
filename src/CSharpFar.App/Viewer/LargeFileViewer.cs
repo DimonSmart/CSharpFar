@@ -985,77 +985,7 @@ internal sealed partial class LargeFileViewer
 
 
 
-    private WrappedLineLayout?[] PrepareWrappedLineLayouts(
-        string sourcePath,
-        LargeFileViewerState state,
-        IReadOnlyList<ScannedLine> lines,
-        int width)
-    {
-        var result = new WrappedLineLayout?[lines.Count];
-        int index = 0;
 
-        while (index < lines.Count)
-        {
-            if (RequiresStreamingWrappedLayout(lines[index]))
-            {
-                index++;
-                continue;
-            }
-
-            int groupStart = index;
-            while (index < lines.Count && !RequiresStreamingWrappedLayout(lines[index]))
-                index++;
-
-            int groupEnd = index;
-            bool allCached = true;
-            for (int i = groupStart; i < groupEnd; i++)
-            {
-                if (TryGetWrappedLineLayout(sourcePath, state, lines[i], width, out var cached))
-                    result[i] = cached;
-                else
-                    allCached = false;
-            }
-
-            if (allCached)
-                continue;
-
-            ScannedLine[] groupLines = lines
-                .Skip(groupStart)
-                .Take(groupEnd - groupStart)
-                .ToArray();
-            IReadOnlyList<PresentedLine> presented = state.Presentation.Present(
-                state.PresentationMode,
-                sourcePath,
-                state.LineScanner,
-                groupLines,
-                Math.Max(1, width));
-            var resolved = presented
-                .Select(line => ResolvePresentationForSearch(line, state.SearchMatch))
-                .ToArray();
-
-            if (resolved.Any(line => line.PreserveLineLayout))
-                ClearWrappedLayoutCache();
-
-            for (int i = 0; i < resolved.Length; i++)
-            {
-                WrappedLineLayout layout = CreateWrappedLineLayout(
-                    resolved[i],
-                    state.WordWrap,
-                    width);
-                int resultIndex = groupStart + i;
-                result[resultIndex] = layout;
-                StoreWrappedLineLayout(
-                    CreateWrappedLayoutCacheKey(
-                        sourcePath,
-                        state,
-                        lines[resultIndex],
-                        width),
-                    layout);
-            }
-        }
-
-        return result;
-    }
 
     private LargeFileRenderView DrawBinaryContent(
         IUiCanvas canvas,
