@@ -7,6 +7,22 @@ namespace CSharpFar.Tests;
 public partial class FileViewerTests
 {
     [Fact]
+    public void LocalViewer_CloseCancelsPendingInitialRead()
+    {
+        string path = Write("local-pending-initial.txt", "content", new UTF8Encoding(false));
+        var readerFactory = new PendingLocalFileByteReaderFactory();
+        var driver = new FakeConsoleDriver(width: 80, height: 10);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        FileViewerFor(
+            new ScreenRenderer(driver),
+            localFileMonitorFactory: null,
+            localFileByteReaderFactory: readerFactory).Show(path);
+
+        Assert.True(readerFactory.Current.CancellationObserved);
+    }
+
+    [Fact]
     public void VirtualViewer_SlowRenderDoesNotBlockClose()
     {
         byte[] data = Enumerable.Repeat((byte)'x', BlockCache.DefaultBlockSize + 4096).ToArray();
@@ -215,6 +231,52 @@ public partial class FileViewerTests
         };
 
         driver.BeforeTryReadInput = poll;
+    }
+
+    private sealed class PendingLocalFileByteReaderFactory : ILocalFileByteReaderFactory
+    {
+        public PendingLocalFileByteReader Current { get; private set; } = null!;
+
+        public ILocalFileByteReader Create(string filePath)
+        {
+            _ = filePath;
+            Current = new PendingLocalFileByteReader();
+            return Current;
+        }
+    }
+
+    private sealed class PendingLocalFileByteReader : ILocalFileByteReader
+    {
+        private long _length;
+        private int _cancellationObserved;
+
+        public long Length => Volatile.Read(ref _length);
+        public int TransientFailureVersion => 0;
+        public bool CancellationObserved => Volatile.Read(ref _cancellationObserved) != 0;
+
+        public Task<int> ReadAsync(
+            long offset,
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            _ = offset;
+            _ = buffer;
+            var completion = new TaskCompletionSource<int>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            cancellationToken.Register(() =>
+            {
+                Volatile.Write(ref _cancellationObserved, 1);
+                completion.TrySetCanceled(cancellationToken);
+            });
+            return completion.Task;
+        }
+
+        public void UpdateKnownLength(long length) =>
+            Volatile.Write(ref _length, length);
+
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class FailingAfterFirstReadByteReader(byte[] data) : IFileByteReader
