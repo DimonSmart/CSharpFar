@@ -66,6 +66,43 @@ internal sealed partial class LargeFileViewer
             ex => _dialogs.Message("Viewer", ex.Message));
     }
 
+    private bool TryApplyEncodingChangeFromCache(
+        string sourcePath,
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        TextEncodingSelection selection,
+        long anchorByteOffset,
+        LargeFileViewMode baseViewMode,
+        int contentHeight,
+        int width)
+    {
+        EncodingChangeInput input = CaptureEncodingChangeInput(
+            state,
+            selection,
+            anchorByteOffset,
+            baseViewMode,
+            contentHeight,
+            width);
+
+        using (input.Cache.EnterCacheOnly())
+        {
+            Task<EncodingChangeResult> pending = PrepareEncodingChangeAsync(
+                sourcePath,
+                reader,
+                input,
+                CancellationToken.None);
+            if (!pending.IsCompletedSuccessfully)
+            {
+                _ = pending.Exception;
+                return false;
+            }
+
+            ApplyEncodingChange(state, pending.Result);
+            InvalidatePreparedRender();
+            return true;
+        }
+    }
+
     private EncodingChangeResult? ApplyEncodingChangeWithDialog(
         string sourcePath,
         IFileByteReader reader,
