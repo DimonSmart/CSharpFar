@@ -1244,6 +1244,9 @@ internal sealed partial class LargeFileViewer
         ConsoleSize size)
     {
         var items = TextEncodingCatalog.CreateViewerCatalog(state.LineScanner.Detection);
+        LineScanner originalScanner = state.LineScanner;
+        long originalTopByteOffset = state.TopByteOffset;
+        int originalWrappedSegment = state.TopWrappedSegmentIndex;
         long anchorByteOffset = state.TopByteOffset;
         var originalSelection = state.EncodingSelection;
         var originalViewMode = state.ViewMode;
@@ -1261,32 +1264,28 @@ internal sealed partial class LargeFileViewer
             SelectedIndex = FindEncodingSelection(items, state.EncodingSelection),
             SelectionChanged = (item, _) =>
             {
-                EncodingChangeResult? applied = ApplyEncodingChangeWithDialog(
-                    filePath,
-                    reader,
-                    state,
-                    item.Selection,
-                    anchorByteOffset,
-                    originalViewMode,
-                    contentHeight,
-                    size.Width);
-                if (applied is not null)
+                if (TryApplyEncodingChangeFromCache(
+                        filePath,
+                        reader,
+                        state,
+                        item.Selection,
+                        anchorByteOffset,
+                        originalViewMode,
+                        contentHeight,
+                        size.Width))
+                {
                     _surfaces.RequestRedraw();
+                }
             },
         });
         TextEncodingCatalogItem? selected = result.IsConfirmed ? result.SelectedItem : null;
 
         if (selected is null)
         {
-            ApplyEncodingChangeWithDialog(
-                filePath,
-                reader,
-                state,
-                originalSelection,
-                anchorByteOffset,
-                originalViewMode,
-                contentHeight,
-                size.Width);
+            state.ResetScanner(originalScanner, originalSelection);
+            state.ViewMode = originalViewMode;
+            state.TopByteOffset = originalTopByteOffset;
+            state.TopWrappedSegmentIndex = originalWrappedSegment;
             state.HorizontalOffset = originalHorizontalOffset;
             state.LiveMode = originalLiveMode;
             InvalidatePreparedRender();
