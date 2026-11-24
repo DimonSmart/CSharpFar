@@ -74,5 +74,6 @@ internal sealed class SeekableStreamFileByteReader(Stream stream) : IFileByteRea
 
         _gate.Dispose();
         _disposeCancellation.Dispose();
+        stream.Dispose();
     }
 }
