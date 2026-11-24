@@ -12,6 +12,10 @@ permissions:
 env:
   DOTNET_NOLOGO: true
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build and test (${{ matrix.os }})
