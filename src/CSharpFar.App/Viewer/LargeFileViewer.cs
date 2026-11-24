@@ -127,12 +127,10 @@ internal sealed partial class LargeFileViewer
         {
             _async.BeginSession();
             var cache = new BlockCache(reader);
-            LineScanner? scanner = CreateVirtualScanner(cache, reader);
-            if (scanner is null)
-                return; // Cancelled while awaiting the provider's initial read.
-            var state = new LargeFileViewerState(cache, scanner);
-            if (state.IsHexMode)
-                state.TopByteOffset = 0;
+            LineScanner scanner = LineScanner.CreateLoading(cache, reader);
+            var state = new LargeFileViewerState(cache, scanner, contentReady: false);
+            StartInitialContentLoad(filePath, reader, state, localSession: null);
+
             var layer = new LargeFileViewerLayer(this, filePath, reader, state);
             _surfaces.Run(
                 layer,
@@ -158,39 +156,6 @@ internal sealed partial class LargeFileViewer
         {
             _async.Dispose();
         }
-    }
-
-    private LineScanner? CreateVirtualScanner(BlockCache cache, IFileByteReader reader)
-    {
-        using var cancellation = new CancellationTokenSource();
-        Task<LineScanner> pending = LineScanner.CreateAsync(
-            cache, reader, cancellationToken: cancellation.Token);
-        if (pending.IsCompletedSuccessfully)
-            return pending.Result;
-
-        // The normal viewer surface must not block input while a provider
-        // supplies its first data block. The operation dialog already supports
-        // asynchronous completion and immediate cancellation.
-        return _dialogs.Operation<string, LineScanner, LineScanner?>(
-            new OperationDialogDefinition<string, LineScanner, LineScanner?>
-            {
-                Title = "Opening viewer",
-                PreferredWidth = 54,
-                PreferredHeight = 8,
-                MinWidth = 30,
-                MinHeight = 8,
-                Operation = _ => pending,
-                Synchronize = () => new OperationDialogState<string>(
-                    status: "Reading initial file data... (Esc to cancel)"),
-                HandleCancel = () =>
-                {
-                    cancellation.Cancel();
-                    return OperationDialogOutcome<LineScanner?>.Complete(null);
-                },
-                HandleOperationCompleted = scanner =>
-                    OperationDialogOutcome<LineScanner?>.Complete(scanner),
-                Complete = scanner => scanner,
-            });
     }
 
     private LocalViewerSession OpenViewerFile(string filePath)
