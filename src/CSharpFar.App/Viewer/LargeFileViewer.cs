@@ -742,16 +742,37 @@ internal sealed partial class LargeFileViewer
     {
         if (state.LastViewportWidth != size.Width || state.LastContentHeight != contentHeight)
         {
-            NormalizeViewport(filePath, reader, state, contentHeight, size.Width);
             state.LastViewportWidth = size.Width;
             state.LastContentHeight = contentHeight;
+            InvalidatePreparedRender();
         }
 
         DrawHeader(canvas, filePath, reader, state, size);
 
-        var view = state.IsHexMode
-            ? DrawBinaryContent(canvas, reader, state, contentHeight, size.Width)
-            : DrawTextContent(canvas, filePath, reader, state, contentHeight, size.Width);
+        ViewerPreparedContent? prepared = GetOrRequestRenderContent(
+            reader,
+            state,
+            contentHeight,
+            size.Width);
+        LargeFileRenderView view;
+        if (prepared is null)
+        {
+            DrawLoadingContent(canvas, contentHeight, size.Width);
+            view = new LargeFileRenderView([], state.TopByteOffset, []);
+        }
+        else
+        {
+            view = prepared switch
+            {
+                ViewerPreparedHexContent hex =>
+                    DrawBinaryContent(canvas, state, hex, contentHeight, size.Width),
+                ViewerPreparedWrappedContent wrapped =>
+                    DrawWrappedTextContent(canvas, filePath, reader, state, wrapped, contentHeight, size.Width),
+                ViewerPreparedTextContent text =>
+                    DrawUnwrappedTextContent(canvas, filePath, state, text, contentHeight, size.Width),
+                _ => throw new InvalidOperationException("Unknown prepared viewer content."),
+            };
+        }
 
         DrawFooter(canvas, size, state);
         return view;
@@ -798,31 +819,31 @@ internal sealed partial class LargeFileViewer
         return ConsoleTextMetrics.TruncateEndToCells(text, width);
     }
 
-    private LargeFileRenderView DrawTextContent(
-        IUiCanvas canvas,
-        string sourcePath,
-        IFileByteReader reader,
-        LargeFileViewerState state,
-        int contentHeight,
-        int width)
+    private void DrawLoadingContent(IUiCanvas canvas, int contentHeight, int width)
     {
-        return state.WrapLines
-            ? DrawWrappedTextContent(canvas, sourcePath, reader, state, contentHeight, width)
-            : DrawUnwrappedTextContent(canvas, sourcePath, state, contentHeight, width);
+        string loading = width <= 0
+            ? string.Empty
+            : ConsoleTextMetrics.FitToCells(" Loading...", width);
+        for (int row = 0; row < contentHeight; row++)
+        {
+            string text = row == 0 ? loading : string.Empty;
+            canvas.WriteForced(
+                0,
+                row + 1,
+                text.PadRight(Math.Max(0, width)),
+                CSharpFarPaletteStyles.CommandLine(_palette));
+        }
     }
 
     private LargeFileRenderView DrawUnwrappedTextContent(
         IUiCanvas canvas,
         string sourcePath,
         LargeFileViewerState state,
+        ViewerPreparedTextContent prepared,
         int contentHeight,
         int width)
     {
-        int bytesPerLine = Math.Max(256, (state.HorizontalOffset + width + 32) * 4);
-        var scanned = state.LineScanner
-            .ReadLinesAsync(state.TopByteOffset, contentHeight, bytesPerLine)
-            .GetAwaiter()
-            .GetResult();
+        ScannedLines scanned = prepared.Scanned;
         var presented = state.Presentation.Present(
             state.PresentationMode,
             sourcePath,
@@ -861,10 +882,11 @@ internal sealed partial class LargeFileViewer
         string sourcePath,
         IFileByteReader reader,
         LargeFileViewerState state,
+        ViewerPreparedWrappedContent prepared,
         int contentHeight,
         int width)
     {
-        List<ScannedLine> candidates = ReadWrappedCandidateLines(reader, state, contentHeight);
+        IReadOnlyList<ScannedLine> candidates = prepared.Lines;
         WrappedLineLayout?[] preparedLayouts = PrepareWrappedLineLayouts(
             sourcePath,
             state,
@@ -888,17 +910,13 @@ internal sealed partial class LargeFileViewer
 
             if (RequiresStreamingWrappedLayout(line))
             {
-                int firstSegment = firstPhysicalLine
-                    ? Math.Max(0, state.TopWrappedSegmentIndex)
-                    : 0;
-                LongWrappedLineLayout streamed = GetStreamingWrappedLineLayout(
-                    state,
-                    line,
-                    width,
-                    firstSegment,
-                    Math.Max(0, contentHeight - row));
+                if (!prepared.StreamingLayouts.TryGetValue(line.StartOffset, out LongWrappedLineLayout? streamed))
+                    throw new InvalidOperationException("Streaming wrapped line layout was not prepared.");
+
                 foreach (WrappedTextSegment segment in streamed.Segments)
                 {
+                    if (row >= contentHeight)
+                        break;
                     WriteRawWrappedTextLine(canvas, segment.Text, row + 1, width);
                     row++;
                 }
@@ -944,37 +962,7 @@ internal sealed partial class LargeFileViewer
         return new LargeFileRenderView(lines, nextOffset, linkHits);
     }
 
-    private List<ScannedLine> ReadWrappedCandidateLines(
-        IFileByteReader reader,
-        LargeFileViewerState state,
-        int contentHeight)
-    {
-        int maxLines = Math.Max(1, contentHeight);
-        var result = new List<ScannedLine>(maxLines);
-        long offset = Math.Clamp(
-            state.TopByteOffset,
-            state.LineScanner.ContentStartOffset,
-            reader.Length);
 
-        while (result.Count < maxLines && offset < reader.Length)
-        {
-            var scanned = state.LineScanner
-                .ReadLinesAsync(offset, 1, MaxWrappedLineCaptureBytes)
-                .GetAwaiter()
-                .GetResult();
-            if (scanned.Lines.Count == 0)
-                break;
-
-            ScannedLine line = scanned.Lines[0];
-            result.Add(line);
-            if (line.NextOffset <= offset)
-                break;
-
-            offset = line.NextOffset;
-        }
-
-        return result;
-    }
 
     private WrappedLineLayout?[] PrepareWrappedLineLayouts(
         string sourcePath,
@@ -1050,30 +1038,25 @@ internal sealed partial class LargeFileViewer
 
     private LargeFileRenderView DrawBinaryContent(
         IUiCanvas canvas,
-        IFileByteReader reader,
         LargeFileViewerState state,
+        ViewerPreparedHexContent prepared,
         int contentHeight,
         int width)
     {
-        var rows = new List<ScannedLine>(contentHeight);
-        long offset = Math.Clamp(state.TopByteOffset, 0, reader.Length);
-        long nextOffset = offset;
-
         for (int row = 0; row < contentHeight; row++)
         {
-            long rowOffset = offset + row * BinaryBytesPerRow;
-            string text = rowOffset < reader.Length
-                ? ReadHexRow(state.BlockCache, rowOffset)
-                : string.Empty;
-            rows.Add(new ScannedLine(rowOffset, Math.Min(reader.Length, rowOffset + BinaryBytesPerRow), text));
-            nextOffset = Math.Min(reader.Length, rowOffset + BinaryBytesPerRow);
-            var style = IsHexMatchOnRow(state.SearchMatch, rowOffset)
+            ScannedLine preparedRow = prepared.Rows[row];
+            var style = IsHexMatchOnRow(state.SearchMatch, preparedRow.StartOffset)
                 ? CSharpFarPaletteStyles.InputHighlight(_palette)
                 : CSharpFarPaletteStyles.CommandLine(_palette);
-            canvas.WriteForced(0, row + 1, FormatLine(text, state.HorizontalOffset, width), style);
+            canvas.WriteForced(
+                0,
+                row + 1,
+                FormatLine(preparedRow.Text, state.HorizontalOffset, width),
+                style);
         }
 
-        return new LargeFileRenderView(rows, nextOffset, []);
+        return new LargeFileRenderView(prepared.Rows, prepared.NextOffset, []);
     }
 
     private static bool IsHexMatchOnRow(ViewerSearchMatch? match, long rowOffset) =>
@@ -1617,14 +1600,7 @@ internal sealed partial class LargeFileViewer
                 : "Enter a positive line number.";
     }
 
-    private static string ReadHexRow(BlockCache cache, long offset)
-    {
-        var bytes = new byte[BinaryBytesPerRow];
-        int read = cache.ReadAsync(offset, bytes).GetAwaiter().GetResult();
-        string hex = string.Join(' ', bytes.Take(read).Select(value => value.ToString("X2", CultureInfo.InvariantCulture)));
-        string ascii = new(bytes.Take(read).Select(ToPrintableAscii).ToArray());
-        return $"{offset:X8}  {hex.PadRight(47)}  {ascii}";
-    }
+
 
     private static char ToPrintableAscii(byte value) =>
         value is >= 0x20 and <= 0x7E ? (char)value : '.';
