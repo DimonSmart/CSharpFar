@@ -14,48 +14,45 @@ internal sealed partial class LargeFileViewer
         _navigationRequestVersion++;
         InvalidatePreparedRender();
         long stateVersion = _async.InvalidateState();
-        LargeFileViewerState snapshot = state.CreateWorkingCopy();
 
-        _async.StartLatest(
-            "search",
-            stateVersion,
-            cancellationToken => FindSearchOutcomeAsync(
+        LargeFileViewerState fastSnapshot = state.CreateWorkingCopy();
+        using (fastSnapshot.BlockCache.EnterCacheOnly())
+        {
+            Task<ViewerSearchOutcome> fast = FindSearchOutcomeAsync(
                 filePath,
                 reader,
-                snapshot,
+                fastSnapshot,
                 request,
                 searchBackward,
                 width,
-                cancellationToken),
-            outcome =>
+                CancellationToken.None);
+            if (fast.IsCompletedSuccessfully)
             {
-                if (outcome.Match is null)
-                {
-                    _dialogs.Message("Find", "Text not found.");
-                    return;
-                }
+                ApplySearchOutcome(state, request, width, fast.Result);
+                return;
+            }
 
-                ViewerSearchMatch match = outcome.Match;
-                state.LastSearch = request;
-                state.SearchMatch = match;
-                state.TopByteOffset = match.TopByteOffset;
-                state.TopWrappedSegmentIndex = 0;
-                if (state.LiveMode == ViewerLiveMode.Tail)
-                    state.LiveMode = ViewerLiveMode.Watch;
+            _ = fast.Exception;
+        }
 
-                if (match.IsHex)
-                {
-                    state.ViewMode = LargeFileViewMode.Hex;
-                }
-                else if (!state.WrapLines && outcome.MatchCell is { } matchCell)
-                {
-                    int rightEdge = state.HorizontalOffset + Math.Max(1, width);
-                    if (matchCell < state.HorizontalOffset || matchCell >= rightEdge)
-                        state.HorizontalOffset = Math.Max(0, matchCell - 4);
-                }
-
-                InvalidatePreparedRender();
+        LargeFileViewerState snapshot = state.CreateWorkingCopy();
+        _async.StartLatest(
+            "search",
+            stateVersion,
+            async cancellationToken =>
+            {
+                await Task.Yield();
+                return await FindSearchOutcomeAsync(
+                        filePath,
+                        reader,
+                        snapshot,
+                        request,
+                        searchBackward,
+                        width,
+                        cancellationToken)
+                    .ConfigureAwait(false);
             },
+            outcome => ApplySearchOutcome(state, request, width, outcome),
             ex =>
             {
                 if (ex is ArgumentException)
@@ -63,6 +60,40 @@ internal sealed partial class LargeFileViewer
                 else
                     _dialogs.Message("Viewer", ex.Message);
             });
+    }
+
+    private void ApplySearchOutcome(
+        LargeFileViewerState state,
+        ViewerSearchRequest request,
+        int width,
+        ViewerSearchOutcome outcome)
+    {
+        if (outcome.Match is null)
+        {
+            _dialogs.Message("Find", "Text not found.");
+            return;
+        }
+
+        ViewerSearchMatch match = outcome.Match;
+        state.LastSearch = request;
+        state.SearchMatch = match;
+        state.TopByteOffset = match.TopByteOffset;
+        state.TopWrappedSegmentIndex = 0;
+        if (state.LiveMode == ViewerLiveMode.Tail)
+            state.LiveMode = ViewerLiveMode.Watch;
+
+        if (match.IsHex)
+        {
+            state.ViewMode = LargeFileViewMode.Hex;
+        }
+        else if (!state.WrapLines && outcome.MatchCell is { } matchCell)
+        {
+            int rightEdge = state.HorizontalOffset + Math.Max(1, width);
+            if (matchCell < state.HorizontalOffset || matchCell >= rightEdge)
+                state.HorizontalOffset = Math.Max(0, matchCell - 4);
+        }
+
+        InvalidatePreparedRender();
     }
 
     private async Task<ViewerSearchOutcome> FindSearchOutcomeAsync(
@@ -74,7 +105,6 @@ internal sealed partial class LargeFileViewer
         int width,
         CancellationToken cancellationToken)
     {
-        await Task.Yield();
         ViewerSearchMatch? match = await ViewerSearchEngine
             .FindAsync(reader, state, request, searchBackward, cancellationToken)
             .ConfigureAwait(false);
