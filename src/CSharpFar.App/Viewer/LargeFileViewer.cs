@@ -100,11 +100,11 @@ internal sealed partial class LargeFileViewer
                 }
 
                 var presentationMode = state.PresentationMode;
+                _async.BeginSession();
                 session.Dispose();
                 session = null;
 
                 filePath = nextPath;
-                _async.BeginSession();
                 session = OpenViewerFile(filePath);
                 if (session is null)
                     return;
@@ -118,8 +118,8 @@ internal sealed partial class LargeFileViewer
         }
         finally
         {
-            session?.Dispose();
             _async.Dispose();
+            session?.Dispose();
         }
     }
 
