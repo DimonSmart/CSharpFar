@@ -45,7 +45,7 @@ internal sealed class LineScanner
     {
         var detection = TextEncodingDetector.Detect(
             ReadOnlySpan<byte>.Empty,
-            encodingSelection: null);
+            null);
         return new LineScanner(cache, reader, detection);
     }
 
