@@ -285,13 +285,35 @@ internal sealed class ViewerAsyncCoordinator : IDisposable
             {
                 _latest.Remove(channel);
                 if (completed)
-                    _uiCompletions.Enqueue(() => apply(result!));
+                {
+                    _uiCompletions.Enqueue(() =>
+                    {
+                        if (IsCurrentVersion(sessionVersion, expectedStateVersion))
+                            apply(result!);
+                    });
+                }
                 else if (error is not null && handleError is not null)
-                    _uiCompletions.Enqueue(() => handleError(error));
+                {
+                    _uiCompletions.Enqueue(() =>
+                    {
+                        if (IsCurrentVersion(sessionVersion, expectedStateVersion))
+                            handleError(error);
+                    });
+                }
             }
         }
 
         cancellation.Dispose();
+    }
+
+    private bool IsCurrentVersion(long sessionVersion, long stateVersion)
+    {
+        lock (_gate)
+        {
+            return !_disposed &&
+                   _sessionVersion == sessionVersion &&
+                   _stateVersion == stateVersion;
+        }
     }
 
     private void ThrowIfDisposed()
