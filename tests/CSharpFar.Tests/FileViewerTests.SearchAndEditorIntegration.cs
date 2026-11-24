@@ -21,7 +21,9 @@ public partial class FileViewerTests
         driver.EnqueueKey(Key(ConsoleKey.F8, alt: true));
         driver.EnqueueKey(Key(ConsoleKey.D2, '2'));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8))
+                .StartsWith("second", StringComparison.Ordinal));
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
@@ -37,7 +39,7 @@ public partial class FileViewerTests
         driver.EnqueueKey(Key(ConsoleKey.F7));
         EnqueueText(driver, "targetf7");
         driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current => WrittenText(current).Contains("FIND", StringComparison.Ordinal));
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
@@ -74,8 +76,21 @@ public partial class FileViewerTests
         driver.EnqueueKey(Key(ConsoleKey.F7));
         EnqueueText(driver, "copytoken");
         driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.C, control: true));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        bool copyQueued = false;
+        Action<FakeConsoleDriver>? afterSearch = null;
+        afterSearch = current =>
+        {
+            if (!copyQueued && WrittenText(current).Contains("FIND", StringComparison.Ordinal))
+            {
+                copyQueued = true;
+                current.EnqueueKey(Key(ConsoleKey.C, control: true));
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                return;
+            }
+
+            current.BeforeTryReadInput = afterSearch;
+        };
+        driver.BeforeTryReadInput = afterSearch;
         var clipboard = new FakeTextClipboard();
         var screen = new ScreenRenderer(driver);
 
@@ -93,7 +108,10 @@ public partial class FileViewerTests
         driver.EnqueueKey(Key(ConsoleKey.F7));
         EnqueueText(driver, "41 42");
         driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            WrittenText(current).Contains("FIND", StringComparison.Ordinal) &&
+            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 10))
+                .Contains("41 42 43", StringComparison.Ordinal));
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
@@ -110,7 +128,9 @@ public partial class FileViewerTests
         string second = Write("second-sibling.txt", "second file", new UTF8Encoding(false));
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         driver.EnqueueKey(Key(ConsoleKey.Add, '+'));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8))
+                .Contains("second file", StringComparison.Ordinal));
         string? changedPath = null;
         var screen = new ScreenRenderer(driver);
 
@@ -131,7 +151,9 @@ public partial class FileViewerTests
         string path = Write("viewer-edit-refresh.txt", "AAAA", new UTF8Encoding(false));
         var driver = new FakeConsoleDriver(width: 80, height: 8);
         driver.EnqueueKey(Key(ConsoleKey.F6));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6))
+                .Contains("BBBB", StringComparison.Ordinal));
 
         FileViewerFor(new ScreenRenderer(driver)).Show(path, new LargeFileViewerOptions
         {
