@@ -197,31 +197,22 @@ internal sealed partial class LargeFileViewer
             });
     }
 
-    private LocalViewerSession? OpenViewerFile(string filePath)
+    private LocalViewerSession OpenViewerFile(string filePath)
     {
         ILocalFileByteReader reader = _localFileByteReaderFactory.Create(filePath);
         try
         {
-            if (!LocalFileMonitor.TryCaptureSnapshot(filePath, out LocalFileSnapshot before) || !before.Exists)
-                throw new FileNotFoundException("File not found.", filePath);
-
-            reader.UpdateKnownLength(before.Length);
             var cache = new BlockCache(reader);
             LineScanner scanner = LineScanner.CreateLoading(cache, reader);
             var state = new LargeFileViewerState(cache, scanner, contentReady: false);
-
-            LocalFileSnapshot applied = before;
-            if (LocalFileMonitor.TryCaptureSnapshot(filePath, out LocalFileSnapshot after) && after.Exists)
-            {
-                applied = after;
-                reader.UpdateKnownLength(after.Length);
-            }
-
             return new LocalViewerSession(
                 filePath,
                 reader,
                 state,
-                new LocalFileMonitoringSession(filePath, applied, _localFileMonitorFactory));
+                new LocalFileMonitoringSession(
+                    filePath,
+                    new LocalFileSnapshot(false, 0, DateTime.MinValue),
+                    _localFileMonitorFactory));
         }
         catch
         {
@@ -1780,7 +1771,6 @@ internal sealed partial class LargeFileViewer
         public ILocalFileByteReader Reader { get; }
         public LargeFileViewerState State { get; }
         public bool PendingRefresh => _monitoring.PendingRefresh;
-        public LocalFileSnapshot AppliedSnapshot => _monitoring.AppliedSnapshot;
 
         public void StartMonitoring() => _monitoring.Activate();
 
