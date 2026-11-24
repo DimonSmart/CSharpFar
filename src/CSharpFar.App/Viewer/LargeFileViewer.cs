@@ -371,6 +371,9 @@ internal sealed partial class LargeFileViewer
         if (TryHandleUnsupportedNumberedBookmark(key, control, shift, alt))
             return ModalDialogLoopResult<ViewerLoopAction>.ContinueNoChange;
 
+        if (!state.IsContentReady && key.Key == ConsoleKey.F8)
+            return ModalDialogLoopResult<ViewerLoopAction>.ContinueNoChange;
+
         switch (key.Key)
         {
             case ConsoleKey.UpArrow:
