@@ -10,6 +10,12 @@ internal sealed partial class LargeFileViewer
         bool searchBackward,
         int width)
     {
+        if (!state.IsContentReady)
+        {
+            _pendingInitialSearch = new PendingInitialSearch(request, searchBackward, width);
+            return;
+        }
+
         _pendingNavigation.Clear();
         _navigationRequestVersion++;
         InvalidatePreparedRender();
