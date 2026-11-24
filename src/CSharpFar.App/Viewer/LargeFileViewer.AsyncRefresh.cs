@@ -29,7 +29,7 @@ internal sealed partial class LargeFileViewer
         InvalidatePreparedRender();
         long stateVersion = _async.InvalidateState();
 
-        _async.StartLatest(
+        _async.StartLatest<LocalRefreshResult?>(
             "refresh",
             stateVersion,
             async cancellationToken =>
