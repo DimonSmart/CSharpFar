@@ -295,6 +295,8 @@ public partial class FileViewerTests : IDisposable
             CancellationToken cancellationToken = default) =>
             _inner.ReadAsync(offset, buffer, cancellationToken);
 
+        public void UpdateKnownLength(long length) => _inner.UpdateKnownLength(length);
+
         public void Dispose() => _inner.Dispose();
     }
 
