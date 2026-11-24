@@ -1780,6 +1780,7 @@ internal sealed partial class LargeFileViewer
         public ILocalFileByteReader Reader { get; }
         public LargeFileViewerState State { get; }
         public bool PendingRefresh => _monitoring.PendingRefresh;
+        public LocalFileSnapshot AppliedSnapshot => _monitoring.AppliedSnapshot;
 
         public void StartMonitoring() => _monitoring.Activate();
 
