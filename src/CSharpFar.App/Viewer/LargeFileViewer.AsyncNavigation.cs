@@ -17,47 +17,51 @@ internal sealed partial class LargeFileViewer
         _pendingNavigation.Add(request);
         long requestVersion = ++_navigationRequestVersion;
         ViewerNavigationRequest[] requests = _pendingNavigation.ToArray();
-        LargeFileViewerState working = state.CreateWorkingCopy();
         bool hasLocalSession = localSession is not null;
 
         InvalidatePreparedRender();
         long stateVersion = _async.InvalidateState();
+
+        LargeFileViewerState fastWorking = state.CreateWorkingCopy();
+        using (fastWorking.BlockCache.EnterCacheOnly())
+        {
+            Task<LargeFileViewerState> fast = ApplyNavigationRequestsAsync(
+                sourcePath,
+                reader,
+                fastWorking,
+                contentHeight,
+                width,
+                hasLocalSession,
+                requests,
+                CancellationToken.None);
+            if (fast.IsCompletedSuccessfully)
+            {
+                ApplyNavigationResult(state, localSession, fast.Result, requestVersion);
+                return;
+            }
+
+            _ = fast.Exception;
+        }
+
+        LargeFileViewerState working = state.CreateWorkingCopy();
         _async.StartLatest(
             "navigation",
             stateVersion,
             async cancellationToken =>
             {
                 await Task.Yield();
-                foreach (ViewerNavigationRequest pending in requests)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    await ApplyNavigationRequestAsync(
-                            sourcePath,
-                            reader,
-                            working,
-                            contentHeight,
-                            width,
-                            hasLocalSession,
-                            pending,
-                            cancellationToken)
-                        .ConfigureAwait(false);
-                }
-
-                return working;
+                return await ApplyNavigationRequestsAsync(
+                        sourcePath,
+                        reader,
+                        working,
+                        contentHeight,
+                        width,
+                        hasLocalSession,
+                        requests,
+                        cancellationToken)
+                    .ConfigureAwait(false);
             },
-            result =>
-            {
-                if (requestVersion != _navigationRequestVersion)
-                    return;
-
-                ViewerLiveMode oldLiveMode = state.LiveMode;
-                ViewerLiveMode desiredLiveMode = result.LiveMode;
-                state.ApplyWorkingCopy(result);
-                state.LiveMode = oldLiveMode;
-                SetLiveMode(localSession, state, desiredLiveMode);
-                _pendingNavigation.Clear();
-                InvalidatePreparedRender();
-            },
+            result => ApplyNavigationResult(state, localSession, result, requestVersion),
             ex =>
             {
                 if (requestVersion != _navigationRequestVersion)
@@ -66,6 +70,52 @@ internal sealed partial class LargeFileViewer
                 _pendingNavigation.Clear();
                 _dialogs.Message("Viewer", ex.Message);
             });
+    }
+
+    private async Task<LargeFileViewerState> ApplyNavigationRequestsAsync(
+        string sourcePath,
+        IFileByteReader reader,
+        LargeFileViewerState working,
+        int contentHeight,
+        int width,
+        bool hasLocalSession,
+        IReadOnlyList<ViewerNavigationRequest> requests,
+        CancellationToken cancellationToken)
+    {
+        foreach (ViewerNavigationRequest pending in requests)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await ApplyNavigationRequestAsync(
+                    sourcePath,
+                    reader,
+                    working,
+                    contentHeight,
+                    width,
+                    hasLocalSession,
+                    pending,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return working;
+    }
+
+    private void ApplyNavigationResult(
+        LargeFileViewerState state,
+        LocalViewerSession? localSession,
+        LargeFileViewerState result,
+        long requestVersion)
+    {
+        if (requestVersion != _navigationRequestVersion)
+            return;
+
+        ViewerLiveMode oldLiveMode = state.LiveMode;
+        ViewerLiveMode desiredLiveMode = result.LiveMode;
+        state.ApplyWorkingCopy(result);
+        state.LiveMode = oldLiveMode;
+        SetLiveMode(localSession, state, desiredLiveMode);
+        _pendingNavigation.Clear();
+        InvalidatePreparedRender();
     }
 
     private void CancelPendingNavigation()
