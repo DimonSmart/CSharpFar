@@ -74,6 +74,7 @@ internal sealed partial class LargeFileViewer
         int width,
         CancellationToken cancellationToken)
     {
+        await Task.Yield();
         ViewerSearchMatch? match = await ViewerSearchEngine
             .FindAsync(reader, state, request, searchBackward, cancellationToken)
             .ConfigureAwait(false);
