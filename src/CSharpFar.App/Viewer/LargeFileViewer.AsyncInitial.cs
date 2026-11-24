@@ -15,15 +15,51 @@ internal sealed partial class LargeFileViewer
 
         long stateVersion = _async.StateVersion;
         BlockCache cache = state.BlockCache;
+        LocalFileSnapshot? expectedSnapshot = localSession?.AppliedSnapshot;
         _async.StartLatest(
             "initial",
             stateVersion,
-            cancellationToken => LineScanner.CreateAsync(
-                cache,
-                reader,
-                cancellationToken: cancellationToken),
-            scanner =>
+            async cancellationToken =>
             {
+                LineScanner scanner = await LineScanner.CreateAsync(
+                        cache,
+                        reader,
+                        cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (expectedSnapshot is null || localSession is null)
+                    return new InitialContentResult(scanner, null, Retry: false);
+
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!LocalFileMonitor.TryCaptureSnapshot(sourcePath, out LocalFileSnapshot after))
+                    throw new IOException("Could not read the current file state.");
+                if (!after.Exists)
+                    throw new FileNotFoundException("File not found.", sourcePath);
+
+                return after == expectedSnapshot.Value
+                    ? new InitialContentResult(scanner, after, Retry: false)
+                    : new InitialContentResult(null, after, Retry: true);
+            },
+            result =>
+            {
+                if (result.Retry)
+                {
+                    if (localSession is not null && result.Snapshot is { } snapshot)
+                    {
+                        localSession.Reader.UpdateKnownLength(snapshot.Length);
+                        localSession.Commit(snapshot, refreshVersion: 0);
+                    }
+
+                    cache.Clear();
+                    StartInitialContentLoad(sourcePath, reader, state, localSession);
+                    return;
+                }
+
+                LineScanner scanner = result.Scanner
+                    ?? throw new InvalidOperationException("Initial viewer load completed without a scanner.");
+                if (localSession is not null && result.Snapshot is { } applied)
+                    localSession.Commit(applied, refreshVersion: 0);
+
                 state.ReplaceContent(cache, scanner, scanner.Detection.Selection);
                 state.ViewMode = scanner.IsBinary
                     ? LargeFileViewMode.Hex
@@ -65,10 +101,13 @@ internal sealed partial class LargeFileViewer
                 _dialogs.Message("Viewer", ex.Message);
             });
 
-        // If the local async read completed synchronously (common for hot files),
-        // apply it before the first surface frame and preserve the old fast path.
         _async.DrainUiCompletions();
     }
+
+    private sealed record InitialContentResult(
+        LineScanner? Scanner,
+        LocalFileSnapshot? Snapshot,
+        bool Retry);
 
     private sealed record PendingInitialSearch(
         ViewerSearchRequest Request,
