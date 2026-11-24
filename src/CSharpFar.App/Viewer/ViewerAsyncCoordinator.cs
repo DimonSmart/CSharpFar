@@ -202,6 +202,7 @@ internal sealed class ViewerAsyncCoordinator : IDisposable
         Exception? error = null;
         try
         {
+            await Task.Yield();
             await key.Cache.ReadBlockAsync(key.BlockOffset, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
