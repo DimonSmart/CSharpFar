@@ -135,6 +135,29 @@ public partial class FileViewerTests
     }
 
     [Fact]
+    public async Task ViewerAsyncCoordinator_InvalidationRejectsAlreadyQueuedUiResult()
+    {
+        using var coordinator = new ViewerAsyncCoordinator();
+        coordinator.BeginSession();
+        long version = coordinator.StateVersion;
+        int? applied = null;
+
+        coordinator.StartLatest(
+            "search",
+            version,
+            _ => Task.FromResult(42),
+            value => applied = value);
+
+        for (int i = 0; i < 16 && !coordinator.HasPending; i++)
+            await Task.Yield();
+
+        coordinator.InvalidateState();
+        coordinator.DrainUiCompletions();
+
+        Assert.Null(applied);
+    }
+
+    [Fact]
     public async Task ViewerAsyncCoordinator_StateInvalidationRejectsOldResult()
     {
         using var coordinator = new ViewerAsyncCoordinator();
