@@ -87,10 +87,7 @@ internal sealed partial class LargeFileViewer
                         routed.Frame,
                         input,
                         session),
-                    getNextWakeUtc: () =>
-                        state.LiveMode == ViewerLiveMode.Off
-                            ? null
-                            : DateTimeOffset.UtcNow.AddMilliseconds(LivePollMs),
+                    getNextWakeUtc: () => GetNextViewerWakeUtc(state),
                     handleWake: frame => HandleLocalWake(filePath, session, frame));
                 if (action == ViewerLoopAction.Close)
                     return;
@@ -150,7 +147,11 @@ internal sealed partial class LargeFileViewer
                     options,
                     routed.Frame,
                     input,
-                    localSession: null));
+                    localSession: null),
+                getNextWakeUtc: () => GetNextViewerWakeUtc(state),
+                handleWake: _ => _async.DrainUiCompletions()
+                    ? InteractiveSurfaceWakeResult.Changed
+                    : InteractiveSurfaceWakeResult.NoChange);
         }
         catch (Exception ex)
         {
@@ -232,13 +233,30 @@ internal sealed partial class LargeFileViewer
         }
     }
 
+    private DateTimeOffset? GetNextViewerWakeUtc(LargeFileViewerState state)
+    {
+        DateTimeOffset? next = state.LiveMode == ViewerLiveMode.Off
+            ? null
+            : DateTimeOffset.UtcNow.AddMilliseconds(LivePollMs);
+        if (_async.HasPending)
+        {
+            DateTimeOffset asyncWake = DateTimeOffset.UtcNow.AddMilliseconds(25);
+            if (next is null || asyncWake < next.Value)
+                next = asyncWake;
+        }
+
+        return next;
+    }
+
     private InteractiveSurfaceWakeResult HandleLocalWake(
         string filePath,
         LocalViewerSession session,
         LargeFileViewerFrame frame)
     {
+        bool changed = _async.DrainUiCompletions();
         session.DetectChanges();
-        return TryRefreshLocalFile(session, filePath, frame.ContentHeight, frame.Size.Width)
+        changed |= TryRefreshLocalFile(session, filePath, frame.ContentHeight, frame.Size.Width);
+        return changed
             ? InteractiveSurfaceWakeResult.Changed
             : InteractiveSurfaceWakeResult.NoChange;
     }
