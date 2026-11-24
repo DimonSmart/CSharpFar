@@ -714,6 +714,13 @@ internal sealed partial class LargeFileViewer
 
         DrawHeader(canvas, filePath, reader, state, size);
 
+        if (!state.IsContentReady)
+        {
+            DrawLoadingContent(canvas, contentHeight, size.Width, " Loading...");
+            DrawFooter(canvas, size, state);
+            return new LargeFileRenderView([], state.TopByteOffset, []);
+        }
+
         ViewerPreparedContent? prepared = GetOrRequestRenderContent(
             filePath,
             reader,
