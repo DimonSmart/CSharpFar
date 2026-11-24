@@ -205,15 +205,24 @@ internal sealed partial class LargeFileViewer
                 break;
 
             case ViewerNavigationKind.End:
-                ApplyViewportPosition(
-                    state,
-                    await GetMaximumViewportPositionAsync(
-                            sourcePath, reader, state, contentHeight, width, cancellationToken)
-                        .ConfigureAwait(false));
+            {
+                var localReader = reader as ILocalFileByteReader;
+                int failureVersion = localReader?.TransientFailureVersion ?? 0;
+                ViewerViewportPosition maximum = await GetMaximumViewportPositionAsync(
+                        sourcePath, reader, state, contentHeight, width, cancellationToken)
+                    .ConfigureAwait(false);
+                if (localReader is not null &&
+                    localReader.TransientFailureVersion != failureVersion)
+                {
+                    break;
+                }
+
+                ApplyViewportPosition(state, maximum);
                 state.HorizontalOffset = 0;
                 if (hasLocalSession)
                     state.LiveMode = ViewerLiveMode.Tail;
                 break;
+            }
 
             case ViewerNavigationKind.ToggleWrap:
                 state.WrapLines = !state.WrapLines;
