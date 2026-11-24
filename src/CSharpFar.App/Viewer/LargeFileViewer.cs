@@ -573,8 +573,7 @@ internal sealed partial class LargeFileViewer
                 break;
 
             case ConsoleKey.F8 when alt:
-                JumpToPosition(filePath, reader, state, contentHeight, size.Width);
-                UpdateLiveModeAfterAwayNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
+                JumpToPosition(filePath, reader, state, contentHeight, size.Width, localSession);
                 break;
 
             case ConsoleKey.F8 when control:
@@ -634,8 +633,7 @@ internal sealed partial class LargeFileViewer
                 break;
 
             case ConsoleKey.G when !shift && !alt && !control:
-                JumpToPosition(filePath, reader, state, contentHeight, size.Width);
-                UpdateLiveModeAfterAwayNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
+                JumpToPosition(filePath, reader, state, contentHeight, size.Width, localSession);
                 break;
 
             case ConsoleKey.H when !shift && !alt && !control:
