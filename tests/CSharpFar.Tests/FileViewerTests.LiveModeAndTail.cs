@@ -321,31 +321,37 @@ public partial class FileViewerTests
         var driver = new FakeConsoleDriver(width: 80, height: 8);
         string? afterFailure = null;
         string? afterRecovery = null;
-        int hook = 0;
-        Action<FakeConsoleDriver>? beforeInput = null;
-        beforeInput = current =>
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
         {
-            switch (hook++)
+            string content = current.GetRegionText(
+                new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
+            if (stage == 0 && content.Contains("START", StringComparison.Ordinal))
             {
-                case 0:
-                    readerFactory.Current.FailNextLength = true;
-                    current.BeforeTryReadInput = beforeInput;
-                    break;
-                case 1:
-                    afterFailure = current.GetRegionText(
-                        new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
-                    current.BeforeTryReadInput = beforeInput;
-                    break;
-                case 2:
-                    afterRecovery = current.GetRegionText(
-                        new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
-                    break;
+                readerFactory.Current.FailNextLength = true;
+                current.EnqueueKey(Key(ConsoleKey.End));
+                stage = 1;
             }
+            else if (stage == 1 &&
+                !content.Contains("Loading...", StringComparison.Ordinal) &&
+                !WrittenText(current).Contains("TAIL", StringComparison.Ordinal))
+            {
+                afterFailure = content;
+                current.EnqueueKey(Key(ConsoleKey.End));
+                stage = 2;
+            }
+            else if (stage == 2 && content.Contains("TRANSIENT-TAIL", StringComparison.Ordinal))
+            {
+                afterRecovery = content;
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 3;
+                return;
+            }
+
+            current.BeforeTryReadInput = advance;
         };
-        driver.BeforeTryReadInput = beforeInput;
-        driver.EnqueueKey(Key(ConsoleKey.End));
-        driver.EnqueueKey(Key(ConsoleKey.End));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeTryReadInput = advance;
 
         FileViewerFor(
             new ScreenRenderer(driver),
