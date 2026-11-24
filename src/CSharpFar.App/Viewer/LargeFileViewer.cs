@@ -1340,7 +1340,7 @@ internal sealed partial class LargeFileViewer
 
 
 
-    private static bool TryMoveToSibling(
+    private bool TryMoveToSibling(
         LargeFileViewerOptions options,
         int direction,
         out string filePath)
@@ -1349,21 +1349,42 @@ internal sealed partial class LargeFileViewer
         if (!options.HasSiblingFiles)
             return false;
 
-        int index = options.CurrentFileIndex + direction;
-        while (index >= 0 && index < options.FilePaths.Count)
-        {
-            string candidate = options.FilePaths[index];
-            if (File.Exists(candidate))
+        int? selectedIndex = _dialogs.Operation<string, int?, int?>(
+            new OperationDialogDefinition<string, int?, int?>
             {
-                options.CurrentFileIndex = index;
-                filePath = candidate;
-                return true;
-            }
+                Title = direction > 0 ? "Next file" : "Previous file",
+                PreferredWidth = 48,
+                PreferredHeight = 8,
+                MinWidth = 30,
+                MinHeight = 8,
+                Operation = async cancellationToken =>
+                {
+                    await Task.Yield();
+                    int index = options.CurrentFileIndex + direction;
+                    while (index >= 0 && index < options.FilePaths.Count)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (File.Exists(options.FilePaths[index]))
+                            return index;
 
-            index += direction;
-        }
+                        index += direction;
+                    }
 
-        return false;
+                    return null;
+                },
+                Synchronize = () => new OperationDialogState<string>(
+                    status: "Checking sibling files... (Esc to cancel)"),
+                HandleCancel = () => OperationDialogOutcome<int?>.Complete(null),
+                HandleOperationCompleted = index => OperationDialogOutcome<int?>.Complete(index),
+                Complete = index => index,
+            });
+
+        if (selectedIndex is not { } index)
+            return false;
+
+        options.CurrentFileIndex = index;
+        filePath = options.FilePaths[index];
+        return true;
     }
 
     private void OpenMarkdownLink(
