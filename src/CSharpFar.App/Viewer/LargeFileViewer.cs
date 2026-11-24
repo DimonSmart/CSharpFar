@@ -1278,26 +1278,10 @@ internal sealed partial class LargeFileViewer
             return;
         }
 
-        RefreshScanner(reader, state);
+        RequestScannerReload(filePath, reader, state, contentHeight, width);
     }
 
-    private static void RefreshScanner(IFileByteReader reader, LargeFileViewerState state)
-    {
-        long anchorByteOffset = state.TopByteOffset;
-        int anchorWrappedSegment = state.TopWrappedSegmentIndex;
-        var originalViewMode = state.ViewMode;
-        var cache = new BlockCache(reader);
-        var scanner = LineScanner
-            .CreateAsync(cache, reader, state.EncodingSelection)
-            .GetAwaiter()
-            .GetResult();
-        state.ReplaceContent(cache, scanner, state.EncodingSelection);
-        state.ViewMode = originalViewMode;
-        state.TopByteOffset = state.IsHexMode
-            ? Math.Clamp(anchorByteOffset, 0, reader.Length)
-            : scanner.FindLineStartAtOrBeforeAsync(anchorByteOffset).GetAwaiter().GetResult();
-        state.TopWrappedSegmentIndex = anchorWrappedSegment;
-    }
+
 
     private void ChangeEncoding(
         string filePath,
