@@ -119,13 +119,18 @@ public partial class FileViewerTests
                 current.EnqueueKey(Key(ConsoleKey.Enter));
                 stage = 1;
             }
+            else if (stage == 1 &&
+                WrittenText(current).Contains("TEXT Windows-1251", StringComparison.Ordinal) &&
+                WrittenText(current).Contains(expected, StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 2;
+                return;
+            }
 
             current.BeforeTryReadInput = advance;
         };
         driver.BeforeTryReadInput = advance;
-        CloseWhen(driver, current =>
-            WrittenText(current).Contains("TEXT Windows-1251", StringComparison.Ordinal) &&
-            WrittenText(current).Contains(expected, StringComparison.Ordinal));
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
@@ -156,13 +161,18 @@ public partial class FileViewerTests
                 current.EnqueueKey(Key(ConsoleKey.Escape));
                 stage = 1;
             }
+            else if (stage == 1 &&
+                WrittenText(current).Contains("TEXT CP866", StringComparison.Ordinal) &&
+                WrittenText(current).Contains(expected, StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 2;
+                return;
+            }
 
             current.BeforeTryReadInput = advance;
         };
         driver.BeforeTryReadInput = advance;
-        CloseWhen(driver, current =>
-            WrittenText(current).Contains("TEXT CP866", StringComparison.Ordinal) &&
-            WrittenText(current).Contains(expected, StringComparison.Ordinal));
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
@@ -183,7 +193,7 @@ public partial class FileViewerTests
         advance = current =>
         {
             string content = current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 100, 10));
-            if (stage == 0 && !content.Contains("Loading...", StringComparison.Ordinal))
+            if (stage == 0 && content.Contains("00000000", StringComparison.Ordinal))
             {
                 current.EnqueueKey(Key(ConsoleKey.F8, shift: true));
                 for (int i = 0; i < 7; i++)
@@ -191,14 +201,18 @@ public partial class FileViewerTests
                 current.EnqueueKey(Key(ConsoleKey.Enter));
                 stage = 1;
             }
+            else if (stage == 1 &&
+                WrittenText(current).Contains("TEXT CP866", StringComparison.Ordinal) &&
+                content.Contains("A B", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 2;
+                return;
+            }
 
             current.BeforeTryReadInput = advance;
         };
         driver.BeforeTryReadInput = advance;
-        CloseWhen(driver, current =>
-            WrittenText(current).Contains("TEXT CP866", StringComparison.Ordinal) &&
-            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 100, 10))
-                .Contains("A B", StringComparison.Ordinal));
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
