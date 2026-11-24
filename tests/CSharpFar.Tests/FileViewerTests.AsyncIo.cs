@@ -191,6 +191,61 @@ public partial class FileViewerTests
     }
 
     [Fact]
+    public void VirtualViewer_EscapeCancelsPendingSearchAndKeepsViewerOpen()
+    {
+        byte[] data = Encoding.UTF8.GetBytes(
+            "START\n" + new string('a', BlockCache.DefaultBlockSize + 4096) + "\nTARGET");
+        var reader = new GatedAfterFirstReadByteReader(data);
+        var driver = new FakeConsoleDriver(width: 80, height: 10);
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string content = current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8));
+            string writes = WrittenText(current);
+            if (stage == 0 && content.Contains("START", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F7));
+                EnqueueText(current, "TARGET");
+                current.EnqueueKey(Key(ConsoleKey.Enter));
+                stage = 1;
+            }
+            else if (stage == 1)
+            {
+                if (!reader.PendingReadStarted.Task.Wait(TimeSpan.FromSeconds(5)))
+                    throw new TimeoutException("Search did not request the delayed block.");
+
+                current.EnqueueKey(Key(ConsoleKey.Escape));
+                stage = 2;
+            }
+            else if (stage == 2 && reader.CancellationObserved)
+            {
+                current.EnqueueKey(Key(ConsoleKey.F7));
+                EnqueueText(current, "START");
+                current.EnqueueKey(Key(ConsoleKey.Enter));
+                stage = 3;
+            }
+            else if (stage == 3 &&
+                     writes.Contains("FIND", StringComparison.Ordinal) &&
+                     content.Contains("START", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 4;
+                return;
+            }
+
+            current.BeforeTryReadInput = advance;
+        };
+        driver.BeforeTryReadInput = advance;
+
+        FileViewerFor(new ScreenRenderer(driver)).Show("remote:/cancel-search.txt", reader);
+
+        Assert.Equal(4, stage);
+        Assert.True(reader.CancellationObserved);
+        Assert.Contains("START", WrittenText(driver));
+    }
+
+    [Fact]
     public void VirtualViewer_NewSearchCancelsAndSupersedesPendingSearch()
     {
         byte[] data = Encoding.UTF8.GetBytes(
