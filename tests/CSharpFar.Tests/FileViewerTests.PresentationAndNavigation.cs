@@ -210,10 +210,29 @@ public partial class FileViewerTests
     {
         string path = Write("wide-tab-find.txt", "界\ttarget", new UTF8Encoding(false));
         var driver = new FakeConsoleDriver(width: 20, height: 8);
-        driver.EnqueueKey(Key(ConsoleKey.F7));
-        EnqueueText(driver, "target");
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
-        CloseWhen(driver, current => WrittenText(current).Contains("FIND", StringComparison.Ordinal));
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string content = current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 20, 6));
+            string writes = WrittenText(current);
+            if (stage == 0 && content.Contains("target", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F7));
+                EnqueueText(current, "target");
+                current.EnqueueKey(Key(ConsoleKey.Enter));
+                stage = 1;
+            }
+            else if (stage == 1 && writes.Contains("FIND", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 2;
+                return;
+            }
+
+            current.BeforeTryReadInput = advance;
+        };
+        driver.BeforeTryReadInput = advance;
 
         FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
