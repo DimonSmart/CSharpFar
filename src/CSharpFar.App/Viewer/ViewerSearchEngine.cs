@@ -8,13 +8,6 @@ internal static class ViewerSearchEngine
     private const int TextSearchMaxBytesPerLine = 4 * 1024 * 1024;
     private const int HexSearchChunkBytes = 64 * 1024;
 
-    public static ViewerSearchMatch? Find(
-        IFileByteReader reader,
-        LargeFileViewerState state,
-        ViewerSearchRequest request,
-        bool searchBackward) =>
-        FindAsync(reader, state, request, searchBackward).GetAwaiter().GetResult();
-
     public static async Task<ViewerSearchMatch?> FindAsync(
         IFileByteReader reader,
         LargeFileViewerState state,
