@@ -75,7 +75,7 @@ internal sealed partial class LargeFileViewer
                 var state = session.State;
                 StartInitialContentLoad(filePath, reader, state, session);
                 var layer = new LargeFileViewerLayer(this, filePath, reader, state);
-                var action = _surfaces.Run(
+                var action = _surfaces.RunTimed(
                     layer,
                     (routed, input) => HandleViewerInput(
                         filePath,
@@ -197,20 +197,25 @@ internal sealed partial class LargeFileViewer
         return next;
     }
 
-    private InteractiveSurfaceWakeResult HandleLocalWake(
+    private InteractiveSurfaceWakeResult<ViewerLoopAction> HandleLocalWake(
         string filePath,
         LocalViewerSession session,
         LargeFileViewerFrame frame)
     {
         bool changed = _async.DrainUiCompletions();
+        if (session.InitialLoadFailed)
+            return InteractiveSurfaceWakeResult<ViewerLoopAction>.Complete(
+                ViewerLoopAction.Close,
+                invalidate: changed);
+
         session.DetectNotifications();
         if (session.PendingRefresh)
             TryRefreshLocalFile(session, filePath, frame.ContentHeight, frame.Size.Width);
         else
             RequestLocalMonitorPoll(session, filePath, frame.ContentHeight, frame.Size.Width);
         return changed
-            ? InteractiveSurfaceWakeResult.Changed
-            : InteractiveSurfaceWakeResult.NoChange;
+            ? InteractiveSurfaceWakeResult<ViewerLoopAction>.Changed
+            : InteractiveSurfaceWakeResult<ViewerLoopAction>.NoChange;
     }
 
     private bool TryRefreshLocalFile(
@@ -1759,6 +1764,9 @@ internal sealed partial class LargeFileViewer
         public ILocalFileByteReader Reader { get; }
         public LargeFileViewerState State { get; }
         public bool PendingRefresh => _monitoring.PendingRefresh;
+        public bool InitialLoadFailed { get; private set; }
+
+        public void MarkInitialLoadFailed() => InitialLoadFailed = true;
 
         public void StartMonitoring() => _monitoring.Activate();
 
