@@ -386,19 +386,27 @@ internal sealed partial class LargeFileViewer
                 break;
 
             case ConsoleKey.LeftArrow when control && shift:
+                _async.CancelChannel("search");
                 state.HorizontalOffset = 0;
+                InvalidatePreparedRender();
                 break;
 
             case ConsoleKey.RightArrow when control && shift:
+                _async.CancelChannel("search");
                 MoveHorizontalToCurrentLineEnd(state, view, size.Width);
+                InvalidatePreparedRender();
                 break;
 
             case ConsoleKey.LeftArrow when control:
+                _async.CancelChannel("search");
                 MoveHorizontal(state, -(state.IsHexMode ? 1 : FastHorizontalTextScrollCells));
+                InvalidatePreparedRender();
                 break;
 
             case ConsoleKey.RightArrow when control:
+                _async.CancelChannel("search");
                 MoveHorizontal(state, state.IsHexMode ? 1 : FastHorizontalTextScrollCells);
+                InvalidatePreparedRender();
                 break;
 
             case ConsoleKey.LeftArrow when shift:
@@ -407,11 +415,15 @@ internal sealed partial class LargeFileViewer
                 break;
 
             case ConsoleKey.LeftArrow:
+                _async.CancelChannel("search");
                 MoveHorizontal(state, -1);
+                InvalidatePreparedRender();
                 break;
 
             case ConsoleKey.RightArrow:
+                _async.CancelChannel("search");
                 MoveHorizontal(state, 1);
+                InvalidatePreparedRender();
                 break;
 
             case ConsoleKey.PageUp when alt:
@@ -587,7 +599,9 @@ internal sealed partial class LargeFileViewer
                 break;
 
             case ConsoleKey.U when control:
+                _async.CancelChannel("search");
                 state.SearchMatch = null;
+                InvalidatePreparedRender();
                 break;
 
             case ConsoleKey.C when control:
