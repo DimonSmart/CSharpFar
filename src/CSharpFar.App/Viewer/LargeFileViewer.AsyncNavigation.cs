@@ -16,10 +16,13 @@ internal sealed partial class LargeFileViewer
     {
         _pendingNavigation.Add(request);
         long requestVersion = ++_navigationRequestVersion;
+        InvalidatePreparedRender();
+        if (!state.IsContentReady)
+            return;
+
         ViewerNavigationRequest[] requests = _pendingNavigation.ToArray();
         bool hasLocalSession = localSession is not null;
 
-        InvalidatePreparedRender();
         long stateVersion = _async.InvalidateState();
 
         LargeFileViewerState fastWorking = state.CreateWorkingCopy();
