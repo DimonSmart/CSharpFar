@@ -11,387 +11,31 @@ namespace CSharpFar.App.Viewer;
 
 internal sealed partial class LargeFileViewer
 {
-    private void MoveUp(
-        string sourcePath,
-        IFileByteReader reader,
-        LargeFileViewerState state,
-        int contentHeight,
-        int width)
-    {
-        if (state.IsHexMode)
-        {
-            state.TopByteOffset = Math.Max(0, state.TopByteOffset - BinaryBytesPerRow);
-        }
-        else if (state.WrapLines)
-        {
-            MoveWrappedUpOne(sourcePath, state, width);
-        }
-        else
-        {
-            state.TopByteOffset = state.LineScanner
-                .FindPreviousLineStartAsync(state.TopByteOffset)
-                .GetAwaiter()
-                .GetResult();
-        }
 
-        NormalizeViewport(sourcePath, reader, state, contentHeight, width, keepTail: false);
-    }
 
-    private void MoveDown(
-        string sourcePath,
-        IFileByteReader reader,
-        LargeFileViewerState state,
-        LargeFileRenderView view,
-        int contentHeight,
-        int width)
-    {
-        if (state.IsHexMode)
-        {
-            state.TopByteOffset += BinaryBytesPerRow;
-        }
-        else if (state.WrapLines)
-        {
-            MoveWrappedDownOne(sourcePath, reader, state, width);
-        }
-        else
-        {
-            state.TopByteOffset = view.Lines.Count > 1
-                ? view.Lines[1].StartOffset
-                : view.NextOffset;
-        }
 
-        NormalizeViewport(sourcePath, reader, state, contentHeight, width, keepTail: false);
-    }
 
-    private void MovePageUp(
-        string sourcePath,
-        IFileByteReader reader,
-        LargeFileViewerState state,
-        int contentHeight,
-        int width,
-        int pages)
-    {
-        int pageCount = Math.Max(1, pages);
-        if (state.WrapLines && !state.IsHexMode)
-        {
-            int steps = Math.Max(1, contentHeight) * pageCount;
-            for (int i = 0; i < steps; i++)
-            {
-                if (!MoveWrappedUpOne(sourcePath, state, width))
-                    break;
-            }
-        }
-        else
-        {
-            for (int page = 0; page < pageCount; page++)
-            {
-                if (state.IsHexMode)
-                {
-                    long delta = (long)Math.Max(1, contentHeight) * BinaryBytesPerRow;
-                    state.TopByteOffset = Math.Max(0, state.TopByteOffset - delta);
-                }
-                else
-                {
-                    for (int i = 0; i < Math.Max(1, contentHeight); i++)
-                    {
-                        state.TopByteOffset = state.LineScanner
-                            .FindPreviousLineStartAsync(state.TopByteOffset)
-                            .GetAwaiter()
-                            .GetResult();
-                    }
-                }
-            }
-        }
 
-        NormalizeViewport(sourcePath, reader, state, contentHeight, width, keepTail: false);
-    }
 
-    private void MovePageDown(
-        string sourcePath,
-        IFileByteReader reader,
-        LargeFileViewerState state,
-        LargeFileRenderView view,
-        int contentHeight,
-        int width)
-    {
-        if (state.WrapLines && !state.IsHexMode)
-        {
-            MovePageDown(sourcePath, reader, state, contentHeight, width, pages: 1);
-            return;
-        }
 
-        if (state.IsHexMode)
-        {
-            long delta = (long)Math.Max(1, contentHeight) * BinaryBytesPerRow;
-            state.TopByteOffset += delta;
-        }
-        else
-        {
-            state.TopByteOffset = view.NextOffset;
-        }
 
-        NormalizeViewport(sourcePath, reader, state, contentHeight, width, keepTail: false);
-    }
 
-    private void MovePageDown(
-        string sourcePath,
-        IFileByteReader reader,
-        LargeFileViewerState state,
-        int contentHeight,
-        int width,
-        int pages)
-    {
-        int pageCount = Math.Max(1, pages);
-        if (state.WrapLines && !state.IsHexMode)
-        {
-            int steps = Math.Max(1, contentHeight) * pageCount;
-            for (int i = 0; i < steps; i++)
-            {
-                if (!MoveWrappedDownOne(sourcePath, reader, state, width))
-                    break;
-            }
-        }
-        else
-        {
-            for (int page = 0; page < pageCount; page++)
-            {
-                if (state.IsHexMode)
-                {
-                    long delta = (long)Math.Max(1, contentHeight) * BinaryBytesPerRow;
-                    state.TopByteOffset += delta;
-                }
-                else
-                {
-                    var scanned = state.LineScanner
-                        .ReadLinesAsync(
-                            state.TopByteOffset,
-                            Math.Max(1, contentHeight),
-                            maxBytesPerLine: 256)
-                        .GetAwaiter()
-                        .GetResult();
-                    state.TopByteOffset = scanned.NextOffset;
-                }
-            }
-        }
 
-        NormalizeViewport(sourcePath, reader, state, contentHeight, width, keepTail: false);
-    }
 
-    private void MoveToEnd(
-        string sourcePath,
-        IFileByteReader reader,
-        LargeFileViewerState state,
-        int contentHeight,
-        int width) =>
-        ApplyViewportPosition(
-            state,
-            GetMaximumViewportPosition(sourcePath, reader, state, contentHeight, width));
 
-    private bool MoveWrappedUpOne(
-        string sourcePath,
-        LargeFileViewerState state,
-        int width)
-    {
-        if (state.TopWrappedSegmentIndex > 0)
-        {
-            state.TopWrappedSegmentIndex--;
-            return true;
-        }
 
-        long previous = state.LineScanner
-            .FindPreviousLineStartAsync(state.TopByteOffset)
-            .GetAwaiter()
-            .GetResult();
-        if (previous == state.TopByteOffset)
-            return false;
 
-        state.TopByteOffset = previous;
-        state.TopWrappedSegmentIndex = Math.Max(
-            0,
-            GetWrappedSegmentCount(sourcePath, state, previous, width) - 1);
-        return true;
-    }
 
-    private bool MoveWrappedDownOne(
-        string sourcePath,
-        IFileByteReader reader,
-        LargeFileViewerState state,
-        int width)
-    {
-        var scanned = state.LineScanner
-            .ReadLinesAsync(state.TopByteOffset, 1, MaxWrappedLineCaptureBytes)
-            .GetAwaiter()
-            .GetResult();
-        if (scanned.Lines.Count == 0)
-            return false;
 
-        ScannedLine line = scanned.Lines[0];
-        int segmentCount = GetWrappedSegmentCount(sourcePath, state, line, width);
-        if (state.TopWrappedSegmentIndex + 1 < segmentCount)
-        {
-            state.TopWrappedSegmentIndex++;
-            return true;
-        }
 
-        if (line.NextOffset <= state.TopByteOffset || line.NextOffset > reader.Length)
-            return false;
 
-        state.TopByteOffset = line.NextOffset;
-        state.TopWrappedSegmentIndex = 0;
-        return true;
-    }
 
-    private ViewerViewportPosition GetMaximumViewportPosition(
-        string sourcePath,
-        IFileByteReader reader,
-        LargeFileViewerState state,
-        int contentHeight,
-        int width)
-    {
-        EnsureLayoutCacheContext(state);
-        var localReader = reader as ILocalFileByteReader;
-        int failureVersion = localReader?.TransientFailureVersion ?? 0;
-        long length = reader.Length;
-        MaximumViewportCacheKey key = CreateMaximumViewportCacheKey(
-            sourcePath,
-            state,
-            length,
-            contentHeight,
-            width);
 
-        if (_maximumViewportCache is { } cached && cached.Key == key)
-            return cached.Position;
 
-        ViewerViewportPosition result = ComputeMaximumViewportPosition(
-            sourcePath,
-            state,
-            length,
-            contentHeight,
-            width);
 
-        if (localReader is null || localReader.TransientFailureVersion == failureVersion)
-            _maximumViewportCache = new MaximumViewportCacheEntry(key, result);
 
-        return result;
-    }
 
-    private ViewerViewportPosition ComputeMaximumViewportPosition(
-        string sourcePath,
-        LargeFileViewerState state,
-        long length,
-        int contentHeight,
-        int width)
-    {
-        int visibleRows = Math.Max(1, contentHeight);
 
-        if (state.IsHexMode)
-        {
-            long rowCount = (length + BinaryBytesPerRow - 1) / BinaryBytesPerRow;
-            long maxTopRow = Math.Max(0, rowCount - visibleRows);
-            return new ViewerViewportPosition(maxTopRow * BinaryBytesPerRow, 0);
-        }
-
-        if (length <= state.LineScanner.ContentStartOffset)
-            return new ViewerViewportPosition(state.LineScanner.ContentStartOffset, 0);
-
-        if (!state.WrapLines)
-        {
-            long offset = state.LineScanner
-                .FindTailTopOffsetAsync(visibleRows)
-                .GetAwaiter()
-                .GetResult();
-            return new ViewerViewportPosition(offset, 0);
-        }
-
-        long lineStart = state.LineScanner
-            .FindTailTopOffsetAsync(1)
-            .GetAwaiter()
-            .GetResult();
-        int remainingRows = visibleRows;
-
-        while (true)
-        {
-            int segmentCount = GetWrappedSegmentCount(sourcePath, state, lineStart, width);
-            if (segmentCount >= remainingRows)
-            {
-                return new ViewerViewportPosition(
-                    lineStart,
-                    Math.Max(0, segmentCount - remainingRows));
-            }
-
-            remainingRows -= segmentCount;
-            long previous = state.LineScanner
-                .FindPreviousLineStartAsync(lineStart)
-                .GetAwaiter()
-                .GetResult();
-            if (previous == lineStart)
-                return new ViewerViewportPosition(lineStart, 0);
-
-            lineStart = previous;
-        }
-    }
-
-    private int GetWrappedSegmentCount(
-        string sourcePath,
-        LargeFileViewerState state,
-        long lineStart,
-        int width)
-    {
-        var scanned = state.LineScanner
-            .ReadLinesAsync(lineStart, 1, MaxWrappedLineCaptureBytes)
-            .GetAwaiter()
-            .GetResult();
-        return scanned.Lines.Count == 0
-            ? 1
-            : GetWrappedSegmentCount(sourcePath, state, scanned.Lines[0], width);
-    }
-
-    private int GetWrappedSegmentCount(
-        string sourcePath,
-        LargeFileViewerState state,
-        ScannedLine line,
-        int width)
-    {
-        if (RequiresStreamingWrappedLayout(line))
-        {
-            return GetStreamingWrappedLineLayout(
-                    state,
-                    line,
-                    width,
-                    captureStartSegment: 0,
-                    captureSegmentCount: 0)
-                .SegmentCount;
-        }
-
-        return GetOrCreateWrappedLineLayout(sourcePath, state, line, width).Segments.Count;
-    }
-
-    private WrappedLineLayout GetOrCreateWrappedLineLayout(
-        string sourcePath,
-        LargeFileViewerState state,
-        ScannedLine line,
-        int width)
-    {
-        if (TryGetWrappedLineLayout(sourcePath, state, line, width, out var cached))
-            return cached;
-
-        PresentedLine presented = state.Presentation.Present(
-            state.PresentationMode,
-            sourcePath,
-            state.LineScanner,
-            [line],
-            Math.Max(1, width))[0];
-        presented = ResolvePresentationForSearch(presented, state.SearchMatch);
-
-        if (presented.PreserveLineLayout)
-            ClearWrappedLayoutCache();
-
-        WrappedLineLayout layout = CreateWrappedLineLayout(presented, state.WordWrap, width);
-        StoreWrappedLineLayout(
-            CreateWrappedLayoutCacheKey(sourcePath, state, line, width),
-            layout);
-        return layout;
-    }
 
     private static WrappedLineLayout CreateWrappedLineLayout(
         PresentedLine presented,
@@ -488,24 +132,7 @@ internal sealed partial class LargeFileViewer
     private static bool RequiresStreamingWrappedLayout(ScannedLine line) =>
         line.NextOffset - line.StartOffset > MaxWrappedLineCaptureBytes;
 
-    private LongWrappedLineLayout GetStreamingWrappedLineLayout(
-        LargeFileViewerState state,
-        ScannedLine line,
-        int width,
-        int captureStartSegment,
-        int captureSegmentCount)
-    {
-        var builder = new StreamingWrappedLineBuilder(
-            Math.Max(1, width),
-            state.WordWrap,
-            captureStartSegment,
-            captureSegmentCount);
-        state.LineScanner
-            .VisitLineTextChunksAsync(line, builder.Append)
-            .GetAwaiter()
-            .GetResult();
-        return builder.Complete();
-    }
+
 
     private void WriteRawWrappedTextLine(
         IUiCanvas canvas,
@@ -521,80 +148,9 @@ internal sealed partial class LargeFileViewer
             CSharpFarPaletteStyles.CommandLine(_palette));
     }
 
-    private void NormalizeViewport(
-        string sourcePath,
-        IFileByteReader reader,
-        LargeFileViewerState state,
-        int contentHeight,
-        int width,
-        bool keepTail = true)
-    {
-        var localReader = reader as ILocalFileByteReader;
-        int failureVersion = localReader?.TransientFailureVersion ?? 0;
-        var originalPosition = new ViewerViewportPosition(
-            state.TopByteOffset,
-            state.TopWrappedSegmentIndex);
 
-        ViewerViewportPosition maximum =
-            GetMaximumViewportPosition(sourcePath, reader, state, contentHeight, width);
 
-        if (keepTail && state.LiveMode == ViewerLiveMode.Tail)
-        {
-            ApplyViewportPosition(state, maximum);
-            if (localReader is not null && localReader.TransientFailureVersion != failureVersion)
-                ApplyViewportPosition(state, originalPosition);
-            return;
-        }
 
-        if (state.IsHexMode)
-        {
-            state.TopByteOffset = Math.Max(0, state.TopByteOffset / BinaryBytesPerRow * BinaryBytesPerRow);
-            state.TopWrappedSegmentIndex = 0;
-        }
-        else
-        {
-            state.TopByteOffset = state.LineScanner
-                .FindLineStartAtOrBeforeAsync(state.TopByteOffset)
-                .GetAwaiter()
-                .GetResult();
-
-            if (state.WrapLines)
-            {
-                int segmentCount =
-                    GetWrappedSegmentCount(sourcePath, state, state.TopByteOffset, width);
-                state.TopWrappedSegmentIndex = Math.Clamp(
-                    state.TopWrappedSegmentIndex,
-                    0,
-                    Math.Max(0, segmentCount - 1));
-            }
-            else
-            {
-                state.TopWrappedSegmentIndex = 0;
-            }
-        }
-
-        var current = new ViewerViewportPosition(
-            state.TopByteOffset,
-            state.TopWrappedSegmentIndex);
-        if (CompareViewportPositions(current, maximum) > 0)
-            ApplyViewportPosition(state, maximum);
-
-        if (localReader is not null && localReader.TransientFailureVersion != failureVersion)
-            ApplyViewportPosition(state, originalPosition);
-    }
-
-    private bool IsAtEnd(
-        string sourcePath,
-        IFileByteReader reader,
-        LargeFileViewerState state,
-        int contentHeight,
-        int width)
-    {
-        ViewerViewportPosition maximum =
-            GetMaximumViewportPosition(sourcePath, reader, state, contentHeight, width);
-        return state.TopByteOffset == maximum.ByteOffset &&
-               state.TopWrappedSegmentIndex == maximum.WrappedSegmentIndex;
-    }
 
     private static void SetLiveMode(
         LocalViewerSession? session,
@@ -616,41 +172,9 @@ internal sealed partial class LargeFileViewer
         state.LiveMode = newMode;
     }
 
-    private void UpdateLiveModeAfterAwayNavigation(
-        LocalViewerSession? localSession,
-        string sourcePath,
-        IFileByteReader reader,
-        LargeFileViewerState state,
-        int contentHeight,
-        int width)
-    {
-        if (state.LiveMode == ViewerLiveMode.Tail &&
-            !IsAtEnd(sourcePath, reader, state, contentHeight, width))
-        {
-            SetLiveMode(localSession, state, ViewerLiveMode.Watch);
-        }
-    }
 
-    private void UpdateLiveModeAfterDownwardNavigation(
-        LocalViewerSession? localSession,
-        string sourcePath,
-        IFileByteReader reader,
-        LargeFileViewerState state,
-        int contentHeight,
-        int width)
-    {
-        if (localSession is null)
-            return;
 
-        if (IsAtEnd(sourcePath, reader, state, contentHeight, width))
-        {
-            SetLiveMode(localSession, state, ViewerLiveMode.Tail);
-        }
-        else if (state.LiveMode == ViewerLiveMode.Tail)
-        {
-            SetLiveMode(localSession, state, ViewerLiveMode.Watch);
-        }
-    }
+
 
     private static int CompareViewportPositions(
         ViewerViewportPosition left,
@@ -737,24 +261,5 @@ internal sealed partial class LargeFileViewer
             request);
     }
 
-    private static void ToggleViewMode(LargeFileViewerState state)
-    {
-        if (state.IsHexMode)
-        {
-            state.ViewMode = LargeFileViewMode.Text;
-            state.TopByteOffset = state.LineScanner
-                .FindLineStartAtOrBeforeAsync(state.TopByteOffset)
-                .GetAwaiter()
-                .GetResult();
-        }
-        else
-        {
-            state.ViewMode = LargeFileViewMode.Hex;
-            state.TopByteOffset = 0;
-        }
 
-        state.TopWrappedSegmentIndex = 0;
-        state.HorizontalOffset = 0;
-        state.SearchMatch = null;
-    }
 }
