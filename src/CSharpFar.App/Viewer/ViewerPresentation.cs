@@ -168,16 +168,6 @@ internal sealed class ViewerPresentationSession
     private IViewerPresentationProvider? _provider;
     private bool _providerFailed;
 
-    public IReadOnlyList<PresentedLine> Present(
-        ViewerPresentationMode mode,
-        string sourcePath,
-        LineScanner scanner,
-        IReadOnlyList<ScannedLine> visibleLines,
-        int viewportWidth) =>
-        PresentAsync(mode, sourcePath, scanner, visibleLines, viewportWidth)
-            .GetAwaiter()
-            .GetResult();
-
     public async Task<IReadOnlyList<PresentedLine>> PresentAsync(
         ViewerPresentationMode mode,
         string sourcePath,
