@@ -20,6 +20,7 @@ internal sealed partial class LargeFileViewer
             stateVersion,
             async cancellationToken =>
             {
+                await Task.Yield();
                 LocalFileSnapshot? before = null;
                 if (localSession is not null)
                 {
