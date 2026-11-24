@@ -102,7 +102,9 @@ public partial class FileViewerTests : IDisposable
     {
         string path = Write("small-viewer.txt", "first\nsecond", new UTF8Encoding(false));
         var driver = new FakeConsoleDriver(width: 80, height: 10);
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8))
+                .Contains("first", StringComparison.Ordinal));
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
@@ -150,7 +152,9 @@ public partial class FileViewerTests : IDisposable
             "tail-large-file");
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         driver.EnqueueKey(Key(ConsoleKey.End));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8))
+                .Contains("tail-large-file", StringComparison.Ordinal));
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
@@ -164,7 +168,9 @@ public partial class FileViewerTests : IDisposable
         string path = WritePath("binary.bin");
         File.WriteAllBytes(path, [0x00, 0x01, 0x41, 0x42]);
         var driver = new FakeConsoleDriver(width: 80, height: 10);
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8))
+                .Contains("00000000", StringComparison.Ordinal));
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
@@ -182,7 +188,9 @@ public partial class FileViewerTests : IDisposable
         string path = Write("toggle-text.txt", "ABC", new UTF8Encoding(false));
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         driver.EnqueueKey(Key(key, keyChar));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8))
+                .Contains("41 42 43", StringComparison.Ordinal));
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
