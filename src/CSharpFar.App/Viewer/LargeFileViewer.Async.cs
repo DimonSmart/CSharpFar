@@ -1,3 +1,6 @@
+using System.Globalization;
+using CSharpFar.Ui;
+
 namespace CSharpFar.App.Viewer;
 
 internal sealed partial class LargeFileViewer
