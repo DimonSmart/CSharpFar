@@ -1,5 +1,11 @@
 namespace CSharpFar.App.Viewer;
 
+internal sealed class BlockCacheMissException(long blockOffset) : Exception
+{
+    public long BlockOffset { get; } = blockOffset;
+}
+
+
 internal sealed class BlockCache
 {
     public const int DefaultBlockSize = 256 * 1024;
@@ -9,6 +15,7 @@ internal sealed class BlockCache
     private readonly int _capacity;
     private readonly Dictionary<long, CacheEntry> _entries = [];
     private readonly object _gate = new();
+    private readonly AsyncLocal<int> _cacheOnlyDepth = new();
     private long _lastAccess;
     private long _generation;
 
@@ -28,6 +35,14 @@ internal sealed class BlockCache
     }
 
     public int BlockSize { get; }
+
+    public IDisposable EnterCacheOnly()
+    {
+        _cacheOnlyDepth.Value++;
+        return new CacheOnlyScope(this);
+    }
+
+    public long GetBlockStart(long offset) => NormalizeOffset(offset);
 
     public void Clear()
     {
@@ -58,6 +73,9 @@ internal sealed class BlockCache
                 return cached.Bytes;
             }
         }
+
+        if (_cacheOnlyDepth.Value > 0)
+            throw new BlockCacheMissException(blockStart);
 
         var buffer = new byte[BlockSize];
         int totalRead = 0;
@@ -148,6 +166,24 @@ internal sealed class BlockCache
                 .First()
                 .Key;
             _entries.Remove(oldestKey);
+        }
+    }
+
+    private void ExitCacheOnly()
+    {
+        if (_cacheOnlyDepth.Value <= 0)
+            throw new InvalidOperationException("Cache-only scope is not active.");
+        _cacheOnlyDepth.Value--;
+    }
+
+    private sealed class CacheOnlyScope(BlockCache owner) : IDisposable
+    {
+        private BlockCache? _owner = owner;
+
+        public void Dispose()
+        {
+            BlockCache? current = Interlocked.Exchange(ref _owner, null);
+            current?.ExitCacheOnly();
         }
     }
 
