@@ -33,17 +33,28 @@ public partial class FileViewerTests
         DateTime originalWriteTime = File.GetLastWriteTimeUtc(path);
         var factory = new FakeLocalFileMonitorFactory();
         var driver = new FakeConsoleDriver(width: 80, height: 8);
-        int readCount = 0;
-        driver.BeforeTryReadInput = _ =>
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
         {
-            if (readCount++ != 0)
+            string content = current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
+            if (stage == 0 && content.Contains("AAAA", StringComparison.Ordinal))
+            {
+                File.WriteAllText(path, "BBBB", new UTF8Encoding(false));
+                File.SetLastWriteTimeUtc(path, originalWriteTime);
+                current.EnqueueKey(Key(ConsoleKey.F, 'f'));
+                stage = 1;
+            }
+            else if (stage == 1 && content.Contains("BBBB", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 2;
                 return;
+            }
 
-            File.WriteAllText(path, "BBBB", new UTF8Encoding(false));
-            File.SetLastWriteTimeUtc(path, originalWriteTime);
+            current.BeforeTryReadInput = advance;
         };
-        driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeTryReadInput = advance;
 
         FileViewerFor(new ScreenRenderer(driver), factory).Show(path);
 
@@ -58,23 +69,36 @@ public partial class FileViewerTests
         string path = Write("live-tail-append.txt", "first", new UTF8Encoding(false));
         var factory = new FakeLocalFileMonitorFactory();
         var driver = new FakeConsoleDriver(width: 80, height: 8);
-        int readCount = 0;
-        Action<FakeConsoleDriver>? beforeInput = null;
-        beforeInput = current =>
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
         {
-            if (readCount++ == 0)
+            string content = current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
+            string writes = WrittenText(current);
+            if (stage == 0 && content.Contains("first", StringComparison.Ordinal))
             {
-                current.BeforeTryReadInput = beforeInput;
+                current.EnqueueKey(Key(ConsoleKey.F, 'f'));
+                stage = 1;
+            }
+            else if (stage == 1 && writes.Contains("WATCH", StringComparison.Ordinal) && factory.CreateCount == 1)
+            {
+                File.AppendAllText(path, "\nAPPENDED", new UTF8Encoding(false));
+                factory.Current.MarkDirty();
+                current.EnqueueKey(Key(ConsoleKey.F, 'f'));
+                stage = 2;
+            }
+            else if (stage == 2 &&
+                content.Contains("APPENDED", StringComparison.Ordinal) &&
+                writes.Contains("TAIL", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 3;
                 return;
             }
 
-            File.AppendAllText(path, "\nAPPENDED", new UTF8Encoding(false));
-            factory.Current.MarkDirty();
+            current.BeforeTryReadInput = advance;
         };
-        driver.BeforeTryReadInput = beforeInput;
-        driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
-        driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeTryReadInput = advance;
 
         FileViewerFor(new ScreenRenderer(driver), factory).Show(path);
 
@@ -90,23 +114,33 @@ public partial class FileViewerTests
         string path = Write("live-same-length.txt", "AAAA", new UTF8Encoding(false));
         var factory = new FakeLocalFileMonitorFactory();
         var driver = new FakeConsoleDriver(width: 80, height: 8);
-        int readCount = 0;
-        Action<FakeConsoleDriver>? beforeInput = null;
-        beforeInput = current =>
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
         {
-            if (readCount++ == 0)
+            string content = current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
+            string writes = WrittenText(current);
+            if (stage == 0 && content.Contains("AAAA", StringComparison.Ordinal))
             {
-                current.BeforeTryReadInput = beforeInput;
+                current.EnqueueKey(Key(ConsoleKey.F, 'f'));
+                stage = 1;
+            }
+            else if (stage == 1 && writes.Contains("WATCH", StringComparison.Ordinal) && factory.CreateCount == 1)
+            {
+                File.WriteAllText(path, "BBBB", new UTF8Encoding(false));
+                factory.Current.MarkDirty();
+                stage = 2;
+            }
+            else if (stage == 2 && content.Contains("BBBB", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 3;
                 return;
             }
 
-            File.WriteAllText(path, "BBBB", new UTF8Encoding(false));
-            factory.Current.MarkDirty();
+            current.BeforeTryReadInput = advance;
         };
-        driver.BeforeTryReadInput = beforeInput;
-        driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
-        driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeTryReadInput = advance;
 
         FileViewerFor(new ScreenRenderer(driver), factory).Show(path);
 
@@ -125,7 +159,10 @@ public partial class FileViewerTests
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
         driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            WrittenText(current).Contains("TAIL", StringComparison.Ordinal) &&
+            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8))
+                .Contains("tail-live-file", StringComparison.Ordinal));
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
@@ -142,7 +179,10 @@ public partial class FileViewerTests
         string path = Write("end-tail.txt", "first\nsecond\nthird", new UTF8Encoding(false));
         var driver = new FakeConsoleDriver(width: 80, height: 8);
         driver.EnqueueKey(Key(ConsoleKey.End));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            WrittenText(current).Contains("TAIL", StringComparison.Ordinal) &&
+            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6))
+                .Contains("third", StringComparison.Ordinal));
 
         FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
@@ -172,7 +212,9 @@ public partial class FileViewerTests
         var driver = new FakeConsoleDriver(width: 10, height: 6);
         driver.EnqueueKey(Key(ConsoleKey.F2));
         driver.EnqueueKey(Key(ConsoleKey.End));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 10, 4))
+                .Contains("TAIL", StringComparison.Ordinal));
 
         FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
@@ -190,7 +232,9 @@ public partial class FileViewerTests
         driver.EnqueueKey(Key(ConsoleKey.F2));
         driver.EnqueueKey(Key(ConsoleKey.End));
         driver.EnqueueKey(Key(ConsoleKey.F5));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 20, 5))
+                .Contains("RAW-END", StringComparison.Ordinal));
 
         FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
@@ -210,7 +254,10 @@ public partial class FileViewerTests
         var driver = new FakeConsoleDriver(width: 512, height: 7);
         driver.EnqueueKey(Key(ConsoleKey.F2));
         driver.EnqueueKey(Key(ConsoleKey.End));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 512, 5))
+                .Contains("REAL-END", StringComparison.Ordinal),
+            maxAttempts: 2000);
 
         FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
@@ -229,7 +276,12 @@ public partial class FileViewerTests
         driver.EnqueueKey(Key(ConsoleKey.PageDown));
         driver.EnqueueKey(Key(ConsoleKey.PageDown));
         driver.EnqueueKey(Key(ConsoleKey.PageDown));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+        {
+            string content = current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
+            return content.Contains("line3", StringComparison.Ordinal) &&
+                   content.Contains("line8", StringComparison.Ordinal);
+        });
 
         FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
@@ -244,7 +296,7 @@ public partial class FileViewerTests
         string path = Write("wrap.txt", "alpha beta gamma", new UTF8Encoding(false));
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         driver.EnqueueKey(Key(ConsoleKey.F2));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current => WrittenText(current).Contains("WRAP-W", StringComparison.Ordinal));
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
