@@ -28,14 +28,36 @@ internal sealed partial class LargeFileViewer
             contentHeight,
             width);
 
-        _async.StartLatest(
-            "encoding",
-            stateVersion,
-            cancellationToken => PrepareEncodingChangeAsync(
+        using (input.Cache.EnterCacheOnly())
+        {
+            Task<EncodingChangeResult> fast = PrepareEncodingChangeAsync(
                 sourcePath,
                 reader,
                 input,
-                cancellationToken),
+                CancellationToken.None);
+            if (fast.IsCompletedSuccessfully)
+            {
+                ApplyEncodingChange(state, fast.Result);
+                InvalidatePreparedRender();
+                return;
+            }
+
+            _ = fast.Exception;
+        }
+
+        _async.StartLatest(
+            "encoding",
+            stateVersion,
+            async cancellationToken =>
+            {
+                await Task.Yield();
+                return await PrepareEncodingChangeAsync(
+                        sourcePath,
+                        reader,
+                        input,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            },
             result =>
             {
                 ApplyEncodingChange(state, result);
@@ -70,11 +92,16 @@ internal sealed partial class LargeFileViewer
                 PreferredHeight = 8,
                 MinWidth = 30,
                 MinHeight = 8,
-                Operation = cancellationToken => PrepareEncodingChangeAsync(
-                    sourcePath,
-                    reader,
-                    input,
-                    cancellationToken),
+                Operation = async cancellationToken =>
+                {
+                    await Task.Yield();
+                    return await PrepareEncodingChangeAsync(
+                            sourcePath,
+                            reader,
+                            input,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                },
                 Synchronize = () => new OperationDialogState<string>(
                     status: "Reading text with selected encoding... (Esc to cancel)"),
                 HandleCancel = () =>
@@ -118,7 +145,6 @@ internal sealed partial class LargeFileViewer
         EncodingChangeInput input,
         CancellationToken cancellationToken)
     {
-        await Task.Yield();
         LineScanner scanner = await LineScanner
             .CreateAsync(input.Cache, reader, input.Selection, cancellationToken)
             .ConfigureAwait(false);
