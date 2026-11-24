@@ -440,13 +440,15 @@ internal sealed partial class LargeFileViewer
         switch (key.Key)
         {
             case ConsoleKey.UpArrow:
-                MoveUp(filePath, reader, state, contentHeight, size.Width);
-                UpdateLiveModeAfterAwayNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
+                QueueNavigation(
+                    filePath, reader, state, contentHeight, size.Width, localSession,
+                    new ViewerNavigationRequest(ViewerNavigationKind.Up));
                 break;
 
             case ConsoleKey.DownArrow:
-                MoveDown(filePath, reader, state, view, contentHeight, size.Width);
-                UpdateLiveModeAfterDownwardNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
+                QueueNavigation(
+                    filePath, reader, state, contentHeight, size.Width, localSession,
+                    new ViewerNavigationRequest(ViewerNavigationKind.Down));
                 break;
 
             case ConsoleKey.LeftArrow when control && shift:
@@ -479,38 +481,39 @@ internal sealed partial class LargeFileViewer
                 break;
 
             case ConsoleKey.PageUp when alt:
-                MovePageUp(filePath, reader, state, contentHeight, size.Width, FastPageMultiplier);
-                UpdateLiveModeAfterAwayNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
+                QueueNavigation(
+                    filePath, reader, state, contentHeight, size.Width, localSession,
+                    new ViewerNavigationRequest(ViewerNavigationKind.FastPageUp));
                 break;
 
             case ConsoleKey.PageDown when alt:
-                MovePageDown(filePath, reader, state, contentHeight, size.Width, FastPageMultiplier);
-                UpdateLiveModeAfterDownwardNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
+                QueueNavigation(
+                    filePath, reader, state, contentHeight, size.Width, localSession,
+                    new ViewerNavigationRequest(ViewerNavigationKind.FastPageDown));
                 break;
 
             case ConsoleKey.PageUp:
-                MovePageUp(filePath, reader, state, contentHeight, size.Width, pages: 1);
-                UpdateLiveModeAfterAwayNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
+                QueueNavigation(
+                    filePath, reader, state, contentHeight, size.Width, localSession,
+                    new ViewerNavigationRequest(ViewerNavigationKind.PageUp));
                 break;
 
             case ConsoleKey.PageDown:
-                MovePageDown(filePath, reader, state, view, contentHeight, size.Width);
-                UpdateLiveModeAfterDownwardNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
+                QueueNavigation(
+                    filePath, reader, state, contentHeight, size.Width, localSession,
+                    new ViewerNavigationRequest(ViewerNavigationKind.PageDown));
                 break;
 
             case ConsoleKey.Home:
-                state.TopByteOffset = state.IsHexMode ? 0 : state.LineScanner.ContentStartOffset;
-                state.TopWrappedSegmentIndex = 0;
-                state.HorizontalOffset = 0;
-                NormalizeViewport(filePath, reader, state, contentHeight, size.Width, keepTail: false);
-                UpdateLiveModeAfterAwayNavigation(localSession, filePath, reader, state, contentHeight, size.Width);
+                QueueNavigation(
+                    filePath, reader, state, contentHeight, size.Width, localSession,
+                    new ViewerNavigationRequest(ViewerNavigationKind.Home));
                 break;
 
             case ConsoleKey.End:
-                MoveToEnd(filePath, reader, state, contentHeight, size.Width);
-                state.HorizontalOffset = 0;
-                if (localSession is not null)
-                    SetLiveMode(localSession, state, ViewerLiveMode.Tail);
+                QueueNavigation(
+                    filePath, reader, state, contentHeight, size.Width, localSession,
+                    new ViewerNavigationRequest(ViewerNavigationKind.End));
                 break;
 
             case ConsoleKey.F1:
@@ -518,19 +521,15 @@ internal sealed partial class LargeFileViewer
                 break;
 
             case ConsoleKey.F2 when shift && !alt && !control:
-                state.WordWrap = !state.WordWrap;
-                state.WrapLines = true;
-                state.HorizontalOffset = 0;
-                state.TopWrappedSegmentIndex = 0;
-                NormalizeViewport(filePath, reader, state, contentHeight, size.Width);
+                QueueNavigation(
+                    filePath, reader, state, contentHeight, size.Width, localSession,
+                    new ViewerNavigationRequest(ViewerNavigationKind.ToggleWordWrap));
                 break;
 
             case ConsoleKey.F2 when !shift && !alt && !control:
-                state.WrapLines = !state.WrapLines;
-                state.TopWrappedSegmentIndex = 0;
-                if (state.WrapLines)
-                    state.HorizontalOffset = 0;
-                NormalizeViewport(filePath, reader, state, contentHeight, size.Width);
+                QueueNavigation(
+                    filePath, reader, state, contentHeight, size.Width, localSession,
+                    new ViewerNavigationRequest(ViewerNavigationKind.ToggleWrap));
                 break;
 
             case ConsoleKey.F3 when !shift && !alt && !control:
@@ -538,8 +537,9 @@ internal sealed partial class LargeFileViewer
                 return ModalDialogLoopResult<ViewerLoopAction>.Complete(ViewerLoopAction.Close);
 
             case ConsoleKey.F4 when !shift && !alt && !control:
-                ToggleViewMode(state);
-                NormalizeViewport(filePath, reader, state, contentHeight, size.Width);
+                QueueNavigation(
+                    filePath, reader, state, contentHeight, size.Width, localSession,
+                    new ViewerNavigationRequest(ViewerNavigationKind.ToggleViewMode));
                 break;
 
             case ConsoleKey.F5 when alt:
@@ -547,10 +547,9 @@ internal sealed partial class LargeFileViewer
                 break;
 
             case ConsoleKey.F5 when !shift && !alt && !control:
-                state.PresentationMode = state.PresentationMode == ViewerPresentationMode.Auto
-                    ? ViewerPresentationMode.Raw
-                    : ViewerPresentationMode.Auto;
-                NormalizeViewport(filePath, reader, state, contentHeight, size.Width);
+                QueueNavigation(
+                    filePath, reader, state, contentHeight, size.Width, localSession,
+                    new ViewerNavigationRequest(ViewerNavigationKind.TogglePresentation));
                 break;
 
             case ConsoleKey.F6 when !shift && !alt && !control:
@@ -640,8 +639,9 @@ internal sealed partial class LargeFileViewer
                 break;
 
             case ConsoleKey.H when !shift && !alt && !control:
-                ToggleViewMode(state);
-                NormalizeViewport(filePath, reader, state, contentHeight, size.Width);
+                QueueNavigation(
+                    filePath, reader, state, contentHeight, size.Width, localSession,
+                    new ViewerNavigationRequest(ViewerNavigationKind.ToggleViewMode));
                 break;
 
             case ConsoleKey.Spacebar when !shift && !alt && !control:
