@@ -15,12 +15,12 @@ public sealed class ViewerPresentationSessionBehaviorTests
         var source = new ScannedLine(6, 13, "second");
         var session = new ViewerPresentationSession();
 
-        PresentedLine result = session.Present(
+        PresentedLine result = (await session.PresentAsync(
             ViewerPresentationMode.Raw,
             "notes.md",
             scanner,
             [source],
-            80).Single();
+            80)).Single();
 
         Assert.Equal(source.Text, result.Text);
         Assert.Equal(0, reader.ReadCalls);
@@ -36,12 +36,12 @@ public sealed class ViewerPresentationSessionBehaviorTests
         var source = new ScannedLine(6, 13, "second");
         var session = new ViewerPresentationSession();
 
-        PresentedLine result = session.Present(
+        PresentedLine result = (await session.PresentAsync(
             ViewerPresentationMode.Auto,
             "notes.txt",
             scanner,
             [source],
-            80).Single();
+            80)).Single();
 
         Assert.Equal(source.Text, result.Text);
         Assert.Equal(0, reader.ReadCalls);
