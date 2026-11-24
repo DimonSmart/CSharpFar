@@ -317,8 +317,11 @@ internal sealed partial class LargeFileViewer
         LargeFileViewerFrame frame)
     {
         bool changed = _async.DrainUiCompletions();
-        session.DetectChanges();
-        changed |= TryRefreshLocalFile(session, filePath, frame.ContentHeight, frame.Size.Width);
+        session.DetectNotifications();
+        if (session.PendingRefresh)
+            TryRefreshLocalFile(session, filePath, frame.ContentHeight, frame.Size.Width);
+        else
+            RequestLocalMonitorPoll(session, filePath, frame.ContentHeight, frame.Size.Width);
         return changed
             ? InteractiveSurfaceWakeResult.Changed
             : InteractiveSurfaceWakeResult.NoChange;
@@ -633,7 +636,7 @@ internal sealed partial class LargeFileViewer
                 SetLiveMode(localSession, state, nextLiveMode);
                 if (state.LiveMode != ViewerLiveMode.Off)
                 {
-                    localSession.DetectChanges();
+                    localSession.DetectNotifications();
                     TryRefreshLocalFile(localSession, filePath, contentHeight, size.Width);
                     if (state.LiveMode == ViewerLiveMode.Tail &&
                         !_async.IsChannelPending("refresh") &&
@@ -1349,7 +1352,7 @@ internal sealed partial class LargeFileViewer
         if (localSession is not null)
         {
             localSession.MarkDirty();
-            localSession.DetectChanges();
+            localSession.DetectNotifications();
             TryRefreshLocalFile(localSession, filePath, contentHeight, width);
             return;
         }
