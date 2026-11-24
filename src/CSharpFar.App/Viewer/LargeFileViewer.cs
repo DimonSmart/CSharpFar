@@ -571,15 +571,14 @@ internal sealed partial class LargeFileViewer
                 if (state.LiveMode != ViewerLiveMode.Off)
                 {
                     localSession.DetectChanges();
-                    if (state.LiveMode == ViewerLiveMode.Tail)
+                    TryRefreshLocalFile(localSession, filePath, contentHeight, size.Width);
+                    if (state.LiveMode == ViewerLiveMode.Tail &&
+                        !_async.IsChannelPending("refresh") &&
+                        !localSession.PendingRefresh)
                     {
                         QueueNavigation(
                             filePath, reader, state, contentHeight, size.Width, localSession,
                             new ViewerNavigationRequest(ViewerNavigationKind.End));
-                    }
-                    else
-                    {
-                        TryRefreshLocalFile(localSession, filePath, contentHeight, size.Width);
                     }
                 }
                 break;
