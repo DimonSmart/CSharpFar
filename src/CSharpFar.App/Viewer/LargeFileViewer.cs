@@ -768,6 +768,7 @@ internal sealed partial class LargeFileViewer
         DrawHeader(canvas, filePath, reader, state, size);
 
         ViewerPreparedContent? prepared = GetOrRequestRenderContent(
+            filePath,
             reader,
             state,
             contentHeight,
@@ -862,12 +863,7 @@ internal sealed partial class LargeFileViewer
         int width)
     {
         ScannedLines scanned = prepared.Scanned;
-        var presented = state.Presentation.Present(
-            state.PresentationMode,
-            sourcePath,
-            state.LineScanner,
-            scanned.Lines,
-            width);
+        IReadOnlyList<PresentedLine> presented = prepared.Presented;
         var linkHits = new List<ViewerLinkHit>();
 
         for (int row = 0; row < contentHeight; row++)
@@ -905,12 +901,6 @@ internal sealed partial class LargeFileViewer
         int width)
     {
         IReadOnlyList<ScannedLine> candidates = prepared.Lines;
-        WrappedLineLayout?[] preparedLayouts = PrepareWrappedLineLayouts(
-            sourcePath,
-            state,
-            candidates,
-            width);
-
         var lines = new List<ScannedLine>();
         var linkHits = new List<ViewerLinkHit>();
         int row = 0;
@@ -941,8 +931,8 @@ internal sealed partial class LargeFileViewer
             }
             else
             {
-                WrappedLineLayout layout = preparedLayouts[lineIndex]
-                    ?? throw new InvalidOperationException("Wrapped line layout was not prepared.");
+                if (!prepared.Layouts.TryGetValue(line.StartOffset, out WrappedLineLayout? layout))
+                    throw new InvalidOperationException("Wrapped line layout was not prepared.");
                 PresentedLine presented = layout.PresentedLine;
                 IReadOnlyList<WrappedTextSegment> segments = layout.Segments;
                 int firstSegment = firstPhysicalLine
