@@ -65,6 +65,7 @@ internal sealed partial class LargeFileViewer
         ViewerRenderKey key,
         CancellationToken cancellationToken)
     {
+        await Task.Yield();
         if (key.ViewMode == LargeFileViewMode.Hex)
         {
             long offset = Math.Clamp(key.TopByteOffset, 0, key.Length);
