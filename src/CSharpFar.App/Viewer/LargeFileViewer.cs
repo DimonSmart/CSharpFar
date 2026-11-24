@@ -331,6 +331,12 @@ internal sealed partial class LargeFileViewer
             return ModalDialogLoopResult<ViewerLoopAction>.ContinueNoChange;
         }
 
+        if (key.Key == ConsoleKey.Escape && _async.CancelLatest("search"))
+        {
+            InvalidatePreparedRender();
+            return ModalDialogLoopResult<ViewerLoopAction>.ContinueChanged;
+        }
+
         switch (key.Key)
         {
             case ConsoleKey.UpArrow:
