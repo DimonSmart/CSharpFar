@@ -4,7 +4,10 @@ namespace CSharpFar.App.Viewer;
 
 internal sealed class LargeFileViewerState
 {
-    public LargeFileViewerState(BlockCache blockCache, LineScanner lineScanner)
+    public LargeFileViewerState(
+        BlockCache blockCache,
+        LineScanner lineScanner,
+        bool contentReady = true)
     {
         BlockCache = blockCache;
         LineScanner = lineScanner;
@@ -12,6 +15,7 @@ internal sealed class LargeFileViewerState
         LineIndex.Add(1, lineScanner.ContentStartOffset);
         TopByteOffset = lineScanner.ContentStartOffset;
         ViewMode = lineScanner.IsBinary ? LargeFileViewMode.Hex : LargeFileViewMode.Text;
+        IsContentReady = contentReady;
     }
 
     public long TopByteOffset { get; set; }
@@ -31,6 +35,7 @@ internal sealed class LargeFileViewerState
     public ViewerPresentationSession Presentation { get; } = new();
     public int LastViewportWidth { get; set; } = -1;
     public int LastContentHeight { get; set; } = -1;
+    public bool IsContentReady { get; private set; }
 
     public bool IsHexMode => ViewMode == LargeFileViewMode.Hex;
 
@@ -51,6 +56,7 @@ internal sealed class LargeFileViewerState
             LastViewportWidth = LastViewportWidth,
             LastContentHeight = LastContentHeight,
         };
+        copy.IsContentReady = IsContentReady;
         copy.EncodingSelection = EncodingSelection;
         copy.LineIndex = LineIndex.Clone();
         return copy;
@@ -76,6 +82,7 @@ internal sealed class LargeFileViewerState
         SearchMatch = copy.SearchMatch;
         PresentationMode = copy.PresentationMode;
         LineIndex = copy.LineIndex;
+        IsContentReady = copy.IsContentReady;
     }
 
     public void ResetScanner(LineScanner lineScanner, TextEncodingSelection encodingSelection) =>
@@ -93,5 +100,6 @@ internal sealed class LargeFileViewerState
         LineIndex.Add(1, lineScanner.ContentStartOffset);
         SearchMatch = null;
         Presentation.Reset();
+        IsContentReady = true;
     }
 }
