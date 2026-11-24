@@ -68,8 +68,6 @@ internal sealed partial class LargeFileViewer
         {
             _async.BeginSession();
             session = OpenViewerFile(filePath);
-            if (session is null)
-                return;
 
             while (true)
             {
@@ -106,8 +104,6 @@ internal sealed partial class LargeFileViewer
 
                 filePath = nextPath;
                 session = OpenViewerFile(filePath);
-                if (session is null)
-                    return;
                 session.State.PresentationMode = presentationMode;
                 options.CurrentFileChanged?.Invoke(filePath);
             }
