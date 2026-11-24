@@ -727,25 +727,21 @@ internal sealed partial class LargeFileViewer
         int width,
         LocalViewerSession? localSession)
     {
-        if (lines < 0)
+        _ = view;
+        ViewerNavigationKind kind = lines < 0
+            ? ViewerNavigationKind.Up
+            : ViewerNavigationKind.Down;
+        for (int i = 0; i < Math.Abs(lines); i++)
         {
-            for (int i = 0; i < -lines; i++)
-                MoveUp(sourcePath, reader, state, contentHeight, width);
-
-            UpdateLiveModeAfterAwayNavigation(localSession, sourcePath, reader, state, contentHeight, width);
-            return;
+            QueueNavigation(
+                sourcePath,
+                reader,
+                state,
+                contentHeight,
+                width,
+                localSession,
+                new ViewerNavigationRequest(kind));
         }
-
-        for (int i = 0; i < lines; i++)
-            MoveDown(sourcePath, reader, state, view, contentHeight, width);
-
-        UpdateLiveModeAfterDownwardNavigation(
-            localSession,
-            sourcePath,
-            reader,
-            state,
-            contentHeight,
-            width);
     }
 
     private LargeFileRenderView Draw(
