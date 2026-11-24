@@ -12,14 +12,23 @@ internal static class ViewerSearchEngine
         IFileByteReader reader,
         LargeFileViewerState state,
         ViewerSearchRequest request,
-        bool searchBackward)
+        bool searchBackward) =>
+        FindAsync(reader, state, request, searchBackward).GetAwaiter().GetResult();
+
+    public static async Task<ViewerSearchMatch?> FindAsync(
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        ViewerSearchRequest request,
+        bool searchBackward,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrEmpty(request.Pattern))
             return null;
 
         return request.SearchHex
-            ? FindHex(reader, state, request, searchBackward)
-            : FindText(reader, state, request, searchBackward);
+            ? await FindHexAsync(reader, state, request, searchBackward, cancellationToken).ConfigureAwait(false)
+            : await FindTextAsync(reader, state, request, searchBackward, cancellationToken).ConfigureAwait(false);
     }
 
     public static bool TryParseHexPattern(string pattern, out byte[] bytes, out string? error)
@@ -59,21 +68,23 @@ internal static class ViewerSearchEngine
         return true;
     }
 
-    private static ViewerSearchMatch? FindText(
+    private static async Task<ViewerSearchMatch?> FindTextAsync(
         IFileByteReader reader,
         LargeFileViewerState state,
         ViewerSearchRequest request,
-        bool searchBackward)
+        bool searchBackward,
+        CancellationToken cancellationToken)
     {
         return searchBackward
-            ? FindTextBackward(reader, state, request)
-            : FindTextForward(reader, state, request);
+            ? await FindTextBackwardAsync(reader, state, request, cancellationToken).ConfigureAwait(false)
+            : await FindTextForwardAsync(reader, state, request, cancellationToken).ConfigureAwait(false);
     }
 
-    private static ViewerSearchMatch? FindTextForward(
+    private static async Task<ViewerSearchMatch?> FindTextForwardAsync(
         IFileByteReader reader,
         LargeFileViewerState state,
-        ViewerSearchRequest request)
+        ViewerSearchRequest request,
+        CancellationToken cancellationToken)
     {
         long startOffset = state.SearchMatch is { IsHex: false } match
             ? match.LineStartOffset
@@ -82,18 +93,13 @@ internal static class ViewerSearchEngine
             ? previous.CharacterIndex + Math.Max(1, previous.CharacterLength)
             : 0;
 
-        startOffset = state.LineScanner
-            .FindLineStartAtOrBeforeAsync(startOffset)
-            .GetAwaiter()
-            .GetResult();
+        startOffset = await state.LineScanner.FindLineStartAtOrBeforeAsync(startOffset, cancellationToken).ConfigureAwait(false);
 
         long offset = startOffset;
         while (offset < reader.Length)
         {
-            var scanned = state.LineScanner
-                .ReadLinesAsync(offset, 1, TextSearchMaxBytesPerLine)
-                .GetAwaiter()
-                .GetResult();
+            cancellationToken.ThrowIfCancellationRequested();
+            var scanned = await state.LineScanner.ReadLinesAsync(offset, 1, TextSearchMaxBytesPerLine, cancellationToken).ConfigureAwait(false);
             if (scanned.Lines.Count == 0)
                 return null;
 
@@ -112,17 +118,15 @@ internal static class ViewerSearchEngine
         return null;
     }
 
-    private static ViewerSearchMatch? FindTextBackward(
+    private static async Task<ViewerSearchMatch?> FindTextBackwardAsync(
         IFileByteReader reader,
         LargeFileViewerState state,
-        ViewerSearchRequest request)
+        ViewerSearchRequest request,
+        CancellationToken cancellationToken)
     {
         long targetLineStart = state.SearchMatch is { IsHex: false } match
             ? match.LineStartOffset
-            : state.LineScanner
-                .FindLineStartAtOrBeforeAsync(state.TopByteOffset)
-                .GetAwaiter()
-                .GetResult();
+            : await state.LineScanner.FindLineStartAtOrBeforeAsync(state.TopByteOffset, cancellationToken).ConfigureAwait(false);
         int targetCharacterLimit = state.SearchMatch is { IsHex: false } previous
             ? previous.CharacterIndex
             : int.MaxValue;
@@ -131,10 +135,8 @@ internal static class ViewerSearchEngine
         ViewerSearchMatch? last = null;
         while (offset < reader.Length && offset <= targetLineStart)
         {
-            var scanned = state.LineScanner
-                .ReadLinesAsync(offset, 1, TextSearchMaxBytesPerLine)
-                .GetAwaiter()
-                .GetResult();
+            cancellationToken.ThrowIfCancellationRequested();
+            var scanned = await state.LineScanner.ReadLinesAsync(offset, 1, TextSearchMaxBytesPerLine, cancellationToken).ConfigureAwait(false);
             if (scanned.Lines.Count == 0)
                 break;
 
@@ -284,24 +286,26 @@ internal static class ViewerSearchEngine
     private static bool IsWordCharacter(char ch) =>
         char.IsLetterOrDigit(ch) || ch == '_';
 
-    private static ViewerSearchMatch? FindHex(
+    private static async Task<ViewerSearchMatch?> FindHexAsync(
         IFileByteReader reader,
         LargeFileViewerState state,
         ViewerSearchRequest request,
-        bool searchBackward)
+        bool searchBackward,
+        CancellationToken cancellationToken)
     {
         if (!TryParseHexPattern(request.Pattern, out var needle, out _))
             return null;
 
         return searchBackward
-            ? FindHexBackward(reader, state, needle)
-            : FindHexForward(reader, state, needle);
+            ? await FindHexBackwardAsync(reader, state, needle, cancellationToken).ConfigureAwait(false)
+            : await FindHexForwardAsync(reader, state, needle, cancellationToken).ConfigureAwait(false);
     }
 
-    private static ViewerSearchMatch? FindHexForward(
+    private static async Task<ViewerSearchMatch?> FindHexForwardAsync(
         IFileByteReader reader,
         LargeFileViewerState state,
-        byte[] needle)
+        byte[] needle,
+        CancellationToken cancellationToken)
     {
         long startOffset = state.SearchMatch is { IsHex: true } match
             ? match.ByteOffset + 1
@@ -314,9 +318,10 @@ internal static class ViewerSearchEngine
 
         while (offset < reader.Length)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             int requested = (int)Math.Min(HexSearchChunkBytes, reader.Length - offset);
             var chunk = new byte[requested];
-            int read = state.BlockCache.ReadAsync(offset, chunk).GetAwaiter().GetResult();
+            int read = await state.BlockCache.ReadAsync(offset, chunk, cancellationToken).ConfigureAwait(false);
             if (read == 0)
                 break;
 
@@ -345,10 +350,11 @@ internal static class ViewerSearchEngine
         return null;
     }
 
-    private static ViewerSearchMatch? FindHexBackward(
+    private static async Task<ViewerSearchMatch?> FindHexBackwardAsync(
         IFileByteReader reader,
         LargeFileViewerState state,
-        byte[] needle)
+        byte[] needle,
+        CancellationToken cancellationToken)
     {
         long limit = state.SearchMatch is { IsHex: true } match
             ? match.ByteOffset
@@ -362,9 +368,10 @@ internal static class ViewerSearchEngine
 
         while (offset < limit)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             int requested = (int)Math.Min(HexSearchChunkBytes, limit - offset);
             var chunk = new byte[requested];
-            int read = state.BlockCache.ReadAsync(offset, chunk).GetAwaiter().GetResult();
+            int read = await state.BlockCache.ReadAsync(offset, chunk, cancellationToken).ConfigureAwait(false);
             if (read == 0)
                 break;
 
