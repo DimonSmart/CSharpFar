@@ -1,3 +1,4 @@
+using System.Text;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Testing;
