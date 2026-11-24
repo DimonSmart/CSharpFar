@@ -121,12 +121,12 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         ScannedLine header = (await scanner.ReadLinesAsync(0, 1, 256)).Lines.Single();
         var session = new ViewerPresentationSession();
 
-        PresentedLine result = session.Present(
+        PresentedLine result = (await session.PresentAsync(
             ViewerPresentationMode.Auto,
             "virtual://docs/table.md",
             scanner,
             [header],
-            80).Single();
+            80)).Single();
 
         Assert.Equal("│ A │ B │", result.Text);
     }
@@ -341,12 +341,12 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         var visible = new ScannedLine(targetOffset, targetOffset + targetByteLength, targetText);
         var session = new ViewerPresentationSession();
 
-        PresentedLine result = session.Present(
+        PresentedLine result = (await session.PresentAsync(
             ViewerPresentationMode.Auto,
             "virtual://large/table.md",
             scanner,
             [visible],
-            80).Single();
+            80)).Single();
 
         Assert.Equal(targetText, result.Text);
         Assert.True(bytes.Length > 1_000_000);
@@ -363,7 +363,7 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         var firstScanner = await LineScanner.CreateAsync(firstCache, firstReader);
         var state = new LargeFileViewerState(firstCache, firstScanner);
         IReadOnlyList<ScannedLine> firstLines = (await firstScanner.ReadLinesAsync(0, 3, 256)).Lines;
-        Assert.StartsWith("│", state.Presentation.Present(
+        Assert.StartsWith("│", (await state.Presentation.PresentAsync(
             ViewerPresentationMode.Auto, "cache.md", firstScanner, firstLines, 80)[2].Text);
 
         var secondReader = new MemoryFileByteReader(Encoding.UTF8.GetBytes("| C | D |\n"));
@@ -373,7 +373,7 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         ScannedLine secondLine = (await secondScanner.ReadLinesAsync(0, 1, 256)).Lines.Single();
 
         PresentedLine result = state.Presentation.Present(
-            ViewerPresentationMode.Auto, "cache.md", secondScanner, [secondLine], 80).Single();
+            ViewerPresentationMode.Auto, "cache.md", secondScanner, [secondLine], 80)).Single();
 
         Assert.Equal(secondLine.Text, result.Text);
     }
@@ -390,10 +390,10 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         SetPrivate(session, "_sourcePath", "broken.md");
         SetPrivate(session, "_provider", provider);
 
-        PresentedLine first = session.Present(
-            ViewerPresentationMode.Auto, "broken.md", scanner, [source], 80).Single();
-        PresentedLine second = session.Present(
-            ViewerPresentationMode.Auto, "broken.md", scanner, [source], 80).Single();
+        PresentedLine first = (await session.PresentAsync(
+            ViewerPresentationMode.Auto, "broken.md", scanner, [source], 80)).Single();
+        PresentedLine second = (await session.PresentAsync(
+            ViewerPresentationMode.Auto, "broken.md", scanner, [source], 80)).Single();
 
         Assert.Equal(source.Text, first.Text);
         Assert.Equal(source.Text, second.Text);
