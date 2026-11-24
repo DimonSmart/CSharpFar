@@ -179,6 +179,51 @@ public partial class FileViewerTests
     }
 
     [Fact]
+    public void VirtualViewer_EncodingChangeCancelsStalePendingRead()
+    {
+        byte[] data = new byte[BlockCache.DefaultBlockSize + 4096];
+        var reader = new GatedAfterFirstReadByteReader(data);
+        var driver = new FakeConsoleDriver(width: 80, height: 10);
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string header = current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 0, 80, 1));
+            if (stage == 0 && header.Contains("HEX", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F7));
+                EnqueueText(current, "FF");
+                current.EnqueueKey(Key(ConsoleKey.Enter));
+                stage = 1;
+            }
+            else if (stage == 1)
+            {
+                if (!reader.PendingReadStarted.Task.Wait(TimeSpan.FromSeconds(5)))
+                    throw new TimeoutException("Hex search did not request the delayed block.");
+                current.EnqueueKey(Key(ConsoleKey.F8));
+                stage = 2;
+            }
+            else if (stage == 2 && reader.CancellationObserved &&
+                     header.Contains("TEXT", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 3;
+                return;
+            }
+
+            current.BeforeTryReadInput = advance;
+        };
+        driver.BeforeTryReadInput = advance;
+
+        FileViewerFor(new ScreenRenderer(driver)).Show("remote:/encoding-race.bin", reader);
+
+        string finalHeader = driver.GetRegionText(new CSharpFar.Console.Models.Rect(0, 0, 80, 1));
+        Assert.True(reader.CancellationObserved);
+        Assert.Contains("TEXT", finalHeader);
+        Assert.DoesNotContain("HEX", finalHeader);
+    }
+
+    [Fact]
     public async Task ViewerSearchEngine_CancellationInterruptsPendingRead()
     {
         byte[] data = Enumerable.Repeat((byte)'a', BlockCache.DefaultBlockSize + 4096).ToArray();
