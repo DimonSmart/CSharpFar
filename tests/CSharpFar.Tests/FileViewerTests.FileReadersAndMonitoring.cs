@@ -288,9 +288,9 @@ public partial class FileViewerTests
 
         var request = new ViewerSearchRequest("needle", CaseSensitive: true,
             WholeWords: false, UseRegex: false, SearchHex: false);
-        var shortMatch = ViewerSearchEngine.Find(shortReader,
+        var shortMatch = await ViewerSearchEngine.FindAsync(shortReader,
             new LargeFileViewerState(shortCache, shortScanner), request, searchBackward: false);
-        var normalMatch = ViewerSearchEngine.Find(normalReader,
+        var normalMatch = await ViewerSearchEngine.FindAsync(normalReader,
             new LargeFileViewerState(normalCache, normalScanner), request, searchBackward: false);
         Assert.Equal(normalMatch, shortMatch);
         Assert.NotNull(shortMatch);
@@ -307,7 +307,7 @@ public partial class FileViewerTests
         var request = new ViewerSearchRequest("DE AD BE EF", CaseSensitive: true,
             WholeWords: false, UseRegex: false, SearchHex: true);
 
-        var found = ViewerSearchEngine.Find(shortReader, state, request, searchBackward: false);
+        var found = await ViewerSearchEngine.FindAsync(shortReader, state, request, searchBackward: false);
         Assert.NotNull(found);
         Assert.Equal(6, found.ByteOffset);
         Assert.True(found.IsHex);
