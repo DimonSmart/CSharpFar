@@ -21,6 +21,7 @@ public partial class FileViewerTests
             localFileByteReaderFactory: readerFactory).Show(path);
 
         Assert.True(readerFactory.Current.CancellationObserved);
+        Assert.False(readerFactory.Current.DisposedBeforeCancellation);
     }
 
     [Fact]
@@ -273,10 +274,12 @@ public partial class FileViewerTests
     {
         private long _length;
         private int _cancellationObserved;
+        private int _disposedBeforeCancellation;
 
         public long Length => Volatile.Read(ref _length);
         public int TransientFailureVersion => 0;
         public bool CancellationObserved => Volatile.Read(ref _cancellationObserved) != 0;
+        public bool DisposedBeforeCancellation => Volatile.Read(ref _disposedBeforeCancellation) != 0;
 
         public Task<int> ReadAsync(
             long offset,
@@ -300,6 +303,8 @@ public partial class FileViewerTests
 
         public void Dispose()
         {
+            if (!CancellationObserved)
+                Volatile.Write(ref _disposedBeforeCancellation, 1);
         }
     }
 
