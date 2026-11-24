@@ -265,74 +265,8 @@ internal sealed partial class LargeFileViewer
         LocalViewerSession session,
         string filePath,
         int contentHeight,
-        int width)
-    {
-        if (!session.PendingRefresh)
-            return false;
-
-        if (!LocalFileMonitor.TryCaptureSnapshot(filePath, out LocalFileSnapshot before) || !before.Exists)
-            return false;
-
-        var reader = session.Reader;
-        var state = session.State;
-        int failureVersion = reader.TransientFailureVersion;
-        long anchorByteOffset = state.TopByteOffset;
-        int anchorWrappedSegment = state.TopWrappedSegmentIndex;
-        var viewMode = state.ViewMode;
-        int horizontalOffset = state.HorizontalOffset;
-        var encodingSelection = state.EncodingSelection;
-        long refreshVersion = session.BeginRefresh();
-
-        try
-        {
-            var candidateCache = new BlockCache(reader);
-            var candidateScanner = LineScanner
-                .CreateAsync(candidateCache, reader, encodingSelection)
-                .GetAwaiter()
-                .GetResult();
-            var candidateState = new LargeFileViewerState(candidateCache, candidateScanner)
-            {
-                ViewMode = viewMode,
-                HorizontalOffset = horizontalOffset,
-                LiveMode = state.LiveMode,
-                WrapLines = state.WrapLines,
-                WordWrap = state.WordWrap,
-                PresentationMode = state.PresentationMode,
-                TopWrappedSegmentIndex = anchorWrappedSegment,
-            };
-            candidateState.TopByteOffset = candidateState.IsHexMode
-                ? Math.Max(0, anchorByteOffset)
-                : candidateScanner
-                    .FindLineStartAtOrBeforeAsync(anchorByteOffset)
-                    .GetAwaiter()
-                    .GetResult();
-
-            NormalizeViewport(filePath, reader, candidateState, contentHeight, width);
-
-            if (reader.TransientFailureVersion != failureVersion)
-                return false;
-
-            if (!LocalFileMonitor.TryCaptureSnapshot(filePath, out LocalFileSnapshot after) ||
-                !after.Exists ||
-                after != before)
-            {
-                return false;
-            }
-
-            state.ReplaceContent(candidateCache, candidateScanner, encodingSelection);
-            state.ViewMode = viewMode;
-            state.HorizontalOffset = horizontalOffset;
-            state.TopByteOffset = candidateState.TopByteOffset;
-            state.TopWrappedSegmentIndex = candidateState.TopWrappedSegmentIndex;
-
-            session.Commit(after, refreshVersion);
-            return true;
-        }
-        catch (Exception ex) when (RandomAccessFileByteReader.IsTransientFileAccess(ex))
-        {
-            return false;
-        }
-    }
+        int width) =>
+        RequestLocalRefresh(session, filePath, contentHeight, width);
 
     private ModalDialogLoopResult<ViewerLoopAction> HandleViewerInput(
         string filePath,
