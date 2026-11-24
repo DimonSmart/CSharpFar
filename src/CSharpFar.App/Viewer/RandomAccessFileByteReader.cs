@@ -36,7 +36,6 @@ internal sealed class RandomAccessFileByteReader : ILocalFileByteReader
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
         _filePath = Path.GetFullPath(filePath);
-        _lastKnownLength = GetLengthCore();
     }
 
     public string FilePath => _filePath;
@@ -117,11 +116,6 @@ internal sealed class RandomAccessFileByteReader : ILocalFileByteReader
         }
     }
 
-    private long GetLengthCore()
-    {
-        using SafeFileHandle handle = OpenHandle();
-        return RandomAccess.GetLength(handle);
-    }
 
     private SafeFileHandle OpenHandle() =>
         File.OpenHandle(
