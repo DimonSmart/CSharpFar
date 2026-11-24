@@ -334,8 +334,8 @@ public partial class FileViewerTests
                 stage = 1;
             }
             else if (stage == 1 &&
-                !content.Contains("Loading...", StringComparison.Ordinal) &&
-                !WrittenText(current).Contains("TAIL", StringComparison.Ordinal))
+                !readerFactory.Current.FailNextLength &&
+                content.Contains("START", StringComparison.Ordinal))
             {
                 afterFailure = content;
                 current.EnqueueKey(Key(ConsoleKey.End));
