@@ -6,6 +6,8 @@ internal sealed partial class LargeFileViewer
 {
     private ViewerRenderKey? _requestedRenderKey;
     private ViewerPreparedContent? _preparedRenderContent;
+    private ViewerRenderKey? _failedRenderKey;
+    private string? _renderFailureMessage;
 
     private ViewerPreparedContent? GetOrRequestRenderContent(
         string sourcePath,
@@ -34,6 +36,9 @@ internal sealed partial class LargeFileViewer
         if (_preparedRenderContent is { } prepared && prepared.Key == key)
             return prepared;
 
+        if (_failedRenderKey == key)
+            return null;
+
         if (_requestedRenderKey == key)
             return null;
 
@@ -45,6 +50,8 @@ internal sealed partial class LargeFileViewer
             Task<ViewerPreparedContent> fast = PrepareRenderContentAsync(key, CancellationToken.None);
             if (fast.IsCompletedSuccessfully)
             {
+                _failedRenderKey = null;
+                _renderFailureMessage = null;
                 _preparedRenderContent = fast.Result;
                 return _preparedRenderContent;
             }
@@ -66,12 +73,18 @@ internal sealed partial class LargeFileViewer
                 if (prepared.Key != _requestedRenderKey)
                     return;
 
+                _failedRenderKey = null;
+                _renderFailureMessage = null;
                 _preparedRenderContent = prepared;
             },
-            _ =>
+            ex =>
             {
-                if (_requestedRenderKey == key)
-                    _requestedRenderKey = null;
+                if (_requestedRenderKey != key)
+                    return;
+
+                _requestedRenderKey = null;
+                _failedRenderKey = key;
+                _renderFailureMessage = $" Read error: {ex.Message}";
             });
 
         return null;
@@ -265,10 +278,14 @@ internal sealed partial class LargeFileViewer
         return $"{offset:X8}  {string.Join(' ', hex)}  {new string(ascii)}";
     }
 
+    private string RenderPlaceholder => _renderFailureMessage ?? " Loading...";
+
     private void InvalidatePreparedRender()
     {
         _requestedRenderKey = null;
         _preparedRenderContent = null;
+        _failedRenderKey = null;
+        _renderFailureMessage = null;
     }
 
     private abstract record ViewerPreparedContent(ViewerRenderKey Key);
