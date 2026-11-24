@@ -27,6 +27,7 @@ internal sealed partial class LargeFileViewer
             stateVersion,
             async cancellationToken =>
             {
+                await Task.Yield();
                 foreach (ViewerNavigationRequest pending in requests)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
