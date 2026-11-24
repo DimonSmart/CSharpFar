@@ -5,19 +5,26 @@ internal sealed class SeekableStreamFileByteReader(Stream stream) : IFileByteRea
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _disposeCancellation = new();
+    private readonly long _length = stream.Length;
     private int _activeReads;
     private int _disposed;
+    private int _resourcesDisposed;
 
-    public long Length => stream.Length;
+    public long Length => _length;
 
     public async Task<int> ReadAsync(long offset, Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         ArgumentOutOfRangeException.ThrowIfNegative(offset);
         if (buffer.IsEmpty || offset >= Length)
             return 0;
 
         Interlocked.Increment(ref _activeReads);
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            ReleaseRead();
+            throw new ObjectDisposedException(nameof(SeekableStreamFileByteReader));
+        }
+
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
             _disposeCancellation.Token);
@@ -37,12 +44,7 @@ internal sealed class SeekableStreamFileByteReader(Stream stream) : IFileByteRea
         }
         finally
         {
-            if (Interlocked.Decrement(ref _activeReads) == 0 &&
-                Volatile.Read(ref _disposed) != 0)
-            {
-                _gate.Dispose();
-                _disposeCancellation.Dispose();
-            }
+            ReleaseRead();
         }
     }
 
@@ -52,10 +54,25 @@ internal sealed class SeekableStreamFileByteReader(Stream stream) : IFileByteRea
             return;
 
         _disposeCancellation.Cancel();
-        if (Volatile.Read(ref _activeReads) == 0)
+        TryDisposeResources();
+    }
+
+    private void ReleaseRead()
+    {
+        Interlocked.Decrement(ref _activeReads);
+        TryDisposeResources();
+    }
+
+    private void TryDisposeResources()
+    {
+        if (Volatile.Read(ref _disposed) == 0 ||
+            Volatile.Read(ref _activeReads) != 0 ||
+            Interlocked.Exchange(ref _resourcesDisposed, 1) != 0)
         {
-            _gate.Dispose();
-            _disposeCancellation.Dispose();
+            return;
         }
+
+        _gate.Dispose();
+        _disposeCancellation.Dispose();
     }
 }
