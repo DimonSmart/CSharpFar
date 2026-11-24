@@ -39,12 +39,28 @@ internal sealed partial class LargeFileViewer
 
         _requestedRenderKey = key;
         _preparedRenderContent = null;
-        long version = _async.StateVersion;
 
+        using (key.Cache.EnterCacheOnly())
+        {
+            Task<ViewerPreparedContent> fast = PrepareRenderContentAsync(key, CancellationToken.None);
+            if (fast.IsCompletedSuccessfully)
+            {
+                _preparedRenderContent = fast.Result;
+                return _preparedRenderContent;
+            }
+
+            _ = fast.Exception;
+        }
+
+        long version = _async.StateVersion;
         _async.StartLatest(
             "render",
             version,
-            cancellationToken => PrepareRenderContentAsync(key, cancellationToken),
+            async cancellationToken =>
+            {
+                await Task.Yield();
+                return await PrepareRenderContentAsync(key, cancellationToken).ConfigureAwait(false);
+            },
             prepared =>
             {
                 if (prepared.Key != _requestedRenderKey)
@@ -65,7 +81,6 @@ internal sealed partial class LargeFileViewer
         ViewerRenderKey key,
         CancellationToken cancellationToken)
     {
-        await Task.Yield();
         if (key.ViewMode == LargeFileViewMode.Hex)
         {
             long offset = Math.Clamp(key.TopByteOffset, 0, key.Length);
