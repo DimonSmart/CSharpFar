@@ -8,7 +8,9 @@ internal sealed class BlockCache
     private readonly IFileByteReader _reader;
     private readonly int _capacity;
     private readonly Dictionary<long, CacheEntry> _entries = [];
+    private readonly object _gate = new();
     private long _lastAccess;
+    private long _generation;
 
     public BlockCache(
         IFileByteReader reader,
@@ -27,7 +29,14 @@ internal sealed class BlockCache
 
     public int BlockSize { get; }
 
-    public void Clear() => _entries.Clear();
+    public void Clear()
+    {
+        lock (_gate)
+        {
+            _entries.Clear();
+            _generation++;
+        }
+    }
 
     public async Task<ReadOnlyMemory<byte>> ReadBlockAsync(
         long offset,
@@ -37,10 +46,17 @@ internal sealed class BlockCache
             throw new ArgumentOutOfRangeException(nameof(offset));
 
         long blockStart = NormalizeOffset(offset);
-        if (_entries.TryGetValue(blockStart, out var cached) && IsFresh(cached, blockStart))
+        cancellationToken.ThrowIfCancellationRequested();
+        long generation;
+        long length = _reader.Length;
+        lock (_gate)
         {
-            cached.LastAccess = ++_lastAccess;
-            return cached.Bytes;
+            generation = _generation;
+            if (_entries.TryGetValue(blockStart, out var cached) && IsFresh(cached, blockStart, length))
+            {
+                cached.LastAccess = ++_lastAccess;
+                return cached.Bytes;
+            }
         }
 
         var buffer = new byte[BlockSize];
@@ -70,9 +86,15 @@ internal sealed class BlockCache
         // Do not cache that incomplete interior block.
         if (blockStart + totalRead >= _reader.Length || totalRead == BlockSize)
         {
-            var entry = new CacheEntry(buffer, ++_lastAccess);
-            _entries[blockStart] = entry;
-            EvictIfNeeded();
+            lock (_gate)
+            {
+                if (generation == _generation)
+                {
+                    var entry = new CacheEntry(buffer, ++_lastAccess);
+                    _entries[blockStart] = entry;
+                    EvictIfNeeded();
+                }
+            }
         }
         return buffer;
     }
@@ -109,9 +131,8 @@ internal sealed class BlockCache
 
     private long NormalizeOffset(long offset) => offset / BlockSize * BlockSize;
 
-    private bool IsFresh(CacheEntry entry, long blockStart)
+    private bool IsFresh(CacheEntry entry, long blockStart, long length)
     {
-        long length = _reader.Length;
         if (blockStart + entry.Bytes.Length > length)
             return false; // A previously cached block is stale after a shrink.
         return entry.Bytes.Length == BlockSize ||
