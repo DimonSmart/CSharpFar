@@ -66,6 +66,68 @@ public partial class FileViewerTests
     }
 
     [Fact]
+    public void LocalViewer_TailSlowRefreshStaysResponsiveAndReachesCurrentEnd()
+    {
+        string path = Write("tail-slow-refresh.txt", "first", new UTF8Encoding(false));
+        var monitorFactory = new FakeLocalFileMonitorFactory();
+        var readerFactory = new GatedRefreshLocalFileByteReaderFactory();
+        var driver = new FakeConsoleDriver(width: 80, height: 8);
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string content = current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
+            string writes = WrittenText(current);
+            if (stage == 0 && content.Contains("first", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F, 'f'));
+                stage = 1;
+            }
+            else if (stage == 1 && writes.Contains("WATCH", StringComparison.Ordinal) &&
+                     monitorFactory.CreateCount == 1)
+            {
+                current.EnqueueKey(Key(ConsoleKey.F, 'f'));
+                stage = 2;
+            }
+            else if (stage == 2 && writes.Contains("TAIL", StringComparison.Ordinal))
+            {
+                readerFactory.Current.GateNextRead = true;
+                File.AppendAllText(path, "\nAPPENDED", new UTF8Encoding(false));
+                monitorFactory.Current.MarkDirty();
+                stage = 3;
+            }
+            else if (stage == 3)
+            {
+                if (!readerFactory.Current.PendingReadStarted.Task.Wait(TimeSpan.FromSeconds(5)))
+                    throw new TimeoutException("Tail refresh did not start the delayed read.");
+
+                readerFactory.Current.ReleasePendingRead();
+                stage = 4;
+            }
+            else if (stage == 4 &&
+                     content.Contains("APPENDED", StringComparison.Ordinal) &&
+                     writes.Contains("TAIL", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 5;
+                return;
+            }
+
+            current.BeforeTryReadInput = advance;
+        };
+        driver.BeforeTryReadInput = advance;
+
+        FileViewerFor(
+            new ScreenRenderer(driver),
+            monitorFactory,
+            readerFactory).Show(path);
+
+        string finalContent = driver.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
+        Assert.Contains("APPENDED", finalContent);
+        Assert.Contains("TAIL", WrittenText(driver));
+    }
+
+    [Fact]
     public void VirtualViewer_SlowRenderDoesNotBlockClose()
     {
         byte[] data = Enumerable.Repeat((byte)'x', BlockCache.DefaultBlockSize + 4096).ToArray();
@@ -436,6 +498,107 @@ public partial class FileViewerTests
         };
 
         driver.BeforeTryReadInput = poll;
+    }
+
+    private sealed class GatedRefreshLocalFileByteReaderFactory : ILocalFileByteReaderFactory
+    {
+        public GatedRefreshLocalFileByteReader Current { get; private set; } = null!;
+
+        public ILocalFileByteReader Create(string filePath)
+        {
+            Current = new GatedRefreshLocalFileByteReader(filePath);
+            return Current;
+        }
+    }
+
+    private sealed class GatedRefreshLocalFileByteReader(string filePath) : ILocalFileByteReader
+    {
+        private readonly RandomAccessFileByteReader _inner = new(filePath);
+        private readonly object _gate = new();
+        private PendingLocalRead? _pending;
+
+        public bool GateNextRead { get; set; }
+        public TaskCompletionSource<bool> PendingReadStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public long Length => _inner.Length;
+        public int TransientFailureVersion => _inner.TransientFailureVersion;
+
+        public Task<int> ReadAsync(
+            long offset,
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            if (!GateNextRead)
+                return _inner.ReadAsync(offset, buffer, cancellationToken);
+
+            GateNextRead = false;
+            var completion = new TaskCompletionSource<int>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            CancellationTokenRegistration registration = cancellationToken.Register(
+                () => completion.TrySetCanceled(cancellationToken));
+            lock (_gate)
+            {
+                _pending = new PendingLocalRead(
+                    offset,
+                    buffer,
+                    cancellationToken,
+                    completion,
+                    registration);
+            }
+
+            PendingReadStarted.TrySetResult(true);
+            return completion.Task;
+        }
+
+        public void ReleasePendingRead()
+        {
+            PendingLocalRead pending;
+            lock (_gate)
+            {
+                pending = _pending
+                    ?? throw new InvalidOperationException("No delayed local read is pending.");
+                _pending = null;
+            }
+
+            _ = CompletePendingReadAsync(pending);
+        }
+
+        public void UpdateKnownLength(long length) => _inner.UpdateKnownLength(length);
+
+        public void Dispose() => _inner.Dispose();
+
+        private async Task CompletePendingReadAsync(PendingLocalRead pending)
+        {
+            try
+            {
+                int read = await _inner.ReadAsync(
+                        pending.Offset,
+                        pending.Buffer,
+                        pending.CancellationToken)
+                    .ConfigureAwait(false);
+                pending.Completion.TrySetResult(read);
+            }
+            catch (OperationCanceledException)
+            {
+                pending.Completion.TrySetCanceled(pending.CancellationToken);
+            }
+            catch (Exception ex)
+            {
+                pending.Completion.TrySetException(ex);
+            }
+            finally
+            {
+                pending.Registration.Dispose();
+            }
+        }
+
+        private sealed record PendingLocalRead(
+            long Offset,
+            Memory<byte> Buffer,
+            CancellationToken CancellationToken,
+            TaskCompletionSource<int> Completion,
+            CancellationTokenRegistration Registration);
     }
 
     private sealed class ChangingInitialLocalFileByteReaderFactory : ILocalFileByteReaderFactory
