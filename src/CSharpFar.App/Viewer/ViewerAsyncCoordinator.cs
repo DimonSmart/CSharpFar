@@ -37,6 +37,20 @@ internal sealed class ViewerAsyncCoordinator : IDisposable
             return _latest.ContainsKey(channel);
     }
 
+    public void CancelChannel(string channel)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(channel);
+        CancellationTokenSource? cancellation;
+        lock (_gate)
+        {
+            if (!_latest.Remove(channel, out cancellation))
+                return;
+        }
+
+        cancellation.Cancel();
+        cancellation.Dispose();
+    }
+
     public void BeginSession()
     {
         CancellationTokenSource oldSession;
