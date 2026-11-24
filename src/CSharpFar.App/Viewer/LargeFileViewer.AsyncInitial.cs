@@ -25,8 +25,12 @@ internal sealed partial class LargeFileViewer
             scanner =>
             {
                 state.ReplaceContent(cache, scanner, scanner.Detection.Selection);
-                if (state.IsHexMode)
-                    state.TopByteOffset = 0;
+                state.ViewMode = scanner.IsBinary
+                    ? LargeFileViewMode.Hex
+                    : LargeFileViewMode.Text;
+                state.TopByteOffset = state.IsHexMode
+                    ? 0
+                    : scanner.ContentStartOffset;
 
                 InvalidatePreparedRender();
 
