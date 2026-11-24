@@ -75,6 +75,7 @@ internal sealed partial class LargeFileViewer
             {
                 var reader = session.Reader;
                 var state = session.State;
+                StartInitialContentLoad(filePath, reader, state, session);
                 var layer = new LargeFileViewerLayer(this, filePath, reader, state);
                 var action = _surfaces.Run(
                     layer,
@@ -206,16 +207,8 @@ internal sealed partial class LargeFileViewer
 
             reader.UpdateKnownLength(before.Length);
             var cache = new BlockCache(reader);
-            LineScanner? scanner = CreateVirtualScanner(cache, reader);
-            if (scanner is null)
-            {
-                reader.Dispose();
-                return null;
-            }
-
-            var state = new LargeFileViewerState(cache, scanner);
-            if (state.IsHexMode)
-                state.TopByteOffset = 0;
+            LineScanner scanner = LineScanner.CreateLoading(cache, reader);
+            var state = new LargeFileViewerState(cache, scanner, contentReady: false);
 
             LocalFileSnapshot applied = before;
             if (LocalFileMonitor.TryCaptureSnapshot(filePath, out LocalFileSnapshot after) && after.Exists)
