@@ -204,6 +204,7 @@ internal sealed class PanelFileViewerService
 
         public void Dispose()
         {
+            bool readerOwnsInput = Reader is SeekableStreamFileByteReader;
             try
             {
                 if (Reader is IDisposable disposable)
@@ -211,7 +212,11 @@ internal sealed class PanelFileViewerService
             }
             finally
             {
-                try { input.Dispose(); }
+                try
+                {
+                    if (!readerOwnsInput)
+                        input.Dispose();
+                }
                 finally
                 {
                     try { usage.Dispose(); }
