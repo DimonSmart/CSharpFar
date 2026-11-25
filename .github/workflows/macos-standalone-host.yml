@@ -33,7 +33,7 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - name: Test .NET application contracts
-        run: dotnet test CSharpFar.slnx --configuration Release
+        run: dotnet test CSharpFar.slnx --configuration Release --blame-hang --blame-hang-timeout 90s --blame-hang-dump-type none --logger "console;verbosity=normal"
       - name: Compile pinned SwiftTerm desktop host
         run: swift build -c release --package-path eng/macos-host
       - name: Package macOS bundle
