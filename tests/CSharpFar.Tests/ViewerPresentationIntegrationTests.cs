@@ -98,10 +98,34 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         string first = Write("first.md", "| First | X |\n| --- | --- |\n| one | 1 |\n");
         string second = Write("second.md", "| Second | X |\n| --- | --- |\n| two | 2 |\n");
         var driver = ViewerDriver();
-        driver.EnqueueKey(Key(ConsoleKey.F5));
-        driver.EnqueueKey(Key(ConsoleKey.Add, '+'));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
         string? changed = null;
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string content = Content(current);
+            if (stage == 0 && content.Contains("│ First │ X │", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F5));
+                stage = 1;
+            }
+            else if (stage == 1 && content.Contains("| First | X |", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.Add, '+'));
+                stage = 2;
+            }
+            else if (stage == 2 &&
+                     string.Equals(changed, second, StringComparison.Ordinal) &&
+                     content.Contains("| Second | X |", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 3;
+                return;
+            }
+
+            Rearm(current, advance);
+        };
+        Rearm(driver, advance);
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(first, new LargeFileViewerOptions
         {
@@ -109,6 +133,8 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
             CurrentFileIndex = 0,
             CurrentFileChanged = path => changed = path,
         });
+
+        Assert.Equal(3, stage);
 
         Assert.Equal(second, changed);
         string content = Content(driver);
