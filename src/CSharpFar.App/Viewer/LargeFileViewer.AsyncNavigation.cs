@@ -544,7 +544,44 @@ internal sealed partial class LargeFileViewer
         int width,
         CancellationToken cancellationToken)
     {
+        EnsureLayoutCacheContext(state);
+        var localReader = reader as ILocalFileByteReader;
+        int failureVersion = localReader?.TransientFailureVersion ?? 0;
         long length = reader.Length;
+        MaximumViewportCacheKey key = CreateMaximumViewportCacheKey(
+            sourcePath,
+            state,
+            length,
+            contentHeight,
+            width);
+
+        if (_maximumViewportCache is { } cached && cached.Key == key)
+            return cached.Position;
+
+        ViewerViewportPosition result = await ComputeMaximumViewportPositionAsync(
+                sourcePath,
+                state,
+                length,
+                contentHeight,
+                width,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        if (localReader is null || localReader.TransientFailureVersion == failureVersion)
+            _maximumViewportCache = new MaximumViewportCacheEntry(key, result);
+
+        return result;
+    }
+
+    private async Task<ViewerViewportPosition> ComputeMaximumViewportPositionAsync(
+        string sourcePath,
+        LargeFileViewerState state,
+        long length,
+        int contentHeight,
+        int width,
+        CancellationToken cancellationToken)
+    {
         int visibleRows = Math.Max(1, contentHeight);
 
         if (state.IsHexMode)
@@ -632,8 +669,27 @@ internal sealed partial class LargeFileViewer
             return builder.Complete().SegmentCount;
         }
 
-        var presentation = new ViewerPresentationSession();
-        IReadOnlyList<PresentedLine> presented = await presentation
+        WrappedLineLayout layout = await GetOrCreateWrappedLineLayoutAsync(
+                sourcePath,
+                state,
+                line,
+                width,
+                cancellationToken)
+            .ConfigureAwait(false);
+        return layout.Segments.Count;
+    }
+
+    private async Task<WrappedLineLayout> GetOrCreateWrappedLineLayoutAsync(
+        string sourcePath,
+        LargeFileViewerState state,
+        ScannedLine line,
+        int width,
+        CancellationToken cancellationToken)
+    {
+        if (TryGetWrappedLineLayout(sourcePath, state, line, width, out WrappedLineLayout cached))
+            return cached;
+
+        IReadOnlyList<PresentedLine> presented = await state.Presentation
             .PresentAsync(
                 state.PresentationMode,
                 sourcePath,
@@ -643,7 +699,15 @@ internal sealed partial class LargeFileViewer
                 cancellationToken)
             .ConfigureAwait(false);
         PresentedLine resolved = ResolvePresentationForSearch(presented[0], state.SearchMatch);
-        return CreateWrappedLineLayout(resolved, state.WordWrap, width).Segments.Count;
+
+        if (resolved.PreserveLineLayout)
+            ClearWrappedLayoutCache();
+
+        WrappedLineLayout layout = CreateWrappedLineLayout(resolved, state.WordWrap, width);
+        StoreWrappedLineLayout(
+            CreateWrappedLayoutCacheKey(sourcePath, state, line, width),
+            layout);
+        return layout;
     }
 
     private async Task NormalizeViewportAsync(
