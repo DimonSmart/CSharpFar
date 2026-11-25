@@ -85,7 +85,7 @@ public sealed class MarkdownPresentationLimitTests
         var scanner = await LineScanner.CreateAsync(cache, reader);
         var state = new LargeFileViewerState(cache, scanner);
 
-        ViewerSearchMatch? match = ViewerSearchEngine.Find(
+        ViewerSearchMatch? match = await ViewerSearchEngine.FindAsync(
             reader,
             state,
             new ViewerSearchRequest(
@@ -102,12 +102,12 @@ public sealed class MarkdownPresentationLimitTests
             .Lines
             .Single();
 
-        PresentedLine result = state.Presentation.Present(
+        PresentedLine result = (await state.Presentation.PresentAsync(
             ViewerPresentationMode.Auto,
             "search.md",
             scanner,
             [source],
-            80).Single();
+            80)).Single();
 
         Assert.Equal(sourceText, result.Text);
         Assert.Empty(result.StyleSpans);
