@@ -105,9 +105,9 @@ internal sealed partial class LargeFileViewer
             },
             ex =>
             {
+                _initialLoadError = ex.Message;
                 if (localSession is not null)
                     localSession.MarkInitialLoadFailed();
-                _dialogs.Message("Viewer", ex.Message);
             });
 
         _async.DrainUiCompletions();
