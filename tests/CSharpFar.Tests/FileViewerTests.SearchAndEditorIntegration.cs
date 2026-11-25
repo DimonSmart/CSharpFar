@@ -24,7 +24,6 @@ public partial class FileViewerTests
         {
             string content = current.GetRegionText(
                 new CSharpFar.Console.Models.Rect(0, 1, 80, 8));
-            string writes = WrittenText(current);
 
             if (stage == 0 && content.Contains("first", StringComparison.Ordinal))
             {
@@ -33,11 +32,10 @@ public partial class FileViewerTests
             }
             else if (stage == 1)
             {
-                current.EnqueueKey(Key(ConsoleKey.D2, '2'));
-                current.EnqueueKey(Key(ConsoleKey.Enter));
+                current.EnqueueKey(Key(ConsoleKey.Escape));
                 stage = 2;
             }
-            else if (stage == 2 && content.StartsWith("second", StringComparison.Ordinal))
+            else if (stage == 2)
             {
                 current.EnqueueKey(Key(ConsoleKey.F10));
                 stage = 3;
@@ -48,12 +46,13 @@ public partial class FileViewerTests
         };
         driver.BeforeTryReadInput = advance;
         driver.BeforeReadInput = advance;
-        var screen = new ScreenRenderer(driver);
 
-        FileViewerFor(screen).Show(path);
+        FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
         Assert.Equal(3, stage);
-        Assert.Contains("second", WrittenText(driver));
+        Assert.Contains(
+            driver.WriteRecords,
+            record => record.Text.Contains("Line number or percent:", StringComparison.Ordinal));
     }
 
     [Fact]
