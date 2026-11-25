@@ -29,7 +29,8 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     {
         string path = Write("table.txt", "| A | B |\n| --- | --- |\n| C | D |\n");
         var driver = ViewerDriver();
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            Content(current).Contains("| A | B |", StringComparison.Ordinal));
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
@@ -60,12 +61,31 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     {
         string path = Write("raw-position.md", "| A | B |\n| --- | --- |\n| C | D |\n" + string.Join('\n', Enumerable.Range(1, 10).Select(i => $"after {i}")) + "\n");
         var driver = ViewerDriver(width: 100);
-        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
-        driver.EnqueueKey(Key(ConsoleKey.F5));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string top = current.GetRegionText(new Rect(0, 1, 100, 1));
+            if (stage == 0 && top.Contains("│ A │ B │", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.DownArrow));
+                current.EnqueueKey(Key(ConsoleKey.F5));
+                stage = 1;
+            }
+            else if (stage == 1 && top.Contains("| --- | --- |", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 2;
+                return;
+            }
+
+            Rearm(current, advance);
+        };
+        Rearm(driver, advance);
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
+        Assert.Equal(2, stage);
         string top = driver.GetRegionText(new Rect(0, 1, 100, 1));
         Assert.Contains("| --- | --- |", top);
         Assert.DoesNotContain("├", top);
@@ -381,12 +401,31 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
             "wide.md",
             "| 0123456789ABCDEFGHIJ | B |\n| --- | --- |\n| 0123456789abcdefghij | C |\n");
         var driver = ViewerDriver(width: 16);
-        for (int i = 0; i < 6; i++)
-            driver.EnqueueKey(Key(ConsoleKey.RightArrow));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string top = current.GetRegionText(new Rect(0, 1, 16, 1));
+            if (stage == 0 && top.Contains("012345", StringComparison.Ordinal))
+            {
+                for (int i = 0; i < 6; i++)
+                    current.EnqueueKey(Key(ConsoleKey.RightArrow));
+                stage = 1;
+            }
+            else if (stage == 1 && top.Contains("456789", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 2;
+                return;
+            }
+
+            Rearm(current, advance);
+        };
+        Rearm(driver, advance);
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
+        Assert.Equal(2, stage);
         string top = driver.GetRegionText(new Rect(0, 1, 16, 1));
         Assert.DoesNotContain("│ 012", top);
         Assert.Contains("456789", top);
@@ -398,7 +437,8 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         var reader = new MemoryFileByteReader(
             Encoding.UTF8.GetBytes("| A | B |\n| --- | --- |\n| C | D |\n"));
         var driver = ViewerDriver();
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            Content(current).Contains("│ A │ B │", StringComparison.Ordinal));
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver))
             .Show("virtual://archive/readme.md?rev=42", reader);
@@ -525,13 +565,32 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     {
         string path = Write("search-inline.md", "See **target** here.\n");
         var driver = ViewerDriver(width: 60, height: 12);
-        driver.EnqueueKey(Key(ConsoleKey.F7));
-        EnqueueText(driver, "target");
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string row = current.GetRegionText(new Rect(0, 1, 60, 1));
+            if (stage == 0 && row.Contains("target", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F7));
+                EnqueueText(current, "target");
+                current.EnqueueKey(Key(ConsoleKey.Enter));
+                stage = 1;
+            }
+            else if (stage == 1 && WrittenText(current).Contains("FIND", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 2;
+                return;
+            }
+
+            Rearm(current, advance);
+        };
+        Rearm(driver, advance);
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
+        Assert.Equal(2, stage);
         string row = driver.GetRegionText(new Rect(0, 1, 60, 1));
         int targetX = row.IndexOf("target", StringComparison.Ordinal);
         Assert.True(targetX >= 0, row);
@@ -546,13 +605,33 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     {
         string path = Write("search-hidden.md", "See [documentation](README.md).\n");
         var driver = ViewerDriver(width: 80, height: 12);
-        driver.EnqueueKey(Key(ConsoleKey.F7));
-        EnqueueText(driver, "README.md");
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string row = current.GetRegionText(new Rect(0, 1, 80, 1));
+            if (stage == 0 && row.Contains("documentation", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F7));
+                EnqueueText(current, "README.md");
+                current.EnqueueKey(Key(ConsoleKey.Enter));
+                stage = 1;
+            }
+            else if (stage == 1 &&
+                     row.Contains("[documentation](README.md)", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 2;
+                return;
+            }
+
+            Rearm(current, advance);
+        };
+        Rearm(driver, advance);
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
+        Assert.Equal(2, stage);
         string row = driver.GetRegionText(new Rect(0, 1, 80, 1));
         Assert.Contains("[documentation](README.md)", row);
     }
@@ -562,11 +641,31 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     {
         string path = Write("inline-raw.md", "**bold** `code` [link](url) *italic*\n");
         var driver = ViewerDriver(width: 100);
-        driver.EnqueueKey(Key(ConsoleKey.F5));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string row = current.GetRegionText(new Rect(0, 1, 100, 1));
+            if (stage == 0 && row.Contains("bold code link italic", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F5));
+                stage = 1;
+            }
+            else if (stage == 1 &&
+                     row.Contains("**bold** `code` [link](url) *italic*", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 2;
+                return;
+            }
+
+            Rearm(current, advance);
+        };
+        Rearm(driver, advance);
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
+        Assert.Equal(2, stage);
         string row = driver.GetRegionText(new Rect(0, 1, 100, 1));
         Assert.Contains("**bold** `code` [link](url) *italic*", row);
     }
@@ -576,12 +675,31 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     {
         string path = Write("wide-inline.md", "0123456789 **界** tail\n");
         var driver = ViewerDriver(width: 12);
-        for (int i = 0; i < 5; i++)
-            driver.EnqueueKey(Key(ConsoleKey.RightArrow));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string row = current.GetRegionText(new Rect(0, 1, 12, 1));
+            if (stage == 0 && row.Contains("012345", StringComparison.Ordinal))
+            {
+                for (int i = 0; i < 5; i++)
+                    current.EnqueueKey(Key(ConsoleKey.RightArrow));
+                stage = 1;
+            }
+            else if (stage == 1 && row.Contains("界", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 2;
+                return;
+            }
+
+            Rearm(current, advance);
+        };
+        Rearm(driver, advance);
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
+        Assert.Equal(2, stage);
         string row = driver.GetRegionText(new Rect(0, 1, 12, 1));
         Assert.Contains("界", row);
     }
