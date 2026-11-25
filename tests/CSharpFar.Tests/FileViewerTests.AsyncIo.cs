@@ -599,11 +599,12 @@ public partial class FileViewerTests
 
     private static void RearmViewerInputPoll(
         FakeConsoleDriver driver,
-        Action<FakeConsoleDriver> callback)
+        Action<FakeConsoleDriver>? callback)
     {
         driver.BeforeTryReadInput = callback;
         driver.BeforeReadInput = callback;
-        driver.EnqueueKey(Key(ConsoleKey.NoName));
+        if (callback is not null)
+            driver.EnqueueKey(Key(ConsoleKey.NoName));
     }
 
     private static void CloseWhen(
