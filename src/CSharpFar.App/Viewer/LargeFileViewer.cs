@@ -38,6 +38,7 @@ internal sealed partial class LargeFileViewer
     private LargeFileViewerState? _layoutCacheState;
     private LineScanner? _layoutCacheScanner;
     private MaximumViewportCacheEntry? _maximumViewportCache;
+    private string? _initialLoadError;
 
     public LargeFileViewer(
         InteractiveSurfaceHost surfaces,
@@ -62,6 +63,7 @@ internal sealed partial class LargeFileViewer
     internal void Show(string filePath, LargeFileViewerOptions? options)
     {
         options ??= new LargeFileViewerOptions();
+        _initialLoadError = null;
         LocalViewerSession? session = null;
 
         try
@@ -89,7 +91,10 @@ internal sealed partial class LargeFileViewer
                     getNextWakeUtc: () => GetNextViewerWakeUtc(state),
                     handleWake: frame => HandleLocalWake(filePath, session, frame));
                 if (action == ViewerLoopAction.Close)
+                {
+                    ShowInitialLoadErrorIfAny();
                     return;
+                }
 
                 if (!TryMoveToSibling(options, action == ViewerLoopAction.NextFile ? 1 : -1, out string nextPath))
                 {
@@ -132,7 +137,7 @@ internal sealed partial class LargeFileViewer
             StartInitialContentLoad(filePath, reader, state, localSession: null);
 
             var layer = new LargeFileViewerLayer(this, filePath, reader, state);
-            _surfaces.Run(
+            var action = _surfaces.RunTimed(
                 layer,
                 (routed, input) => HandleViewerInput(
                     filePath,
@@ -144,9 +149,10 @@ internal sealed partial class LargeFileViewer
                     input,
                     localSession: null),
                 getNextWakeUtc: () => GetNextViewerWakeUtc(state),
-                handleWake: _ => _async.DrainUiCompletions()
-                    ? InteractiveSurfaceWakeResult.Changed
-                    : InteractiveSurfaceWakeResult.NoChange);
+                handleWake: _ => HandleVirtualWake());
+
+            if (action == ViewerLoopAction.Close)
+                ShowInitialLoadErrorIfAny();
         }
         catch (Exception ex)
         {
@@ -180,6 +186,28 @@ internal sealed partial class LargeFileViewer
             reader.Dispose();
             throw;
         }
+    }
+
+    private InteractiveSurfaceWakeResult<ViewerLoopAction> HandleVirtualWake()
+    {
+        bool changed = _async.DrainUiCompletions();
+        if (_initialLoadError is not null)
+            return InteractiveSurfaceWakeResult<ViewerLoopAction>.Complete(
+                ViewerLoopAction.Close,
+                invalidate: changed);
+
+        return changed
+            ? InteractiveSurfaceWakeResult<ViewerLoopAction>.Changed
+            : InteractiveSurfaceWakeResult<ViewerLoopAction>.NoChange;
+    }
+
+    private void ShowInitialLoadErrorIfAny()
+    {
+        if (_initialLoadError is not { } error)
+            return;
+
+        _initialLoadError = null;
+        _dialogs.Message("Viewer", error);
     }
 
     private DateTimeOffset? GetNextViewerWakeUtc(LargeFileViewerState state)
