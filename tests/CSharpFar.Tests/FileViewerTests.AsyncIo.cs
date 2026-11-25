@@ -65,9 +65,12 @@ public partial class FileViewerTests
         var readerFactory = new ChangingInitialLocalFileByteReaderFactory();
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         int stage = 0;
+        DateTime deadline = DateTime.UtcNow.AddSeconds(20);
         Action<FakeConsoleDriver>? advance = null;
         advance = current =>
         {
+            if (DateTime.UtcNow > deadline)
+                throw new TimeoutException("LocalViewer_FileChangeDuringInitialReadRetriesWithCurrentContent did not reach its expected state.");
             if (stage == 0)
             {
                 if (!readerFactory.Current.ReadStarted.Task.Wait(TimeSpan.FromSeconds(5)))
@@ -107,9 +110,12 @@ public partial class FileViewerTests
         var readerFactory = new GatedRefreshLocalFileByteReaderFactory();
         var driver = new FakeConsoleDriver(width: 80, height: 8);
         int stage = 0;
+        DateTime deadline = DateTime.UtcNow.AddSeconds(20);
         Action<FakeConsoleDriver>? advance = null;
         advance = current =>
         {
+            if (DateTime.UtcNow > deadline)
+                throw new TimeoutException("LocalViewer_TailSlowRefreshStaysResponsiveAndReachesCurrentEnd did not reach its expected state.");
             string content = current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
             string writes = WrittenText(current);
             if (stage == 0 && content.Contains("first", StringComparison.Ordinal))
@@ -191,9 +197,12 @@ public partial class FileViewerTests
         var reader = new GatedAfterFirstReadByteReader(data);
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         int stage = 0;
+        DateTime deadline = DateTime.UtcNow.AddSeconds(20);
         Action<FakeConsoleDriver>? advance = null;
         advance = current =>
         {
+            if (DateTime.UtcNow > deadline)
+                throw new TimeoutException("VirtualViewer_RapidNavigationKeepsLatestRequestedPosition did not reach its expected state.");
             string content = current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8));
             if (stage == 0 && content.Contains("START", StringComparison.Ordinal))
             {
@@ -238,9 +247,12 @@ public partial class FileViewerTests
         var reader = new GatedAfterFirstReadByteReader(data);
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         int stage = 0;
+        DateTime deadline = DateTime.UtcNow.AddSeconds(20);
         Action<FakeConsoleDriver>? advance = null;
         advance = current =>
         {
+            if (DateTime.UtcNow > deadline)
+                throw new TimeoutException("VirtualViewer_EscapeCancelsPendingSearchAndKeepsViewerOpen did not reach its expected state.");
             string content = current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8));
             string writes = WrittenText(current);
             if (stage == 0 && content.Contains("START", StringComparison.Ordinal))
@@ -296,9 +308,12 @@ public partial class FileViewerTests
         var reader = new GatedAfterFirstReadByteReader(data);
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         int stage = 0;
+        DateTime deadline = DateTime.UtcNow.AddSeconds(20);
         Action<FakeConsoleDriver>? advance = null;
         advance = current =>
         {
+            if (DateTime.UtcNow > deadline)
+                throw new TimeoutException("VirtualViewer_NewSearchCancelsAndSupersedesPendingSearch did not reach its expected state.");
             string content = current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8));
             string writes = WrittenText(current);
             if (stage == 0 && content.Contains("START", StringComparison.Ordinal))
@@ -345,9 +360,12 @@ public partial class FileViewerTests
         var reader = new OneShotGatedByteReader(data);
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         int stage = 0;
+        DateTime deadline = DateTime.UtcNow.AddSeconds(20);
         Action<FakeConsoleDriver>? advance = null;
         advance = current =>
         {
+            if (DateTime.UtcNow > deadline)
+                throw new TimeoutException("VirtualViewer_EncodingChangeCancelsStalePendingRead did not reach its expected state.");
             string header = current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 0, 80, 1));
             if (stage == 0 && header.Contains("HEX", StringComparison.Ordinal))
             {
