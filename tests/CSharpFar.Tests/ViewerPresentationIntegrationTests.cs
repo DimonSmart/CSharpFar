@@ -272,7 +272,7 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         var scanner = await LineScanner.CreateAsync(cache, reader);
         var state = new LargeFileViewerState(cache, scanner);
 
-        ViewerSearchMatch? match = ViewerSearchEngine.Find(
+        ViewerSearchMatch? match = await ViewerSearchEngine.FindAsync(
             reader,
             state,
             new ViewerSearchRequest("│", CaseSensitive: true, WholeWords: false, UseRegex: false, SearchHex: false),
