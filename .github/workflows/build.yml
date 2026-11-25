@@ -106,7 +106,7 @@ jobs:
           CSHARPFAR_ARCHIVE_FIXTURES: ${{ github.workspace }}/tests/archive-fixtures
           CSHARPFAR_EXTERNAL_HELLO: ${{ github.workspace }}/artifacts/external-hello
           CSHARPFAR_EXTERNAL_GOODBYE: ${{ github.workspace }}/artifacts/external-goodbye
-        run: dotnet test CSharpFar.slnx --configuration Release --no-build --verbosity minimal
+        run: dotnet test CSharpFar.slnx --configuration Release --blame-hang --blame-hang-timeout 90s --blame-hang-dump-type none --logger "console;verbosity=normal" --no-build --verbosity minimal
 
       - name: Verify Unix child interruption and panel restoration
         if: runner.os != 'Windows'
