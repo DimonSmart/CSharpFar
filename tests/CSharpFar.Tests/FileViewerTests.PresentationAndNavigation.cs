@@ -175,13 +175,34 @@ public partial class FileViewerTests
     {
         string path = Write("wide-scroll.txt", "界ABCD", new UTF8Encoding(false));
         var driver = new FakeConsoleDriver(width: 8, height: 6);
-        driver.EnqueueKey(Key(ConsoleKey.RightArrow));
-        driver.EnqueueKey(Key(ConsoleKey.RightArrow));
-        CloseWhen(driver, current =>
-            current.GetCell(0, 1).Character == 'A' &&
-            current.GetCell(1, 1).Character == 'B');
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string content = current.GetRegionText(
+                new CSharpFar.Console.Models.Rect(0, 1, 8, 4));
+            if (stage == 0 && content.Contains("界ABCD", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.RightArrow));
+                current.EnqueueKey(Key(ConsoleKey.RightArrow));
+                stage = 1;
+            }
+            else if (stage == 1 &&
+                     current.GetCell(0, 1).Character == 'A' &&
+                     current.GetCell(1, 1).Character == 'B')
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 2;
+                return;
+            }
+
+            RearmViewerInputPoll(current, advance);
+        };
+        RearmViewerInputPoll(driver, advance);
 
         FileViewerFor(new ScreenRenderer(driver)).Show(path);
+
+        Assert.Equal(2, stage);
 
         Assert.Equal('A', driver.GetCell(0, 1).Character);
         Assert.Equal('B', driver.GetCell(1, 1).Character);
@@ -192,12 +213,31 @@ public partial class FileViewerTests
     {
         string path = Write("wide-wrap.txt", "界AB", new UTF8Encoding(false));
         var driver = new FakeConsoleDriver(width: 3, height: 6);
-        driver.EnqueueKey(Key(ConsoleKey.F2));
-        CloseWhen(driver, current =>
-            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 3, 4))
-                .Contains("界A", StringComparison.Ordinal));
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string content = current.GetRegionText(
+                new CSharpFar.Console.Models.Rect(0, 1, 3, 4));
+            if (stage == 0 && content.Contains("界A", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F2));
+                stage = 1;
+            }
+            else if (stage == 1 && content.Contains("界A", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 2;
+                return;
+            }
+
+            RearmViewerInputPoll(current, advance);
+        };
+        RearmViewerInputPoll(driver, advance);
 
         FileViewerFor(new ScreenRenderer(driver)).Show(path);
+
+        Assert.Equal(2, stage);
 
         string firstContentWrite = driver.WriteRecords
             .First(record => record.Y == 1 && record.Text.Contains('界'))
