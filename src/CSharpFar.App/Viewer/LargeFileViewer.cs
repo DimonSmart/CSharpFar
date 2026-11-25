@@ -37,7 +37,6 @@ internal sealed partial class LargeFileViewer
     private readonly ViewerAsyncCoordinator _async = new();
     private LargeFileViewerState? _layoutCacheState;
     private LineScanner? _layoutCacheScanner;
-    private MaximumViewportCacheEntry? _maximumViewportCache;
 
     public LargeFileViewer(
         InteractiveSurfaceHost surfaces,
