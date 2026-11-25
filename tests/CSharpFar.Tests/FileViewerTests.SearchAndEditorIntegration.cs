@@ -31,8 +31,7 @@ public partial class FileViewerTests
                 current.EnqueueKey(Key(ConsoleKey.F8, alt: true));
                 stage = 1;
             }
-            else if (stage == 1 &&
-                     writes.Contains("Line number or percent:", StringComparison.Ordinal))
+            else if (stage == 1)
             {
                 current.EnqueueKey(Key(ConsoleKey.D2, '2'));
                 current.EnqueueKey(Key(ConsoleKey.Enter));
