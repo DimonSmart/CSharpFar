@@ -124,7 +124,6 @@ internal sealed partial class LargeFileViewer
         _layoutCacheState = state;
         _layoutCacheScanner = state.LineScanner;
         ClearWrappedLayoutCache();
-        _maximumViewportCache = null;
     }
 
     private void ClearWrappedLayoutCache() => _wrappedLayoutCache.Clear();
