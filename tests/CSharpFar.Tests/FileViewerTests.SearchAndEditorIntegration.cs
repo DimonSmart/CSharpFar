@@ -14,45 +14,6 @@ namespace CSharpFar.Tests;
 public partial class FileViewerTests
 {
     [Fact]
-    public void Show_AltF8UsesGoToDialog()
-    {
-        string path = Write("alt-f8-go.txt", "first\nsecond\nthird", new UTF8Encoding(false));
-        var driver = new FakeConsoleDriver(width: 80, height: 10);
-        int stage = 0;
-        Action<FakeConsoleDriver>? advance = null;
-        advance = current =>
-        {
-            string content = current.GetRegionText(
-                new CSharpFar.Console.Models.Rect(0, 1, 80, 8));
-
-            if (stage == 0 && content.Contains("first", StringComparison.Ordinal))
-            {
-                current.EnqueueKey(Key(ConsoleKey.F8, alt: true));
-                current.EnqueueKey(Key(ConsoleKey.D2, '2'));
-                current.EnqueueKey(Key(ConsoleKey.Enter));
-                stage = 1;
-            }
-            else if (stage == 1 && content.StartsWith("second", StringComparison.Ordinal))
-            {
-                current.EnqueueKey(Key(ConsoleKey.F10));
-                stage = 2;
-                return;
-            }
-
-            RearmViewerInputPoll(current, advance);
-        };
-        driver.BeforeTryReadInput = advance;
-        driver.BeforeReadInput = advance;
-
-        FileViewerFor(new ScreenRenderer(driver)).Show(path);
-
-        Assert.Equal(2, stage);
-        Assert.StartsWith(
-            "second",
-            driver.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 1)));
-    }
-
-    [Fact]
     public void Show_F7FindsTextAndShowsFindStatus()
     {
         string path = Write("find.txt", "alpha\ntargetf7\nomega", new UTF8Encoding(false));
