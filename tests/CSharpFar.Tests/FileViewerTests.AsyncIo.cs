@@ -175,8 +175,11 @@ public partial class FileViewerTests
     [Fact]
     public void VirtualViewer_RapidNavigationKeepsLatestRequestedPosition()
     {
+        string prefix = "START\n" +
+            string.Join('\n', Enumerable.Range(1, 12).Select(i => $"line{i:D2}")) +
+            "\n";
         byte[] data = Encoding.UTF8.GetBytes(
-            "START\n" + new string('a', BlockCache.DefaultBlockSize + 4096) + "\nTAIL");
+            prefix + new string('a', BlockCache.DefaultBlockSize + 4096) + "\nTAIL");
         var reader = new GatedAfterFirstReadByteReader(data);
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         int stage = 0;
@@ -219,8 +222,11 @@ public partial class FileViewerTests
     [Fact]
     public void VirtualViewer_EscapeCancelsPendingSearchAndKeepsViewerOpen()
     {
+        string prefix = "START\n" +
+            string.Join('\n', Enumerable.Range(1, 12).Select(i => $"line{i:D2}")) +
+            "\n";
         byte[] data = Encoding.UTF8.GetBytes(
-            "START\n" + new string('a', BlockCache.DefaultBlockSize + 4096) + "\nTARGET");
+            prefix + new string('a', BlockCache.DefaultBlockSize + 4096) + "\nTARGET");
         var reader = new GatedAfterFirstReadByteReader(data);
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         int stage = 0;
@@ -274,8 +280,11 @@ public partial class FileViewerTests
     [Fact]
     public void VirtualViewer_NewSearchCancelsAndSupersedesPendingSearch()
     {
+        string prefix = "START\n" +
+            string.Join('\n', Enumerable.Range(1, 12).Select(i => $"line{i:D2}")) +
+            "\n";
         byte[] data = Encoding.UTF8.GetBytes(
-            "START\n" + new string('a', BlockCache.DefaultBlockSize + 4096) + "\nOLDTARGET");
+            prefix + new string('a', BlockCache.DefaultBlockSize + 4096) + "\nOLDTARGET");
         var reader = new GatedAfterFirstReadByteReader(data);
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         int stage = 0;
@@ -325,7 +334,7 @@ public partial class FileViewerTests
     public void VirtualViewer_EncodingChangeCancelsStalePendingRead()
     {
         byte[] data = new byte[BlockCache.DefaultBlockSize + 4096];
-        var reader = new GatedAfterFirstReadByteReader(data);
+        var reader = new OneShotGatedByteReader(data);
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         int stage = 0;
         Action<FakeConsoleDriver>? advance = null;
@@ -892,6 +901,58 @@ public partial class FileViewerTests
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken)
                 .ConfigureAwait(false);
             return 0;
+        }
+    }
+
+    private sealed class OneShotGatedByteReader(byte[] data) : IFileByteReader
+    {
+        private int _readCount;
+        private int _cancellationObserved;
+
+        public long Length => data.LongLength;
+
+        public TaskCompletionSource<bool> PendingReadStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool CancellationObserved => Volatile.Read(ref _cancellationObserved) != 0;
+
+        public Task<int> ReadAsync(
+            long offset,
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int call = Interlocked.Increment(ref _readCount);
+            int count = (int)Math.Min(buffer.Length, Math.Max(0, Length - offset));
+            if (call != 2)
+            {
+                data.AsMemory((int)offset, count).CopyTo(buffer);
+                return Task.FromResult(count);
+            }
+
+            PendingReadStarted.TrySetResult(true);
+            var completion = new TaskCompletionSource<int>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            CancellationTokenRegistration registration = cancellationToken.Register(() =>
+            {
+                Volatile.Write(ref _cancellationObserved, 1);
+                completion.TrySetCanceled(cancellationToken);
+            });
+            return AwaitPendingAsync(completion.Task, registration);
+        }
+
+        private static async Task<int> AwaitPendingAsync(
+            Task<int> pending,
+            CancellationTokenRegistration registration)
+        {
+            try
+            {
+                return await pending.ConfigureAwait(false);
+            }
+            finally
+            {
+                registration.Dispose();
+            }
         }
     }
 
