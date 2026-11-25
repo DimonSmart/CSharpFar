@@ -155,11 +155,11 @@ internal sealed class ViewerAsyncCoordinator : IDisposable
     public bool CancelLatest(string channel)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(channel);
-        CancellationTokenSource cancellation;
+        CancellationTokenSource? cancellation;
         lock (_gate)
         {
             ThrowIfDisposed();
-            if (!_latest.Remove(channel, out cancellation))
+            if (!_latest.Remove(channel, out cancellation) || cancellation is null)
                 return false;
         }
 
