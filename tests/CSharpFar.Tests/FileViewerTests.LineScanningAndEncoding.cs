@@ -129,8 +129,11 @@ public partial class FileViewerTests
             }
 
             current.BeforeTryReadInput = advance;
+
+            current.BeforeReadInput = advance;
         };
         driver.BeforeTryReadInput = advance;
+        driver.BeforeReadInput = advance;
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
@@ -171,8 +174,11 @@ public partial class FileViewerTests
             }
 
             current.BeforeTryReadInput = advance;
+
+            current.BeforeReadInput = advance;
         };
         driver.BeforeTryReadInput = advance;
+        driver.BeforeReadInput = advance;
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
@@ -211,8 +217,11 @@ public partial class FileViewerTests
             }
 
             current.BeforeTryReadInput = advance;
+
+            current.BeforeReadInput = advance;
         };
         driver.BeforeTryReadInput = advance;
+        driver.BeforeReadInput = advance;
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
@@ -245,8 +254,11 @@ public partial class FileViewerTests
             }
 
             current.BeforeTryReadInput = advance;
+
+            current.BeforeReadInput = advance;
         };
         driver.BeforeTryReadInput = advance;
+        driver.BeforeReadInput = advance;
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
