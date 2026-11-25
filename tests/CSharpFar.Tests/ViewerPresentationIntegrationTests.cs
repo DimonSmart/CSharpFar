@@ -43,7 +43,9 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     {
         string path = Write("table.md", "| A | B |\n| --- | --- |\n| C | D |\n");
         var driver = ViewerDriver(width: 100);
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            Content(current, width: 100).Contains("│ A │ B │", StringComparison.Ordinal) &&
+            current.GetRegionText(new Rect(0, 9, 100, 1)).Contains("5Raw", StringComparison.Ordinal));
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
@@ -99,13 +101,38 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     {
         string path = Write("hex.md", "ABC\n");
         var driver = ViewerDriver();
-        driver.EnqueueKey(Key(ConsoleKey.F4));
-        driver.EnqueueKey(Key(ConsoleKey.F5));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string content = Content(current);
+            if (stage == 0 && content.Contains("ABC", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F4));
+                current.EnqueueKey(Key(ConsoleKey.F5));
+                stage = 1;
+            }
+            else if (stage == 1)
+            {
+                string screen = current.GetRegionText(new Rect(0, 0, 80, 9));
+                if (screen.Contains("HEX", StringComparison.Ordinal) &&
+                    screen.Contains("00000000", StringComparison.Ordinal) &&
+                    screen.Contains("41 42 43", StringComparison.Ordinal))
+                {
+                    current.EnqueueKey(Key(ConsoleKey.F10));
+                    stage = 2;
+                    return;
+                }
+            }
+
+            Rearm(current, advance);
+        };
+        Rearm(driver, advance);
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
         string screen = driver.GetRegionText(new Rect(0, 0, 80, 9));
+        Assert.Equal(2, stage);
         Assert.Contains("HEX", screen);
         Assert.Contains("00000000", screen);
         Assert.Contains("41 42 43", screen);
@@ -151,32 +178,46 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task WrappedRenderer_BatchesPresentationForViewport()
+    public async Task WrappedRenderer_PreparesViewportLayoutsInSingleAsyncRenderPass()
     {
         byte[] bytes = Encoding.UTF8.GetBytes(
             string.Join('\n', Enumerable.Range(0, 12).Select(i => $"line {i} with **markdown** content")) + "\n");
         var reader = new MemoryFileByteReader(bytes);
         var cache = new BlockCache(reader, blockSize: 64, capacity: 32);
         var scanner = await LineScanner.CreateAsync(cache, reader);
+        for (long offset = 0; offset < reader.Length; offset += cache.BlockSize)
+            _ = await cache.ReadBlockAsync(offset);
+
         var state = new LargeFileViewerState(cache, scanner)
         {
             WrapLines = true,
         };
-        var provider = new CountingProvider();
-        SetPrivate(state.Presentation, "_sourcePath", "virtual://batch.md");
-        SetPrivate(state.Presentation, "_provider", provider);
         var viewer = CreateLargeFileViewer();
-        MethodInfo draw = typeof(LargeFileViewer).GetMethod(
-            "DrawWrappedTextContent",
-            BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("DrawWrappedTextContent not found.");
+        MethodInfo prepare = typeof(LargeFileViewer).GetMethod(
+            "GetOrRequestRenderContent",
+            BindingFlags.Instance | BindingFlags.NonPublic,
+            binder: null,
+            types:
+            [
+                typeof(string),
+                typeof(IFileByteReader),
+                typeof(LargeFileViewerState),
+                typeof(int),
+                typeof(int),
+            ],
+            modifiers: null)
+            ?? throw new InvalidOperationException("GetOrRequestRenderContent not found.");
 
-        draw.Invoke(
+        object? prepared = prepare.Invoke(
             viewer,
-            [new NullCanvas(40, 12), "virtual://batch.md", reader, state, 8, 40]);
+            ["virtual://batch.md", reader, state, 8, 40]);
 
-        Assert.Equal(1, provider.Calls);
-        Assert.Equal(8, provider.LastVisibleLineCount);
+        Assert.NotNull(prepared);
+        PropertyInfo layoutsProperty = prepared.GetType().GetProperty("Layouts")
+            ?? throw new InvalidOperationException("Prepared wrapped layouts not found.");
+        var layouts = layoutsProperty.GetValue(prepared) as System.Collections.IDictionary
+            ?? throw new InvalidOperationException("Prepared wrapped layouts are not a dictionary.");
+        Assert.Equal(8, layouts.Count);
     }
 
     [Fact]
@@ -196,15 +237,28 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         SetPrivate(state.Presentation, "_provider", provider);
         var viewer = CreateLargeFileViewer();
         MethodInfo count = typeof(LargeFileViewer).GetMethod(
-            "GetWrappedSegmentCount",
+            "GetWrappedSegmentCountAsync",
             BindingFlags.Instance | BindingFlags.NonPublic,
             binder: null,
-            types: [typeof(string), typeof(LargeFileViewerState), typeof(ScannedLine), typeof(int)],
+            types:
+            [
+                typeof(string),
+                typeof(LargeFileViewerState),
+                typeof(ScannedLine),
+                typeof(int),
+                typeof(CancellationToken),
+            ],
             modifiers: null)
-            ?? throw new InvalidOperationException("GetWrappedSegmentCount not found.");
+            ?? throw new InvalidOperationException("GetWrappedSegmentCountAsync not found.");
 
-        int first = (int)(count.Invoke(viewer, ["virtual://long.md", state, line, 20]) ?? 0);
-        int second = (int)(count.Invoke(viewer, ["virtual://long.md", state, line, 20]) ?? 0);
+        int first = await ((Task<int>)(count.Invoke(
+            viewer,
+            ["virtual://long.md", state, line, 20, CancellationToken.None])
+            ?? throw new InvalidOperationException("First segment count task was not returned.")));
+        int second = await ((Task<int>)(count.Invoke(
+            viewer,
+            ["virtual://long.md", state, line, 20, CancellationToken.None])
+            ?? throw new InvalidOperationException("Second segment count task was not returned.")));
 
         Assert.True(first > 1);
         Assert.Equal(first, second);
@@ -228,13 +282,33 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         SetPrivate(state.Presentation, "_provider", provider);
         var viewer = CreateLargeFileViewer();
         MethodInfo maximum = typeof(LargeFileViewer).GetMethod(
-            "GetMaximumViewportPosition",
-            BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("GetMaximumViewportPosition not found.");
+            "GetMaximumViewportPositionAsync",
+            BindingFlags.Instance | BindingFlags.NonPublic,
+            binder: null,
+            types:
+            [
+                typeof(string),
+                typeof(IFileByteReader),
+                typeof(LargeFileViewerState),
+                typeof(int),
+                typeof(int),
+                typeof(CancellationToken),
+            ],
+            modifiers: null)
+            ?? throw new InvalidOperationException("GetMaximumViewportPositionAsync not found.");
 
-        _ = maximum.Invoke(viewer, ["virtual://maximum.md", reader, state, 8, 40]);
+        Task first = (Task)(maximum.Invoke(
+            viewer,
+            ["virtual://maximum.md", reader, state, 8, 40, CancellationToken.None])
+            ?? throw new InvalidOperationException("First maximum viewport task was not returned."));
+        await first;
         int firstCallCount = provider.Calls;
-        _ = maximum.Invoke(viewer, ["virtual://maximum.md", reader, state, 8, 40]);
+
+        Task second = (Task)(maximum.Invoke(
+            viewer,
+            ["virtual://maximum.md", reader, state, 8, 40, CancellationToken.None])
+            ?? throw new InvalidOperationException("Second maximum viewport task was not returned."));
+        await second;
 
         Assert.True(firstCallCount > 0);
         Assert.Equal(firstCallCount, provider.Calls);
@@ -247,15 +321,34 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
             "search.md",
             "| Name | Description |\n| --- | --- |\n| Row | target-value |\n");
         var driver = ViewerDriver(width: 60, height: 12);
-        driver.EnqueueKey(Key(ConsoleKey.F7));
-        EnqueueText(driver, "target");
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string content = current.GetRegionText(new Rect(0, 1, 60, 10));
+            if (stage == 0 && content.Contains("target-value", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F7));
+                EnqueueText(current, "target");
+                current.EnqueueKey(Key(ConsoleKey.Enter));
+                stage = 1;
+            }
+            else if (stage == 1 && WrittenText(current).Contains("FIND", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 2;
+                return;
+            }
+
+            Rearm(current, advance);
+        };
+        Rearm(driver, advance);
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
         string row = driver.GetRegionText(new Rect(0, 1, 60, 1));
         int targetX = row.IndexOf("target", StringComparison.Ordinal);
+        Assert.Equal(2, stage);
         Assert.True(targetX > 0, row);
         Assert.Equal('t', driver.GetCell(targetX, 1).Character);
         Assert.True(
@@ -405,7 +498,9 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
     {
         string path = Write("inline.md", "plain **bold** `code` [link](url) *italic*\n");
         var driver = ViewerDriver(width: 100);
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        CloseWhen(driver, current =>
+            current.GetRegionText(new Rect(0, 1, 100, 1))
+                .StartsWith("plain bold code link italic", StringComparison.Ordinal));
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
@@ -503,6 +598,36 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
 
     private static string Content(FakeConsoleDriver driver, int width = 80, int height = 10) =>
         driver.GetRegionText(new Rect(0, 1, width, height - 2));
+
+    private static void Rearm(FakeConsoleDriver driver, Action<FakeConsoleDriver>? callback)
+    {
+        driver.BeforeTryReadInput = callback;
+        driver.BeforeReadInput = callback;
+    }
+
+    private static void CloseWhen(
+        FakeConsoleDriver driver,
+        Func<FakeConsoleDriver, bool> condition,
+        int maxAttempts = 400)
+    {
+        int attempts = 0;
+        Action<FakeConsoleDriver>? poll = null;
+        poll = current =>
+        {
+            if (condition(current))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                return;
+            }
+
+            if (++attempts > maxAttempts)
+                throw new TimeoutException("Viewer did not reach the expected presentation state.");
+
+            Rearm(current, poll);
+        };
+
+        Rearm(driver, poll);
+    }
 
     private static ConsoleKeyInfo Key(
         ConsoleKey key,
