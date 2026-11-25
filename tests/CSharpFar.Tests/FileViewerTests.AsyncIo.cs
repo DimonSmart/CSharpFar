@@ -18,7 +18,7 @@ public partial class FileViewerTests
         closeWhenReadStarts = current =>
         {
             if (DateTime.UtcNow > deadline)
-                throw new TimeoutException("Pending local initial read did not start.");
+                throw new TimeoutException("Initial viewer read did not start.");
 
             if (readerFactory.Current.ReadStarted.Task.IsCompletedSuccessfully)
             {
