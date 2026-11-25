@@ -19,8 +19,7 @@ public partial class FileViewerTests
         {
             if (WrittenText(current).Contains("File not found", StringComparison.Ordinal))
             {
-                current.BeforeTryReadInput = null;
-                current.BeforeReadInput = null;
+                RearmViewerInputPoll(current, null);
                 current.EnqueueKey(Key(ConsoleKey.Enter));
                 acknowledged = true;
                 return;
@@ -29,8 +28,7 @@ public partial class FileViewerTests
             if (++attempts > 2000)
                 throw new TimeoutException("Viewer did not surface the missing-file error.");
 
-            current.BeforeTryReadInput = acknowledge;
-            current.BeforeReadInput = acknowledge;
+            RearmViewerInputPoll(current, acknowledge);
         };
         driver.BeforeTryReadInput = acknowledge;
         driver.BeforeReadInput = acknowledge;
@@ -89,9 +87,7 @@ public partial class FileViewerTests
                 return;
             }
 
-            current.BeforeTryReadInput = advance;
-
-            current.BeforeReadInput = advance;
+            RearmViewerInputPoll(current, advance);
         };
         driver.BeforeTryReadInput = advance;
         driver.BeforeReadInput = advance;
@@ -156,9 +152,7 @@ public partial class FileViewerTests
                 return;
             }
 
-            current.BeforeTryReadInput = advance;
-
-            current.BeforeReadInput = advance;
+            RearmViewerInputPoll(current, advance);
         };
         driver.BeforeTryReadInput = advance;
         driver.BeforeReadInput = advance;
@@ -230,9 +224,7 @@ public partial class FileViewerTests
                 return;
             }
 
-            current.BeforeTryReadInput = advance;
-
-            current.BeforeReadInput = advance;
+            RearmViewerInputPoll(current, advance);
         };
         driver.BeforeTryReadInput = advance;
         driver.BeforeReadInput = advance;
@@ -295,9 +287,7 @@ public partial class FileViewerTests
                 return;
             }
 
-            current.BeforeTryReadInput = advance;
-
-            current.BeforeReadInput = advance;
+            RearmViewerInputPoll(current, advance);
         };
         driver.BeforeTryReadInput = advance;
         driver.BeforeReadInput = advance;
@@ -353,9 +343,7 @@ public partial class FileViewerTests
                 return;
             }
 
-            current.BeforeTryReadInput = advance;
-
-            current.BeforeReadInput = advance;
+            RearmViewerInputPoll(current, advance);
         };
         driver.BeforeTryReadInput = advance;
         driver.BeforeReadInput = advance;
@@ -404,9 +392,7 @@ public partial class FileViewerTests
                 return;
             }
 
-            current.BeforeTryReadInput = advance;
-
-            current.BeforeReadInput = advance;
+            RearmViewerInputPoll(current, advance);
         };
         driver.BeforeTryReadInput = advance;
         driver.BeforeReadInput = advance;
@@ -584,9 +570,7 @@ public partial class FileViewerTests
             if (++attempts > 200)
                 throw new TimeoutException("Viewer did not surface the controlled read error.");
 
-            current.BeforeTryReadInput = closeWhenError;
-
-            current.BeforeReadInput = closeWhenError;
+            RearmViewerInputPoll(current, closeWhenError);
         };
         driver.BeforeTryReadInput = closeWhenError;
         driver.BeforeReadInput = closeWhenError;
@@ -613,6 +597,15 @@ public partial class FileViewerTests
         Assert.True(stream.IsDisposed);
     }
 
+    private static void RearmViewerInputPoll(
+        FakeConsoleDriver driver,
+        Action<FakeConsoleDriver> callback)
+    {
+        driver.BeforeTryReadInput = callback;
+        driver.BeforeReadInput = callback;
+        driver.EnqueueKey(Key(ConsoleKey.NoName));
+    }
+
     private static void CloseWhen(
         FakeConsoleDriver driver,
         Func<FakeConsoleDriver, bool> condition,
@@ -631,9 +624,7 @@ public partial class FileViewerTests
             if (++attempts > maxAttempts)
                 throw new TimeoutException("Viewer did not reach the expected state.");
 
-            current.BeforeTryReadInput = poll;
-
-            current.BeforeReadInput = poll;
+            RearmViewerInputPoll(current, poll);
         };
 
         driver.BeforeTryReadInput = poll;
