@@ -603,8 +603,6 @@ public partial class FileViewerTests
     {
         driver.BeforeTryReadInput = callback;
         driver.BeforeReadInput = callback;
-        if (callback is not null)
-            driver.EnqueueKey(Key(ConsoleKey.NoName));
     }
 
     private static void CloseWhen(
