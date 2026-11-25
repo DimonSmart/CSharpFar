@@ -84,9 +84,15 @@ public sealed class UnifiedWindowScrollbarTests
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
+        var search = new ManyResultsSearchService();
+        driver.Wrote += _ =>
+        {
+            if (search.ResultsReady.Task.IsCompletedSuccessfully)
+                search.AllowCompletion.TrySetResult(true);
+        };
 
         var modals = ModalTestHost.Create(screen);
-        _ = new SearchProgressDialog(new ManyResultsSearchService(), new DialogService(modals, new FormFieldFactory(TextFieldHistoryTestProvider.Create())))
+        _ = new SearchProgressDialog(search, new DialogService(modals, new FormFieldFactory(TextFieldHistoryTestProvider.Create())))
             .Show(new SearchRequest
             {
                 RootPath = @"C:\root",
@@ -376,6 +382,12 @@ public sealed class UnifiedWindowScrollbarTests
 
     private sealed class ManyResultsSearchService : ISearchService
     {
+        public TaskCompletionSource<bool> ResultsReady { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> AllowCompletion { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public async IAsyncEnumerable<SearchResultItem> SearchAsync(
             SearchRequest request,
             IProgress<SearchProgress>? progress,
@@ -400,7 +412,9 @@ public sealed class UnifiedWindowScrollbarTests
                     Attributes = FileAttributes.Archive,
                 };
             }
-            await Task.CompletedTask;
+
+            ResultsReady.TrySetResult(true);
+            await AllowCompletion.Task.WaitAsync(cancellationToken);
         }
     }
 
