@@ -13,7 +13,22 @@ public partial class FileViewerTests
         string path = Write("local-pending-initial.txt", "content", new UTF8Encoding(false));
         var readerFactory = new PendingLocalFileByteReaderFactory();
         var driver = new FakeConsoleDriver(width: 80, height: 10);
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        DateTime deadline = DateTime.UtcNow.AddSeconds(20);
+        Action<FakeConsoleDriver>? closeWhenReadStarts = null;
+        closeWhenReadStarts = current =>
+        {
+            if (DateTime.UtcNow > deadline)
+                throw new TimeoutException("Pending local initial read did not start.");
+
+            if (readerFactory.Current.ReadStarted.Task.IsCompletedSuccessfully)
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                return;
+            }
+
+            RearmViewerInputPoll(current, closeWhenReadStarts);
+        };
+        RearmViewerInputPoll(driver, closeWhenReadStarts);
 
         FileViewerFor(
             new ScreenRenderer(driver),
@@ -785,6 +800,9 @@ public partial class FileViewerTests
 
         public long Length => Volatile.Read(ref _length);
         public int TransientFailureVersion => 0;
+        public TaskCompletionSource<bool> ReadStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public bool CancellationObserved => Volatile.Read(ref _cancellationObserved) != 0;
         public bool DisposedBeforeCancellation => Volatile.Read(ref _disposedBeforeCancellation) != 0;
 
