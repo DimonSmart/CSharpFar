@@ -68,11 +68,8 @@ public partial class FileViewerTests
         {
             if (DateTime.UtcNow > deadline)
                 throw new TimeoutException("LocalViewer_FileChangeDuringInitialReadRetriesWithCurrentContent did not reach its expected state.");
-            if (stage == 0)
+            if (stage == 0 && readerFactory.Current.ReadStarted.Task.IsCompletedSuccessfully)
             {
-                if (!readerFactory.Current.ReadStarted.Task.Wait(TimeSpan.FromSeconds(5)))
-                    throw new TimeoutException("Initial viewer read did not start.");
-
                 File.WriteAllText(path, "NEW-CONTENT", new UTF8Encoding(false));
                 readerFactory.Current.CompleteFirstRead("OLD"u8.ToArray());
                 stage = 1;
@@ -170,12 +167,22 @@ public partial class FileViewerTests
         byte[] data = Enumerable.Repeat((byte)'x', BlockCache.DefaultBlockSize + 4096).ToArray();
         var reader = new GatedAfterFirstReadByteReader(data);
         var driver = new FakeConsoleDriver(width: 80, height: 12);
-        driver.BeforeTryReadInput = _ =>
+        DateTime deadline = DateTime.UtcNow.AddSeconds(20);
+        Action<FakeConsoleDriver>? closeWhenReadStarts = null;
+        closeWhenReadStarts = current =>
         {
-            if (!reader.PendingReadStarted.Task.Wait(TimeSpan.FromSeconds(5)))
+            if (DateTime.UtcNow > deadline)
                 throw new TimeoutException("Viewer render did not request the delayed block.");
+
+            if (reader.PendingReadStarted.Task.IsCompletedSuccessfully)
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                return;
+            }
+
+            RearmViewerInputPoll(current, closeWhenReadStarts);
         };
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        RearmViewerInputPoll(driver, closeWhenReadStarts);
 
         FileViewerFor(new ScreenRenderer(driver)).Show("remote:/slow-render.txt", reader);
 
