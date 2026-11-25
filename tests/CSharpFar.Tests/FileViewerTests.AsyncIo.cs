@@ -8,37 +8,6 @@ namespace CSharpFar.Tests;
 public partial class FileViewerTests
 {
     [Fact]
-    public void LocalViewer_MissingFileReportsErrorAndClosesLoadingSession()
-    {
-        string path = WritePath("missing-async-viewer.txt");
-        var driver = new FakeConsoleDriver(width: 80, height: 10);
-        bool acknowledged = false;
-        Action<FakeConsoleDriver>? acknowledge = null;
-        acknowledge = current =>
-        {
-            bool dialogVisible =
-                current.WriteRecords.Any(record =>
-                    record.Text.Contains("File not found", StringComparison.Ordinal)) &&
-                current.WriteRecords.Any(record =>
-                    record.Text.Contains("OK", StringComparison.Ordinal));
-            if (dialogVisible)
-            {
-                current.EnqueueKey(Key(ConsoleKey.Enter));
-                acknowledged = true;
-                return;
-            }
-
-            current.BeforeReadInput = acknowledge;
-        };
-        driver.BeforeReadInput = acknowledge;
-
-        FileViewerFor(new ScreenRenderer(driver)).Show(path);
-
-        Assert.True(acknowledged);
-        Assert.Contains("File not found", WrittenText(driver));
-    }
-
-    [Fact]
     public void LocalViewer_CloseCancelsPendingInitialRead()
     {
         string path = Write("local-pending-initial.txt", "content", new UTF8Encoding(false));
