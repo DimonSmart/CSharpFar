@@ -37,9 +37,7 @@ public partial class FileViewerTests
                 return;
             }
 
-            current.BeforeTryReadInput = advance;
-
-            current.BeforeReadInput = advance;
+            RearmViewerInputPoll(current, advance);
         };
         driver.BeforeTryReadInput = advance;
         driver.BeforeReadInput = advance;
@@ -74,9 +72,7 @@ public partial class FileViewerTests
                 return;
             }
 
-            current.BeforeTryReadInput = advance;
-
-            current.BeforeReadInput = advance;
+            RearmViewerInputPoll(current, advance);
         };
         driver.BeforeTryReadInput = advance;
         driver.BeforeReadInput = advance;
@@ -133,9 +129,7 @@ public partial class FileViewerTests
                 return;
             }
 
-            current.BeforeTryReadInput = advance;
-
-            current.BeforeReadInput = advance;
+            RearmViewerInputPoll(current, advance);
         };
         driver.BeforeTryReadInput = advance;
         driver.BeforeReadInput = advance;
@@ -175,9 +169,7 @@ public partial class FileViewerTests
                 return;
             }
 
-            current.BeforeTryReadInput = advance;
-
-            current.BeforeReadInput = advance;
+            RearmViewerInputPoll(current, advance);
         };
         driver.BeforeTryReadInput = advance;
         driver.BeforeReadInput = advance;
