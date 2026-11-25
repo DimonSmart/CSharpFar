@@ -160,15 +160,42 @@ public partial class FileViewerTests
             LargeTestFileSize,
             "tail-live-file");
         var driver = new FakeConsoleDriver(width: 80, height: 10);
-        driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
-        driver.EnqueueKey(Key(ConsoleKey.F, 'f'));
-        CloseWhen(driver, current =>
-            WrittenText(current).Contains("TAIL", StringComparison.Ordinal) &&
-            current.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 8))
-                .Contains("tail-live-file", StringComparison.Ordinal));
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string content = current.GetRegionText(
+                new CSharpFar.Console.Models.Rect(0, 1, 80, 8));
+            string writes = WrittenText(current);
+
+            if (stage == 0 && !content.Contains("Loading...", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F, 'f'));
+                stage = 1;
+            }
+            else if (stage == 1 && writes.Contains("WATCH", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F, 'f'));
+                stage = 2;
+            }
+            else if (stage == 2 &&
+                     writes.Contains("TAIL", StringComparison.Ordinal) &&
+                     content.Contains("tail-live-file", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 3;
+                return;
+            }
+
+            RearmViewerInputPoll(current, advance);
+        };
+        driver.BeforeTryReadInput = advance;
+        driver.BeforeReadInput = advance;
         var screen = new ScreenRenderer(driver);
 
         FileViewerFor(screen).Show(path);
+
+        Assert.Equal(3, stage);
 
         string writes = WrittenText(driver);
         Assert.Contains("WATCH", writes);
