@@ -815,6 +815,7 @@ public partial class FileViewerTests
             _ = buffer;
             var completion = new TaskCompletionSource<int>(
                 TaskCreationOptions.RunContinuationsAsynchronously);
+            ReadStarted.TrySetResult(true);
             cancellationToken.Register(() =>
             {
                 Volatile.Write(ref _cancellationObserved, 1);
