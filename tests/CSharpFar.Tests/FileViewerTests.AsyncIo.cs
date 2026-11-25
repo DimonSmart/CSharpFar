@@ -90,8 +90,11 @@ public partial class FileViewerTests
             }
 
             current.BeforeTryReadInput = advance;
+
+            current.BeforeReadInput = advance;
         };
         driver.BeforeTryReadInput = advance;
+        driver.BeforeReadInput = advance;
 
         FileViewerFor(
             new ScreenRenderer(driver),
@@ -154,8 +157,11 @@ public partial class FileViewerTests
             }
 
             current.BeforeTryReadInput = advance;
+
+            current.BeforeReadInput = advance;
         };
         driver.BeforeTryReadInput = advance;
+        driver.BeforeReadInput = advance;
 
         FileViewerFor(
             new ScreenRenderer(driver),
@@ -225,8 +231,11 @@ public partial class FileViewerTests
             }
 
             current.BeforeTryReadInput = advance;
+
+            current.BeforeReadInput = advance;
         };
         driver.BeforeTryReadInput = advance;
+        driver.BeforeReadInput = advance;
 
         FileViewerFor(new ScreenRenderer(driver)).Show("remote:/rapid-navigation.txt", reader);
 
@@ -287,8 +296,11 @@ public partial class FileViewerTests
             }
 
             current.BeforeTryReadInput = advance;
+
+            current.BeforeReadInput = advance;
         };
         driver.BeforeTryReadInput = advance;
+        driver.BeforeReadInput = advance;
 
         FileViewerFor(new ScreenRenderer(driver)).Show("remote:/cancel-search.txt", reader);
 
@@ -342,8 +354,11 @@ public partial class FileViewerTests
             }
 
             current.BeforeTryReadInput = advance;
+
+            current.BeforeReadInput = advance;
         };
         driver.BeforeTryReadInput = advance;
+        driver.BeforeReadInput = advance;
 
         FileViewerFor(new ScreenRenderer(driver)).Show("remote:/superseded-search.txt", reader);
 
@@ -390,8 +405,11 @@ public partial class FileViewerTests
             }
 
             current.BeforeTryReadInput = advance;
+
+            current.BeforeReadInput = advance;
         };
         driver.BeforeTryReadInput = advance;
+        driver.BeforeReadInput = advance;
 
         FileViewerFor(new ScreenRenderer(driver)).Show("remote:/encoding-race.bin", reader);
 
@@ -567,8 +585,11 @@ public partial class FileViewerTests
                 throw new TimeoutException("Viewer did not surface the controlled read error.");
 
             current.BeforeTryReadInput = closeWhenError;
+
+            current.BeforeReadInput = closeWhenError;
         };
         driver.BeforeTryReadInput = closeWhenError;
+        driver.BeforeReadInput = closeWhenError;
 
         FileViewerFor(new ScreenRenderer(driver)).Show("remote:/read-error.txt", reader);
 
@@ -611,9 +632,13 @@ public partial class FileViewerTests
                 throw new TimeoutException("Viewer did not reach the expected state.");
 
             current.BeforeTryReadInput = poll;
+
+            current.BeforeReadInput = poll;
         };
 
         driver.BeforeTryReadInput = poll;
+
+        driver.BeforeReadInput = poll;
     }
 
     private sealed class GatedRefreshLocalFileByteReaderFactory : ILocalFileByteReaderFactory
