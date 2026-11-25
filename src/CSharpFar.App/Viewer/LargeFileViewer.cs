@@ -1774,6 +1774,11 @@ internal sealed partial class LargeFileViewer
 
         public void MarkDirty() => _monitoring.MarkDirty();
 
+        public void DetectNotifications() => _monitoring.DetectNotifications();
+
+        public void ObservePolledSnapshot(LocalFileSnapshot snapshot) =>
+            _monitoring.ObservePolledSnapshot(snapshot);
+
         public void DetectChanges() => _monitoring.DetectChanges();
 
         public long BeginRefresh() => _monitoring.BeginRefresh();
