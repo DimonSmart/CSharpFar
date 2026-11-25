@@ -134,11 +134,9 @@ public partial class FileViewerTests
                 monitorFactory.Current.MarkDirty();
                 stage = 3;
             }
-            else if (stage == 3)
+            else if (stage == 3 &&
+                     readerFactory.Current.PendingReadStarted.Task.IsCompletedSuccessfully)
             {
-                if (!readerFactory.Current.PendingReadStarted.Task.Wait(TimeSpan.FromSeconds(5)))
-                    throw new TimeoutException("Tail refresh did not start the delayed read.");
-
                 readerFactory.Current.ReleasePendingRead();
                 stage = 4;
             }
