@@ -28,17 +28,14 @@ public partial class FileViewerTests
             if (stage == 0 && content.Contains("first", StringComparison.Ordinal))
             {
                 current.EnqueueKey(Key(ConsoleKey.F8, alt: true));
+                current.EnqueueKey(Key(ConsoleKey.D2, '2'));
+                current.EnqueueKey(Key(ConsoleKey.Enter));
                 stage = 1;
             }
-            else if (stage == 1)
-            {
-                current.EnqueueKey(Key(ConsoleKey.Escape));
-                stage = 2;
-            }
-            else if (stage == 2)
+            else if (stage == 1 && content.StartsWith("second", StringComparison.Ordinal))
             {
                 current.EnqueueKey(Key(ConsoleKey.F10));
-                stage = 3;
+                stage = 2;
                 return;
             }
 
@@ -49,10 +46,10 @@ public partial class FileViewerTests
 
         FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
-        Assert.Equal(3, stage);
-        Assert.Contains(
-            driver.WriteRecords,
-            record => record.Text.Contains("Line number or percent:", StringComparison.Ordinal));
+        Assert.Equal(2, stage);
+        Assert.StartsWith(
+            "second",
+            driver.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 1)));
     }
 
     [Fact]
