@@ -586,6 +586,9 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
         Assert.Contains("界", row);
     }
 
+    private static string WrittenText(FakeConsoleDriver driver) =>
+        string.Concat(driver.WriteRecords.Select(record => record.Text));
+
     private static FakeConsoleDriver ViewerDriver(int width = 80, int height = 10) =>
         new(width, height);
 
