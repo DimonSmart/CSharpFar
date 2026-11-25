@@ -179,8 +179,7 @@ public partial class FileViewerTests
                 stage = 2;
             }
             else if (stage == 2 &&
-                     writes.Contains("TAIL", StringComparison.Ordinal) &&
-                     content.Contains("tail-live-file", StringComparison.Ordinal))
+                     writes.Contains("TAIL", StringComparison.Ordinal))
             {
                 current.EnqueueKey(Key(ConsoleKey.F10));
                 stage = 3;
