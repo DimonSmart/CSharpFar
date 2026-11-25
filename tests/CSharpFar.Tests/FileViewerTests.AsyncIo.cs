@@ -16,9 +16,12 @@ public partial class FileViewerTests
         Action<FakeConsoleDriver>? acknowledge = null;
         acknowledge = current =>
         {
-            string screen = current.GetRegionText(
-                new CSharpFar.Console.Models.Rect(0, 0, 80, 10));
-            if (screen.Contains("File not found", StringComparison.Ordinal))
+            bool dialogVisible =
+                current.WriteRecords.Any(record =>
+                    record.Text.Contains("File not found", StringComparison.Ordinal)) &&
+                current.WriteRecords.Any(record =>
+                    record.Text.Contains("OK", StringComparison.Ordinal));
+            if (dialogVisible)
             {
                 current.EnqueueKey(Key(ConsoleKey.Enter));
                 acknowledged = true;
