@@ -13,11 +13,21 @@ public partial class FileViewerTests
         string path = WritePath("missing-async-viewer.txt");
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         bool acknowledged = false;
-        driver.BeforeReadInput = current =>
+        Action<FakeConsoleDriver>? acknowledge = null;
+        acknowledge = current =>
         {
-            current.EnqueueKey(Key(ConsoleKey.Enter));
-            acknowledged = true;
+            string screen = current.GetRegionText(
+                new CSharpFar.Console.Models.Rect(0, 0, 80, 10));
+            if (screen.Contains("File not found", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.Enter));
+                acknowledged = true;
+                return;
+            }
+
+            current.BeforeReadInput = acknowledge;
         };
+        driver.BeforeReadInput = acknowledge;
 
         FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
