@@ -13,19 +13,27 @@ public partial class FileViewerTests
         string path = WritePath("missing-async-viewer.txt");
         var driver = new FakeConsoleDriver(width: 80, height: 10);
         bool acknowledged = false;
+        int attempts = 0;
         Action<FakeConsoleDriver>? acknowledge = null;
         acknowledge = current =>
         {
             if (WrittenText(current).Contains("File not found", StringComparison.Ordinal))
             {
+                current.BeforeTryReadInput = null;
+                current.BeforeReadInput = null;
                 current.EnqueueKey(Key(ConsoleKey.Enter));
                 acknowledged = true;
                 return;
             }
 
+            if (++attempts > 2000)
+                throw new TimeoutException("Viewer did not surface the missing-file error.");
+
             current.BeforeTryReadInput = acknowledge;
+            current.BeforeReadInput = acknowledge;
         };
         driver.BeforeTryReadInput = acknowledge;
+        driver.BeforeReadInput = acknowledge;
 
         FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
