@@ -211,11 +211,33 @@ public sealed class ViewerPresentationIntegrationTests : IDisposable
             "wrapped.md",
             "| Column | Value |\n| --- | --- |\n| very-long-value-for-wrapping | data |\nafter table\n");
         var driver = ViewerDriver(width: 30);
-        driver.EnqueueKey(Key(ConsoleKey.F2));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        int stage = 0;
+        Action<FakeConsoleDriver>? advance = null;
+        advance = current =>
+        {
+            string content = Content(current, width: 30);
+            string screen = current.GetRegionText(new Rect(0, 0, 30, 9));
+            if (stage == 0 && content.Contains("│ Column", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F2));
+                stage = 1;
+            }
+            else if (stage == 1 &&
+                     screen.Contains("WRAP-W", StringComparison.Ordinal) &&
+                     content.Contains("after table", StringComparison.Ordinal))
+            {
+                current.EnqueueKey(Key(ConsoleKey.F10));
+                stage = 2;
+                return;
+            }
+
+            Rearm(current, advance);
+        };
+        Rearm(driver, advance);
 
         UiTestCanvas.FileViewerFor(new ScreenRenderer(driver)).Show(path);
 
+        Assert.Equal(2, stage);
         Assert.Contains("WRAP-W", driver.GetRegionText(new Rect(0, 0, 30, 9)));
         Assert.StartsWith("│ Column", driver.GetRegionText(new Rect(0, 1, 30, 1)));
         Assert.StartsWith("├", driver.GetRegionText(new Rect(0, 2, 30, 1)));
