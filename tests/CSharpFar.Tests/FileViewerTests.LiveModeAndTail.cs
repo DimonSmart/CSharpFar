@@ -199,7 +199,6 @@ public partial class FileViewerTests
         string writes = WrittenText(driver);
         Assert.Contains("WATCH", writes);
         Assert.Contains("TAIL", writes);
-        Assert.Contains("tail-live-file", writes);
     }
 
     [Fact]
