@@ -209,10 +209,8 @@ public partial class FileViewerTests
                 current.EnqueueKey(Key(ConsoleKey.End));
                 stage = 1;
             }
-            else if (stage == 1)
+            else if (stage == 1 && reader.PendingReadStarted.Task.IsCompletedSuccessfully)
             {
-                if (!reader.PendingReadStarted.Task.Wait(TimeSpan.FromSeconds(5)))
-                    throw new TimeoutException("End navigation did not request the delayed block.");
                 current.EnqueueKey(Key(ConsoleKey.Home));
                 stage = 2;
             }
@@ -263,11 +261,8 @@ public partial class FileViewerTests
                 current.EnqueueKey(Key(ConsoleKey.Enter));
                 stage = 1;
             }
-            else if (stage == 1)
+            else if (stage == 1 && reader.PendingReadStarted.Task.IsCompletedSuccessfully)
             {
-                if (!reader.PendingReadStarted.Task.Wait(TimeSpan.FromSeconds(5)))
-                    throw new TimeoutException("Search did not request the delayed block.");
-
                 current.EnqueueKey(Key(ConsoleKey.Escape));
                 stage = 2;
             }
@@ -325,10 +320,8 @@ public partial class FileViewerTests
                 current.EnqueueKey(Key(ConsoleKey.Enter));
                 stage = 1;
             }
-            else if (stage == 1)
+            else if (stage == 1 && reader.PendingReadStarted.Task.IsCompletedSuccessfully)
             {
-                if (!reader.PendingReadStarted.Task.Wait(TimeSpan.FromSeconds(5)))
-                    throw new TimeoutException("First search did not request the delayed block.");
                 current.EnqueueKey(Key(ConsoleKey.F7));
                 EnqueueText(current, "START");
                 current.EnqueueKey(Key(ConsoleKey.Enter));
@@ -377,10 +370,8 @@ public partial class FileViewerTests
                 current.EnqueueKey(Key(ConsoleKey.Enter));
                 stage = 1;
             }
-            else if (stage == 1)
+            else if (stage == 1 && reader.PendingReadStarted.Task.IsCompletedSuccessfully)
             {
-                if (!reader.PendingReadStarted.Task.Wait(TimeSpan.FromSeconds(5)))
-                    throw new TimeoutException("Hex search did not request the delayed block.");
                 current.EnqueueKey(Key(ConsoleKey.F8));
                 stage = 2;
             }
