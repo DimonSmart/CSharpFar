@@ -90,9 +90,8 @@ public sealed class DemoModeTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = [],
-                SourceLocations = [PanelLocation.Demo("/file.txt")],
-                DestinationLocation = PanelLocation.Demo("/Copied"),
+                Sources = [PanelLocation.Demo("/file.txt")],
+                Destination = PanelLocation.Demo("/Copied"),
                 Options = new FileOperationOptions
                 {
                     DefaultConflictDecision = ConflictDecisionMode.Overwrite,
@@ -108,9 +107,8 @@ public sealed class DemoModeTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Move,
-                Sources = [],
-                SourceLocations = [PanelLocation.Demo("/Copied/file.txt")],
-                DestinationLocation = PanelLocation.Demo("/renamed.txt"),
+                Sources = [PanelLocation.Demo("/Copied/file.txt")],
+                Destination = PanelLocation.Demo("/renamed.txt"),
                 Options = new FileOperationOptions(),
             },
             progress: null,
@@ -134,9 +132,8 @@ public sealed class DemoModeTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = [],
-                SourceLocations = [PanelLocation.Demo("/file.txt")],
-                DestinationLocation = PanelLocation.Demo("/Copied/*.bak"),
+                Sources = [PanelLocation.Demo("/file.txt")],
+                Destination = PanelLocation.Demo("/Copied/*.bak"),
                 Options = new FileOperationOptions { DefaultConflictDecision = ConflictDecisionMode.Overwrite },
             },
             progress: null,
@@ -159,9 +156,8 @@ public sealed class DemoModeTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Move,
-                Sources = [],
-                SourceLocations = [PanelLocation.Demo("/A/file.txt")],
-                DestinationLocation = PanelLocation.Demo("/B"),
+                Sources = [PanelLocation.Demo("/A/file.txt")],
+                Destination = PanelLocation.Demo("/B"),
                 Options = new FileOperationOptions
                 {
                     DefaultConflictDecision = ConflictDecisionMode.Overwrite,
@@ -188,9 +184,8 @@ public sealed class DemoModeTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Move,
-                Sources = [],
-                SourceLocations = [PanelLocation.Demo("/file.txt")],
-                DestinationLocation = PanelLocation.Demo("/Moved/*.bak"),
+                Sources = [PanelLocation.Demo("/file.txt")],
+                Destination = PanelLocation.Demo("/Moved/*.bak"),
                 Options = new FileOperationOptions(),
             }, progress: null, conflictResolver: new OverwriteConflictResolver());
 
@@ -211,9 +206,8 @@ public sealed class DemoModeTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Move,
-                Sources = [],
-                SourceLocations = [PanelLocation.Demo("/foo.txt"), PanelLocation.Demo("/foo.csv")],
-                DestinationLocation = PanelLocation.Demo("/Moved/*.bak"),
+                Sources = [PanelLocation.Demo("/foo.txt"), PanelLocation.Demo("/foo.csv")],
+                Destination = PanelLocation.Demo("/Moved/*.bak"),
                 Options = new FileOperationOptions(),
             }, progress: null, conflictResolver: new OverwriteConflictResolver()));
 
@@ -233,9 +227,8 @@ public sealed class DemoModeTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Move,
-                Sources = [],
-                SourceLocations = [PanelLocation.Demo("/file.txt")],
-                DestinationLocation = PanelLocation.Demo("*.txt"),
+                Sources = [PanelLocation.Demo("/file.txt")],
+                Destination = PanelLocation.Demo("*.txt"),
                 Options = new FileOperationOptions(),
             }, progress: null, conflictResolver: new OverwriteConflictResolver()));
 
@@ -254,9 +247,8 @@ public sealed class DemoModeTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Move,
-                Sources = [],
-                SourceLocations = [PanelLocation.Demo("/A/a.txt"), PanelLocation.Demo("/A/b.txt")],
-                DestinationLocation = PanelLocation.Demo("/B"),
+                Sources = [PanelLocation.Demo("/A/a.txt"), PanelLocation.Demo("/A/b.txt")],
+                Destination = PanelLocation.Demo("/B"),
                 Options = new FileOperationOptions
                 {
                     DefaultConflictDecision = ConflictDecisionMode.Overwrite,
@@ -283,9 +275,8 @@ public sealed class DemoModeTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = [],
-                SourceLocations = [PanelLocation.Demo("/A/file.txt")],
-                DestinationLocation = PanelLocation.Demo("/A"),
+                Sources = [PanelLocation.Demo("/A/file.txt")],
+                Destination = PanelLocation.Demo("/A"),
                 Options = new FileOperationOptions
                 {
                     DefaultConflictDecision = ConflictDecisionMode.Overwrite,
@@ -308,9 +299,8 @@ public sealed class DemoModeTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = [],
-                SourceLocations = [PanelLocation.Demo("/A")],
-                DestinationLocation = PanelLocation.Demo("/A/B"),
+                Sources = [PanelLocation.Demo("/A")],
+                Destination = PanelLocation.Demo("/A/B"),
                 Options = new FileOperationOptions(),
             },
             progress: null,
@@ -332,9 +322,8 @@ public sealed class DemoModeTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Move,
-                Sources = [],
-                SourceLocations = [PanelLocation.Demo("/A")],
-                DestinationLocation = PanelLocation.Demo("/A/B"),
+                Sources = [PanelLocation.Demo("/A")],
+                Destination = PanelLocation.Demo("/A/B"),
                 Options = new FileOperationOptions(),
             },
             progress: null,
@@ -369,9 +358,8 @@ public sealed class DemoModeTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Move,
-                Sources = [],
-                SourceLocations = [PanelLocation.Demo("/A/file.txt"), PanelLocation.Demo("/A/Folder")],
-                DestinationLocation = PanelLocation.Demo("/A/Folder/Subfolder"),
+                Sources = [PanelLocation.Demo("/A/file.txt"), PanelLocation.Demo("/A/Folder")],
+                Destination = PanelLocation.Demo("/A/Folder/Subfolder"),
                 Options = new FileOperationOptions(),
             },
             progress: null,
@@ -534,7 +522,7 @@ public sealed class DemoModeTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Delete,
-                Sources = [physicalFile],
+                Sources = [PanelLocation.Local(physicalFile)],
                 Options = new FileOperationOptions(),
             },
             progress: null,

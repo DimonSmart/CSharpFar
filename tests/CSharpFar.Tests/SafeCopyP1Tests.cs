@@ -163,9 +163,8 @@ public sealed class SafeCopyP1Tests : IDisposable
         var request = new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            SourceLocations = [PanelLocation.Demo("/source.txt")],
-            Sources = [],
-            DestinationLocation = PanelLocation.Demo("/target.txt"),
+            Sources = [PanelLocation.Demo("/source.txt")],
+            Destination = PanelLocation.Demo("/target.txt"),
             Options = new FileOperationOptions { DefaultConflictDecision = ConflictDecisionMode.Overwrite },
         };
         await Assert.ThrowsAsync<NotSupportedException>(() =>
@@ -284,9 +283,8 @@ public sealed class SafeCopyP1Tests : IDisposable
         var request = new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            Sources = [],
-            SourceLocations = [new PanelLocation(provider.SourceId, "/src/item.txt")],
-            DestinationLocation = new PanelLocation(provider.SourceId, "/dst/item.txt"),
+            Sources = [new PanelLocation(provider.SourceId, "/src/item.txt")],
+            Destination = new PanelLocation(provider.SourceId, "/dst/item.txt"),
             Options = new FileOperationOptions { DefaultConflictDecision = ConflictDecisionMode.Overwrite },
         };
 
@@ -316,8 +314,8 @@ public sealed class SafeCopyP1Tests : IDisposable
         var request = new FileOperationRequest
         {
             Kind = FileOperationKind.Move,
-            Sources = [source],
-            Destination = _dst,
+            Sources = [PanelLocation.Local(source)],
+            Destination = PanelLocation.Local(_dst),
             Options = new FileOperationOptions { DefaultConflictDecision = ConflictDecisionMode.Replace },
         };
         await Assert.ThrowsAsync<IOException>(() =>
@@ -424,8 +422,8 @@ public sealed class SafeCopyP1Tests : IDisposable
         new()
         {
             Kind = FileOperationKind.Copy,
-            Sources = [source],
-            Destination = destination,
+            Sources = [PanelLocation.Local(source)],
+            Destination = PanelLocation.Local(destination),
             Options = new FileOperationOptions
             {
                 CopyMode = copyMode,

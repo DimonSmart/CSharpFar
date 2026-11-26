@@ -77,9 +77,8 @@ public sealed class ArchiveProviderTests : IDisposable
         var request = new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            Sources = [],
-            SourceLocations = [new PanelLocation(archive.SourceId, "/tree"), new PanelLocation(archive.SourceId, "/empty")],
-            DestinationLocation = PanelLocation.Local(destination),
+            Sources = [new PanelLocation(archive.SourceId, "/tree"), new PanelLocation(archive.SourceId, "/empty")],
+            Destination = PanelLocation.Local(destination),
             Options = new FileOperationOptions(),
         };
         FileOperationResult result = await new FileOperationService(registry)

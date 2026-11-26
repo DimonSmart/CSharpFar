@@ -96,9 +96,8 @@ public sealed class RecursiveTransferPlanTests : IDisposable
         var request = new FileOperationRequest
         {
             Kind = FileOperationKind.Move,
-            Sources = [],
-            SourceLocations = [PanelLocation.Local(sourceDirectory)],
-            DestinationLocation = new PanelLocation(target.SourceId, "/dest"),
+            Sources = [PanelLocation.Local(sourceDirectory)],
+            Destination = new PanelLocation(target.SourceId, "/dest"),
             Options = new FileOperationOptions(),
         };
         var progress = new InlineProgress();
@@ -131,9 +130,8 @@ public sealed class RecursiveTransferPlanTests : IDisposable
         InMemoryBatchFilePanelSource provider, string source, string destination) => new()
     {
         Kind = FileOperationKind.Copy,
-        Sources = [],
-        SourceLocations = [new PanelLocation(provider.SourceId, source)],
-        DestinationLocation = new PanelLocation(provider.SourceId, destination),
+        Sources = [new PanelLocation(provider.SourceId, source)],
+        Destination = new PanelLocation(provider.SourceId, destination),
         Options = new FileOperationOptions(),
     };
 

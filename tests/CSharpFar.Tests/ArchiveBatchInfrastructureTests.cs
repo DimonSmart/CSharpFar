@@ -24,9 +24,8 @@ public sealed class ArchiveBatchInfrastructureTests
         return ops.ExecuteAsync(new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            Sources = [],
-            SourceLocations = paths.Select(path => new PanelLocation(source.SourceId, path)).ToArray(),
-            DestinationLocation = new PanelLocation(destination.SourceId, "/"),
+            Sources = paths.Select(path => new PanelLocation(source.SourceId, path)).ToArray(),
+            Destination = new PanelLocation(destination.SourceId, "/"),
             Options = new FileOperationOptions(),
         }, progress, new OverwriteResolver(), token);
     }
