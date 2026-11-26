@@ -2,6 +2,7 @@ using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Module.Abstractions;
 using CSharpFar.Plugin.Abstractions;
+using CSharpFar.Ui;
 
 namespace CSharpFar.Module.Ftp;
 
@@ -172,6 +173,25 @@ public sealed class FtpModule : ICSharpFarPlugin
 
     private FtpConnectionDialogValidationResult ValidateConnection(FtpConnectionDialogResult result)
     {
+        try
+        {
+            return StartupInfo.Ui.Dialogs.Operation<string, FtpConnectionDialogValidationResult, FtpConnectionDialogValidationResult>(
+                new OperationDialogDefinition<string, FtpConnectionDialogValidationResult, FtpConnectionDialogValidationResult>
+                {
+                    Title = "Checking connection", PreferredWidth = 54, PreferredHeight = 8,
+                    MinWidth = 30, MinHeight = 8,
+                    Operation = token => ValidateConnectionAsync(result, token),
+                    Synchronize = () => new OperationDialogState<string>(status: "Checking connection... (Esc to cancel)"),
+                    HandleCancel = () => OperationDialogOutcome<FtpConnectionDialogValidationResult>.Complete(FtpConnectionDialogValidationResult.Error("Connection check cancelled.")),
+                    HandleOperationCompleted = value => OperationDialogOutcome<FtpConnectionDialogValidationResult>.Complete(value),
+                    Complete = value => value,
+                });
+        }
+        catch (OperationCanceledException) { return FtpConnectionDialogValidationResult.Error("Connection check cancelled."); }
+    }
+
+    private async Task<FtpConnectionDialogValidationResult> ValidateConnectionAsync(FtpConnectionDialogResult result, CancellationToken token)
+    {
         if (result.SavePassword && !result.SaveConnection)
             return FtpConnectionDialogValidationResult.Error("Password can be saved only with a saved connection.");
 
@@ -187,7 +207,7 @@ public sealed class FtpModule : ICSharpFarPlugin
         if (RequiresCertificateFingerprint(result.Connection))
         {
             string? fingerprint = null;
-            var untrustedProbe = new FtpFilePanelSource(
+            using var untrustedProbe = new FtpFilePanelSource(
                 result.Connection with { ExpectedTlsCertificateFingerprint = null },
                 result.Password,
                 acceptCertificate: (_, certificateFingerprint) =>
@@ -197,7 +217,7 @@ public sealed class FtpModule : ICSharpFarPlugin
                 });
             try
             {
-                _ = untrustedProbe.GetItem(result.Connection.RemoteRootPath);
+                _ = await untrustedProbe.GetItemAsync(result.Connection.RemoteRootPath, token).ConfigureAwait(false);
             }
             catch (IOException ex)
             {
@@ -213,8 +233,8 @@ public sealed class FtpModule : ICSharpFarPlugin
 
         try
         {
-            var source = new FtpFilePanelSource(result.Connection, result.Password);
-            _ = source.GetItem(result.Connection.RemoteRootPath);
+            using var source = new FtpFilePanelSource(result.Connection, result.Password);
+            _ = await source.GetItemAsync(result.Connection.RemoteRootPath, token).ConfigureAwait(false);
             return FtpConnectionDialogValidationResult.Accepted();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)

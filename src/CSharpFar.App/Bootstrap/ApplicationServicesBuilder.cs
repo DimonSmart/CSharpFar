@@ -425,7 +425,7 @@ internal static class ApplicationServicesBuilder
             panelWorkspace,
             quickViewDirectorySize,
             fileUsagePanel,
-            modalDialogs);
+            modalDialogs, panelNavigation);
         var dialogs = new DialogService(modalDialogs, formFields);
         var searchResults = new PanelSearchResultsService(
             dialogs,

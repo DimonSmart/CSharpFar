@@ -136,13 +136,13 @@ internal sealed class QuickViewRenderer
                 else
                 {
                     Rect scrollbar = new(x + w - 1, y + rowIndex, 1, viewportRows);
-                    Rect content = new(x, y + rowIndex, Math.Max(0, w - 1), viewportRows);
-                    ScrollableListFrame listFrame = recentChanges.CalculateFrame(content, scrollbar);
+                    Rect listContent = new(x, y + rowIndex, Math.Max(0, w - 1), viewportRows);
+                    ScrollableListFrame listFrame = recentChanges.CalculateFrame(listContent, scrollbar);
                     recentChanges.Render(_screen, listFrame, new(change => FormatChange(change), string.Empty, _fillStyle, _titleStyle, _fillStyle));
                     recentChanges.RenderScrollbar(_screen, listFrame, _borderStyle);
                     normalizedSelectedChangeId = recentChanges.State.TryGetSelectedItem(out DirectoryChange selected) ? selected.Id : null;
                     foreach (int index in Enumerable.Range(listFrame.ScrollTop, Math.Min(listFrame.ViewportRows, Math.Max(0, listFrame.ItemCount - listFrame.ScrollTop))))
-                        hits.Add(new ApplicationQuickViewChangeHit(new Rect(content.X, content.Y + index - listFrame.ScrollTop, content.Width, 1), recentChanges.State.Items[index].Id));
+                        hits.Add(new ApplicationQuickViewChangeHit(new Rect(listContent.X, listContent.Y + index - listFrame.ScrollTop, listContent.Width, 1), recentChanges.State.Items[index].Id));
                     rowIndex += viewportRows;
                     return new ApplicationQuickViewFrame(new Rect(x - 1, y - 1, w + 2, visRows + 2), monitorToggleBounds, hits, normalizedSelectedChangeId, allChanges.Select(change => change.Id).ToArray(), listFrame.ScrollTop, recentChanges, listFrame);
                 }

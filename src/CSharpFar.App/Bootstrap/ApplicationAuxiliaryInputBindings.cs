@@ -20,7 +20,8 @@ internal static class ApplicationAuxiliaryInputBindings
         PanelWorkspaceController panelWorkspace,
         QuickViewDirectorySizeController quickViewDirectorySize,
         FileUsagePanelController fileUsagePanel,
-        ModalDialogHost modalDialogs)
+        ModalDialogHost modalDialogs,
+        PanelNavigationService? navigation = null)
     {
         keyboardInputContext.ToggleFileUsage = () =>
         {
@@ -63,10 +64,18 @@ internal static class ApplicationAuxiliaryInputBindings
                 return false;
 
             string? parent = Path.GetDirectoryName(target);
-            if (parent is null || !controller.TryLoadDirectory(targetPanel, parent, callbacks.PanelOptions()))
-                return false;
-            controller.SetCursorByName(targetPanel, Path.GetFileName(target), callbacks.VisibleRowsForSide(targetSide));
-            callbacks.StartWatching(targetPanel, targetSide);
+            if (parent is null) return false;
+            void Complete(bool loaded)
+            {
+                if (!loaded) return;
+                var side = ReferenceEquals(targetPanel, session.Panels.Left) ? PanelSide.Left : PanelSide.Right;
+                controller.SetCursorByName(targetPanel, Path.GetFileName(target), callbacks.VisibleRowsForSide(side));
+                callbacks.StartWatching(targetPanel, side);
+            }
+            if (navigation is not null)
+                navigation.Navigate(targetPanel, PanelLocation.Local(parent), preserveOnError: true, Complete);
+            else
+                Complete(controller.TryLoadDirectory(targetPanel, parent, callbacks.PanelOptions()));
             return true;
         };
         mouseInputContext.ActivateQuickViewDirectoryMonitorChange = changeId =>
