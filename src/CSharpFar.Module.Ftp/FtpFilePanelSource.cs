@@ -781,8 +781,10 @@ public sealed class FtpFilePanelSource : IModulePanel, IAsyncFilePanelSource, IR
 
         private async Task ReadCompletionReplyAsync()
         {
-            if (_readCompletionReply)
-                await _client.GetReply(CancellationToken.None).ConfigureAwait(false);
+            if (!_readCompletionReply) return;
+            FtpReply reply = await _client.GetReply(CancellationToken.None).ConfigureAwait(false);
+            if (reply.Code is not ("226" or "250"))
+                throw new IOException($"FTP transfer completion was not confirmed: {reply.Code} {reply.Message}");
         }
     }
 
