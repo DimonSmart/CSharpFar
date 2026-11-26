@@ -277,3 +277,19 @@ chooser instead of aborting with an ambiguity error. The chooser includes a
 normal-open option and Escape cancels without launching any handler.
 A plugin's `CanOpen` should remain inexpensive, deterministic and free of
 modal UI: it is called before presenting the chooser.
+
+## Asynchronous file panel providers
+
+New file-panel providers should implement the optional `IAsyncFilePanelSource`
+interface in CSharpFar.Core. Implement `EnumerateDirectoryAsync` and
+`GetItemAsync`, and ensure the inherited asynchronous stream/mutation methods
+return promptly rather than performing synchronous network I/O before returning.
+Honor cancellation where supported; do not report a completed write as cancelled
+or dispose a stream while its operation is still running. Keep path operations
+and capabilities free of I/O.
+
+Existing `IFilePanelSource` binaries remain compatible: the host uses a bounded
+legacy adapter without replacing the provider's registered identity or optional
+interfaces. No manifest API version change is needed for this additive contract.
+See [asynchronous file panel sources](architecture/async-file-panel-sources.md)
+for scheduling, lifetime and cancellation details.
