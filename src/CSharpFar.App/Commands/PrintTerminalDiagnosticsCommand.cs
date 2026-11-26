@@ -1,3 +1,13 @@
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
+using CSharpFar.Ui;
+using CSharpFar.Core.Services;
+using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Abstractions;
+using CSharpFar.App.UserMenu;
+using CSharpFar.App.Panels;
+using CSharpFar.App.Modules;
+using CSharpFar.App.CommandLine;
+using CSharpFar.App.AutoRefresh;
 using System.Runtime.InteropServices;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
@@ -8,7 +18,7 @@ using CSharpFar.Shell;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class PrintTerminalDiagnosticsCommand : IApplicationCommand
+internal sealed class PrintTerminalDiagnosticsCommand(TerminalSurfaceController terminalSurface, PanelWorkspaceController workspace, PanelSessionState panels, ExternalConsoleCommandRunner consoleRunner) : IApplicationCommand
 {
     public string CommandId => MenuCommandIds.DiagnosticsPrintTerminalInfo;
 
@@ -16,18 +26,18 @@ internal sealed class PrintTerminalDiagnosticsCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        var snapshot = context.GetTerminalSnapshot();
+        var snapshot = terminalSurface.GetSnapshot();
         var viewport = snapshot.Viewport;
         var size = snapshot.Size;
-        var terminal = context.GetTerminalDiagnostics();
-        string activeDirectory = context.ActiveState.CurrentDirectory;
+        var terminal = terminalSurface.GetDiagnostics();
+        string activeDirectory = workspace.ActiveState.CurrentDirectory;
         string processCurrentDirectory = Environment.CurrentDirectory;
-        var workspaceMode = context.IsPanelsMode
+        var workspaceMode = workspace.IsPanelsMode
             ? ApplicationWorkspaceMode.Panels
             : ApplicationWorkspaceMode.HiddenCommandLine;
-        var activeSide = context.ActiveSide;
+        var activeSide = workspace.ActiveSide;
 
-        context.ExecuteInCurrentConsole(activeDirectory, "diagnostics", () =>
+        consoleRunner.Execute(activeDirectory, "diagnostics", () =>
         {
             global::System.Console.WriteLine("CSharpFar diagnostics");
             global::System.Console.WriteLine($"Timestamp: {DateTimeOffset.Now:O}");
@@ -63,8 +73,8 @@ internal sealed class PrintTerminalDiagnosticsCommand : IApplicationCommand
             global::System.Console.WriteLine($"  Active side: {activeSide}");
             global::System.Console.WriteLine($"  Command line row: {ApplicationLayoutService.CommandLineRow(size)}");
             global::System.Console.WriteLine($"  Panel height: {ApplicationLayoutService.PanelHeight(size)}");
-            WritePanelDiagnostics("Left panel", context.LeftPanel);
-            WritePanelDiagnostics("Right panel", context.RightPanel);
+            WritePanelDiagnostics("Left panel", panels.Left);
+            WritePanelDiagnostics("Right panel", panels.Right);
             global::System.Console.WriteLine("Terminal mode:");
             global::System.Console.WriteLine($"  Uses terminal screen mode: {terminal.UsesTerminalScreenMode}");
             global::System.Console.WriteLine($"  Terminal screen mode supported: {Value(terminal.IsTerminalScreenModeSupported)}");

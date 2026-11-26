@@ -1,3 +1,14 @@
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
+using CSharpFar.Ui;
+using CSharpFar.Core.Services;
+using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Abstractions;
+using CSharpFar.App.State;
+using CSharpFar.App.Rendering;
+using CSharpFar.App.Panels;
+using CSharpFar.App.Modules;
+using CSharpFar.App.CommandLine;
+using CSharpFar.App.AutoRefresh;
 using System.Security;
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.UserMenu;
@@ -6,46 +17,42 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class OpenUserMenuEditorCommand : IApplicationCommand
+internal sealed class OpenUserMenuEditorCommand(PanelCommandTargetResolver targetResolver, FilePanelSourceRegistry sourceRegistry, UserMenuStore userMenu, DialogService dialogs, FormFieldFactory fields, bool local = false) : IApplicationCommand
 {
-    private readonly bool _local;
-
-    public OpenUserMenuEditorCommand(bool local = false) => _local = local;
-
-    public string CommandId => _local
+    public string CommandId => local
         ? MenuCommandIds.SettingsOpenLocalUserMenu
         : MenuCommandIds.SettingsOpenUserMenu;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        !_local || context.CanUseLocalUserMenu(context.ResolvePanelTarget(args));
+        !local || PanelCommandUserMenuOperands.CanUseLocalUserMenu(sourceRegistry, targetResolver.ResolvePanelTarget(args));
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
         if (!CanExecute(context, args))
             return ApplicationCommandResult.Rendered();
 
-        string? path = _local
-            ? Path.Combine(context.ResolvePanelTarget(args).State.CurrentDirectory, UserMenuResolver.LocalFileName)
+        string? path = local
+            ? Path.Combine(targetResolver.ResolvePanelTarget(args).State.CurrentDirectory, UserMenuResolver.LocalFileName)
             : null;
 
         UserMenuItem[] workingCopy;
         try
         {
-            workingCopy = _local
+            workingCopy = local
                 ? UserMenuFile.ReadOrNull(path!) ?? []
-                : UserMenuItemRules.CloneItems(context.UserMenu.Items);
+                : UserMenuItemRules.CloneItems(userMenu.Items);
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException or SecurityException)
         {
-            context.Dialogs.Message("User menu", ex.Message);
+            dialogs.Message("User menu", ex.Message);
             return ApplicationCommandResult.Rendered();
         }
 
         bool pendingChanges = false;
         while (true)
         {
-            string title = _local ? "Local user menu — " + path : "User menu";
-            UserMenuEditorDialogResult result = new UserMenuEditorDialog(context.Dialogs, context.Fields)
+            string title = local ? "Local user menu — " + path : "User menu";
+            UserMenuEditorDialogResult result = new UserMenuEditorDialog(dialogs, fields)
                 .Show(workingCopy, title);
             if (!result.Changed && !pendingChanges)
                 return ApplicationCommandResult.Rendered();
@@ -55,15 +62,15 @@ internal sealed class OpenUserMenuEditorCommand : IApplicationCommand
 
             try
             {
-                if (_local)
+                if (local)
                     UserMenuFile.WriteSafely(path!, UserMenuItemRules.NormalizeItems(workingCopy));
                 else
-                    context.UserMenu.Save(workingCopy);
+                    userMenu.Save(workingCopy);
                 return ApplicationCommandResult.Rendered();
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or InvalidDataException)
             {
-                int choice = context.Dialogs.Message(
+                int choice = dialogs.Message(
                     "User Menu",
                     "Cannot save user menu:\n" + ex.Message,
                     ["Edit", "Discard"]);

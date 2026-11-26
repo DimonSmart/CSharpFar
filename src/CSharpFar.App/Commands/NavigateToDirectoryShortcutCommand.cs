@@ -1,3 +1,14 @@
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
+using CSharpFar.Ui;
+using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Abstractions;
+using CSharpFar.App.UserMenu;
+using CSharpFar.App.State;
+using CSharpFar.App.Rendering;
+using CSharpFar.App.Panels;
+using CSharpFar.App.Modules;
+using CSharpFar.App.CommandLine;
+using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.DirectoryShortcuts;
 using CSharpFar.Core.Models;
@@ -12,7 +23,7 @@ internal sealed record NavigateToCommittedDirectoryShortcutArgs(
     string Path,
     PanelSide Side);
 
-internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
+internal sealed class NavigateToDirectoryShortcutCommand(PanelWorkspaceController workspace, FilePanelSourceRegistry sourceRegistry, AppSettingsAlias settings, DialogService dialogs, PanelNavigationService navigation, PanelAutoRefreshService autoRefresh, Action resetTransientNavigationUi) : IApplicationCommand
 {
     public string CommandId => DirectoryShortcutCommandIds.Navigate;
 
@@ -20,11 +31,11 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
         args switch
         {
             NavigateToDirectoryShortcutArgs menu =>
-                context.IsPanelsMode &&
-                context.CanAccessLocalFileSystem(context.ActiveState) &&
+                workspace.IsPanelsMode &&
+                PanelCommandTargetResolver.CanAccessLocalFileSystem(sourceRegistry, workspace.ActiveState) &&
                 DirectoryShortcutNormalizer.IsValidNumber(menu.Number),
             NavigateToCommittedDirectoryShortcutArgs committed =>
-                context.CanAccessLocalFileSystem(context.GetPanelState(committed.Side)) &&
+                PanelCommandTargetResolver.CanAccessLocalFileSystem(sourceRegistry, workspace.GetPanelState(committed.Side)) &&
                 DirectoryShortcutNormalizer.IsValidNumber(committed.Number),
             _ => false,
         };
@@ -37,9 +48,9 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
         (string? path, PanelSide side) = args switch
         {
             NavigateToDirectoryShortcutArgs menu => (
-                DirectoryShortcutNormalizer.Normalize(context.Settings.DirectoryShortcuts)
+                DirectoryShortcutNormalizer.Normalize(settings.DirectoryShortcuts)
                     .SingleOrDefault(candidate => candidate.Number == menu.Number)?.Path,
-                context.ActiveSide),
+                workspace.ActiveSide),
             NavigateToCommittedDirectoryShortcutArgs committed => (committed.Path, committed.Side),
             _ => throw new InvalidOperationException(),
         };
@@ -47,8 +58,8 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
         if (path is null)
             return ApplicationCommandResult.Rendered();
 
-        FilePanelState state = context.GetPanelState(side);
-        if (!context.CanAccessLocalFileSystem(state))
+        FilePanelState state = workspace.GetPanelState(side);
+        if (!PanelCommandTargetResolver.CanAccessLocalFileSystem(sourceRegistry, state))
             return ApplicationCommandResult.Rendered();
 
         if (!LocalPathNormalizer.Current.TryNormalize(
@@ -56,17 +67,17 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
             basePath: null,
             out string canonicalPath))
         {
-            context.Dialogs.Message("Directory Shortcut", $"Invalid directory path: {path}");
+            dialogs.Message("Directory Shortcut", $"Invalid directory path: {path}");
             return ApplicationCommandResult.Rendered();
         }
 
-        context.ResetTransientNavigationUi();
-        context.NavigatePanel(state, PanelLocation.Local(canonicalPath), preserveOnError: true, loaded =>
+        resetTransientNavigationUi();
+        navigation.Navigate(state, PanelLocation.Local(canonicalPath), preserveOnError: true, loaded =>
         {
             if (loaded)
-                context.StartWatching(state, context.SideForState(state));
+                autoRefresh.StartWatching(state, workspace.PanelSideForState(state));
             else
-                context.Dialogs.Message("Directory Shortcut", $"Cannot open directory: {canonicalPath}");
+                dialogs.Message("Directory Shortcut", $"Cannot open directory: {canonicalPath}");
         }, requireExistingLocalDirectory: true);
 
         return ApplicationCommandResult.Rendered();

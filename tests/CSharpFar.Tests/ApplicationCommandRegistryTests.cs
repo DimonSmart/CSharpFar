@@ -260,7 +260,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
             new ApplicationPanelKeyboardFrame(right.CurrentLocation, false, 1, right.Items[1].Location, right.Items[1].Name));
         var target = services.CommandContext.ResolvePanelTarget(invocation);
 
-        bool created = PanelCommandUserMenuOperands.TryCreate(target, services.CommandContext, out var operands);
+        bool created = PanelCommandUserMenuOperands.TryCreate(target, services.PanelController, out var operands);
         string expanded = operands.Expand("{current}|{panelDir}|{otherPanelDir}");
 
         Assert.True(created);
@@ -289,7 +289,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
         MutateCommittedLocation(left, right, mutation);
         var target = services.CommandContext.ResolvePanelTarget(invocation);
 
-        bool created = PanelCommandUserMenuOperands.TryCreate(target, services.CommandContext, out _);
+        bool created = PanelCommandUserMenuOperands.TryCreate(target, services.PanelController, out _);
 
         Assert.False(created);
     }
@@ -315,7 +315,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
         };
         var target = services.CommandContext.ResolvePanelTarget(invocation);
 
-        bool created = PanelCommandUserMenuOperands.TryCreate(target, services.CommandContext, out var operands);
+        bool created = PanelCommandUserMenuOperands.TryCreate(target, services.PanelController, out var operands);
         string expanded = operands.Expand("{current}");
 
         Assert.True(created);
