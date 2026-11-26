@@ -414,7 +414,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
             throw new IOException("Cannot copy an archive entry onto itself.");
         if (isLink && options.SymlinkMode == SymlinkCopyMode.CopyLink)
             throw new NotSupportedException("The destination provider cannot create symbolic links safely.");
-        bool overwriteApproved = false;
+        FilePanelItem? approvedDestination = null;
         while (destinationSource.GetItem(destinationPath, cancellationToken) is { } destinationItem)
         {
             var decision = state.Conflicts.Resolve(
@@ -453,7 +453,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                         throw new IOException("Cannot overwrite a directory with a file.");
                     if (destinationSource is not IFileOperationBatch && destinationSource.SourceId != PanelSourceId.Local)
                         throw new NotSupportedException($"Provider '{destinationSource.DisplayName}' cannot safely replace an existing file without transactional batch support.");
-                    overwriteApproved = true;
+                    approvedDestination = destinationItem;
                     break;
                 case ConflictDecisionMode.OnlyNewer:
                     throw new InvalidOperationException("Only newer is not supported for provider copy.");
@@ -464,17 +464,12 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         }
 
         await EnsureProviderDestinationDirectoryAsync(destinationSource, destinationPath, cancellationToken).ConfigureAwait(false);
-        // Provider -> local copies also use the same safe publication boundary.
-        string? staging = destinationSource.SourceId == PanelSourceId.Local &&
-                          destinationSource is not IFileOperationBatch
-            ? SafeLocalFilePublisher.CreateStagingPath(destinationPath) : null;
-        long done = 0;
-        try
-        {
-            await using (Stream input = await source.OpenReadAsync(sourcePath, cancellationToken).ConfigureAwait(false))
-            await using (Stream output = await destinationSource.OpenWriteAsync(
-                staging ?? destinationPath, overwriteApproved && staging is null, cancellationToken).ConfigureAwait(false))
+        string? warning = await SafeFileWriteService.WriteProviderAsync(
+            destinationSource, destinationPath, approvedDestination, sourceItem.Size,
+            async output =>
             {
+                long done = 0;
+                await using Stream input = await source.OpenReadAsync(sourcePath, cancellationToken).ConfigureAwait(false);
                 byte[] buffer = new byte[CopyBufferSize];
                 while (true)
                 {
@@ -486,23 +481,9 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                     state.AddBytes(read);
                     state.Report(sourcePath, destinationPath, done, sourceItem.Size ?? 0);
                 }
-                await output.FlushAsync(cancellationToken).ConfigureAwait(false);
-            }
-            if (sourceItem.Size is long expected && done != expected)
-                throw new IOException($"Incomplete copy from '{sourcePath}' to '{destinationPath}' ({done}/{expected} bytes).");
-            cancellationToken.ThrowIfCancellationRequested();
-            if (staging is not null)
-            {
-                string? leftover = _dependencies.PublishLocalFile(staging, destinationPath);
-                if (leftover is not null)
-                    state.AddError(destinationPath, $"Backup cleanup failed after publishing '{destinationPath}'. Backup: {leftover}");
-            }
-        }
-        catch
-        {
-            if (staging is not null) CleanupPartialDestination(staging, options, state);
-            throw;
-        }
+                return done;
+            }, options.KeepPartialFilesOnError, cancellationToken, _dependencies.PublishLocalFile).ConfigureAwait(false);
+        if (warning is not null) state.AddWarning(destinationPath, warning);
 
         copiedFiles?.Add(sourcePath);
         state.CopiedCount++;
@@ -820,7 +801,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
             cancellationToken.ThrowIfCancellationRequested();
             string? leftover = SafeLocalFilePublisher.PublishChecked(staging, destination, initialTarget.ExpectedDestination, _dependencies.PublishLocalFile);
             if (leftover is not null)
-                state.AddError(destination, $"Backup cleanup failed after publishing '{destination}'. Backup: {leftover}");
+                state.AddWarning(destination, $"Backup cleanup failed after publishing '{destination}'. Backup: {leftover}");
             state.CopiedCount++;
             state.CompleteItem();
             return true;
@@ -1030,7 +1011,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
             }
             string? leftover = SafeLocalFilePublisher.PublishChecked(staging, destinationPath, target.ExpectedDestination, _dependencies.PublishLocalFile);
             if (leftover is not null)
-                state.AddError(destinationPath, $"Backup cleanup failed. Backup: {leftover}");
+                state.AddWarning(destinationPath, $"Backup cleanup failed. Backup: {leftover}");
             return true;
         }
         finally { SafeLocalFilePublisher.DeleteStagingPath(staging); }
@@ -1398,6 +1379,8 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         public bool PartiallyMoved { get; set; }
         public FileConflictDecisionPolicy Conflicts { get; } = new();
         public List<FileOperationItemError> Errors { get; } = [];
+        public List<FileOperationItemError> Warnings { get; } = [];
+        public void AddWarning(string path, string message) => Warnings.Add(new FileOperationItemError { Path = path, Message = message });
 
         public void SetTotals(long totalBytes, int totalItems)
         {
@@ -1558,6 +1541,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 BytesProcessed = _bytesProcessed,
                 TotalBytes = _totalBytes,
                 Errors = Errors,
+                Warnings = Warnings,
             };
     }
 }

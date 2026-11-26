@@ -4,7 +4,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.FileSystem;
 
-public sealed class DemoFilePanelSource : IFilePanelSource
+public sealed class DemoFilePanelSource : IFilePanelSource, ISafeNewFilePublicationProvider
 {
     private static readonly char[] ProviderPathSeparators = ['/'];
     private const int MaxFileCount = 512;
@@ -168,6 +168,28 @@ public sealed class DemoFilePanelSource : IFilePanelSource
             }));
         }
     }
+
+    public Task<Stream> OpenStagingWriteAsync(string stagingPath, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            string path = NormalizePath(stagingPath);
+            if (TryGetNode(path) is not null)
+                throw new IOException($"File already exists: {path}");
+            var parent = GetDirectoryNode(GetParentPath(path) ?? "/");
+            string name = GetName(path);
+            // Reserve the unique name before returning the stream.
+            parent.Children.Add(name, new DemoFileNode(name, [], DateTime.UnixEpoch, FileAttributes.Normal)
+            {
+                Path = path,
+            });
+            return OpenWriteAsync(path, overwrite: true, cancellationToken);
+        }
+    }
+
+    public Task PublishNewFileAsync(string stagingPath, string destinationPath, CancellationToken cancellationToken = default) =>
+        RenameAsync(stagingPath, destinationPath, cancellationToken);
 
     public Task CreateDirectoryAsync(
         string sourcePath,

@@ -201,9 +201,12 @@ internal sealed partial class FileEditor
                             "The archive save was cancelled.";
                         _dialogs.Message("Save Error", message);
                     }
-                    else if (close)
+                    else
                     {
-                        return InteractiveSurfaceWakeResult<bool>.Complete(true);
+                        if (session.LastSaveWarning is { } warning)
+                            _dialogs.Message("Save Warning", warning);
+                        if (close)
+                            return InteractiveSurfaceWakeResult<bool>.Complete(true);
                     }
                     layer.RequestAfterSemanticChange();
                     return InteractiveSurfaceWakeResult<bool>.Changed;
@@ -665,6 +668,8 @@ internal sealed partial class FileEditor
             {
                 _fileService.Save(session);
             }
+            if (session.LastSaveWarning is { } warning)
+                _dialogs.Message("Save Warning", warning);
             return true;
         }
         catch (Exception ex)

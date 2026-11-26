@@ -7,7 +7,7 @@ using Renci.SshNet.Common;
 
 namespace CSharpFar.Module.Sftp;
 
-public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource, ITemporaryFilePanelSource, IFilePanelSourceActivation
+public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource, ITemporaryFilePanelSource, IFilePanelSourceActivation, ISafeNewFilePublicationProvider
 {
     private static readonly char[] ProviderPathSeparators = ['/'];
     private readonly SftpConnectionInfo _connection;
@@ -201,6 +201,14 @@ public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource
             throw CreateSftpException(ex, "open file for writing", path);
         }
     }
+
+    // SFTP v3 SSH_FXP_RENAME requires failure if newpath already exists.
+    // Do not use the POSIX rename extension (which replaces the destination).
+    public Task<Stream> OpenStagingWriteAsync(string stagingPath, CancellationToken cancellationToken = default) =>
+        OpenWriteAsync(stagingPath, overwrite: false, cancellationToken);
+
+    public Task PublishNewFileAsync(string stagingPath, string destinationPath, CancellationToken cancellationToken = default) =>
+        RenameAsync(stagingPath, destinationPath, cancellationToken);
 
     public Task CreateDirectoryAsync(
         string sourcePath,

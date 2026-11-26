@@ -14,4 +14,5 @@ public sealed record FileOperationResult
     public long BytesProcessed { get; init; }
     public long TotalBytes { get; init; }
     public required IReadOnlyList<FileOperationItemError> Errors { get; init; }
+    public IReadOnlyList<FileOperationItemError> Warnings { get; init; } = [];
 }
