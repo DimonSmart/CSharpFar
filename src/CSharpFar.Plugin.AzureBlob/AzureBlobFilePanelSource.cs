@@ -7,12 +7,13 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Plugin.AzureBlob;
 
-public sealed class AzureBlobFilePanelSource(BlobContainerClient container, string displayName, bool readOnly)
+public sealed class AzureBlobFilePanelSource(BlobContainerClient container, string displayName, bool readOnly, int? listingPageSize = null)
     : IAsyncFilePanelSource, ISafeNewFilePublicationProvider, IFileProviderPhysicalIdentity, ITemporaryFilePanelSource
 {
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> stages = new(StringComparer.Ordinal);
     private const string StageKey = "csharpfar_stage";
     public bool IsTemporary => true;
+    private const string MarkerName = ".csharpfar-directory";
     private const string MarkerKey = "csharpfar_directory";
     private const string MarkerValue = "azure-blob-v1";
     private static BlobRequestConditions Exclusive => new() { IfNoneMatch = ETag.All };
@@ -38,7 +39,7 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
     }
 
     private static bool IsMarker(string name, long? size, IDictionary<string, string>? metadata)
-        => name.EndsWith('/') && size == 0 && metadata is not null &&
+        => name.EndsWith("/" + MarkerName, StringComparison.Ordinal) && size == 0 && metadata is not null &&
             metadata.TryGetValue(MarkerKey, out var value) && value == MarkerValue;
     private static string SafeName(string blobName)
     {
@@ -65,19 +66,18 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
         {
             string prefix = AzureBlobPath.Prefix(path);
             var items = new List<FilePanelItem>();
-            await foreach (var entry in container.GetBlobsByHierarchyAsync(BlobTraits.Metadata, BlobStates.None,
-                delimiter: "/", prefix: prefix, cancellationToken: token).ConfigureAwait(false))
+            await foreach (var page in container.GetBlobsByHierarchyAsync(BlobTraits.Metadata, BlobStates.None,
+                delimiter: "/", prefix: prefix, cancellationToken: token).AsPages(pageSizeHint: listingPageSize).ConfigureAwait(false))
+            foreach (var entry in page.Values)
             {
                 if (entry.IsPrefix)
                     items.Add(Item(SafeName(entry.Prefix), true));
                 else if (entry.IsBlob)
                 {
                     var blob = entry.Blob;
+                    if (IsMarker(blob.Name, blob.Properties.ContentLength, blob.Metadata)) continue;
                     if (blob.Name.EndsWith('/'))
-                    {
-                        if (IsMarker(blob.Name, blob.Properties.ContentLength, blob.Metadata)) continue;
                         throw new AzureOperationException("A user blob ending in slash cannot be represented safely.");
-                    }
                     items.Add(Item(SafeName(blob.Name), false, blob.Properties.ContentLength, blob.Properties.LastModified));
                 }
             }
@@ -105,11 +105,13 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
             await foreach (var blob in container.GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix: prefix,
                 cancellationToken: token).ConfigureAwait(false))
             {
-                if (blob.Name == prefix && !IsMarker(blob.Name, blob.Properties.ContentLength, blob.Metadata))
+                if (blob.Name == prefix)
                     throw new AzureOperationException("A user blob ending in slash cannot be represented safely.");
                 directory = true;
                 break;
             }
+            if (properties is not null && IsMarker(file, properties.ContentLength, properties.Metadata))
+                throw new AzureOperationException("The requested name is a directory marker.");
             if (properties is not null && directory)
                 throw new AzureOperationException("A file and virtual directory have the same name; operations are unsafe.");
             if (path.EndsWith('/') && !directory) return null;
@@ -167,7 +169,7 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
             if (existing?.IsDirectory == true) return;
             if (existing is not null) throw new AzureOperationException("A file already has this name.");
             string prefix = AzureBlobPath.Prefix(path);
-            await container.GetBlobClient(prefix).UploadAsync(Stream.Null,
+            await container.GetBlobClient(prefix + MarkerName).UploadAsync(Stream.Null,
                 new BlobUploadOptions { Conditions = Exclusive, Metadata = new Dictionary<string, string> { [MarkerKey] = MarkerValue } },
                 token).ConfigureAwait(false);
         }
@@ -199,10 +201,10 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
             await foreach (var blob in container.GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix: prefix,
                 cancellationToken: token).ConfigureAwait(false))
             {
-                if (blob.Name.EndsWith('/') && !IsMarker(blob.Name, blob.Properties.ContentLength, blob.Metadata))
+                if (blob.Name.EndsWith('/'))
                     throw new AzureOperationException("A user blob ending in slash cannot be deleted through a directory.");
                 _ = SafeName(blob.Name);
-                if (!recursive && blob.Name != prefix) throw new AzureOperationException("Directory is not empty.");
+                if (!recursive && !(blob.Name == prefix + MarkerName && IsMarker(blob.Name, blob.Properties.ContentLength, blob.Metadata))) throw new AzureOperationException("Directory is not empty.");
                 entries.Add(blob);
             }
             int deleted = 0;
@@ -245,7 +247,7 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
             var names = new List<string>();
             await foreach (var blob in container.GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix: from, cancellationToken: token).ConfigureAwait(false))
             {
-                if (blob.Name.EndsWith('/') && !IsMarker(blob.Name, blob.Properties.ContentLength, blob.Metadata))
+                if (blob.Name.EndsWith('/'))
                     throw new AzureOperationException("A user blob ending in slash cannot be renamed safely.");
                 _ = SafeName(blob.Name);
                 _ = SafeName(to + blob.Name[from.Length..]);

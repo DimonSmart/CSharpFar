@@ -47,6 +47,12 @@ public sealed class AzuriteTests
             await using (var stream = await source.OpenStagingWriteAsync("/documents/conflict")) { }
             await Assert.ThrowsAnyAsync<IOException>(() => source.RenameWithoutOverwriteAsync("/documents/conflict", "/documents/ñ.txt"));
             Assert.NotNull(await source.GetItemAsync("/documents/conflict"));
+            await using (var stream = await source.OpenStagingWriteAsync("/documents/race-stage"))
+                await stream.WriteAsync("candidate"u8.ToArray());
+            await container.GetBlobClient("documents/race-target").UploadAsync(BinaryData.FromString("other writer"));
+            await Assert.ThrowsAnyAsync<IOException>(() => source.RenameWithoutOverwriteAsync("/documents/race-stage", "/documents/race-target"));
+            Assert.Equal("other writer", (await container.GetBlobClient("documents/race-target").DownloadContentAsync()).Value.Content.ToString());
+            await source.DeleteAsync("/documents/race-stage", false);
             await source.DeleteAsync("/documents/conflict", false);
             var readOnly = new AzureBlobFilePanelSource(container, "Read only", true);
             await Assert.ThrowsAnyAsync<IOException>(() => readOnly.DeleteAsync("/documents", true));
@@ -79,7 +85,7 @@ public sealed class AzuriteTests
         await container.CreateAsync();
         try
         {
-            var provider = new AzureBlobFilePanelSource(container, "Test", false);
+            var provider = new AzureBlobFilePanelSource(container, "Test", false, listingPageSize: 1);
             var buffer = new byte[1024 * 1024];
             new Random(17).NextBytes(buffer);
             using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);

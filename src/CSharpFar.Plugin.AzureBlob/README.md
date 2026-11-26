@@ -33,7 +33,7 @@ For example, on Windows PowerShell, set `$env:AZURE_STORAGE_CONNECTION = '<conne
 | Read-only mode | Mutations rejected |
 | Overwrite, F4, batch transactions | Not supported |
 
-Directory markers are zero-byte blobs ending in slash with metadata `csharpfar_directory=azure-blob-v1`. Other zero-byte files are ordinary files. A directory rename or delete can be partial; refresh before retrying. If publication is uncertain, inspect the staging and target names before retrying; existing destination blobs are never intentionally replaced. Flat namespace directories cannot be reserved atomically, so a concurrent writer can create sibling blobs while a directory operation is in progress. Unrepresentable names (leading slash, repeated separators, dot components, literal backslashes, non-marker trailing slash, file/directory name collisions) are rejected rather than normalized into a different object. No forced snapshot/version deletion.
+Directory markers are zero-byte blobs named `.csharpfar-directory` within the prefix with metadata `csharpfar_directory=azure-blob-v1`. Other zero-byte files are ordinary files. A directory rename or delete can be partial; refresh before retrying. If publication is uncertain, inspect the staging and target names before retrying; existing destination blobs are never intentionally replaced. Flat namespace directories cannot be reserved atomically, so a concurrent writer can create sibling blobs while a directory operation is in progress. Unrepresentable names (leading slash, repeated separators, dot components, literal backslashes, non-marker trailing slash, file/directory name collisions) are rejected rather than normalized into a different object. No forced snapshot/version deletion.
 
 ## Build
 
