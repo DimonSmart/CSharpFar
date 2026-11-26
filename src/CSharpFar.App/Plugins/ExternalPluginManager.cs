@@ -238,8 +238,8 @@ internal sealed class ExternalPluginManager
         if (!root.TryGetProperty("apiVersion", out var apiVersion) ||
             apiVersion.ValueKind != JsonValueKind.Number || !apiVersion.TryGetInt32(out int api))
             throw new InvalidDataException("apiVersion must be an integer.");
-        if (api != 1)
-            throw new NotSupportedException($"Unsupported plugin API version {api}; expected 1.");
+        if (api != 2)
+            throw new NotSupportedException($"Unsupported plugin API version {api}; expected 2; rebuild the plugin against SDK 2.x.");
 
         entry.AssemblyName = ExternalPluginLoader.RequiredString(root, "assembly");
         if (!ExternalPluginLoader.IsSafeAssemblyFileName(entry.AssemblyName))

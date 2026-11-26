@@ -40,14 +40,14 @@ and writes `disposed.marker` when the session shuts down.
 
 External extensions are **not loaded in demo mode**.
 
-## Manifest (API version 1)
+## Manifest (API version 2)
 
 ```json
 {
   "id": "hello-world",
   "name": "Hello World",
   "version": "1.0.0",
-  "apiVersion": 1,
+  "apiVersion": 2,
   "assembly": "HelloWorld.dll",
   "entryType": "HelloWorld.Plugin"
 }
@@ -56,7 +56,7 @@ External extensions are **not loaded in demo mode**.
 All six fields are mandatory. The ID is a safe, nonempty single path
 component (ASCII letters/digits, dash, underscore, dot, excluding `.` and
 `..`). IDs are unique **case-insensitively**, including built-in IDs.
-`apiVersion` is the integer `1`; unsupported versions are rejected.
+`apiVersion` is the integer `2`; unsupported versions are rejected.
 `assembly` must be a single DLL filename within the extension directory,
 not an absolute or relative traversal path. `entryType` identifies a
 public, non-abstract class with a public parameterless constructor implementing
@@ -88,9 +88,9 @@ from GitHub Releases or generated locally using:
 ./eng/pack-plugin-sdk.ps1
 ```
 
-This creates `artifacts/plugin-sdk/CSharpFar.Core.1.0.0.nupkg`,
-`CSharpFar.Plugin.Abstractions.1.0.0.nupkg`, and
-`CSharpFar.Plugin.Templates.1.0.0.nupkg`. Public NuGet.org publishing is
+This creates `artifacts/plugin-sdk/CSharpFar.Core.2.0.0.nupkg`,
+`CSharpFar.Plugin.Abstractions.2.0.0.nupkg`, and
+`CSharpFar.Plugin.Templates.2.0.0.nupkg`. Public NuGet.org publishing is
 not automated: a maintainer must publish explicitly, with credentials stored
 outside source control. Do not attempt to push a package version that already
 exists in the feed.
@@ -98,7 +98,7 @@ exists in the feed.
 To generate a working plugin from the versioned template package:
 
 ```sh
-dotnet new install artifacts/plugin-sdk/CSharpFar.Plugin.Templates.1.0.0.nupkg
+dotnet new install artifacts/plugin-sdk/CSharpFar.Plugin.Templates.2.0.0.nupkg
 dotnet new csharpfar-plugin -n MyExtension --PluginId my-extension --PluginTitle "My Extension"
 dotnet restore MyExtension.csproj --source /path/to/plugin-sdk
 dotnet publish MyExtension.csproj -c Release -o ./extension
@@ -110,7 +110,7 @@ folder. For a plain class library without the template:
 ```sh
 dotnet new classlib -n MyExtension -f net10.0
 cd MyExtension
-dotnet add package CSharpFar.Plugin.Abstractions --version 1.0.0 --source /path/to/plugin-sdk
+dotnet add package CSharpFar.Plugin.Abstractions --version 2.0.0 --source /path/to/plugin-sdk
 ```
 
 A minimal `Plugin.cs` can be written as:
@@ -154,17 +154,14 @@ directory, and distribute the folder. The published output includes
 
 ## SDK compatibility policy
 
-`apiVersion: 1` in the manifest selects the public v1 plugin contract. For
-binary-compatible SDK releases, the assembly identities of
-`CSharpFar.Core` and `CSharpFar.Plugin.Abstractions` remain at 1.0.0.0
-even if NuGet package versions advance within major version 1.
+Manifest API version 2 requires the SDK 2.x assemblies (assembly version 2.0.0.0). SDK 1.x binaries are deliberately rejected rather than silently loading incompatible contracts. Rebuild against the new packages and set apiVersion to 2 only after migrating: use FilePanelState.SelectedLocations and PanelViewRequest.SelectedLocations, and FileOperationRequest.Sources and Destination as provider-qualified PanelLocation values. Providers may override path comparison and composition; the default comparison is ordinal. Do not reinterpret remote paths using System.IO.Path.
 
 The CI check `eng/testing/verify-plugin-sdk-compatibility.ps1` builds the
-initial v1.0.0 contract from the pinned Git commit
+initial SDK contract from the pinned Git commit
 `6d9873abc0c855d93325d5227b34fe6f8eabadb8` and compares both assemblies
 with `Microsoft.DotNet.ApiCompat.Tool`. This is an API compatibility check,
 not a guarantee about every runtime behavior. Keep the old baseline intact for
-v1-compatible releases; do not suppress breaking changes by silently moving
+binary-compatible releases; do not suppress breaking changes by silently moving
 the baseline. An intentionally incompatible SDK needs a reviewed major API
 migration and independent compatibility tests.
 
