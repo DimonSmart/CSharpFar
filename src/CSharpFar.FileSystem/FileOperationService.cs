@@ -151,7 +151,13 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         return state.ToResult();
     }
 
-    public FileOperationPlan BuildPlan(FileOperationRequest request, CancellationToken cancellationToken = default)
+    public FileOperationPlan BuildPlan(FileOperationRequest request, CancellationToken cancellationToken = default) =>
+        BuildPlanAsync(request, cancellationToken).GetAwaiter().GetResult();
+
+    public Task<FileOperationPlan> BuildPlanAsync(FileOperationRequest request, CancellationToken cancellationToken = default) =>
+        Task.Run(() => BuildPlanCoreAsync(request, cancellationToken), cancellationToken);
+
+    private async Task<FileOperationPlan> BuildPlanCoreAsync(FileOperationRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         using var sourceUsage = (_sources as FilePanelSourceRegistry)?.AcquireUsage(
@@ -160,24 +166,24 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         ValidateAccessibleSources(request);
 
         if (UsesProviderLocations(request))
-            return BuildProviderPlan(request, cancellationToken);
+            return await BuildProviderPlanAsync(request, cancellationToken).ConfigureAwait(false);
 
         return request.Kind switch
         {
-            FileOperationKind.Copy => BuildLocalCopyPlan(request, cancellationToken),
+            FileOperationKind.Copy => await BuildLocalCopyPlanAsync(request, cancellationToken).ConfigureAwait(false),
             FileOperationKind.Move => BuildLocalMoveOperationPlan(request, cancellationToken),
             _ => throw new InvalidOperationException("Preview is available only for copy, move, and rename operations."),
         };
     }
 
-    private FileOperationPlan BuildLocalCopyPlan(FileOperationRequest request, CancellationToken cancellationToken) =>
+    private async Task<FileOperationPlan> BuildLocalCopyPlanAsync(FileOperationRequest request, CancellationToken cancellationToken) =>
         ToPublicPlan(
-            BuildProviderCopyPlan(
+            await BuildProviderCopyPlanAsync(
                 RequireSourceLocations(request),
                 RequireDestinationLocation(request),
                 request.Options,
                 request.UseDestinationTemplate,
-                cancellationToken),
+                cancellationToken).ConfigureAwait(false),
             PanelSourceId.Local);
 
     private FileOperationPlan BuildLocalMoveOperationPlan(FileOperationRequest request, CancellationToken cancellationToken) =>
@@ -186,17 +192,17 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
     internal static bool IsKnownCrossFileSystemMove(string source, string destination) =>
         MoveExecutor.IsKnownCrossFileSystemMove(source, destination);
 
-    private FileOperationPlan BuildProviderPlan(FileOperationRequest request, CancellationToken cancellationToken)
+    private async Task<FileOperationPlan> BuildProviderPlanAsync(FileOperationRequest request, CancellationToken cancellationToken)
     {
         return request.Kind switch
         {
-            FileOperationKind.Copy => ToPublicPlan(BuildProviderCopyPlan(RequireSourceLocations(request), RequireDestinationLocation(request), request.Options, request.UseDestinationTemplate, cancellationToken), RequireDestinationLocation(request).SourceId),
-            FileOperationKind.Move => BuildProviderMovePreviewPlan(request, cancellationToken),
+            FileOperationKind.Copy => ToPublicPlan(await BuildProviderCopyPlanAsync(RequireSourceLocations(request), RequireDestinationLocation(request), request.Options, request.UseDestinationTemplate, cancellationToken).ConfigureAwait(false), RequireDestinationLocation(request).SourceId),
+            FileOperationKind.Move => await BuildProviderMovePreviewPlanAsync(request, cancellationToken).ConfigureAwait(false),
             _ => throw new InvalidOperationException("Preview is available only for copy, move, and rename operations."),
         };
     }
 
-    private FileOperationPlan BuildProviderMovePreviewPlan(
+    private async Task<FileOperationPlan> BuildProviderMovePreviewPlanAsync(
         FileOperationRequest request, CancellationToken cancellationToken)
     {
         var sources = RequireSourceLocations(request);
@@ -204,10 +210,10 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         var source = _sources.GetSource(sources[0].SourceId);
         var target = _sources.GetSource(destination.SourceId);
         var plan = source.SourceId == target.SourceId || SamePhysicalContainer(source, target)
-            ? new MoveExecutor(this).BuildProviderMovePlan(source, sources, destination.SourcePath,
-                request.Options, request.UseDestinationTemplate, cancellationToken)
-            : BuildProviderCopyPlan(sources, destination, request.Options,
-                request.UseDestinationTemplate, cancellationToken);
+            ? await new MoveExecutor(this).BuildProviderMovePlanAsync(source, sources, destination.SourcePath,
+                request.Options, request.UseDestinationTemplate, cancellationToken).ConfigureAwait(false)
+            : await BuildProviderCopyPlanAsync(sources, destination, request.Options,
+                request.UseDestinationTemplate, cancellationToken).ConfigureAwait(false);
         return ToPublicPlan(plan, destination.SourceId);
     }
 
@@ -284,7 +290,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         var destination = RequireDestinationLocation(request);
         var sources = RequireSourceLocations(request);
         var destinationSource = _sources.GetSource(destination.SourceId);
-        var plan = BuildProviderCopyPlan(sources, destination, request.Options, request.UseDestinationTemplate, cancellationToken, state, rootTarget);
+        var plan = await BuildProviderCopyPlanAsync(sources, destination, request.Options, request.UseDestinationTemplate, cancellationToken, state, rootTarget).ConfigureAwait(false);
         var copiedFiles = new List<string>();
         var copiedFolders = new List<string>();
         int skippedBefore = state.SkippedCount;
@@ -379,7 +385,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 SamePhysicalContainer(source, destinationSource))
                 FileCopyPlanBuilder.ValidateCopyTarget(source, sourcePath, destinationPath, sourceItem.IsDirectory);
             await EnsureProviderDestinationDirectoryAsync(destinationSource, destinationPath, cancellationToken).ConfigureAwait(false);
-            await destinationSource.CreateDirectoryAsync(destinationPath, cancellationToken).ConfigureAwait(false);
+            await destinationSource.AsAsync().CreateDirectoryAsync(destinationPath, cancellationToken).ConfigureAwait(false);
             state.CompleteFolder();
 
             foreach (ProviderOperationPlanItem child in plannedItem.Children)
@@ -424,7 +430,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         if (isLink && options.SymlinkMode == SymlinkCopyMode.CopyLink)
             throw new NotSupportedException("The destination provider cannot create symbolic links safely.");
         FilePanelItem? approvedDestination = null;
-        while (destinationSource.GetItem(destinationPath, cancellationToken) is { } destinationItem)
+        while (await destinationSource.AsAsync().GetItemAsync(destinationPath, cancellationToken).ConfigureAwait(false) is { } destinationItem)
         {
             var decision = state.Conflicts.Resolve(
                 options,
@@ -449,7 +455,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                     return;
                 case ConflictDecisionMode.Rename:
                     destinationPath = string.IsNullOrWhiteSpace(decision.NewDestinationPath)
-                        ? GenerateProviderName(destinationSource, destinationPath, cancellationToken)
+                        ? await GenerateProviderNameAsync(destinationSource, destinationPath, cancellationToken).ConfigureAwait(false)
                         : decision.NewDestinationPath;
                     if (source.SourceId == destinationSource.SourceId ||
                         SamePhysicalContainer(source, destinationSource))
@@ -478,7 +484,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
             async output =>
             {
                 long done = 0;
-                await using Stream input = await source.OpenReadAsync(sourcePath, cancellationToken).ConfigureAwait(false);
+                await using Stream input = await source.AsAsync().OpenReadAsync(sourcePath, cancellationToken).ConfigureAwait(false);
                 byte[] buffer = new byte[CopyBufferSize];
                 while (true)
                 {
@@ -591,7 +597,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         }
         else
         {
-            await source.CreateDirectoryAsync(destination.SourcePath, cancellationToken).ConfigureAwait(false);
+            await source.AsAsync().CreateDirectoryAsync(destination.SourcePath, cancellationToken).ConfigureAwait(false);
         }
         state.CreatedDirectoryCount++;
         state.SetTotals(0, 1);
@@ -1220,7 +1226,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         request.Destination is { } destination && !string.IsNullOrWhiteSpace(destination.SourcePath)
             ? destination : throw new ArgumentException("Destination is required.", nameof(request));
 
-    private List<ProviderOperationPlanItem> BuildProviderCopyPlan(
+    private Task<List<ProviderOperationPlanItem>> BuildProviderCopyPlanAsync(
         IReadOnlyList<PanelLocation> sources,
         PanelLocation destination,
         FileOperationOptions options,
@@ -1229,7 +1235,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         OperationState? state = null,
         string? rootTarget = null) =>
         new FileCopyPlanBuilder(_sources, ValidateProviderPlanCollisions)
-            .Build(sources, destination, options, useDestinationTemplate,
+            .BuildAsync(sources, destination, options, useDestinationTemplate,
                 cancellationToken, state is null ? null : state.ReportScanning, rootTarget);
 
     private static long CalculateProviderPlanSize(IEnumerable<ProviderOperationPlanItem> plan) =>
@@ -1241,11 +1247,11 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         CancellationToken cancellationToken)
     {
         string? parent = destinationSource.GetParentPath(destinationPath);
-        if (string.IsNullOrEmpty(parent) || destinationSource.GetItem(parent, cancellationToken) is not null)
+        if (string.IsNullOrEmpty(parent) || await destinationSource.AsAsync().GetItemAsync(parent, cancellationToken).ConfigureAwait(false) is not null)
             return;
 
         await EnsureProviderDestinationDirectoryAsync(destinationSource, parent, cancellationToken).ConfigureAwait(false);
-        await destinationSource.CreateDirectoryAsync(parent, cancellationToken).ConfigureAwait(false);
+        await destinationSource.AsAsync().CreateDirectoryAsync(parent, cancellationToken).ConfigureAwait(false);
     }
 
     private static IEnumerable<PanelSourceId> EnumerateReferencedSources(FileOperationRequest request)
@@ -1256,7 +1262,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
             yield return destination.SourceId;
     }
 
-    private static string GenerateProviderName(
+    private static async Task<string> GenerateProviderNameAsync(
         IFilePanelSource source,
         string destinationPath,
         CancellationToken cancellationToken)
@@ -1292,7 +1298,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         for (int i = 2; ; i++)
         {
             string candidate = source.CombinePath(directory, $"{fileName} ({i}){extension}");
-            if (source.GetItem(candidate, cancellationToken) is null)
+            if (await source.AsAsync().GetItemAsync(candidate, cancellationToken).ConfigureAwait(false) is null)
                 return candidate;
         }
     }

@@ -44,8 +44,8 @@ public sealed partial class FileOperationService
             }
 
             var source = _sources.GetSource(sources[0].SourceId);
-            var plan = BuildProviderMovePlan(source, sources, destination.SourcePath,
-                request.Options, request.UseDestinationTemplate, cancellationToken);
+            var plan = await BuildProviderMovePlanAsync(source, sources, destination.SourcePath,
+                request.Options, request.UseDestinationTemplate, cancellationToken).ConfigureAwait(false);
             state.SetTotals(CalculateProviderPlanSize(plan), plan.Count);
             state.StartProgressTimer();
 
@@ -123,8 +123,8 @@ public sealed partial class FileOperationService
                     targetSource is not ISafeNewFilePublicationProvider))
                 throw new NotSupportedException("Cross-provider move requires verified copy and delete capabilities.");
 
-            var plan = owner.BuildProviderCopyPlan(sources, destination, request.Options,
-                request.UseDestinationTemplate, cancellationToken, state);
+            var plan = await owner.BuildProviderCopyPlanAsync(sources, destination, request.Options,
+                request.UseDestinationTemplate, cancellationToken, state).ConfigureAwait(false);
             state.SetTotals(CalculateProviderPlanSize(plan), CountProviderPlanItems(plan));
             state.StartProgressTimer();
             var copiedFiles = new List<string>();
@@ -220,9 +220,9 @@ public sealed partial class FileOperationService
             foreach (string path in copiedFiles.Distinct(StringComparer.Ordinal))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (source.GetItem(path, cancellationToken) is null)
+                if (await source.AsAsync().GetItemAsync(path, cancellationToken).ConfigureAwait(false) is null)
                     continue;
-                await source.DeleteAsync(path, recursive: false, cancellationToken).ConfigureAwait(false);
+                await source.AsAsync().DeleteAsync(path, recursive: false, cancellationToken).ConfigureAwait(false);
                 state.MovedCount++;
             }
 
@@ -232,11 +232,11 @@ public sealed partial class FileOperationService
                          .OrderByDescending(path => path.Length))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (source.GetItem(path, cancellationToken) is not { IsDirectory: true })
+                if (await source.AsAsync().GetItemAsync(path, cancellationToken).ConfigureAwait(false) is not { IsDirectory: true })
                     continue;
-                if (!source.EnumerateDirectory(path, cancellationToken)
+                if (!(await source.AsAsync().EnumerateDirectoryAsync(path, cancellationToken).ConfigureAwait(false))
                         .Any(item => !item.IsParentDirectory))
-                    await source.DeleteAsync(path, recursive: false, cancellationToken).ConfigureAwait(false);
+                    await source.AsAsync().DeleteAsync(path, recursive: false, cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -262,7 +262,7 @@ public sealed partial class FileOperationService
                     return;
                 }
 
-                FilePanelItem? destinationItem = source.GetItem(targetPath, cancellationToken);
+                FilePanelItem? destinationItem = await source.AsAsync().GetItemAsync(targetPath, cancellationToken).ConfigureAwait(false);
                 if (destinationItem is not null)
                 {
                     EnsureMoveTypeCompatibility(sourceItem, destinationItem);
@@ -284,7 +284,7 @@ public sealed partial class FileOperationService
                         case ConflictDecisionMode.Rename:
                         case ConflictDecisionMode.RenameAll:
                             targetPath = string.IsNullOrWhiteSpace(decision.NewDestinationPath)
-                                ? GenerateProviderName(source, targetPath, cancellationToken)
+                                ? await GenerateProviderNameAsync(source, targetPath, cancellationToken).ConfigureAwait(false)
                                 : decision.NewDestinationPath;
                             ValidateProviderMoveTarget(source, sourcePath, targetPath, sourceItem.IsDirectory);
                             continue;
@@ -378,8 +378,7 @@ public sealed partial class FileOperationService
             if ((source.Capabilities & required) != required)
                 throw new NotSupportedException("This provider cannot safely merge directories.");
 
-            FilePanelItem[] children = source
-                .EnumerateDirectory(sourcePath, cancellationToken)
+            FilePanelItem[] children = (await source.AsAsync().EnumerateDirectoryAsync(sourcePath, cancellationToken).ConfigureAwait(false))
                 .Where(item => !item.IsParentDirectory)
                 .ToArray();
 
@@ -398,8 +397,8 @@ public sealed partial class FileOperationService
                     .ConfigureAwait(false);
             }
 
-            if (!source.EnumerateDirectory(sourcePath, cancellationToken).Any(item => !item.IsParentDirectory))
-                await source.DeleteAsync(sourcePath, recursive: false, cancellationToken).ConfigureAwait(false);
+            if (!(await source.AsAsync().EnumerateDirectoryAsync(sourcePath, cancellationToken).ConfigureAwait(false)).Any(item => !item.IsParentDirectory))
+                await source.AsAsync().DeleteAsync(sourcePath, recursive: false, cancellationToken).ConfigureAwait(false);
         }
 
         private static async Task RenameWithoutOverwriteAsync(IFilePanelSource source,
@@ -408,7 +407,7 @@ public sealed partial class FileOperationService
             cancellationToken.ThrowIfCancellationRequested();
             if (source is IFileOperationBatch)
             {
-                await source.RenameAsync(sourcePath, destinationPath, cancellationToken).ConfigureAwait(false);
+                await source.AsAsync().RenameAsync(sourcePath, destinationPath, cancellationToken).ConfigureAwait(false);
                 return;
             }
             if (source is not ISafeEntryRenameProvider rename)
@@ -422,8 +421,8 @@ public sealed partial class FileOperationService
                 bool originalExists, targetExists;
                 try
                 {
-                    originalExists = source.GetItem(sourcePath, CancellationToken.None) is not null;
-                    targetExists = source.GetItem(destinationPath, CancellationToken.None) is not null;
+                    originalExists = await source.AsAsync().GetItemAsync(sourcePath, CancellationToken.None).ConfigureAwait(false) is not null;
+                    targetExists = await source.AsAsync().GetItemAsync(destinationPath, CancellationToken.None).ConfigureAwait(false) is not null;
                 }
                 catch (Exception inspection)
                 {
@@ -446,9 +445,9 @@ public sealed partial class FileOperationService
         {
             if (source is not IFileOperationBatch && source is not IRecoverableEntryRenameProvider)
                 throw new NotSupportedException($"Provider '{source.DisplayName}' cannot safely replace an existing destination.");
-            if (!SafeFileWriteService.SameDestination(destinationItem, source.GetItem(destinationPath, cancellationToken)))
+            if (!SafeFileWriteService.SameDestination(destinationItem, await source.AsAsync().GetItemAsync(destinationPath, cancellationToken).ConfigureAwait(false)))
                 throw new IOException($"Destination changed before replacement: '{destinationPath}'.");
-            string backupPath = GenerateProviderTemporaryPath(source, destinationPath, "backup", cancellationToken);
+            string backupPath = await GenerateProviderTemporaryPathAsync(source, destinationPath, "backup", cancellationToken).ConfigureAwait(false);
             await RenameWithoutOverwriteAsync(source, destinationPath, backupPath, cancellationToken).ConfigureAwait(false);
 
             try
@@ -473,7 +472,7 @@ public sealed partial class FileOperationService
 
             try
             {
-                await source.DeleteAsync(backupPath, destinationItem.IsDirectory, CancellationToken.None).ConfigureAwait(false);
+                await source.AsAsync().DeleteAsync(backupPath, destinationItem.IsDirectory, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception cleanupError)
             {
@@ -482,7 +481,7 @@ public sealed partial class FileOperationService
             }
         }
 
-        private static string GenerateProviderTemporaryPath(
+        private static async Task<string> GenerateProviderTemporaryPathAsync(
             IFilePanelSource source,
             string destinationPath,
             string kind,
@@ -493,7 +492,7 @@ public sealed partial class FileOperationService
                 cancellationToken.ThrowIfCancellationRequested();
                 string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
                 string candidate = destinationPath + $".csharpfar-replace-{kind}-{suffix}";
-                if (source.GetItem(candidate, cancellationToken) is null)
+                if (await source.AsAsync().GetItemAsync(candidate, cancellationToken).ConfigureAwait(false) is null)
                     return candidate;
             }
         }
@@ -1153,7 +1152,7 @@ public sealed partial class FileOperationService
                 throw new InvalidOperationException("Only newer is only supported for copy operations.");
         }
 
-        public List<ProviderOperationPlanItem> BuildProviderMovePlan(
+        public async Task<List<ProviderOperationPlanItem>> BuildProviderMovePlanAsync(
             IFilePanelSource source,
             IReadOnlyList<PanelLocation> sources,
             string destinationPath,
@@ -1173,7 +1172,7 @@ public sealed partial class FileOperationService
             foreach (PanelLocation location in sources)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                FilePanelItem? item = source.GetItem(location.SourcePath, cancellationToken);
+                FilePanelItem? item = await source.AsAsync().GetItemAsync(location.SourcePath, cancellationToken).ConfigureAwait(false);
                 string normalizedSourcePath = source.NormalizePath(location.SourcePath);
                 if (item is null)
                 {
@@ -1189,7 +1188,7 @@ public sealed partial class FileOperationService
                             ? source.GetParentPath(normalizedSourcePath) ?? throw new IOException("Source has no parent directory.")
                             : destinationPattern.ParentPath,
                         destinationPattern.TransformName(item.Name))
-                    : ResolveProviderMoveTargetPath(source, item, normalizedSourcePath, destinationPath, sources.Count, cancellationToken);
+                    : await ResolveProviderMoveTargetPathAsync(source, item, normalizedSourcePath, destinationPath, sources.Count, cancellationToken).ConfigureAwait(false);
 
                 if (!hasMask)
                 {
@@ -1198,11 +1197,11 @@ public sealed partial class FileOperationService
                     continue;
                 }
 
-                FileCopyPlanBuilder.AddMaskedProviderPlanItems(
+                await FileCopyPlanBuilder.AddMaskedProviderPlanItemsAsync(
                     plan, location, source, normalizedSourcePath, item, targetPath, options.FileMask!, options.SymlinkMode, matcher, groups,
                     source,
                     validateTarget: path => ValidateProviderMoveTarget(source, normalizedSourcePath, path, item.IsDirectory),
-                    cancellationToken);
+                    cancellationToken).ConfigureAwait(false);
             }
 
             if (template is not null || destinationPattern.HasWildcards)
@@ -1223,7 +1222,7 @@ public sealed partial class FileOperationService
                 throw new IOException("Cannot move a directory into itself.");
         }
 
-        private static string ResolveProviderMoveTargetPath(
+        private static async Task<string> ResolveProviderMoveTargetPathAsync(
             IFilePanelSource source,
             FilePanelItem item,
             string sourcePath,
@@ -1234,7 +1233,7 @@ public sealed partial class FileOperationService
             if (sourceCount > 1)
                 return source.CombinePath(destinationPath, item.Name);
 
-            FilePanelItem? destinationItem = source.GetItem(destinationPath, cancellationToken);
+            FilePanelItem? destinationItem = await source.AsAsync().GetItemAsync(destinationPath, cancellationToken).ConfigureAwait(false);
             if (destinationItem?.IsDirectory == true)
                 return source.CombinePath(destinationPath, item.Name);
 

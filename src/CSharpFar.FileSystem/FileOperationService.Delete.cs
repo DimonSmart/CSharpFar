@@ -21,7 +21,7 @@ public sealed partial class FileOperationService
             CancellationToken cancellationToken)
         {
             var sources = RequireSourceLocations(request);
-            var plan = BuildProviderDeletePlan(sources, state, cancellationToken);
+            var plan = await BuildProviderDeletePlanAsync(sources, state, cancellationToken).ConfigureAwait(false);
             state.SetTotals(plan.TotalBytes, plan.Items.Count);
             state.StartProgressTimer();
 
@@ -69,7 +69,7 @@ public sealed partial class FileOperationService
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var location = plannedItem.Location;
-                var item = source.GetItem(location.SourcePath, cancellationToken);
+                var item = await source.AsAsync().GetItemAsync(location.SourcePath, cancellationToken).ConfigureAwait(false);
                 if (item is null)
                 {
                     state.ReportDeleting(location.SourcePath, 0, 0);
@@ -80,7 +80,7 @@ public sealed partial class FileOperationService
 
                 long bytes = plannedItem.Size;
                 state.ReportDeleting(location.SourcePath, 0, bytes);
-                await source.DeleteAsync(location.SourcePath, item.IsDirectory, cancellationToken)
+                await source.AsAsync().DeleteAsync(location.SourcePath, item.IsDirectory, cancellationToken)
                     .ConfigureAwait(false);
                 state.DeletedCount++;
                 state.AddBytes(bytes);
@@ -190,59 +190,57 @@ public sealed partial class FileOperationService
         }
 
 
-        private DeleteProviderPlan BuildProviderDeletePlan(
+        private async Task<DeleteProviderPlan> BuildProviderDeletePlanAsync(
             IReadOnlyList<PanelLocation> sources,
             OperationState state,
             CancellationToken cancellationToken)
         {
             var items = new List<ProviderDeletePlanItem>();
-            int files = 0;
-            int folders = 0;
-            long bytes = 0;
+            var counts = new ProviderScanCounts();
 
             foreach (PanelLocation source in sources)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                state.ReportScanning(source.SourcePath, files, folders, bytes);
-                long size = ScanProviderDeleteSource(source, state, ref files, ref folders, ref bytes, cancellationToken);
+                state.ReportScanning(source.SourcePath, counts.Files, counts.Folders, counts.Bytes);
+                long size = await ScanProviderDeleteSourceAsync(source, state, counts, cancellationToken).ConfigureAwait(false);
                 items.Add(new ProviderDeletePlanItem(source, size));
             }
 
-            return new DeleteProviderPlan(items, bytes);
+            return new DeleteProviderPlan(items, counts.Bytes);
         }
 
 
-        private long ScanProviderDeleteSource(
+        private async Task<long> ScanProviderDeleteSourceAsync(
             PanelLocation location,
             OperationState state,
-            ref int files,
-            ref int folders,
-            ref long bytes,
+            ProviderScanCounts counts,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var source = _sources.GetSource(location.SourceId);
-            var item = source.GetItem(location.SourcePath, cancellationToken);
+            var item = await source.AsAsync().GetItemAsync(location.SourcePath, cancellationToken).ConfigureAwait(false);
             if (item is null)
                 return 0;
 
             if (!item.IsDirectory)
             {
                 long size = item.Size ?? 0;
-                files++;
-                bytes += size;
-                state.ReportScanning(location.SourcePath, files, folders, bytes);
+                counts.Files++;
+                counts.Bytes += size;
+                state.ReportScanning(location.SourcePath, counts.Files, counts.Folders, counts.Bytes);
                 return size;
             }
 
-            folders++;
-            state.ReportScanning(location.SourcePath, files, folders, bytes);
+            counts.Folders++;
+            state.ReportScanning(location.SourcePath, counts.Files, counts.Folders, counts.Bytes);
             long total = 0;
-            foreach (var child in source.EnumerateDirectory(location.SourcePath, cancellationToken).Where(i => !i.IsParentDirectory))
-                total += ScanProviderDeleteSource(child.Location, state, ref files, ref folders, ref bytes, cancellationToken);
+            foreach (var child in (await source.AsAsync().EnumerateDirectoryAsync(location.SourcePath, cancellationToken).ConfigureAwait(false)).Where(i => !i.IsParentDirectory))
+                total += await ScanProviderDeleteSourceAsync(child.Location, state, counts, cancellationToken).ConfigureAwait(false);
             return total;
         }
 
+
+        private sealed class ProviderScanCounts { public int Files; public int Folders; public long Bytes; }
 
         private sealed record DeletePlanItem(string Path, long Size);
         private sealed record DeletePlan(IReadOnlyList<DeletePlanItem> Items, long TotalBytes);

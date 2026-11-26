@@ -14,7 +14,7 @@ internal sealed class FileCopyPlanBuilder(
     private readonly IFilePanelSourceRegistry _sources = sources;
     private readonly Action<PanelSourceId, IEnumerable<string>> _validatePlanCollisions = validatePlanCollisions;
 
-    public List<ProviderOperationPlanItem> Build(
+    public async Task<List<ProviderOperationPlanItem>> BuildAsync(
         IReadOnlyList<PanelLocation> sources,
         PanelLocation destination,
         FileOperationOptions options,
@@ -42,7 +42,7 @@ internal sealed class FileCopyPlanBuilder(
         {
             cancellationToken.ThrowIfCancellationRequested();
             IFilePanelSource source = _sources.GetSource(location.SourceId);
-            FilePanelItem? item = source.GetItem(location.SourcePath, cancellationToken);
+            FilePanelItem? item = await source.AsAsync().GetItemAsync(location.SourcePath, cancellationToken).ConfigureAwait(false);
             string normalizedSourcePath = source.NormalizePath(location.SourcePath);
             if (item is null)
             {
@@ -56,12 +56,12 @@ internal sealed class FileCopyPlanBuilder(
                     ? destinationSource.CombinePath(
                         destinationPattern.ParentPath,
                         destinationPattern.TransformName(item.Name))
-                    : ResolveProviderCopyTargetPath(
+                    : await ResolveProviderCopyTargetPathAsync(
                         destinationSource,
                         item,
                         destination.SourcePath,
                         sources.Count,
-                        cancellationToken));
+                        cancellationToken).ConfigureAwait(false));
 
             if (!hasMask)
             {
@@ -71,7 +71,7 @@ internal sealed class FileCopyPlanBuilder(
                 continue;
             }
 
-            AddMaskedProviderPlanItems(
+            await AddMaskedProviderPlanItemsAsync(
                 plan, location, source, normalizedSourcePath, item, targetPath, options.FileMask!, options.SymlinkMode, matcher, groups,
                 destinationSource,
                 validateTarget: path =>
@@ -79,7 +79,7 @@ internal sealed class FileCopyPlanBuilder(
                     if (location.SourceId == destination.SourceId)
                         ValidateCopyTarget(source, normalizedSourcePath, path, item.IsDirectory);
                 },
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
         }
 
         if (template is not null || destinationPattern.HasWildcards)
@@ -89,30 +89,26 @@ internal sealed class FileCopyPlanBuilder(
         // mutation, including for archive batches and cross-provider moves.
         if (!hasMask)
         {
-            int scannedFiles = 0;
-            int scannedFolders = 0;
-            long knownBytes = 0;
+            var counts = new ScanCounts();
             var expanded = new List<ProviderOperationPlanItem>(plan.Count);
             foreach (ProviderOperationPlanItem root in plan)
             {
                 var visiting = new HashSet<string>(root.Source.PathComparer);
-                expanded.Add(ExpandProviderCopyItem(
-                    root, destinationSource, visiting, options.SymlinkMode, reportScanning, ref scannedFiles, ref scannedFolders, ref knownBytes, cancellationToken));
+                expanded.Add(await ExpandProviderCopyItemAsync(
+                    root, destinationSource, visiting, options.SymlinkMode, reportScanning, counts, cancellationToken).ConfigureAwait(false));
             }
             return expanded;
         }
         return plan;
     }
 
-    private static ProviderOperationPlanItem ExpandProviderCopyItem(
+    private static async Task<ProviderOperationPlanItem> ExpandProviderCopyItemAsync(
         ProviderOperationPlanItem item,
         IFilePanelSource destinationSource,
         HashSet<string> visiting,
         SymlinkCopyMode symlinkMode,
         Action<string, int, int, long>? reportScanning,
-        ref int scannedFiles,
-        ref int scannedFolders,
-        ref long knownBytes,
+        ScanCounts counts,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -122,8 +118,8 @@ internal sealed class FileCopyPlanBuilder(
         bool isLink = IsLink(sourceItem);
         if (isLink && symlinkMode == SymlinkCopyMode.CopyLink)
         {
-            scannedFiles++;
-            reportScanning?.Invoke(item.SourcePath, scannedFiles, scannedFolders, knownBytes);
+            counts.Files++;
+            reportScanning?.Invoke(item.SourcePath, counts.Files, counts.Folders, counts.Bytes);
             // The preview and execution both see a single link, never its target tree.
             return item with { Mapping = item.Mapping with { IsDirectory = false } };
         }
@@ -136,9 +132,9 @@ internal sealed class FileCopyPlanBuilder(
 
         if (!sourceItem.IsDirectory)
         {
-            scannedFiles++;
-            knownBytes = checked(knownBytes + (sourceItem.Size ?? 0));
-            reportScanning?.Invoke(item.SourcePath, scannedFiles, scannedFolders, knownBytes);
+            counts.Files++;
+            counts.Bytes = checked(counts.Bytes + (sourceItem.Size ?? 0));
+            reportScanning?.Invoke(item.SourcePath, counts.Files, counts.Folders, counts.Bytes);
             return item;
         }
 
@@ -148,10 +144,10 @@ internal sealed class FileCopyPlanBuilder(
 
         try
         {
-            scannedFolders++;
-            reportScanning?.Invoke(item.SourcePath, scannedFiles, scannedFolders, knownBytes);
+            counts.Folders++;
+            reportScanning?.Invoke(item.SourcePath, counts.Files, counts.Folders, counts.Bytes);
             var children = new List<ProviderOperationPlanItem>();
-            foreach (FilePanelItem child in item.Source.EnumerateDirectory(item.SourcePath, cancellationToken))
+            foreach (FilePanelItem child in (await item.Source.AsAsync().EnumerateDirectoryAsync(item.SourcePath, cancellationToken).ConfigureAwait(false)))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (child.IsParentDirectory)
@@ -160,9 +156,9 @@ internal sealed class FileCopyPlanBuilder(
                 var childPlan = new ProviderOperationPlanItem(
                     child.Location, item.Source, item.Source.NormalizePath(child.SourcePath),
                     child, targetPath, item.Mapping.Destination.SourceId);
-                children.Add(ExpandProviderCopyItem(
-                    childPlan, destinationSource, visiting, symlinkMode, reportScanning, ref scannedFiles, ref scannedFolders, ref knownBytes,
-                    cancellationToken));
+                children.Add(await ExpandProviderCopyItemAsync(
+                    childPlan, destinationSource, visiting, symlinkMode, reportScanning, counts,
+                    cancellationToken).ConfigureAwait(false));
             }
             return item with { Children = children };
         }
@@ -172,7 +168,9 @@ internal sealed class FileCopyPlanBuilder(
         }
     }
 
-    internal static void AddMaskedProviderPlanItems(
+    private sealed class ScanCounts { public int Files; public int Folders; public long Bytes; }
+
+    internal static async Task AddMaskedProviderPlanItemsAsync(
         List<ProviderOperationPlanItem> plan,
         PanelLocation rootLocation,
         IFilePanelSource source,
@@ -211,7 +209,7 @@ internal sealed class FileCopyPlanBuilder(
 
         var files = new List<FilePanelItem>();
         var visiting = new HashSet<string>(source.PathComparer);
-        CollectMatchingProviderFiles(source, rootSourcePath, fileMask, symlinkMode, matcher, groups, files, visiting, cancellationToken);
+        await CollectMatchingProviderFilesAsync(source, rootSourcePath, fileMask, symlinkMode, matcher, groups, files, visiting, cancellationToken).ConfigureAwait(false);
         if (files.Count == 0)
             return;
 
@@ -229,7 +227,7 @@ internal sealed class FileCopyPlanBuilder(
         }
     }
 
-    private static void CollectMatchingProviderFiles(
+    private static async Task CollectMatchingProviderFilesAsync(
         IFilePanelSource source,
         string directoryPath,
         string fileMask,
@@ -247,7 +245,7 @@ internal sealed class FileCopyPlanBuilder(
 
         try
         {
-            foreach (FilePanelItem child in source.EnumerateDirectory(directoryPath, cancellationToken)
+            foreach (FilePanelItem child in (await source.AsAsync().EnumerateDirectoryAsync(directoryPath, cancellationToken).ConfigureAwait(false))
                          .Where(item => !item.IsParentDirectory))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -265,8 +263,8 @@ internal sealed class FileCopyPlanBuilder(
                 else if (child.IsDirectory)
                 {
                     if (isLink) ValidateResolvedLink(child.SourcePath);
-                    CollectMatchingProviderFiles(source, child.SourcePath, fileMask,
-                        symlinkMode, matcher, groups, files, visiting, cancellationToken);
+                    await CollectMatchingProviderFilesAsync(source, child.SourcePath, fileMask,
+                        symlinkMode, matcher, groups, files, visiting, cancellationToken).ConfigureAwait(false);
                 }
                 else
                 {
@@ -339,7 +337,7 @@ internal sealed class FileCopyPlanBuilder(
             throw new IOException("Cannot copy a directory into itself or one of its subdirectories.");
     }
 
-    private static string ResolveProviderCopyTargetPath(
+    private static async Task<string> ResolveProviderCopyTargetPathAsync(
         IFilePanelSource destinationSource,
         FilePanelItem item,
         string destinationPath,
@@ -355,7 +353,7 @@ internal sealed class FileCopyPlanBuilder(
         if (destinationPath.Length == 0 || destinationSource.PathSeparators.Contains(destinationPath[^1]))
             return destinationSource.CombinePath(destinationPath, item.Name);
 
-        FilePanelItem? destinationItem = destinationSource.GetItem(destinationPath, cancellationToken);
+        FilePanelItem? destinationItem = await destinationSource.AsAsync().GetItemAsync(destinationPath, cancellationToken).ConfigureAwait(false);
         return destinationItem?.IsDirectory == true
             ? destinationSource.CombinePath(destinationPath, item.Name)
             : destinationPath;
