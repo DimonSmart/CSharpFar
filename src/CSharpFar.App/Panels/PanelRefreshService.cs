@@ -42,7 +42,9 @@ internal sealed class PanelRefreshService
         RefreshPanelAfterFileOperation(right, PanelSide.Right);
     }
 
-    public void SafeRefresh(FilePanelState state, int visibleRows, Action<bool>? completed = null)
+    public void SafeRefresh(FilePanelState state, int visibleRows) => SafeRefresh(state, visibleRows, null);
+
+    public void SafeRefresh(FilePanelState state, int visibleRows, Action<bool>? completed)
     {
         if (!HasCapability(state, PanelProviderCapabilities.Refresh))
             return;
