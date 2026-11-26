@@ -119,6 +119,12 @@ def check(host, extension, screenshot):
             wait_text("probe-view.txt")
             wait_text("folder")
             capture()
+            send(b"\x1b[H")
+            wait_text("/folder/")
+            send(b"\r")
+            wait_text("nested.txt")
+            send(b"\x1b[H\r")
+            wait_text("probe-view.txt")
             send(b"\x1b[F")  # End: last file in the remote panel
             send(b"\x1bOR")   # F3
             wait_text("AZURE_PROBE_VIEW")
@@ -137,11 +143,17 @@ def check(host, extension, screenshot):
             wait_text("Create the folder:")
             send(b"smoke-created\r")
             wait_for(lambda: "smoke-created" in visible() and "Create the folder:" not in visible(), "directory created")
+            # Async directory refresh may preserve the previously selected file.
+            # Select the newly created directory explicitly and wait for its committed item footer.
+            send(b"\x1b[H")
+            send(b"\x1b[B")
+            wait_text("/smoke-created/")
             send(b"\x1b[19~")
             wait_for(lambda: "smoke-created" not in visible() and "Quit" in visible(), "directory deleted")
             print("PASS: standard F5 download, F7 create directory and F8 delete.")
             # Upload from the passive local panel using the normal copy dialog.
             send(b"\t")
+            time.sleep(0.2)
             send(b"\x1b[F")
             send(b"\x1b[A")
             send(b"\x1b[15~")
