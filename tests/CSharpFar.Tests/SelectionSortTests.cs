@@ -73,7 +73,7 @@ public class SelectionSortTests
 
         ctrl.ToggleSelection(state, 10);
 
-        Assert.Contains(Root + @"\a_file.txt", state.SelectedPaths);
+        Assert.Contains(PanelLocation.Local(Root + @"\a_file.txt"), state.SelectedLocations);
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public class SelectionSortTests
         state.CursorIndex = 2;
         ctrl.ToggleSelection(state, 10);  // deselect
 
-        Assert.Empty(state.SelectedPaths);
+        Assert.Empty(state.SelectedLocations);
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public class SelectionSortTests
         state.CursorIndex = 0; // on ".."
         ctrl.ToggleSelection(state, 10);
 
-        Assert.Empty(state.SelectedPaths);
+        Assert.Empty(state.SelectedLocations);
         Assert.Equal(1, state.CursorIndex); // cursor still moved
     }
 
@@ -126,7 +126,7 @@ public class SelectionSortTests
 
         ctrl.ToggleSelectAll(state);
 
-        Assert.Equal(5, state.SelectedPaths.Count);
+        Assert.Equal(5, state.SelectedLocations.Count);
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class SelectionSortTests
         ctrl.ToggleSelectAll(state); // select all
         ctrl.ToggleSelectAll(state); // deselect all
 
-        Assert.Empty(state.SelectedPaths);
+        Assert.Empty(state.SelectedLocations);
     }
 
     [Fact]
@@ -147,24 +147,24 @@ public class SelectionSortTests
 
         ctrl.InvertSelection(state);
 
-        Assert.Equal(5, state.SelectedPaths.Count);
+        Assert.Equal(5, state.SelectedLocations.Count);
     }
 
     [Fact]
     public void InvertSelection_InvertsPartialSelection()
     {
         var (ctrl, state) = MakePanel();
-        state.SelectedPaths.Add(Root + @"\Assets");
-        state.SelectedPaths.Add(Root + @"\a_file.txt");
+        state.SelectedLocations.Add(PanelLocation.Local(Root + @"\Assets"));
+        state.SelectedLocations.Add(PanelLocation.Local(Root + @"\a_file.txt"));
 
         ctrl.InvertSelection(state);
 
-        Assert.DoesNotContain(Root + @"\Assets", state.SelectedPaths);
-        Assert.DoesNotContain(Root + @"\a_file.txt", state.SelectedPaths);
-        Assert.Contains(Root + @"\Docs", state.SelectedPaths);
-        Assert.Contains(Root + @"\b_file.csv", state.SelectedPaths);
-        Assert.Contains(Root + @"\c_file.txt", state.SelectedPaths);
-        Assert.Equal(3, state.SelectedPaths.Count);
+        Assert.DoesNotContain(PanelLocation.Local(Root + @"\Assets"), state.SelectedLocations);
+        Assert.DoesNotContain(PanelLocation.Local(Root + @"\a_file.txt"), state.SelectedLocations);
+        Assert.Contains(PanelLocation.Local(Root + @"\Docs"), state.SelectedLocations);
+        Assert.Contains(PanelLocation.Local(Root + @"\b_file.csv"), state.SelectedLocations);
+        Assert.Contains(PanelLocation.Local(Root + @"\c_file.txt"), state.SelectedLocations);
+        Assert.Equal(3, state.SelectedLocations.Count);
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public class SelectionSortTests
 
         ctrl.InvertSelection(state);
 
-        Assert.Empty(state.SelectedPaths);
+        Assert.Empty(state.SelectedLocations);
     }
 
     [Fact]
@@ -192,9 +192,9 @@ public class SelectionSortTests
 
         ctrl.InvertSelection(state);
 
-        Assert.DoesNotContain(@"C:\", state.SelectedPaths);
-        Assert.Contains(Root + @"\file.txt", state.SelectedPaths);
-        Assert.Single(state.SelectedPaths);
+        Assert.DoesNotContain(PanelLocation.Local(@"C:\"), state.SelectedLocations);
+        Assert.Contains(PanelLocation.Local(Root + @"\file.txt"), state.SelectedLocations);
+        Assert.Single(state.SelectedLocations);
     }
 
     [Fact]
