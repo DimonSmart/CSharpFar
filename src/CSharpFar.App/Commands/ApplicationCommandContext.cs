@@ -442,7 +442,7 @@ internal sealed class ApplicationCommandContext
         }
 
         FilePanelItem candidate = state.Items[index];
-        if (candidate.Location != committed.CurrentItemLocation)
+        if (committed.CurrentItemLocation is not { } location || !state.SelectedLocations.Comparer.Equals(candidate.Location, location))
             return false;
 
         item = candidate;
@@ -453,7 +453,7 @@ internal sealed class ApplicationCommandContext
         FilePanelState state,
         ApplicationPanelKeyboardFrame? committed) =>
         committed is null ||
-        state.CurrentLocation == committed.CurrentLocation;
+        state.SelectedLocations.Comparer.Equals(state.CurrentLocation, committed.CurrentLocation);
 
     public void RefreshPanels() => _panelRefresh.RefreshPanels(LeftPanel, RightPanel);
 
