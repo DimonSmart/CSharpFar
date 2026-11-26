@@ -443,10 +443,11 @@ public sealed class DemoModeTests : IDisposable
     public void DemoNavigateToRoot_StaysInsideDemoSource()
     {
         string fixture = CreateFixture(("Projects/SampleApp/file.txt", "value"));
-        var context = CreateDemoCommandContext(fixture);
+        var services = CreateDemoServices(fixture);
+        var context = services.CommandContext;
         context.Controller.LoadLocation(context.LeftPanel, PanelLocation.Demo("/Projects/SampleApp"), context.PanelOptions);
 
-        new NavigateToRootCommand().Execute(
+        services.CommandRegistry.Execute(ApplicationCommandIds.NavigateToRoot,
             context,
             new NavigateToRootArgs(PanelSide.Left, "/Projects/SampleApp"));
         context.WaitForPanelLoads();
@@ -573,7 +574,7 @@ public sealed class DemoModeTests : IDisposable
         return await reader.ReadToEndAsync();
     }
 
-    private ApplicationCommandContext CreateDemoCommandContext(string fixture)
+    private ApplicationServices CreateDemoServices(string fixture)
     {
         string configDirectory = Path.Combine(_tempRoot, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(configDirectory);
@@ -599,7 +600,7 @@ public sealed class DemoModeTests : IDisposable
             enableBuiltInNetworkModules: false,
             configDirectory: configDirectory,
             runOptions: new ApplicationRunOptions(ApplicationRunMode.Demo, fixture));
-        return services.CommandContext;
+        return services;
     }
 
     private sealed class OverwriteConflictResolver : IFileOperationConflictResolver
