@@ -132,7 +132,7 @@ public sealed class ProviderPathIdentityTests
             throw new InvalidOperationException("Unexpected conflict.");
     }
 
-    private sealed class PathOnlySource(string id, StringComparer comparer) : IFilePanelSource
+    private sealed class PathOnlySource(string id, StringComparer comparer) : IFilePanelSource, ISafeNewFilePublicationProvider
     {
         public PanelSourceId SourceId { get; } = new(id);
         public string DisplayName => id;
@@ -170,6 +170,18 @@ public sealed class ProviderPathIdentityTests
             string path = NormalizePath(sourcePath);
             if (!overwrite && _items.ContainsKey(path)) throw new IOException("Already exists.");
             return Task.FromResult<Stream>(new WriteStream(bytes => _items[path] = bytes));
+        }
+        public Task<Stream> OpenStagingWriteAsync(string stagingPath, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _items.Add(NormalizePath(stagingPath), []);
+            return OpenWriteAsync(stagingPath, true, cancellationToken);
+        }
+        public Task RenameWithoutOverwriteAsync(string sourcePath, string destinationPath, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_items.ContainsKey(NormalizePath(destinationPath))) throw new IOException("Target exists.");
+            return RenameAsync(sourcePath, destinationPath, cancellationToken);
         }
         public Task CreateDirectoryAsync(string sourcePath, CancellationToken cancellationToken = default)
         {

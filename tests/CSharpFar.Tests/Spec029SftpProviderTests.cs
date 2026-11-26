@@ -264,7 +264,7 @@ public sealed partial class Spec029SftpProviderTests : IDisposable
 
 
 
-    private sealed class MemoryPanelSource : IFilePanelSource
+    private sealed class MemoryPanelSource : IFilePanelSource, ISafeNewFilePublicationProvider, IRecoverableEntryRenameProvider
     {
         private static readonly char[] ProviderPathSeparators = ['/'];
         private readonly Dictionary<string, byte[]> _files = new(StringComparer.Ordinal);
@@ -373,6 +373,22 @@ public sealed partial class Spec029SftpProviderTests : IDisposable
             string path = NormalizePath(sourcePath);
             var stream = new MemoryWriteStream(bytes => _files[path] = bytes);
             return Task.FromResult<Stream>(stream);
+        }
+
+        public Task<Stream> OpenStagingWriteAsync(string stagingPath, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string path = NormalizePath(stagingPath);
+            if (GetItem(path) is not null) throw new IOException("Staging already exists.");
+            _files.Add(path, []);
+            return OpenWriteAsync(path, true, cancellationToken);
+        }
+
+        public Task RenameWithoutOverwriteAsync(string sourcePath, string destinationPath, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (GetItem(destinationPath) is not null) throw new IOException("Target exists.");
+            return RenameAsync(sourcePath, destinationPath, cancellationToken);
         }
 
         public Task CreateDirectoryAsync(

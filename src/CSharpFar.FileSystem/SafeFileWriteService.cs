@@ -127,7 +127,7 @@ public static class SafeFileWriteService
             }
 
             publishing = true;
-            await safe!.PublishNewFileAsync(staging, path, CancellationToken.None).ConfigureAwait(false);
+            await safe!.RenameWithoutOverwriteAsync(staging, path, CancellationToken.None).ConfigureAwait(false);
             return null;
         }
         catch (Exception error)

@@ -40,6 +40,7 @@ internal sealed record FileOperationServiceDependencies
 
     internal Action<string> BeforeDeletePath { get; init; } = static _ => { };
     internal Func<string, string, string?> PublishLocalFile { get; init; } = SafeLocalFilePublisher.Publish;
+    internal Action<string, string> PublishNewLocalFile { get; init; } = SafeLocalFilePublisher.MoveStagingPath;
 }
 
 public sealed partial class FileOperationService : IFileOperationService, IFileOperationPlanBuilder
@@ -138,6 +139,11 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         catch (OperationCanceledException)
         {
             state.Cancelled = true;
+        }
+        catch (UnknownFilePublicationException error)
+        {
+            state.PublicationUnknown = true;
+            state.AddError(error.DestinationPath, error.Message);
         }
 
         return state.ToResult();
@@ -770,8 +776,12 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         long accounted = 0;
         int attempts = 0;
         state.Report(file.SourcePath, destination, 0, file.Size);
+        bool owned = false;
         try
         {
+            // Reserve this path exclusively before any retry can truncate it.
+            using (var reservation = new FileStream(staging, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                owned = true;
             while (true)
             {
                 try
@@ -799,16 +809,24 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 throw new IOException($"Incomplete copy from '{file.SourcePath}' to '{destination}'.");
             _platformOperations.PreserveFileMetadata(file.SourcePath, staging, options, state);
             cancellationToken.ThrowIfCancellationRequested();
-            string? leftover = SafeLocalFilePublisher.PublishChecked(staging, destination, initialTarget.ExpectedDestination, _dependencies.PublishLocalFile);
+            string? leftover = SafeLocalFilePublisher.PublishChecked(staging, destination, initialTarget.ExpectedDestination, _dependencies.PublishLocalFile, _dependencies.PublishNewLocalFile);
             if (leftover is not null)
                 state.AddWarning(destination, $"Backup cleanup failed after publishing '{destination}'. Backup: {leftover}");
             state.CopiedCount++;
             state.CompleteItem();
             return true;
         }
-        catch
+        catch (Exception error)
         {
-            CleanupPartialDestination(staging, options, state);
+            if (owned)
+            {
+                try { CleanupPartialDestination(staging, options, state); }
+                catch (Exception cleanup)
+                {
+                    throw new IOException($"Copy failed and staging cleanup failed: '{staging}'.",
+                        new AggregateException(error, cleanup));
+                }
+            }
             throw;
         }
 
@@ -886,6 +904,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
             state.Report(file.SourcePath, publishedDestination, currentBytes, file.Size);
         }
 
+        await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
         return new CopyAttemptResult(sourceInfo, sourceAttributes);
     }
 
@@ -1009,7 +1028,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 state.AddError(sourcePath, error ?? "Cannot copy symbolic link.");
                 return false;
             }
-            string? leftover = SafeLocalFilePublisher.PublishChecked(staging, destinationPath, target.ExpectedDestination, _dependencies.PublishLocalFile);
+            string? leftover = SafeLocalFilePublisher.PublishChecked(staging, destinationPath, target.ExpectedDestination, _dependencies.PublishLocalFile, _dependencies.PublishNewLocalFile);
             if (leftover is not null)
                 state.AddWarning(destinationPath, $"Backup cleanup failed. Backup: {leftover}");
             return true;
@@ -1377,6 +1396,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         public int SkippedCount { get; set; }
         public bool Cancelled { get; set; }
         public bool PartiallyMoved { get; set; }
+        public bool PublicationUnknown { get; set; }
         public FileConflictDecisionPolicy Conflicts { get; } = new();
         public List<FileOperationItemError> Errors { get; } = [];
         public List<FileOperationItemError> Warnings { get; } = [];
@@ -1538,6 +1558,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 SkippedCount = SkippedCount,
                 Cancelled = Cancelled,
                 PartiallyMoved = PartiallyMoved,
+                PublicationUnknown = PublicationUnknown,
                 BytesProcessed = _bytesProcessed,
                 TotalBytes = _totalBytes,
                 Errors = Errors,

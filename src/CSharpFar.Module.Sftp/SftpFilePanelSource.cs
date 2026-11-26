@@ -207,7 +207,7 @@ public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource
     public Task<Stream> OpenStagingWriteAsync(string stagingPath, CancellationToken cancellationToken = default) =>
         OpenWriteAsync(stagingPath, overwrite: false, cancellationToken);
 
-    public Task PublishNewFileAsync(string stagingPath, string destinationPath, CancellationToken cancellationToken = default) =>
+    public Task RenameWithoutOverwriteAsync(string stagingPath, string destinationPath, CancellationToken cancellationToken = default) =>
         RenameAsync(stagingPath, destinationPath, cancellationToken);
 
     public Task CreateDirectoryAsync(

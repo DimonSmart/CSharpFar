@@ -11,6 +11,7 @@ public sealed record FileOperationResult
     public int FailedCount => Errors.Count;
     public bool Cancelled { get; init; }
     public bool PartiallyMoved { get; init; }
+    public bool PublicationUnknown { get; init; }
     public long BytesProcessed { get; init; }
     public long TotalBytes { get; init; }
     public required IReadOnlyList<FileOperationItemError> Errors { get; init; }

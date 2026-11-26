@@ -309,7 +309,7 @@ public sealed class SafeCopyP1Tests : IDisposable
         var dependencies = FileOperationServiceDependencies.Default with
         {
             ForceMoveFallback = static (_, _) => true,
-            PublishLocalFile = (_, _) => throw new IOException("Simulated staging publication error"),
+            PublishNewLocalFile = (_, _) => throw new IOException("Simulated staging publication error"),
         };
         var request = new FileOperationRequest
         {

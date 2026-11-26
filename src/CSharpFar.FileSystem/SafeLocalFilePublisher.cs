@@ -44,13 +44,13 @@ internal static class SafeLocalFilePublisher
     }
 
     internal static string? PublishChecked(string staging, string destination, DestinationSnapshot? expected,
-        Func<string, string, string?>? replace = null)
+        Func<string, string, string?>? replace = null, Action<string, string>? create = null)
     {
         if (CaptureDestination(destination) != expected)
             throw new IOException($"Destination changed before publication: '{destination}'.");
         if (expected is null)
         {
-            MoveStagingPath(staging, destination);
+            (create ?? MoveStagingPath)(staging, destination);
             return null;
         }
         return (replace ?? Publish)(staging, destination);
@@ -87,7 +87,7 @@ internal static class SafeLocalFilePublisher
         {
             if (PathExists(backup))
             {
-                try { File.Move(backup, destination, overwrite: true); }
+                try { File.Move(backup, destination); }
                 catch (Exception rollback)
                 {
                     throw new IOException($"Publication and rollback failed for '{destination}'. Original backup: '{backup}'.",

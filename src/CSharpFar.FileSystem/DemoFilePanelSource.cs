@@ -4,7 +4,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.FileSystem;
 
-public sealed class DemoFilePanelSource : IFilePanelSource, ISafeNewFilePublicationProvider
+public sealed class DemoFilePanelSource : IFilePanelSource, ISafeNewFilePublicationProvider, IRecoverableEntryRenameProvider
 {
     private static readonly char[] ProviderPathSeparators = ['/'];
     private const int MaxFileCount = 512;
@@ -188,7 +188,7 @@ public sealed class DemoFilePanelSource : IFilePanelSource, ISafeNewFilePublicat
         }
     }
 
-    public Task PublishNewFileAsync(string stagingPath, string destinationPath, CancellationToken cancellationToken = default) =>
+    public Task RenameWithoutOverwriteAsync(string stagingPath, string destinationPath, CancellationToken cancellationToken = default) =>
         RenameAsync(stagingPath, destinationPath, cancellationToken);
 
     public Task CreateDirectoryAsync(
