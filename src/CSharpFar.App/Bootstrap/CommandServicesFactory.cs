@@ -84,7 +84,8 @@ internal static class CommandServicesFactory
             () => callbacks.GetActiveSide(),
             () => sourceRegistry.TryGetSource(PanelSourceId.Local, out _),
             () => callbacks.PanelOptions(),
-            (state, side) => callbacks.StartWatching(state, side));
+            (state, side) => callbacks.StartWatching(state, side),
+            navigation: panelNavigation);
         var externalConsoleCommandRunner = new ExternalConsoleCommandRunner(
             screen,
             terminalSurface,

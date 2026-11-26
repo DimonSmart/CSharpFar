@@ -65,19 +65,20 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
         PanelLocation destination = targetState.SourceId == PanelSourceId.Demo
             ? new PanelLocation(PanelSourceId.Demo, directoryPath)
             : PanelLocation.Local(directoryPath);
-        bool loaded = context.Controller.TryLoadLocation(targetState,
-            destination, context.PanelOptions, preserveOnError: true);
-        if (!loaded)
+        context.NavigatePanel(targetState, destination, preserveOnError: true, loaded =>
         {
-            context.Dialogs.Message("Change drive", $"Unable to open volume: {volume.RootPath}");
-            return ApplicationCommandResult.Rendered();
-        }
-
-        context.QuickView = false;
-        context.ActiveSide = PanelSide;
-        if (destination.SourceId == PanelSourceId.Local)
-            context.History.AddDirectory(new DirectoryHistoryItem { Path = directoryPath });
-        context.StartWatching(targetState, PanelSide);
+            if (!loaded)
+            {
+                context.Dialogs.Message("Change drive", $"Unable to open volume: {volume.RootPath}");
+                return;
+            }
+            PanelSide side = context.SideForState(targetState);
+            context.QuickView = false;
+            context.ActiveSide = side;
+            if (destination.SourceId == PanelSourceId.Local)
+                context.History.AddDirectory(new DirectoryHistoryItem { Path = directoryPath });
+            context.StartWatching(targetState, side);
+        });
         return ApplicationCommandResult.Rendered();
     }
 

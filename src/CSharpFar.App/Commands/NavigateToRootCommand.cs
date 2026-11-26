@@ -32,13 +32,8 @@ internal sealed class NavigateToRootCommand : IApplicationCommand
         if (string.Equals(currentDirectory, root, StringComparison.OrdinalIgnoreCase))
             return ApplicationCommandResult.Rendered();
 
-        bool loaded = context.Controller.TryLoadLocation(
-            state,
-            new PanelLocation(state.SourceId, root),
-            context.PanelOptions);
-
-        if (loaded)
-            context.StartWatching(state, side);
+        context.NavigatePanel(state, new PanelLocation(state.SourceId, root), preserveOnError: false,
+            loaded => { if (loaded) context.StartWatching(state, context.SideForState(state)); });
 
         return ApplicationCommandResult.Rendered();
     }

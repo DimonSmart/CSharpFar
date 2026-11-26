@@ -60,22 +60,14 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        if (!Directory.Exists(canonicalPath))
+        context.ResetTransientNavigationUi();
+        context.NavigatePanel(state, PanelLocation.Local(canonicalPath), preserveOnError: true, loaded =>
         {
-            context.Dialogs.Message("Directory Shortcut", $"Directory not found: {canonicalPath}");
-            return ApplicationCommandResult.Rendered();
-        }
-
-        try
-        {
-            context.ResetTransientNavigationUi();
-            context.Controller.LoadDirectory(state, canonicalPath, context.PanelOptions);
-            context.StartWatching(state, side);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            context.Dialogs.Message("Directory Shortcut", ex.Message);
-        }
+            if (loaded)
+                context.StartWatching(state, context.SideForState(state));
+            else
+                context.Dialogs.Message("Directory Shortcut", $"Cannot open directory: {canonicalPath}");
+        });
 
         return ApplicationCommandResult.Rendered();
     }

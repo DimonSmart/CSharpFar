@@ -463,6 +463,11 @@ internal sealed class ApplicationCommandContext
     public void SafeRefresh(FilePanelState state, int visibleRows) =>
         _panelRefresh.SafeRefresh(state, visibleRows);
 
+    public void NavigatePanel(FilePanelState state, PanelLocation location, bool preserveOnError, Action<bool> completed) =>
+        _panelNavigation.Navigate(state, location, preserveOnError, completed);
+
+    public PanelSide SideForState(FilePanelState state) => _panelWorkspace.PanelSideForState(state);
+
     public void StartWatching(FilePanelState state, PanelSide side) =>
         _autoRefresh.StartWatching(state, side);
 

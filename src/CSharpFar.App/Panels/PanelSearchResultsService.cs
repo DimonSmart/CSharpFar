@@ -9,6 +9,7 @@ namespace CSharpFar.App.Panels;
 
 internal sealed class PanelSearchResultsService
 {
+    public PanelNavigationService? Navigation { get; set; }
     private readonly DialogService _dialogs;
     private readonly PanelController _controller;
     private readonly IHistoryStore _history;
@@ -56,6 +57,7 @@ internal sealed class PanelSearchResultsService
             ShowCurrentItemFullPath = true,
         };
 
+        Navigation?.Loading?.Cancel(state);
         _closeQuickSearchForState(state);
         _controller.ReplaceContent(
             state,
@@ -70,8 +72,10 @@ internal sealed class PanelSearchResultsService
     {
         _closeQuickSearchForPanel(side);
         var rootPath = state.SearchRequest!.RootPath;
-        if (_controller.TryLoadDirectory(state, rootPath, _panelOptions()))
-            _startWatching(state, side);
+        Navigate(state, PanelLocation.Local(rootPath), loaded =>
+        {
+            if (loaded) _startWatching(state, _panelSideForState(state));
+        });
     }
 
     public void GoToResult(FilePanelState state, PanelSide side, SearchResultItem result)
@@ -107,22 +111,24 @@ internal sealed class PanelSearchResultsService
             return;
         }
 
-        try
+        Navigate(state, directoryLocation, loaded =>
         {
-            if (_controller.TryLoadLocation(state, directoryLocation, _panelOptions()))
-            {
-                if (!isDirectory)
-                    _controller.SetCursorByLocation(state, location, _visibleRows(side));
+            if (!loaded) return;
+            PanelSide currentSide = _panelSideForState(state);
+            if (!isDirectory)
+                _controller.SetCursorByLocation(state, location, _visibleRows(currentSide));
+            if (state.SourceId == PanelSourceId.Local)
+                _history.AddDirectory(new DirectoryHistoryItem { Path = state.CurrentDirectory });
+            _startWatching(state, currentSide);
+        });
+    }
 
-                if (state.SourceId == PanelSourceId.Local)
-                    _history.AddDirectory(new DirectoryHistoryItem { Path = state.CurrentDirectory });
-                _startWatching(state, side);
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException)
-        {
-            _dialogs.Message("Search", ex.Message);
-        }
+    private void Navigate(FilePanelState state, PanelLocation location, Action<bool> completed)
+    {
+        if (Navigation is { } navigation)
+            navigation.Navigate(state, location, preserveOnError: false, completed);
+        else
+            completed(_controller.TryLoadLocation(state, location, _panelOptions()));
     }
 
     private static FilePanelItem ToFilePanelItem(SearchResultItem item) =>

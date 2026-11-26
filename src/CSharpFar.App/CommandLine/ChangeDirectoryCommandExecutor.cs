@@ -1,3 +1,4 @@
+using CSharpFar.App.Panels;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
@@ -15,6 +16,7 @@ internal sealed class ChangeDirectoryCommandExecutor
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
     private readonly Action<FilePanelState, PanelSide> _startWatching;
     private readonly ILocalPathNormalizer _localPathNormalizer;
+    private readonly PanelNavigationService? _navigation;
 
     public ChangeDirectoryCommandExecutor(
         PanelController controller,
@@ -23,9 +25,11 @@ internal sealed class ChangeDirectoryCommandExecutor
         Func<bool> isLocalSourceAvailable,
         Func<AppSettingsAlias.PanelOptionsSettings> panelOptions,
         Action<FilePanelState, PanelSide> startWatching,
-        ILocalPathNormalizer? localPathNormalizer = null)
+        ILocalPathNormalizer? localPathNormalizer = null,
+        PanelNavigationService? navigation = null)
     {
         _controller = controller;
+        _navigation = navigation;
         _activeState = activeState;
         _activeSide = activeSide;
         _isLocalSourceAvailable = isLocalSourceAvailable;
@@ -55,7 +59,7 @@ internal sealed class ChangeDirectoryCommandExecutor
                 return true;
             }
 
-            if (!Directory.Exists(targetDirectory))
+            if (_navigation is null && !Directory.Exists(targetDirectory))
                 return true;
         }
         catch (Exception ex) when (IsChangeDirectoryException(ex))
@@ -73,7 +77,15 @@ internal sealed class ChangeDirectoryCommandExecutor
 
         try
         {
-            if (_controller.TryLoadDirectory(state, targetDirectory, _panelOptions()))
+            if (_navigation is { } navigation)
+            {
+                PanelSide initialSide = _activeSide();
+                navigation.Navigate(state, PanelLocation.Local(targetDirectory), preserveOnError: true, loaded =>
+                {
+                    if (loaded) _startWatching(state, navigation.ResolveSide?.Invoke(state) ?? initialSide);
+                });
+            }
+            else if (_controller.TryLoadDirectory(state, targetDirectory, _panelOptions()))
                 _startWatching(state, _activeSide());
         }
         catch (Exception ex) when (IsChangeDirectoryException(ex))

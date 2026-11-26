@@ -44,21 +44,13 @@ internal sealed class DirectoryHistoryCommand : IApplicationCommand
                 return ApplicationCommandResult.Rendered();
             }
 
-            if (!Directory.Exists(canonicalPath))
+            context.NavigatePanel(target.State, PanelLocation.Local(canonicalPath), preserveOnError: true, loaded =>
             {
-                context.Dialogs.Message("Directory History", $"Directory not found: {canonicalPath}");
-                return ApplicationCommandResult.Rendered();
-            }
-
-            try
-            {
-                context.Controller.LoadDirectory(target.State, canonicalPath, context.PanelOptions);
-                context.StartWatching(target.State, target.Side);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                context.Dialogs.Message("Directory History", ex.Message);
-            }
+                if (loaded)
+                    context.StartWatching(target.State, context.SideForState(target.State));
+                else
+                    context.Dialogs.Message("Directory History", $"Cannot open directory: {canonicalPath}");
+            });
 
             return ApplicationCommandResult.Rendered();
         }
