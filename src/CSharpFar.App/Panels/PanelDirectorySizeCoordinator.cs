@@ -307,11 +307,11 @@ internal sealed class PanelDirectorySizeCoordinator : IDisposable
                 }
                 _wakeInputLoop();
 
-                DirectoryTreeSizeScanResult result = _scanner.Scan(
+                DirectoryTreeSizeScanResult result = await _scanner.ScanAsync(
                     session.Source,
                     operation.Path,
                     progress => OnProgress(session, operation, progress),
-                    operationToken);
+                    operationToken).ConfigureAwait(false);
                 OnCompleted(session, operation, result);
             }
             catch (OperationCanceledException)

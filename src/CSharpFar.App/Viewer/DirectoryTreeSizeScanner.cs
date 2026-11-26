@@ -1,5 +1,6 @@
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 
 namespace CSharpFar.App.Viewer;
 
@@ -26,6 +27,10 @@ internal interface IDirectoryTreeSizeScanner
         string rootSourcePath,
         Action<DirectoryTreeSizeProgress>? progress,
         CancellationToken cancellationToken);
+
+    Task<DirectoryTreeSizeScanResult> ScanAsync(IFilePanelSource source, string rootSourcePath,
+        Action<DirectoryTreeSizeProgress>? progress, CancellationToken cancellationToken) =>
+        Task.Run(() => Scan(source, rootSourcePath, progress, cancellationToken), cancellationToken);
 }
 
 internal static class DirectoryTraversalPolicy
@@ -67,7 +72,12 @@ internal sealed class DirectoryTreeSizeScanner : IDirectoryTreeSizeScanner
         IFilePanelSource source,
         string rootSourcePath,
         Action<DirectoryTreeSizeProgress>? progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) =>
+        ScanAsync(source, rootSourcePath, progress, cancellationToken).GetAwaiter().GetResult();
+
+    public async Task<DirectoryTreeSizeScanResult> ScanAsync(
+        IFilePanelSource source, string rootSourcePath,
+        Action<DirectoryTreeSizeProgress>? progress, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentException.ThrowIfNullOrWhiteSpace(rootSourcePath);
@@ -110,9 +120,7 @@ internal sealed class DirectoryTreeSizeScanner : IDirectoryTreeSizeScanner
             IReadOnlyList<FilePanelItem> children;
             try
             {
-                // EnumerateDirectory is synchronous. The caller is responsible for invoking
-                // the whole Scan method from a background worker.
-                children = source.EnumerateDirectory(normalizedPath, cancellationToken);
+                children = await source.AsAsync().EnumerateDirectoryAsync(normalizedPath, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {

@@ -167,7 +167,7 @@ internal sealed class PanelFileViewerService
         try
         {
             var source = _sourceRegistry.GetSource(item.SourceId);
-            input = await source.OpenReadAsync(item.SourcePath, cancellationToken).ConfigureAwait(false);
+            input = await source.AsAsync().OpenReadAsync(item.SourcePath, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
 
             if (input.CanSeek)

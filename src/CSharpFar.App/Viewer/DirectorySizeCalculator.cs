@@ -64,7 +64,7 @@ internal sealed class DirectorySizeCalculator : IDirectorySizeCalculator
         var token = _cts.Token;
         long operationId = Interlocked.Increment(ref _nextOperationId);
         operationStarted?.Invoke(operationId);
-        _ = Task.Run(() => Calculate(operationId, path, progressMode, token), token);
+        _ = Task.Run(() => CalculateAsync(operationId, path, progressMode, token), token);
         return operationId;
     }
 
@@ -75,7 +75,7 @@ internal sealed class DirectorySizeCalculator : IDirectorySizeCalculator
         old.Dispose();
     }
 
-    private void Calculate(
+    private async Task CalculateAsync(
         long operationId,
         string path,
         DirectoryScanProgressMode progressMode,
@@ -90,7 +90,7 @@ internal sealed class DirectorySizeCalculator : IDirectorySizeCalculator
                     new DirectorySizeState(value.Size, false, value.Errors)))
                 : null;
 
-            DirectoryTreeSizeScanResult result = _scanner.Scan(_source, path, progress, token);
+            DirectoryTreeSizeScanResult result = await _scanner.ScanAsync(_source, path, progress, token).ConfigureAwait(false);
             if (token.IsCancellationRequested)
                 return;
 

@@ -70,7 +70,7 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         var app = CreateApp(fs, driver, fileOps);
         SetSearchResultsPanel(GetRightPanel(app), Path.Combine(_root, "found.txt"));
 
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Empty(fileOps.Requests);
     }
@@ -228,7 +228,7 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
             ],
             cancelled: false);
 
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal(PanelLocation.Local(_root), state.CurrentLocation);
         Assert.Equal(PanelProviderCapabilities.LocalFileSystem, state.ProviderCapabilities);
@@ -282,7 +282,7 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         var app = CreateApp(fs, driver, fileOps, fileLauncher: launcher);
         SetSearchResultsPanel(GetLeftPanel(app), foundFile);
 
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         var left = GetLeftPanel(app);
         Assert.Equal(subDirectory, left.CurrentDirectory);
@@ -318,7 +318,7 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         var app = CreateApp(fs, driver, fileOps);
         SetSearchResultsPanel(GetLeftPanel(app), foundDirectory, isDirectory: true);
 
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         var left = GetLeftPanel(app);
         Assert.Equal(foundDirectory, left.CurrentDirectory);
