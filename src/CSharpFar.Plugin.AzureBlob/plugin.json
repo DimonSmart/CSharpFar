@@ -1,0 +1,8 @@
+{
+  "id": "azure-blob",
+  "name": "Azure Blob Storage",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "assembly": "CSharpFar.Plugin.AzureBlob.dll",
+  "entryType": "CSharpFar.Plugin.AzureBlob.Plugin"
+}
