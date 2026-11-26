@@ -153,7 +153,7 @@ public sealed class SafeCopyP1Tests : IDisposable
     }
 
     [Fact]
-    public async Task ProviderWithoutBatch_RejectsOverwriteWithoutDeletingTarget()
+    public async Task ProviderWithoutBatch_OverwritesWithApprovedConflict()
     {
         string fixture = Path.Combine(_root, "demo");
         Write(fixture, "source.txt", "NEW");
@@ -167,11 +167,10 @@ public sealed class SafeCopyP1Tests : IDisposable
             Destination = PanelLocation.Demo("/target.txt"),
             Options = new FileOperationOptions { DefaultConflictDecision = ConflictDecisionMode.Overwrite },
         };
-        await Assert.ThrowsAsync<NotSupportedException>(() =>
-            service.ExecuteAsync(request, null, new OverwriteResolver()));
+        Assert.Equal(1, (await service.ExecuteAsync(request, null, new OverwriteResolver())).CopiedCount);
         await using Stream stream = await source.OpenReadAsync("/target.txt");
         using var reader = new StreamReader(stream);
-        Assert.Equal("ORIGINAL", await reader.ReadToEndAsync());
+        Assert.Equal("NEW", await reader.ReadToEndAsync());
     }
 
     [Fact]

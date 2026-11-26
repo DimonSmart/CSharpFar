@@ -108,7 +108,42 @@ public static class SafeFileWriteService
     internal static bool UsesBestEffort(IFilePanelSource source, bool overwrite) =>
         source is not IFileOperationBatch && source is not IFileOperationBatchProvider &&
         source.SourceId != PanelSourceId.Local &&
-        (overwrite || source is not ISafeNewFilePublicationProvider);
+        (source is not ISafeNewFilePublicationProvider ||
+            (overwrite && !SupportsRecoverableReplacement(source)));
+
+    private static bool SupportsRecoverableReplacement(IFilePanelSource source) =>
+        source is IRecoverableEntryRenameProvider &&
+        source.Capabilities.HasFlag(PanelProviderCapabilities.Delete);
+
+    private static async Task<string?> PublishRecoverableReplacementAsync(IFilePanelSource source,
+        IRecoverableEntryRenameProvider rename, string staging, string path, FilePanelItem expected)
+    {
+        if (!SameDestination(expected, await source.AsAsync().GetItemAsync(path, CancellationToken.None).ConfigureAwait(false)))
+            throw new IOException($"Destination changed before replacement: '{path}'.");
+        string backup = source.CombinePath(source.GetParentPath(path) ?? throw new IOException("No destination directory."),
+            $".{source.GetFileName(path)}.csharpfar-{Guid.NewGuid():N}.backup");
+        await rename.RenameWithoutOverwriteAsync(path, backup, CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            await rename.RenameWithoutOverwriteAsync(staging, path, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception error)
+        {
+            try { await rename.RenameWithoutOverwriteAsync(backup, path, CancellationToken.None).ConfigureAwait(false); }
+            catch (Exception recovery)
+            {
+                throw new IOException($"Replacement and recovery failed; original destination retained at '{backup}'.",
+                    new AggregateException(error, recovery));
+            }
+            throw;
+        }
+        try { await source.AsAsync().DeleteAsync(backup, recursive: false, CancellationToken.None).ConfigureAwait(false); }
+        catch (Exception cleanup)
+        {
+            return $"File published, but backup cleanup failed: '{backup}'. {cleanup.Message}";
+        }
+        return null;
+    }
 
     private static async Task<string?> WriteBestEffortAsync(IFilePanelSource source, string path,
         FilePanelItem? expected, long? expectedLength, Func<Stream, Task<long>> write,
@@ -209,7 +244,7 @@ public static class SafeFileWriteService
                 cancellationToken, replaceLocal, createLocal).ConfigureAwait(false);
         }
 
-        if (!batch && (safe is null || expected is not null))
+        if (!batch && UsesBestEffort(source, expected is not null))
             return await WriteBestEffortAsync(source, path, expected, expectedLength, write,
                 keepPartial, cancellationToken).ConfigureAwait(false);
 
@@ -239,6 +274,8 @@ public static class SafeFileWriteService
             if (batch) return null;
 
             publishing = true;
+            if (expected is not null && source is IRecoverableEntryRenameProvider recoverable)
+                return await PublishRecoverableReplacementAsync(source, recoverable, staging, path, expected).ConfigureAwait(false);
             await safe!.RenameWithoutOverwriteAsync(staging, path, CancellationToken.None).ConfigureAwait(false);
             return null;
         }

@@ -157,7 +157,62 @@ public sealed class SafeFilePublicationTests : IDisposable
             return 4;
         }, keep, ct);
 
-    private sealed class StagedSource : MemoryFilePanelView, ISafeNewFilePublicationProvider
+    [Fact]
+    public async Task RecoverableReplacement_RestoresOriginalAndDoesNotDowngrade()
+    {
+        var remote = new RecoverableSource { Fault = "replacement" };
+        remote.SeedFile("/target", "original");
+        await Assert.ThrowsAsync<IOException>(() =>
+            SafeFileWriteService.WriteDocumentAsync(remote, "/target", Encoding.UTF8.GetBytes("data")));
+        Assert.Equal("original", remote.ReadText("/target"));
+        Assert.Single(remote.EnumerateDirectory("/"));
+    }
+
+    [Fact]
+    public async Task RecoverableReplacement_PublishesCompleteDataAndRemovesBackup()
+    {
+        var remote = new RecoverableSource();
+        remote.SeedFile("/target", "original");
+        Assert.Null(await SafeFileWriteService.WriteDocumentAsync(remote, "/target", Encoding.UTF8.GetBytes("data")));
+        Assert.Equal("data", remote.ReadText("/target"));
+        Assert.Single(remote.EnumerateDirectory("/"));
+    }
+
+    [Fact]
+    public async Task StagingCleanupFailure_IsReportedWithOriginalError()
+    {
+        var remote = new StagedSource { Fault = "cleanup" };
+        var error = await Assert.ThrowsAsync<IOException>(() => Write(remote));
+        Assert.Contains("cleanup failed", error.Message);
+        Assert.IsType<AggregateException>(error.InnerException);
+        Assert.Null(remote.ReadText("/target"));
+        Assert.Single(remote.EnumerateDirectory("/"));
+    }
+
+    [Fact]
+    public async Task CrossProviderOverwriteMove_UnknownCompletionRetainsSource()
+    {
+        var remote = new StagedSource { FailWrite = true };
+        remote.SeedFile("/target", "old");
+        string path = Path.Combine(_root, "target");
+        File.WriteAllText(path, "data");
+        var registry = new FilePanelSourceRegistry([new LocalFilePanelSource(new FileSystemService()), remote]);
+        var result = await new FileOperationService(registry).ExecuteAsync(new FileOperationRequest
+        {
+            Kind = FileOperationKind.Move,
+            Sources = [PanelLocation.Local(path)],
+            Destination = new PanelLocation(remote.SourceId, "/"),
+            Options = new FileOperationOptions { DefaultConflictDecision = ConflictDecisionMode.Overwrite },
+        }, null, new OverwriteResolver());
+        Assert.True(result.PublicationUnknown);
+        Assert.Equal(0, result.MovedCount);
+        Assert.Equal("data", File.ReadAllText(path));
+        Assert.Equal("old", remote.ReadText("/target"));
+    }
+
+    private sealed class RecoverableSource : StagedSource, IRecoverableEntryRenameProvider { }
+
+    private class StagedSource : MemoryFilePanelView, ISafeNewFilePublicationProvider, IFilePanelSource
     {
         public StagedSource() : base(new PanelSourceId("staged-test")) { }
         public string Fault { get; init; } = "";
@@ -175,9 +230,17 @@ public sealed class SafeFilePublicationTests : IDisposable
             }));
         }
 
+        public new Task DeleteAsync(string path, bool recursive, CancellationToken ct = default)
+        {
+            if (Fault == "cleanup") throw new IOException("cleanup rejected");
+            return base.DeleteAsync(path, recursive, ct);
+        }
+
         public async Task RenameWithoutOverwriteAsync(string source, string destination, CancellationToken ct = default)
         {
-            if (Fault == "rename") throw new IOException("rename rejected");
+            if (Fault is "rename" or "cleanup" ||
+                (Fault == "replacement" && source.EndsWith(".tmp", StringComparison.Ordinal)))
+                throw new IOException("rename rejected");
             if (Fault == "late") SeedFile(destination, "external");
             if (GetItem(destination) is not null) throw new IOException("exists");
             await RenameAsync(source, destination, ct);

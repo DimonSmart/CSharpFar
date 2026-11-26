@@ -1315,7 +1315,7 @@ retains its format-specific validation and digest check and uses the same local 
 | SFTP | Exclusive SFTP create, verify size, standard SFTP v3 rename (not POSIX overwrite) | Best Effort direct stream replacement |
 | FTP/FTPS | Best Effort (STOR is not exclusive create) | Best Effort direct stream replacement |
 | Archive / transactional provider | Stage inside a batch, then commit | Same batch contract |
-| Other writable provider | Safe new-file publication if supported, otherwise Best Effort | Best Effort unless a stronger applicable contract exists |
+| Other writable provider | Safe new-file publication if supported, otherwise Best Effort | Recoverable staged replacement with safe-new and recoverable-rename contracts plus Delete; otherwise Best Effort |
 
 New optional contracts are `ISafeEntryRenameProvider`,
 `ISafeNewFilePublicationProvider`, `IRecoverableEntryRenameProvider`, and
