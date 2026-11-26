@@ -10,7 +10,7 @@ using FluentFTP.Exceptions;
 
 namespace CSharpFar.Module.Ftp;
 
-public sealed class FtpFilePanelSource : IModulePanel, IReusableFilePanelSource, ITemporaryFilePanelSource, IFilePanelSourceActivation
+public sealed class FtpFilePanelSource : IModulePanel, IAsyncFilePanelSource, IReusableFilePanelSource, ITemporaryFilePanelSource, IFilePanelSourceActivation
 {
     private static readonly char[] ProviderPathSeparators = ['/', '\\'];
     private readonly FtpConnectionInfo _connection;
@@ -151,104 +151,130 @@ public sealed class FtpFilePanelSource : IModulePanel, IReusableFilePanelSource,
             });
     }
 
-    public Task<Stream> OpenReadAsync(
+    public async Task<IReadOnlyList<FilePanelItem>> EnumerateDirectoryAsync(
         string sourcePath,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var client = CreateConnectedClient();
+        string path = NormalizePath(sourcePath);
+        return await ExecuteFtpOperationAsync(
+            "read directory",
+            path,
+            async client => (await client.GetListing(path, token: cancellationToken).ConfigureAwait(false))
+                .Where(item => item.Name is not "." and not "..")
+                .Select(ToPanelItem)
+                .ToList(), cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<FilePanelItem?> GetItemAsync(
+        string sourcePath,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        string path = NormalizePath(sourcePath);
+
+        return await ExecuteFtpOperationAsync<FilePanelItem?>(
+            "read item",
+            path,
+            async client =>
+            {
+                var item = await client.GetObjectInfo(path, dateModified: true, token: cancellationToken).ConfigureAwait(false);
+                if (item is not null)
+                    return ToPanelItem(item);
+
+                if (path == "/" || await client.DirectoryExists(path, cancellationToken).ConfigureAwait(false))
+                    return ToDirectoryItem(path, DateTime.MinValue);
+
+                return null;
+            }, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<Stream> OpenReadAsync(
+        string sourcePath,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var client = await CreateConnectedClientAsync(cancellationToken).ConfigureAwait(false);
         string path = NormalizePath(sourcePath);
         try
         {
-            Stream stream = client.OpenRead(path, FtpDataType.Binary, restart: 0, checkIfFileExists: true);
-            return Task.FromResult<Stream>(new ClientOwnedStream(
+            Stream stream = await client.OpenRead(path, FtpDataType.Binary, restart: 0, checkIfFileExists: true, token: cancellationToken).ConfigureAwait(false);
+            return new ClientOwnedStream(
                 client,
                 stream,
                 readCompletionReply: false,
-                ex => CreateFtpException(ex, "read file", path)));
+                ex => CreateFtpException(ex, "read file", path));
         }
-        catch (Exception ex) when (IsFtpClientException(ex))
+        catch (Exception ex)
         {
             client.Dispose();
+            if (!IsFtpClientException(ex)) throw;
             throw CreateFtpException(ex, "open file for reading", path);
         }
     }
 
-    public Task<Stream> OpenWriteAsync(
+    public async Task<Stream> OpenWriteAsync(
         string sourcePath,
         bool overwrite,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var client = CreateConnectedClient();
+        var client = await CreateConnectedClientAsync(cancellationToken).ConfigureAwait(false);
         string path = NormalizePath(sourcePath);
         try
         {
-            if (!overwrite && client.GetObjectInfo(path) is not null)
+            if (!overwrite && await client.GetObjectInfo(path, token: cancellationToken).ConfigureAwait(false) is not null)
                 throw new IOException($"FTP open file for writing failed for {path}: file already exists.");
 
-            Stream stream = client.OpenWrite(path, FtpDataType.Binary, checkIfFileExists: false);
-            return Task.FromResult<Stream>(new ClientOwnedStream(
+            Stream stream = await client.OpenWrite(path, FtpDataType.Binary, checkIfFileExists: false, token: cancellationToken).ConfigureAwait(false);
+            return new ClientOwnedStream(
                 client,
                 stream,
                 readCompletionReply: true,
-                ex => CreateFtpException(ex, "write file", path)));
+                ex => CreateFtpException(ex, "write file", path));
         }
-        catch (Exception ex) when (IsFtpClientException(ex))
+        catch (Exception ex)
         {
             client.Dispose();
+            if (!IsFtpClientException(ex)) throw;
             throw CreateFtpException(ex, "open file for writing", path);
         }
     }
 
-    public Task CreateDirectoryAsync(
-        string sourcePath,
-        CancellationToken cancellationToken = default)
+    public async Task CreateDirectoryAsync(string sourcePath, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         string path = NormalizePath(sourcePath);
-        ExecuteFtpOperation(
-            "create directory",
-            path,
-            client => client.CreateDirectory(path, force: true));
-        return Task.CompletedTask;
+        await ExecuteFtpOperationAsync("create directory", path, async client =>
+        {
+            await client.CreateDirectory(path, force: true, token: cancellationToken).ConfigureAwait(false);
+            return true;
+        }, cancellationToken).ConfigureAwait(false);
     }
 
-    public Task DeleteAsync(
-        string sourcePath,
-        bool recursive,
-        CancellationToken cancellationToken = default)
+    public async Task DeleteAsync(string sourcePath, bool recursive, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         string path = NormalizePath(sourcePath);
-        ExecuteFtpOperation(
-            "delete",
-            path,
-            client => DeleteCore(client, path, recursive, cancellationToken));
-        return Task.CompletedTask;
+        await ExecuteFtpOperationAsync("delete", path, async client =>
+        {
+            await DeleteCoreAsync(client, path, recursive, cancellationToken).ConfigureAwait(false);
+            return true;
+        }, cancellationToken).ConfigureAwait(false);
     }
 
-    public Task RenameAsync(
-        string sourcePath,
-        string newSourcePath,
-        CancellationToken cancellationToken = default)
+    public async Task RenameAsync(string sourcePath, string newSourcePath, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         string path = NormalizePath(sourcePath);
         string newPath = NormalizePath(newSourcePath);
-        ExecuteFtpOperation(
-            "rename",
-            path,
-            client =>
-            {
-                var item = client.GetObjectInfo(path)
-                    ?? throw new DirectoryNotFoundException($"FTP rename failed for {path}: path not found.");
-                if (IsDirectory(item))
-                    client.MoveDirectory(path, newPath, FtpRemoteExists.Overwrite);
-                else
-                    client.MoveFile(path, newPath, FtpRemoteExists.Overwrite);
-            });
-        return Task.CompletedTask;
+        await ExecuteFtpOperationAsync("rename", path, async client =>
+        {
+            var item = await client.GetObjectInfo(path, token: cancellationToken).ConfigureAwait(false)
+                ?? throw new DirectoryNotFoundException($"FTP rename failed for {path}: path not found.");
+            if (IsDirectory(item))
+                await client.MoveDirectory(path, newPath, FtpRemoteExists.Overwrite, token: cancellationToken).ConfigureAwait(false);
+            else
+                await client.MoveFile(path, newPath, FtpRemoteExists.Overwrite, token: cancellationToken).ConfigureAwait(false);
+            return true;
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     internal static FtpConfig CreateConfig(FtpConnectionInfo connection)
@@ -398,6 +424,53 @@ public sealed class FtpFilePanelSource : IModulePanel, IReusableFilePanelSource,
         }
     }
 
+    private async Task<AsyncFtpClient> CreateConnectedClientAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var validation = new TlsCertificateValidationState();
+        var config = CreateConfig(_connection);
+        var client = new AsyncFtpClient(
+            _connection.Host,
+            _connection.Username,
+            _password,
+            _connection.Port,
+            config);
+        client.ValidateCertificate += (_, args) => HandleCertificateValidation(args, validation);
+
+        try
+        {
+            await client.Connect(cancellationToken).ConfigureAwait(false);
+            return client;
+        }
+        catch (Exception ex)
+        {
+            client.Dispose();
+            if (!IsFtpClientException(ex)) throw;
+            if (validation.ErrorMessage is not null)
+                throw new IOException(validation.ErrorMessage, ex);
+
+            if (ex is FtpAuthenticationException)
+                throw new UnauthorizedAccessException(
+                    $"FTP authentication failed for {_connection.Host}: {ex.Message}",
+                    ex);
+
+            throw new IOException(
+                $"FTP connection failed for {_connection.Host}:{_connection.Port}: {ex.Message}",
+                ex);
+        }
+    }
+
+    private async Task<T> ExecuteFtpOperationAsync<T>(string action, string path,
+        Func<AsyncFtpClient, Task<T>> operation, CancellationToken cancellationToken)
+    {
+        using var client = await CreateConnectedClientAsync(cancellationToken).ConfigureAwait(false);
+        try { return await operation(client).ConfigureAwait(false); }
+        catch (Exception ex) when (IsFtpClientException(ex))
+        {
+            throw CreateFtpException(ex, action, path);
+        }
+    }
+
     private T ExecuteFtpOperation<T>(
         string action,
         string sourcePath,
@@ -539,41 +612,38 @@ public sealed class FtpFilePanelSource : IModulePanel, IReusableFilePanelSource,
             exception);
     }
 
-    private void DeleteCore(
-        FtpClient client,
-        string sourcePath,
-        bool recursive,
-        CancellationToken cancellationToken)
+    private async Task DeleteCoreAsync(AsyncFtpClient client, string path, bool recursive, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var item = client.GetObjectInfo(sourcePath, dateModified: false)
-            ?? throw new DirectoryNotFoundException($"FTP delete failed for {sourcePath}: path not found.");
-
+        var item = await client.GetObjectInfo(path, token: cancellationToken).ConfigureAwait(false);
+        if (item is null) throw new DirectoryNotFoundException($"FTP delete failed for {path}: path not found.");
         if (!IsDirectory(item))
         {
-            client.DeleteFile(sourcePath);
+            await client.DeleteFile(path, cancellationToken).ConfigureAwait(false);
             return;
         }
-
         if (recursive)
+            await client.DeleteDirectory(path, token: cancellationToken).ConfigureAwait(false);
+        else
         {
-            foreach (var child in client.GetListing(sourcePath).Where(item => item.Name is not "." and not ".."))
-                DeleteCore(client, NormalizePath(child.FullName), recursive: true, cancellationToken);
+            var children = await client.GetListing(path, token: cancellationToken).ConfigureAwait(false);
+            if (children.Any(x => x.Name is not "." and not ".."))
+                throw new IOException($"Directory is not empty: {path}");
+            var reply = await client.Execute("RMD " + path, cancellationToken).ConfigureAwait(false);
+            if (!reply.Success) throw new IOException($"FTP delete failed for {path}: {reply.Message}");
         }
-
-        client.DeleteDirectory(sourcePath);
     }
 
     private sealed class ClientOwnedStream : Stream
     {
-        private readonly FtpClient _client;
+        private readonly AsyncFtpClient _client;
         private readonly Stream _inner;
         private readonly bool _readCompletionReply;
         private readonly Func<Exception, Exception> _translateException;
         private bool _disposed;
 
         public ClientOwnedStream(
-            FtpClient client,
+            AsyncFtpClient client,
             Stream inner,
             bool readCompletionReply,
             Func<Exception, Exception> translateException)

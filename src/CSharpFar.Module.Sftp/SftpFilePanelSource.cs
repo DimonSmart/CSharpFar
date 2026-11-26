@@ -7,7 +7,7 @@ using Renci.SshNet.Common;
 
 namespace CSharpFar.Module.Sftp;
 
-public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource, ITemporaryFilePanelSource, IFilePanelSourceActivation, ISafeNewFilePublicationProvider
+public sealed class SftpFilePanelSource : IModulePanel, IAsyncFilePanelSource, IReusableFilePanelSource, ITemporaryFilePanelSource, IFilePanelSourceActivation, ISafeNewFilePublicationProvider
 {
     private static readonly char[] ProviderPathSeparators = ['/'];
     private readonly SftpConnectionInfo _connection;
@@ -154,102 +154,142 @@ public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource
             });
     }
 
-    public Task<Stream> OpenReadAsync(
+    public async Task<IReadOnlyList<FilePanelItem>> EnumerateDirectoryAsync(
         string sourcePath,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var client = CreateConnectedClient();
+        string path = NormalizePath(sourcePath);
+        return await ExecuteSftpOperationAsync(
+            "read directory",
+            path,
+            async client =>
+            {
+                var items = new List<FilePanelItem>();
+                await foreach (var item in client.ListDirectoryAsync(path, cancellationToken).ConfigureAwait(false))
+                    if (item.Name is not "." and not "..")
+                        items.Add(ToPanelItem(item));
+                return items;
+            }, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<FilePanelItem?> GetItemAsync(
+        string sourcePath,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        string path = NormalizePath(sourcePath);
+
+        return await ExecuteSftpOperationAsync<FilePanelItem?>(
+            "read item",
+            path,
+            client =>
+            {
+                if (!await client.ExistsAsync(path, cancellationToken).ConfigureAwait(false))
+                    return null;
+
+                var attributes = await client.GetAttributesAsync(path, cancellationToken).ConfigureAwait(false);
+                return new FilePanelItem
+                {
+                    Name = path == "/" ? "/" : path[(path.LastIndexOf('/') + 1)..],
+                    FullPath = path,
+                    SourceId = SourceId,
+                    IsDirectory = attributes.IsDirectory,
+                    Size = attributes.IsDirectory ? null : attributes.Size,
+                    LastWriteTime = attributes.LastWriteTime,
+                    Attributes = ToPanelAttributes(attributes.IsDirectory, attributes.IsSymbolicLink),
+                    IsParentDirectory = false,
+                };
+            }, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<Stream> OpenReadAsync(
+        string sourcePath,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var client = await CreateConnectedClientAsync(cancellationToken).ConfigureAwait(false);
         string path = NormalizePath(sourcePath);
         try
         {
-            Stream stream = client.OpenRead(path);
-            return Task.FromResult<Stream>(new ClientOwnedStream(
+            Stream stream = await client.OpenAsync(path, FileMode.Open, FileAccess.Read, cancellationToken).ConfigureAwait(false);
+            return new ClientOwnedStream(
                 client,
                 stream,
-                ex => CreateSftpException(ex, "read file", path)));
+                ex => CreateSftpException(ex, "read file", path));
         }
-        catch (Exception ex) when (IsSftpClientException(ex))
+        catch (Exception ex)
         {
             client.Dispose();
+            if (!IsSftpClientException(ex)) throw;
             throw CreateSftpException(ex, "open file for reading", path);
         }
     }
 
-    public Task<Stream> OpenWriteAsync(
+    public async Task<Stream> OpenWriteAsync(
         string sourcePath,
         bool overwrite,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var client = CreateConnectedClient();
+        var client = await CreateConnectedClientAsync(cancellationToken).ConfigureAwait(false);
         string path = NormalizePath(sourcePath);
         try
         {
-            Stream stream = client.Open(
+            Stream stream = await client.OpenAsync(
                 path,
                 overwrite ? FileMode.Create : FileMode.CreateNew,
-                FileAccess.Write);
-            return Task.FromResult<Stream>(new ClientOwnedStream(
+                FileAccess.Write, cancellationToken).ConfigureAwait(false);
+            return new ClientOwnedStream(
                 client,
                 stream,
-                ex => CreateSftpException(ex, "write file", path)));
+                ex => CreateSftpException(ex, "write file", path));
         }
-        catch (Exception ex) when (IsSftpClientException(ex))
+        catch (Exception ex)
         {
             client.Dispose();
+            if (!IsSftpClientException(ex)) throw;
             throw CreateSftpException(ex, "open file for writing", path);
         }
     }
 
     // SFTP v3 SSH_FXP_RENAME requires failure if newpath already exists.
     // Do not use the POSIX rename extension (which replaces the destination).
-    public Task<Stream> OpenStagingWriteAsync(string stagingPath, CancellationToken cancellationToken = default) =>
+    public async Task<Stream> OpenStagingWriteAsync(string stagingPath, CancellationToken cancellationToken = default) =>
         OpenWriteAsync(stagingPath, overwrite: false, cancellationToken);
 
     public Task RenameWithoutOverwriteAsync(string stagingPath, string destinationPath, CancellationToken cancellationToken = default) =>
         RenameAsync(stagingPath, destinationPath, cancellationToken);
 
-    public Task CreateDirectoryAsync(
-        string sourcePath,
-        CancellationToken cancellationToken = default)
+    public async Task CreateDirectoryAsync(string sourcePath, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         string path = NormalizePath(sourcePath);
-        ExecuteSftpOperation(
-            "create directory",
-            path,
-            client => client.CreateDirectory(path));
-        return Task.CompletedTask;
+        await ExecuteSftpOperationAsync("create directory", path, async client =>
+        {
+            await client.CreateDirectoryAsync(path, cancellationToken).ConfigureAwait(false);
+            return true;
+        }, cancellationToken).ConfigureAwait(false);
     }
 
-    public Task DeleteAsync(
-        string sourcePath,
-        bool recursive,
-        CancellationToken cancellationToken = default)
+    public async Task DeleteAsync(string sourcePath, bool recursive, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         string path = NormalizePath(sourcePath);
-        ExecuteSftpOperation(
-            "delete",
-            path,
-            client => DeleteCore(client, path, recursive, cancellationToken));
-        return Task.CompletedTask;
+        await ExecuteSftpOperationAsync("delete", path, async client =>
+        {
+            await DeleteCoreAsync(client, path, recursive, cancellationToken).ConfigureAwait(false);
+            return true;
+        }, cancellationToken).ConfigureAwait(false);
     }
 
-    public Task RenameAsync(
-        string sourcePath,
-        string newSourcePath,
-        CancellationToken cancellationToken = default)
+    public async Task RenameAsync(string sourcePath, string newSourcePath, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         string path = NormalizePath(sourcePath);
         string newPath = NormalizePath(newSourcePath);
-        ExecuteSftpOperation(
-            "rename",
-            path,
-            client => client.RenameFile(path, newPath));
-        return Task.CompletedTask;
+        await ExecuteSftpOperationAsync("rename", path, async client =>
+        {
+            await client.RenameFileAsync(path, newPath, cancellationToken).ConfigureAwait(false);
+            return true;
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private FilePanelItem ToPanelItem(Renci.SshNet.Sftp.ISftpFile item) =>
@@ -297,6 +337,46 @@ public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource
             throw new IOException(
                 $"SFTP connection failed for {_connection.Host}:{_connection.Port}: {ex.Message}",
                 ex);
+        }
+    }
+
+    private async Task<SftpClient> CreateConnectedClientAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var client = new SftpClient(_connection.Host, _connection.Port, _connection.Username, _password);
+        var hostKeyValidation = new HostKeyValidationState();
+        client.HostKeyReceived += (_, args) => HandleHostKeyReceived(args, hostKeyValidation);
+        try
+        {
+            await client.ConnectAsync(cancellationToken).ConfigureAwait(false);
+            return client;
+        }
+        catch (Exception ex)
+        {
+            client.Dispose();
+            if (!IsSftpClientException(ex)) throw;
+            if (hostKeyValidation.ErrorMessage is not null)
+                throw new IOException(hostKeyValidation.ErrorMessage, ex);
+
+            if (ex is SshAuthenticationException)
+                throw new UnauthorizedAccessException(
+                    $"SFTP authentication failed for {_connection.Host}: {ex.Message}",
+                    ex);
+
+            throw new IOException(
+                $"SFTP connection failed for {_connection.Host}:{_connection.Port}: {ex.Message}",
+                ex);
+        }
+    }
+
+    private async Task<T> ExecuteSftpOperationAsync<T>(string action, string path,
+        Func<SftpClient, Task<T>> operation, CancellationToken cancellationToken)
+    {
+        using var client = await CreateConnectedClientAsync(cancellationToken).ConfigureAwait(false);
+        try { return await operation(client).ConfigureAwait(false); }
+        catch (Exception ex) when (IsSftpClientException(ex))
+        {
+            throw CreateSftpException(ex, action, path);
         }
     }
 
@@ -393,27 +473,20 @@ public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource
             exception);
     }
 
-    private void DeleteCore(
-        SftpClient client,
-        string sourcePath,
-        bool recursive,
-        CancellationToken cancellationToken)
+    private async Task DeleteCoreAsync(SftpClient client, string path, bool recursive, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var attributes = client.GetAttributes(sourcePath);
-        if (!attributes.IsDirectory)
+        var attributes = await client.GetAttributesAsync(path, cancellationToken).ConfigureAwait(false);
+        if (!attributes.IsDirectory || attributes.IsSymbolicLink)
         {
-            client.DeleteFile(sourcePath);
+            await client.DeleteFileAsync(path, cancellationToken).ConfigureAwait(false);
             return;
         }
-
         if (recursive)
-        {
-            foreach (var child in client.ListDirectory(sourcePath).Where(item => item.Name is not "." and not ".."))
-                DeleteCore(client, NormalizePath(child.FullName), recursive: true, cancellationToken);
-        }
-
-        client.DeleteDirectory(sourcePath);
+            await foreach (var item in client.ListDirectoryAsync(path, cancellationToken).ConfigureAwait(false))
+                if (item.Name is not "." and not "..")
+                    await DeleteCoreAsync(client, item.FullName, true, cancellationToken).ConfigureAwait(false);
+        await client.DeleteDirectoryAsync(path, cancellationToken).ConfigureAwait(false);
     }
 
     private sealed class ClientOwnedStream : Stream
