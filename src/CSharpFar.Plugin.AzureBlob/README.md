@@ -45,7 +45,7 @@ To run the provider integration tests against an isolated Azurite instance, set 
 
 ## Validation
 
-The [Azure Blob extension workflow](https://github.com/DimonSmart/CSharpFar/actions/workflows/azure-blob.yml) runs unit tests, actual Azurite integration, the independent SDK build, and an installed-plugin PTY smoke test using the released Linux executable. Successful workflow artifacts include an actual terminal screen capture (`panel.png`) and the installable ZIP.
+The [Azure Blob extension workflow](https://github.com/DimonSmart/CSharpFar/actions/workflows/azure-blob.yml) runs unit tests, actual Azurite integration, the independent SDK build, and an installed-plugin PTY smoke test using the released Linux executable, including disabling and re-enabling the installed extension with restarts. Successful workflow artifacts include an actual terminal screen capture (`panel.png`) and the installable ZIP.
 
 Additional manual validation for a production-like account and Windows/macOS terminal sessions:
 1. Install the complete ZIP, confirm the Plugins and disk menus show Azure Blob Storage, and run `azure:`.

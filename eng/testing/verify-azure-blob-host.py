@@ -212,5 +212,123 @@ def check(host, extension, screenshot):
             os.close(terminal)
 
 
+def check_lifecycle(host):
+    """Verify the actual published host's persisted enable/disable UI and restart."""
+    host = host.resolve(strict=True)
+    config = host.parent / "CSharpFar.config"
+    profiles = config / "plugins" / "azure-blob" / "connections.json"
+    original_profiles = json.loads(profiles.read_text())
+    state = config / "extensions-state.json"
+
+    def session(expected, toggle=None, no_extensions=False):
+        with tempfile.TemporaryDirectory(prefix="azure-blob-lifecycle-") as work:
+            screen = pyte.Screen(120, 35)
+            stream = pyte.ByteStream(screen)
+            pid, terminal = pty.fork()
+            if pid == 0:
+                os.environ.update(HOME=work, XDG_CONFIG_HOME=work, TERM="xterm-256color")
+                os.chdir(work)
+                os.execv(str(host), [str(host)] + (["--no-extensions"] if no_extensions else []))
+            previous = b""
+
+            def send(data):
+                os.write(terminal, data)
+
+            def pump():
+                nonlocal previous
+                if not select.select([terminal], [], [], 0.1)[0]:
+                    return
+                chunk = os.read(terminal, 65536)
+                if not chunk:
+                    raise AssertionError("CSharpFar exited unexpectedly")
+                if b"\x1b[6n" in previous + chunk:
+                    send(b"\x1b[1;1R")
+                previous = chunk[-3:]
+                stream.feed(chunk)
+
+            def visible():
+                return "\n".join(screen.display)
+
+            def wait_for(predicate, description):
+                deadline = time.monotonic() + 25
+                while not predicate():
+                    if time.monotonic() >= deadline:
+                        raise AssertionError(f"Timed out waiting for {description}:\n{visible()}")
+                    pump()
+
+            def wait_text(value):
+                wait_for(lambda: value in visible(), value)
+
+            try:
+                fcntl.ioctl(terminal, termios.TIOCSWINSZ, struct.pack("HHHH", 35, 120, 0, 0))
+                wait_text("Quit")
+                send(b"\x1b[20~")  # F9
+                wait_text("Options")
+                send(b"o")
+                wait_text("Plugins...")
+                send(b"p")
+                wait_text("Enable/Disable")
+                wait_for(lambda: any("Azure Blob Storage" in row and expected in row for row in screen.display),
+                         "Azure extension status " + expected)
+                if toggle:
+                    send(b"\r")
+                    wait_text("is now " + toggle)
+                    send(b"\r")
+                    wait_text("Enable/Disable")
+                    assert ("azure-blob" in json.loads(state.read_text())["disabled"]) == (toggle == "disabled")
+                send(b"\x1b")
+                wait_for(lambda: "Enable/Disable" not in visible() and "Quit" in visible(), "main panel")
+                if expected == "Loaded" and toggle is None:
+                    send(b"\x1b[20~")
+                    wait_text("Plugins")
+                    send(b"p")
+                    wait_text("Azure Blob Storage")
+                    send(b"\x1b")
+                    wait_for(lambda: "Azure Blob Storage" not in visible(), "close plugin menu")
+                    send(b"azure:\r")
+                    wait_text("AzureSmoke")
+                    send(b"\x1b")
+                    wait_for(lambda: "Quick connect" not in visible(), "close connection manager")
+                deadline = time.monotonic() + 20
+                next_attempt = 0
+                while time.monotonic() < deadline:
+                    result, status = os.waitpid(pid, os.WNOHANG)
+                    if result:
+                        pid = None
+                        if status != 0:
+                            raise AssertionError(f"CSharpFar exit status {status}")
+                        break
+                    if time.monotonic() >= next_attempt:
+                        next_attempt = time.monotonic() + 1
+                        if "Exit CSharpFar" in visible():
+                            send(b"e")
+                        elif "Quit" in screen.display[-1]:
+                            x = screen.display[-1].index("Quit") + 2
+                            send(f"\x1b[<0;{x};35M\x1b[<0;{x};35m".encode())
+                    try:
+                        pump()
+                    except (OSError, AssertionError):
+                        time.sleep(0.1)
+                if pid is not None:
+                    raise AssertionError(f"CSharpFar did not exit during lifecycle test:\n{visible()}")
+            finally:
+                if pid is not None:
+                    try:
+                        os.killpg(pid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                    os.waitpid(pid, 0)
+                os.close(terminal)
+
+    session("Loaded", toggle="disabled")
+    session("Disabled", toggle="enabled")
+    session("Loaded")
+    session("Disabled", no_extensions=True)
+    assert json.loads(profiles.read_text()) == original_profiles
+    assert "azure-blob" not in json.loads(state.read_text())["disabled"]
+    print("PASS: actual Options > Plugins disable/re-enable with restarts, plugin menu, saved profile preservation, --no-extensions.", flush=True)
+
+
 if __name__ == "__main__":
     check(*(pathlib.Path(value) for value in sys.argv[1:]))
+    check_lifecycle(pathlib.Path(sys.argv[1]))
