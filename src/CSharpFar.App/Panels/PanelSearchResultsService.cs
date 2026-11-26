@@ -79,8 +79,7 @@ internal sealed class PanelSearchResultsService
         GoToResult(
             state,
             side,
-            result.FullPath,
-            result.Name,
+            result.Location,
             result.Kind == SearchResultItemKind.Directory);
     }
 
@@ -89,37 +88,34 @@ internal sealed class PanelSearchResultsService
         GoToResult(
             state,
             side,
-            result.FullPath,
-            result.Name,
+            result.Location,
             result.IsDirectory);
     }
 
     private void GoToResult(
         FilePanelState state,
         PanelSide side,
-        string fullPath,
-        string name,
+        PanelLocation location,
         bool isDirectory)
     {
         _closeQuickSearchForPanel(side);
-        string? directoryPath = isDirectory
-            ? fullPath
-            : Path.GetDirectoryName(fullPath);
+        PanelLocation? directory = isDirectory ? location : _controller.GetParentLocation(location);
 
-        if (string.IsNullOrWhiteSpace(directoryPath))
+        if (directory is not { } directoryLocation)
         {
-            _dialogs.Message("Search", $"Cannot open search result: {fullPath}");
+            _dialogs.Message("Search", $"Cannot open search result: {location.SourcePath}");
             return;
         }
 
         try
         {
-            if (_controller.TryLoadDirectory(state, directoryPath, _panelOptions()))
+            if (_controller.TryLoadLocation(state, directoryLocation, _panelOptions()))
             {
                 if (!isDirectory)
-                    _controller.SetCursorByName(state, name, _visibleRows(side));
+                    _controller.SetCursorByLocation(state, location, _visibleRows(side));
 
-                _history.AddDirectory(new DirectoryHistoryItem { Path = state.CurrentDirectory });
+                if (state.SourceId == PanelSourceId.Local)
+                    _history.AddDirectory(new DirectoryHistoryItem { Path = state.CurrentDirectory });
                 _startWatching(state, side);
             }
         }
