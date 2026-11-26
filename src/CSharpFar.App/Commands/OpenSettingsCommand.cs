@@ -1,3 +1,7 @@
+using CSharpFar.App.Highlighting;
+using CSharpFar.App.State;
+using CSharpFar.Ui;
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 using CSharpFar.App.Editor;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.Settings;
@@ -6,7 +10,9 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class OpenSettingsCommand : IApplicationCommand
+internal sealed class OpenSettingsCommand(AppSettingsAlias settings, PanelSessionState panelsState,
+    ApplicationState appState, DialogService dialogs, FileHighlightState highlightState,
+    PanelSettingsChangeService settingsChange) : IApplicationCommand
 {
     public string CommandId => MenuCommandIds.SettingsOpenPanelSettings;
 
@@ -14,62 +20,62 @@ internal sealed class OpenSettingsCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        var options = context.Settings.Panels.Options;
+        var options = settings.Panels.Options;
         var panelSettings = new CSharpFarPanelSettings(
-            context.LeftViewMode,
-            context.RightViewMode,
+            panelsState.LeftViewMode,
+            panelsState.RightViewMode,
             options.ShowHiddenAndSystemFiles,
             options.SelectFolders,
             options.RightClickSelectsFiles,
             options.SortFoldersByExtension,
             options.RememberLastDirectories,
-            context.Settings.Panels.FileHighlighting.Enabled,
+            settings.Panels.FileHighlighting.Enabled,
             options.ShowStatusLine,
             options.ShowFilesTotalInformation,
             options.ShowFreeSize,
             options.ShowSortModeLetter,
             options.ShowParentDirectoryInRootFolders);
 
-        var syntaxCatalog = new TextMateEditorSyntaxCatalog(context.Settings.Editor);
-        var result = new CSharpFarSettingsDialog(context.Dialogs).Show(
-            context.Settings.Application.ConfirmExit,
+        var syntaxCatalog = new TextMateEditorSyntaxCatalog(settings.Editor);
+        var result = new CSharpFarSettingsDialog(dialogs).Show(
+            settings.Application.ConfirmExit,
             panelSettings,
-            context.Settings.Ui.Palette,
-            context.Settings.Editor.SyntaxHighlightingEnabled,
-            context.Settings.Editor.SyntaxTheme,
+            settings.Ui.Palette,
+            settings.Editor.SyntaxHighlightingEnabled,
+            settings.Editor.SyntaxTheme,
             syntaxCatalog,
-            preferredMacOsTerminal: context.Settings.Application.PreferredMacOsTerminal);
+            preferredMacOsTerminal: settings.Application.PreferredMacOsTerminal);
 
         if (result is null)
             return ApplicationCommandResult.Rendered();
 
-        context.Settings.Application.ConfirmExit = result.ApplicationConfirmExit;
-        context.Settings.Application.PreferredMacOsTerminal = result.PreferredMacOsTerminal;
+        settings.Application.ConfirmExit = result.ApplicationConfirmExit;
+        settings.Application.PreferredMacOsTerminal = result.PreferredMacOsTerminal;
 
         CSharpFarPanelSettings panels = result.Panels;
-        context.LeftViewMode = panels.LeftViewMode;
-        context.RightViewMode = panels.RightViewMode;
-        context.Settings.Panels.LeftViewMode = panels.LeftViewMode.ToString();
-        context.Settings.Panels.RightViewMode = panels.RightViewMode.ToString();
+        panelsState.LeftViewMode = panels.LeftViewMode;
+        panelsState.RightViewMode = panels.RightViewMode;
+        settings.Panels.LeftViewMode = panels.LeftViewMode.ToString();
+        settings.Panels.RightViewMode = panels.RightViewMode.ToString();
         options.ShowHiddenAndSystemFiles = panels.ShowHiddenAndSystemFiles;
         options.SelectFolders = panels.SelectFolders;
         options.RightClickSelectsFiles = panels.RightClickSelectsFiles;
         options.SortFoldersByExtension = panels.SortFoldersByExtension;
         options.RememberLastDirectories = panels.RememberLastDirectories;
-        context.Settings.Panels.FileHighlighting.Enabled = panels.FileHighlightingEnabled;
+        settings.Panels.FileHighlighting.Enabled = panels.FileHighlightingEnabled;
         options.ShowStatusLine = panels.ShowStatusLine;
         options.ShowFilesTotalInformation = panels.ShowFilesTotalInformation;
         options.ShowFreeSize = panels.ShowFreeSize;
         options.ShowSortModeLetter = panels.ShowSortModeLetter;
         options.ShowParentDirectoryInRootFolders = panels.ShowParentDirectoryInRootFolders;
-        context.Settings.Ui.Palette = result.PaletteName;
-        context.Settings.Editor.SyntaxHighlightingEnabled = result.EditorSyntaxHighlightingEnabled;
-        context.Settings.Editor.SyntaxTheme = result.EditorSyntaxTheme;
+        settings.Ui.Palette = result.PaletteName;
+        settings.Editor.SyntaxHighlightingEnabled = result.EditorSyntaxHighlightingEnabled;
+        settings.Editor.SyntaxTheme = result.EditorSyntaxTheme;
 
-        context.CommandPalette = CSharpFarPaletteRegistry.Resolve(result.PaletteName);
-        context.HighlightService = context.CreateHighlightService();
-        context.RefreshPanels();
-        context.SaveSettings();
+        appState.Palette = CSharpFarPaletteRegistry.Resolve(result.PaletteName);
+        UiTheme.Initialize(appState.Palette.Ui);
+        highlightState.Current = FileHighlightServiceFactory.Create(settings);
+        settingsChange.Apply();
         return ApplicationCommandResult.Rendered();
     }
 }

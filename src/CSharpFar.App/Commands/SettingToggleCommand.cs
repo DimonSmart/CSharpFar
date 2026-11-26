@@ -1,6 +1,6 @@
 namespace CSharpFar.App.Commands;
 
-internal abstract class SettingToggleCommand : IApplicationCommand
+internal abstract class SettingToggleCommand(PanelSettingsChangeService settingsChange) : IApplicationCommand
 {
     public abstract string CommandId { get; }
 
@@ -8,11 +8,10 @@ internal abstract class SettingToggleCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        Toggle(context);
-        context.RefreshPanels();
-        context.SaveSettings();
+        Toggle();
+        settingsChange.Apply();
         return ApplicationCommandResult.Rendered();
     }
 
-    protected abstract void Toggle(ApplicationCommandContext context);
+    protected abstract void Toggle();
 }

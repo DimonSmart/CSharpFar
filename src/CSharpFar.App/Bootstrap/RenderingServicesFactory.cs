@@ -1,3 +1,4 @@
+using CSharpFar.App.Highlighting;
 using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Input;
@@ -32,13 +33,13 @@ internal static class RenderingServicesFactory
         MenuLayoutService menuLayoutService,
         ApplicationServiceCallbacks callbacks,
         AppSettingsAlias settings,
-        IFileHighlightService? highlightService,
+        FileHighlightState highlightState,
         IFileUsagePlatformService fileUsage, QuickViewContentLoader quickViewContent)
     {
         var panelWorkspaceRenderer = new ApplicationPanelWorkspaceRenderer(
             () => session.App.Palette,
             controller,
-            () => highlightService,
+            () => highlightState.Current,
             () => callbacks.PanelOptions(),
             directorySizes, quickViewContent);
         var clockRenderer = new ClockRenderer(() => session.App.Palette);

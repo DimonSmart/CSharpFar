@@ -74,7 +74,7 @@ internal sealed class ApplicationCommandContext
     private readonly IDiagnosticLog _diagnosticLog;
     private readonly UpdateCheckService _updateCheckService;
     private readonly IApplicationUpdateInstaller _applicationUpdateInstaller;
-    private IFileHighlightService? _highlightService;
+    private readonly FileHighlightState _highlightState;
 
     public ApplicationCommandContext(
         InteractiveSurfaceHost interactiveSurfaces,
@@ -115,7 +115,7 @@ internal sealed class ApplicationCommandContext
         IVolumeService? volumeService,
         IFileMetadataService fileMetadata,
         Func<IFileAttributesDialog> fileAttributesDialogFactory,
-        IFileHighlightService? highlightService,
+        FileHighlightState highlightState,
         IDiagnosticLog diagnosticLog,
         UpdateCheckService updateCheckService,
         IApplicationUpdateInstaller? applicationUpdateInstaller = null)
@@ -159,7 +159,7 @@ internal sealed class ApplicationCommandContext
         _volumeService = volumeService;
         _fileMetadata = fileMetadata;
         _fileAttributesDialogFactory = fileAttributesDialogFactory;
-        _highlightService = highlightService;
+        _highlightState = highlightState;
         _diagnosticLog = diagnosticLog ?? throw new ArgumentNullException(nameof(diagnosticLog));
         _updateCheckService = updateCheckService ?? throw new ArgumentNullException(nameof(updateCheckService));
         _applicationUpdateInstaller = applicationUpdateInstaller ?? UnsupportedApplicationUpdateInstaller.Instance;
@@ -258,8 +258,8 @@ internal sealed class ApplicationCommandContext
 
     public IFileHighlightService? HighlightService
     {
-        get => _highlightService;
-        set => _highlightService = value;
+        get => _highlightState.Current;
+        set => _highlightState.Current = value;
     }
 
     public AppSettingsAlias.PanelOptionsSettings PanelOptions => Settings.Panels.Options;

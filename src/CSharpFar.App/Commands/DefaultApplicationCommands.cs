@@ -1,3 +1,4 @@
+using CSharpFar.App.Highlighting;
 using CSharpFar.App.Files;
 using CSharpFar.App.Viewer;
 using CSharpFar.Core.Models;
@@ -50,6 +51,8 @@ internal static class DefaultApplicationCommands
         Action<HelpTopic> showHelp,
         IFileMetadataService fileMetadata,
         Func<IFileAttributesDialog> fileAttributesDialogFactory,
+        PanelSettingsChangeService settingsChange,
+        FileHighlightState highlightState,
         PanelDirectorySizeCoordinator? directorySizes = null) =>
     [
         new HelpCommand(interactiveSurfaces, session.App),
@@ -92,22 +95,22 @@ internal static class DefaultApplicationCommands
         new PanelRefreshCommand(panelWorkspace, panelRefresh),
         new ModuleOpenCommand(modulePanelOpener, panelWorkspace),
         new PrintTerminalDiagnosticsCommand(),
-        new OpenSettingsCommand(),
+        new OpenSettingsCommand(settings, session.Panels, session.App, dialogs, highlightState, settingsChange),
         new OpenDirectoryShortcutEditorCommand(),
         new OpenPluginsCommand(),
         new OpenUserMenuEditorCommand(),
         new OpenUserMenuEditorCommand(local: true),
         new NavigateToDirectoryShortcutCommand(),
-        new ToggleShowHiddenAndSystemFilesCommand(),
-        new ToggleHighlightFilesCommand(),
-        new ToggleSelectFoldersCommand(),
-        new ToggleRightClickSelectsFilesCommand(),
-        new ToggleSortFoldersByExtensionCommand(),
-        new ToggleShowStatusLineCommand(),
-        new ToggleShowFilesTotalInformationCommand(),
-        new ToggleShowFreeSizeCommand(),
-        new ToggleShowSortModeLetterCommand(),
-        new ToggleShowParentDirectoryInRootFoldersCommand(),
+        new ToggleShowHiddenAndSystemFilesCommand(settings, settingsChange),
+        new ToggleHighlightFilesCommand(settings, settingsChange, highlightState),
+        new ToggleSelectFoldersCommand(settings, settingsChange),
+        new ToggleRightClickSelectsFilesCommand(settings, settingsChange),
+        new ToggleSortFoldersByExtensionCommand(settings, settingsChange),
+        new ToggleShowStatusLineCommand(settings, settingsChange),
+        new ToggleShowFilesTotalInformationCommand(settings, settingsChange),
+        new ToggleShowFreeSizeCommand(settings, settingsChange),
+        new ToggleShowSortModeLetterCommand(settings, settingsChange),
+        new ToggleShowParentDirectoryInRootFoldersCommand(settings, settingsChange),
         new SaveSettingsCommand(saveSettings),
     ];
 }
