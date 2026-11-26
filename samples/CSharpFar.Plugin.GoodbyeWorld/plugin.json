@@ -2,7 +2,7 @@
   "id": "goodbye-world",
   "name": "Goodbye World",
   "version": "1.0.0",
-  "apiVersion": 1,
+  "apiVersion": 2,
   "assembly": "GoodbyeWorld.dll",
   "entryType": "GoodbyeWorld.Plugin"
 }

@@ -270,7 +270,7 @@ public sealed class ExternalPluginDllTests : IDisposable
     }
 
     private void WriteManifest(string folder, string id, string assembly, string entryType,
-        string? assemblyName = null, int apiVersion = 1)
+        string? assemblyName = null, int apiVersion = 2)
     {
         string target = Path.Combine(_root, "extensions", folder);
         Directory.CreateDirectory(target);

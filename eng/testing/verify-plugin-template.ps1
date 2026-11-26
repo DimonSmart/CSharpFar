@@ -32,7 +32,7 @@ if ($manifest.id -ne 'ci-generated' -or
     $manifest.name -ne 'CI Generated' -or
     $manifest.assembly -ne 'Independent.GeneratedPlugin.dll' -or
     $manifest.entryType -ne 'Independent.GeneratedPlugin.Plugin' -or
-    $manifest.apiVersion -ne 1) {
+    $manifest.apiVersion -ne 2) {
     throw "Generated plugin manifest is invalid: $($manifest | ConvertTo-Json -Compress)"
 }
 if (-not (Test-Path -LiteralPath (Join-Path $published $manifest.assembly))) {
