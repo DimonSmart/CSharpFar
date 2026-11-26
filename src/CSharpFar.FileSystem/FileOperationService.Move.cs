@@ -402,15 +402,38 @@ public sealed partial class FileOperationService
                 await source.DeleteAsync(sourcePath, recursive: false, cancellationToken).ConfigureAwait(false);
         }
 
-        private static Task RenameWithoutOverwriteAsync(IFilePanelSource source,
+        private static async Task RenameWithoutOverwriteAsync(IFilePanelSource source,
             string sourcePath, string destinationPath, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (source is IFileOperationBatch)
-                return source.RenameAsync(sourcePath, destinationPath, cancellationToken);
-            if (source is ISafeEntryRenameProvider rename)
-                return rename.RenameWithoutOverwriteAsync(sourcePath, destinationPath, CancellationToken.None);
-            throw new NotSupportedException($"Provider '{source.DisplayName}' cannot guarantee a non-overwriting rename.");
+            {
+                await source.RenameAsync(sourcePath, destinationPath, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            if (source is not ISafeEntryRenameProvider rename)
+                throw new NotSupportedException($"Provider '{source.DisplayName}' cannot guarantee a non-overwriting rename.");
+            try
+            {
+                await rename.RenameWithoutOverwriteAsync(sourcePath, destinationPath, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception error) when (source is not IRecoverableEntryRenameProvider)
+            {
+                bool originalExists, targetExists;
+                try
+                {
+                    originalExists = source.GetItem(sourcePath, CancellationToken.None) is not null;
+                    targetExists = source.GetItem(destinationPath, CancellationToken.None) is not null;
+                }
+                catch (Exception inspection)
+                {
+                    throw new UnknownFilePublicationException(destinationPath, sourcePath,
+                        "Rename state inspection failed.", new AggregateException(error, inspection));
+                }
+                if (originalExists && !targetExists) throw;
+                throw new UnknownFilePublicationException(destinationPath, sourcePath,
+                    $"Original exists: {originalExists}; destination exists: {targetExists}.", error);
+            }
         }
 
         private async Task ReplaceProviderItemAsync(
@@ -530,8 +553,21 @@ public sealed partial class FileOperationService
 
                     foreach (string copiedSource in outcome.SuccessfullyCopiedSources)
                     {
-                        File.Delete(copiedSource);
-                        state.MovedCount++;
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            state.PartiallyMoved = true;
+                            cancellationToken.ThrowIfCancellationRequested();
+                        }
+                        try
+                        {
+                            File.Delete(copiedSource);
+                            state.MovedCount++;
+                        }
+                        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+                        {
+                            state.PartiallyMoved = true;
+                            state.AddError(copiedSource, $"Copy succeeded, but source removal failed: {error.Message}");
+                        }
                     }
 
                     continue;

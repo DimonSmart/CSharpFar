@@ -212,6 +212,7 @@ internal sealed class InMemoryBatchFilePanelSource : MemoryFilePanelView, IFileO
 
     public bool IsTemporary => true;
     public bool FailCommit { get; set; }
+    public bool FailDisposeAfterCommit { get; set; }
     public int Begun { get; private set; }
     public int Committed { get; private set; }
     public int Aborted { get; private set; }
@@ -263,6 +264,7 @@ internal sealed class InMemoryBatchFilePanelSource : MemoryFilePanelView, IFileO
             _disposed = true;
             await AbortAsync();
             owner.Disposed++;
+            if (_committed && owner.FailDisposeAfterCommit) throw new IOException("Simulated post-commit cleanup failure.");
         }
     }
 }

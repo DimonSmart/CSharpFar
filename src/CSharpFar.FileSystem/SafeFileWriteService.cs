@@ -171,15 +171,16 @@ public static class SafeFileWriteService
                     bool temporaryExists = source.GetItem(staging, CancellationToken.None) is not null;
                     bool destinationExists = source.GetItem(path, CancellationToken.None) is not null;
                     observation = $"Staging exists: {temporaryExists}; destination exists: {destinationExists}.";
-                    if (temporaryExists && !keepPartial)
-                        await source.DeleteAsync(staging, recursive: false, CancellationToken.None).ConfigureAwait(false);
+                    if (temporaryExists && !destinationExists)
+                        publishing = false;
                 }
                 catch (Exception inspection)
                 {
                     throw new UnknownFilePublicationException(path, staging,
                         "State inspection or cleanup failed.", new AggregateException(error, inspection));
                 }
-                throw new UnknownFilePublicationException(path, staging, observation, error);
+                if (publishing)
+                    throw new UnknownFilePublicationException(path, staging, observation, error);
             }
 
             if (owned && !keepPartial)

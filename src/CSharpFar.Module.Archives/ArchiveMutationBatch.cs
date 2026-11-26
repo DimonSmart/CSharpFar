@@ -128,7 +128,7 @@ internal sealed class ArchiveMutationBatch : IFileOperationBatch, IFileOperation
 
         string staged = Path.Combine(Path.GetTempPath(),
             "csharpfar-stage-" + Guid.NewGuid().ToString("N") + ".tmp");
-        var stream = new FileStream(staged, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+        var stream = new FileStream(staged, FileMode.CreateNew, FileAccess.Write, FileShare.Delete,
             65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
         _temporaryFiles.Add(staged);
         lock (_gate) _activeWriters++;
