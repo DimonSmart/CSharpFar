@@ -255,7 +255,7 @@ public sealed class SftpFilePanelSource : IModulePanel, IAsyncFilePanelSource, I
 
     // SFTP v3 SSH_FXP_RENAME requires failure if newpath already exists.
     // Do not use the POSIX rename extension (which replaces the destination).
-    public async Task<Stream> OpenStagingWriteAsync(string stagingPath, CancellationToken cancellationToken = default) =>
+    public Task<Stream> OpenStagingWriteAsync(string stagingPath, CancellationToken cancellationToken = default) =>
         OpenWriteAsync(stagingPath, overwrite: false, cancellationToken);
 
     public Task RenameWithoutOverwriteAsync(string stagingPath, string destinationPath, CancellationToken cancellationToken = default) =>

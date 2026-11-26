@@ -183,7 +183,8 @@ internal sealed class ModulePanelOpener
                 return;
             }
 
-            panelSide = ReferenceEquals(state, _getPanelState(PanelSide.Left)) ? PanelSide.Left : PanelSide.Right;
+            if (!ReferenceEquals(state, _getPanelState(panelSide)))
+                panelSide = ReferenceEquals(state, _getPanelState(PanelSide.Left)) ? PanelSide.Left : PanelSide.Right;
             // A previously nested or shared source may have a pending retirement.
             // It is visible now, before any old navigation leases are released.
             _sourceRegistry.RetainSource(source.SourceId);

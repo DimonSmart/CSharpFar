@@ -648,6 +648,7 @@ internal static class ApplicationServicesBuilder
                 modulePanelOpener.CleanupUnusedTemporarySources,
                 panelLoading.Dispose);
 
+            commandServices.CommandContext.DrainUiActions = pluginUiActions.Drain;
             return new ApplicationServices
             {
                 Screen = screen,

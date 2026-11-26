@@ -212,6 +212,10 @@ internal sealed class ApplicationCommandContext
     public IReadOnlyList<ModuleMenuProjection> ModuleDiskMenuItems =>
         _moduleCatalog.DiskMenuItems;
 
+    internal Action? DrainUiActions { get; set; }
+    internal CancellationToken UiWakeToken => _autoRefresh.WaitToken;
+    internal void ResetUiWakeToken() => _autoRefresh.ResetWaitToken();
+
     public FilePanelState LeftPanel => _session.Panels.Left;
 
     public FilePanelState RightPanel => _session.Panels.Right;
