@@ -89,7 +89,11 @@ public static class AzureBlobClientFactory
             if (!string.IsNullOrEmpty(builder.BlobName))
                 throw new ArgumentException("Expected an account or container SAS URL, not a blob URL.");
             if (!string.IsNullOrEmpty(builder.BlobContainerName))
+            {
+                if (connection.ContainerName is not null && connection.ContainerName != builder.BlobContainerName)
+                    throw new ArgumentException("Configured container does not match the SAS URL.");
                 return (null, new BlobContainerClient(url, options));
+            }
             var sasService = new BlobServiceClient(url, options);
             return (sasService, connection.ContainerName is null ? null : sasService.GetBlobContainerClient(connection.ContainerName));
         }

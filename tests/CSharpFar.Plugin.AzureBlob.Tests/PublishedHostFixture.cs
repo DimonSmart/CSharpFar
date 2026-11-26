@@ -35,6 +35,7 @@ public sealed class PublishedHostFixture
         var (_, container) = AzureBlobClientFactory.Create(profile);
         var provider = new AzureBlobFilePanelSource(container!, "Smoke", false);
         Assert.Null(await provider.GetItemAsync("/smoke-created"));
+        Assert.Equal("AZURE_PROBE_VIEW", (await container!.GetBlobClient("probe-view.txt").DownloadContentAsync()).Value.Content.ToString());
         Assert.Equal("LOCAL_AZURE_PROBE", (await container!.GetBlobClient("local-upload.txt").DownloadContentAsync()).Value.Content.ToString());
         await container.DeleteAsync();
     }
