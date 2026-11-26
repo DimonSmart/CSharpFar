@@ -1,6 +1,7 @@
 using System.Text;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 using CSharpFar.FileSystem;
 using CSharpFar.Tests.Infrastructure;
 
@@ -86,11 +87,48 @@ public sealed class BestEffortFileWriteTests
         Assert.Equal(0, source.DeleteCalls);
     }
 
+    [Fact]
+    public async Task InaccessibleInputDoesNotTruncateApprovedDestination()
+    {
+        var source = new BasicSource();
+        source.SeedFile("/source", "data");
+        source.SeedFile("/target", "original");
+        source.FailRead = true;
+        var service = new FileOperationService(new FilePanelSourceRegistry([source]));
+        await Assert.ThrowsAsync<IOException>(() => service.ExecuteAsync(new FileOperationRequest
+        {
+            Kind = FileOperationKind.Copy,
+            Sources = [new PanelLocation(source.SourceId, "/source")],
+            Destination = new PanelLocation(source.SourceId, "/target"),
+            Options = new FileOperationOptions { DefaultConflictDecision = ConflictDecisionMode.Overwrite },
+        }, null, new OverwriteResolver()));
+        Assert.Equal("original", source.ReadText("/target"));
+        Assert.Equal(0, source.OpenCalls);
+    }
+
+    [Fact]
+    public async Task CancellationAfterAcknowledgedCompletionDoesNotReportFailedWrite()
+    {
+        using var cts = new CancellationTokenSource();
+        var source = new BasicSource { OnClose = cts.Cancel };
+        Assert.Null(await SafeFileWriteService.WriteDocumentAsync(source, "/target",
+            Encoding.UTF8.GetBytes("data"), cts.Token));
+        Assert.True(cts.IsCancellationRequested);
+        Assert.Equal("data", source.ReadText("/target"));
+    }
+
+    private sealed class OverwriteResolver : IFileOperationConflictResolver
+    {
+        public FileOperationConflictDecision Resolve(FileOperationConflict conflict) =>
+            FileOperationConflictDecision.FromMode(ConflictDecisionMode.Overwrite);
+    }
+
     private sealed class BasicSource : MemoryFilePanelView, IFilePanelSource
     {
         public BasicSource() : base(new PanelSourceId("basic-write-test")) { }
         public string Fault { get; init; } = "";
         public bool ReadOnly { get; init; }
+        public Action? OnClose { get; init; }
         public bool LastOverwrite { get; private set; }
         public int OpenCalls { get; private set; }
         public int DeleteCalls { get; private set; }
@@ -106,7 +144,10 @@ public sealed class BestEffortFileWriteTests
             if (Fault == "open" || (!overwrite && GetItem(path) is not null))
                 throw new IOException("open rejected");
             return Task.FromResult<Stream>(new FaultStream(Fault, bytes =>
-                SeedFile(path, Fault == "size" ? "x" : Encoding.UTF8.GetString(bytes))));
+            {
+                SeedFile(path, Fault == "size" ? "x" : Encoding.UTF8.GetString(bytes));
+                OnClose?.Invoke();
+            }));
         }
 
         public new Task DeleteAsync(string path, bool recursive, CancellationToken cancellationToken = default)

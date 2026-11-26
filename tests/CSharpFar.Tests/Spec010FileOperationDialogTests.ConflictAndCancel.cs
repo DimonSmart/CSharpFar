@@ -13,8 +13,10 @@ namespace CSharpFar.Tests;
 
 public sealed partial class Spec010FileOperationDialogTests
 {
-    [Fact]
-    public void ConflictDialog_ReturnsOverwriteForO()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ConflictDialog_WarnsForBestEffortReplacement(bool unsafeReplacement)
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
@@ -25,11 +27,13 @@ public sealed partial class Spec010FileOperationDialogTests
             {
                 SourcePath = @"C:\src\a.txt",
                 DestinationPath = @"C:\dst\a.txt",
+                UnsafeReplacement = unsafeReplacement,
                 SourceSize = 3,
                 DestinationSize = 5,
             });
 
         Assert.Equal(ConflictDecisionMode.Overwrite, decision.Mode);
+        Assert.Equal(unsafeReplacement, driver.WriteRecords.Any(r => r.Text.Contains("Failure may damage the destination file.", StringComparison.Ordinal)));
     }
 
 

@@ -478,26 +478,41 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         }
 
         await EnsureProviderDestinationDirectoryAsync(destinationSource, destinationPath, cancellationToken).ConfigureAwait(false);
-        string? warning = await SafeFileWriteService.WriteProviderAsync(
-            destinationSource, destinationPath, approvedDestination, sourceItem.Size,
-            async output =>
-            {
-                long done = 0;
-                await using Stream input = await source.AsAsync().OpenReadAsync(sourcePath, cancellationToken).ConfigureAwait(false);
-                byte[] buffer = new byte[CopyBufferSize];
-                while (true)
+        // A direct write may truncate an approved target during OpenWriteAsync.
+        // Open the input first so an inaccessible source cannot cause that damage.
+        Stream? preparedInput = SafeFileWriteService.UsesBestEffort(destinationSource, approvedDestination is not null)
+            ? await source.AsAsync().OpenReadAsync(sourcePath, cancellationToken).ConfigureAwait(false)
+            : null;
+        try
+        {
+            string? warning = await SafeFileWriteService.WriteProviderAsync(
+                destinationSource, destinationPath, approvedDestination, sourceItem.Size,
+                async output =>
                 {
-                    state.WaitIfPaused(cancellationToken);
-                    int read = await input.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false);
-                    if (read == 0) break;
-                    await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-                    done += read;
-                    state.AddBytes(read);
-                    state.Report(sourcePath, destinationPath, done, sourceItem.Size ?? 0);
-                }
-                return done;
-            }, options.KeepPartialFilesOnError, cancellationToken, _dependencies.PublishLocalFile, _dependencies.PublishNewLocalFile).ConfigureAwait(false);
-        if (warning is not null) state.AddWarning(destinationPath, warning);
+                    long done = 0;
+                    await using Stream input = preparedInput ??
+                        await source.AsAsync().OpenReadAsync(sourcePath, cancellationToken).ConfigureAwait(false);
+                    preparedInput = null;
+                    byte[] buffer = new byte[CopyBufferSize];
+                    while (true)
+                    {
+                        state.WaitIfPaused(cancellationToken);
+                        int read = await input.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false);
+                        if (read == 0) break;
+                        await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+                        done += read;
+                        state.AddBytes(read);
+                        state.Report(sourcePath, destinationPath, done, sourceItem.Size ?? 0);
+                    }
+                    return done;
+                }, options.KeepPartialFilesOnError, cancellationToken, _dependencies.PublishLocalFile, _dependencies.PublishNewLocalFile).ConfigureAwait(false);
+            if (warning is not null) state.AddWarning(destinationPath, warning);
+        }
+        finally
+        {
+            if (preparedInput is not null)
+                await preparedInput.DisposeAsync().ConfigureAwait(false);
+        }
 
         copiedFiles?.Add(sourcePath);
         state.CopiedCount++;

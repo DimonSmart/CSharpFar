@@ -60,12 +60,12 @@ internal sealed class FileOperationDialog
         string initialDestination,
         FileOperationOptions initialOptions,
         Action<FileOperationDialogResult>? preview = null,
-        bool initialUseTemplate = false)
+        bool initialUseTemplate = false, bool unsafeReplacement = false)
     {
         string prompt = sources.Count == 1
             ? $"Copy {Path.GetFileName(sources[0])} to:"
             : $"Copy {sources.Count} items to:";
-        return Show("Copy", prompt, "Copy", initialDestination, initialOptions, CopyConflictModes, LocalCopyModes, showOperationOptions: true, showHelp: true, preview: preview, initialUseTemplate: initialUseTemplate);
+        return Show("Copy", prompt, "Copy", initialDestination, initialOptions, CopyConflictModes, LocalCopyModes, showOperationOptions: true, showHelp: true, preview: preview, initialUseTemplate: initialUseTemplate, unsafeReplacement: unsafeReplacement);
     }
 
     public FileOperationDialogResult? ShowMove(
@@ -104,7 +104,7 @@ internal sealed class FileOperationDialog
         bool showOperationOptions,
         bool showHelp,
         Action<FileOperationDialogResult>? preview,
-        bool initialUseTemplate = false)
+        bool initialUseTemplate = false, bool unsafeReplacement = false)
     {
         TextField destination = _fields.Text(new TextFieldOptions(
             initialDestination,
@@ -141,8 +141,8 @@ internal sealed class FileOperationDialog
             ? [DialogButton.Default("submit", actionLabel, actionLabel[0]), DialogButton.Auxiliary("preview", "Preview", 'P'), DialogButton.Auxiliary("help", "Help", 'H'), DialogButton.Cancel()]
             : [DialogButton.Default("submit", actionLabel, actionLabel[0]), DialogButton.Auxiliary("preview", "Preview", 'P'), DialogButton.Cancel()]);
         return _dialogs.Form(
-            new FormDialogOptions(title, DialogWidth, DialogHeight, 40, 8),
-            rows: () => BuildRows(prompt, destination, filter, securityChoice, copyModeChoice, conflictChoiceRow, preserveTimestamps, preserveAttributes, copySymlinkContents, useFilter, useTemplate, showOperationOptions),
+            new FormDialogOptions(title, DialogWidth, unsafeReplacement ? DialogHeight + 2 : DialogHeight, 40, 8),
+            rows: () => BuildRows(prompt, destination, filter, securityChoice, copyModeChoice, conflictChoiceRow, preserveTimestamps, preserveAttributes, copySymlinkContents, useFilter, useTemplate, showOperationOptions, unsafeReplacement),
             footer: () => [buttons],
             submit: () => BuildResult(
                 destination,
@@ -198,7 +198,8 @@ internal sealed class FileOperationDialog
         CheckBoxRow copySymlinkContents,
         CheckBoxRow useFilter,
         CheckBoxRow useTemplate,
-        bool showOperationOptions)
+        bool showOperationOptions,
+        bool unsafeReplacement)
     {
         var rows = new List<FormRow>
         {
@@ -222,6 +223,11 @@ internal sealed class FileOperationDialog
 
         rows.Add(FormControls.Label("Already existing files:"));
         rows.Add(conflictChoiceRow);
+        if (unsafeReplacement && conflictChoiceRow.Value == ConflictDecisionMode.Overwrite)
+        {
+            rows.Add(FormControls.Label("Safe replacement is not guaranteed."));
+            rows.Add(FormControls.Label("Failure may damage the destination file."));
+        }
 
         if (showOperationOptions)
         {

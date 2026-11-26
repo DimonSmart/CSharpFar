@@ -105,7 +105,7 @@ public static class SafeFileWriteService
         expected.Size == actual.Size && expected.LastWriteTime == actual.LastWriteTime &&
         expected.Attributes == actual.Attributes && expected.IsDirectory == actual.IsDirectory;
 
-    internal static bool UsesBestEffort(IFilePanelSource source, bool overwrite) =>
+    public static bool UsesBestEffort(IFilePanelSource source, bool overwrite) =>
         source is not IFileOperationBatch && source is not IFileOperationBatchProvider &&
         source.SourceId != PanelSourceId.Local &&
         (source is not ISafeNewFilePublicationProvider ||
@@ -166,7 +166,9 @@ public static class SafeFileWriteService
                 try
                 {
                     written = await write(stream).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
                     await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
                 }
                 catch (Exception error)
                 {
@@ -197,13 +199,12 @@ public static class SafeFileWriteService
             throw new IOException($"Write failed for '{path}'. {consequence}", writeError);
         if (expectedLength is long length && length != written)
             throw new IOException($"Incomplete write to '{path}' ({written}/{length} bytes). {consequence}");
-        if (cancellationToken.IsCancellationRequested)
-            throw new OperationCanceledException($"Partial data retained or possibly retained at '{path}'. {consequence}", cancellationToken);
-
+        // Completion has already been acknowledged. Observe verification even
+        // if cancellation arrives after the finalization boundary.
         FilePanelItem? actual;
         try
         {
-            actual = await source.AsAsync().GetItemAsync(path, cancellationToken).ConfigureAwait(false);
+            actual = await source.AsAsync().GetItemAsync(path, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception error)
         {
@@ -211,7 +212,6 @@ public static class SafeFileWriteService
         }
         if (actual is null || actual.IsDirectory || (actual.Size is long size && size != written))
             throw new IOException($"Destination verification failed: '{path}'. {consequence}");
-        cancellationToken.ThrowIfCancellationRequested();
         return null;
     }
 
