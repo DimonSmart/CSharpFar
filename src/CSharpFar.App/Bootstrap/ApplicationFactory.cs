@@ -80,7 +80,7 @@ public static class ApplicationFactory
             additionalPlugins: additionalPlugins,
             networkTrafficMonitorFactory: networkTrafficMonitorFactory);
 
-        services.CommandContext.UserMenu.RuntimePlatform = platform ?? DetectCurrentPlatform();
+        services.UserMenu.RuntimePlatform = platform ?? DetectCurrentPlatform();
         return new Application(services);
     }
 
@@ -152,7 +152,7 @@ public static class ApplicationFactory
             networkTrafficMonitorFactory: networkTrafficMonitorFactory,
             cancellationToken: cancellationToken,
             initialPluginErrors: initialPluginErrors).ConfigureAwait(false);
-        services.CommandContext.UserMenu.RuntimePlatform = platform ?? DetectCurrentPlatform();
+        services.UserMenu.RuntimePlatform = platform ?? DetectCurrentPlatform();
         return new Application(services);
     }
 

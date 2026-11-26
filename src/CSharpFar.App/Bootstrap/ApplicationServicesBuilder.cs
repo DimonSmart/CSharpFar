@@ -661,6 +661,7 @@ internal static class ApplicationServicesBuilder
                 ExternalPlugins = commandServices.ExternalPlugins,
                 DiagnosticLog = diagnosticLog,
                 History = effectiveHistory,
+                UserMenu = effectiveUserMenu,
                 DrainUiActions = pluginUiActions.Drain,
                 Settings = effectiveSettings,
                 Clipboard = effectiveClipboard,

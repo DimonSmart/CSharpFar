@@ -86,7 +86,7 @@ internal sealed class ApplicationPanelKeyboardHandler
                 return ApplicationInputHandlingResult.FromHandled(true);
 
             case ConsoleKey.Enter:
-                if (ApplicationCommandContext.TryResolveCommittedCurrentItem(state, keyboard, _context.PanelController, out var item))
+                if (PanelCommandTargetResolver.TryResolveCommittedCurrentItem(state, keyboard, _context.PanelController, out var item))
                     _context.OpenPanelItem(state, side, item);
                 return ApplicationInputHandlingResult.FromHandled(true);
 

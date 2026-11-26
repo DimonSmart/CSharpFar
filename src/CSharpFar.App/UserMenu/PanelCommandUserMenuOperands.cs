@@ -50,7 +50,7 @@ internal readonly record struct PanelCommandUserMenuOperands(
             state.SearchRequest is null &&
             state.LoadError is null &&
             Path.IsPathFullyQualified(state.SourcePath) &&
-            sourceRegistry.TryGetSource(PanelSourceId.Local, out IFilePanelSource source) &&
+            sourceRegistry.TryGetSource(PanelSourceId.Local, out var source) &&
             source is LocalFilePanelSource &&
             state.LastSuccessfulLoadLocation is { } loaded &&
             state.SelectedLocations.Comparer.Equals(loaded, state.CurrentLocation);
