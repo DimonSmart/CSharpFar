@@ -19,8 +19,8 @@ public sealed partial class FileOperationService
         {
             string destination = RequireDestination(request);
             bool singleRename = request.Sources.Count == 1 && !IsPath(destination);
-            string effectiveDestination = singleRename ? Path.Combine(Path.GetDirectoryName(request.Sources[0])!, destination) : destination;
-            var plan = BuildLocalMovePlan(request.Sources, effectiveDestination, singleRename, request.Options, request.UseDestinationTemplate, cancellationToken);
+            string effectiveDestination = singleRename ? Path.Combine(Path.GetDirectoryName(request.Sources[0].SourcePath)!, destination) : destination;
+            var plan = BuildLocalMovePlan(RequireLocalSourcePaths(request), effectiveDestination, singleRename, request.Options, request.UseDestinationTemplate, cancellationToken);
             return new FileOperationPlan(plan.Select(item => item.Mapping).ToArray());
         }
 
@@ -492,17 +492,17 @@ public sealed partial class FileOperationService
             string destination = RequireDestination(request);
             bool singleRename = request.Sources.Count == 1 && !IsPath(destination);
             string effectiveDestination = singleRename
-                ? Path.Combine(Path.GetDirectoryName(request.Sources[0])!, destination)
+                ? Path.Combine(Path.GetDirectoryName(request.Sources[0].SourcePath)!, destination)
                 : destination;
             var plan = BuildLocalMovePlan(
-                request.Sources,
+                RequireLocalSourcePaths(request),
                 effectiveDestination,
                 singleRename,
                 request.Options,
                 request.UseDestinationTemplate,
                 cancellationToken);
             bool wholeItemPureRename = IsWholeItemPureRename(plan, request);
-            state.SetTotals(CalculateSourcesSize(request.Sources), request.Sources.Count);
+            state.SetTotals(CalculateSourcesSize(RequireLocalSourcePaths(request)), request.Sources.Count);
             state.StartProgressTimer();
 
             foreach (var item in plan)
@@ -689,8 +689,8 @@ public sealed partial class FileOperationService
                     new FileOperationRequest
                     {
                         Kind = FileOperationKind.Copy,
-                        Sources = [source],
-                        Destination = Path.GetDirectoryName(target)!,
+                        Sources = [PanelLocation.Local(source)],
+                        Destination = PanelLocation.Local(Path.GetDirectoryName(target)!),
                         Options = options,
                         UseDestinationTemplate = false,
                     },
@@ -826,8 +826,8 @@ public sealed partial class FileOperationService
                 new FileOperationRequest
                 {
                     Kind = FileOperationKind.Copy,
-                    Sources = [source],
-                    Destination = Path.GetDirectoryName(staging)!,
+                    Sources = [PanelLocation.Local(source)],
+                    Destination = PanelLocation.Local(Path.GetDirectoryName(staging)!),
                     Options = options,
                     UseDestinationTemplate = false,
                 },

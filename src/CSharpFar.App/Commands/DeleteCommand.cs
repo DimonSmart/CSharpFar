@@ -20,17 +20,16 @@ internal sealed class DeleteCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        var sources = FileOperationCommandHelpers.GetOperationSources(context, target.State, target.ActiveCommitted);
-        var sourceLocations = FileOperationCommandHelpers.GetOperationSourceLocations(context, target.State, target.ActiveCommitted);
+        var sources = FileOperationCommandHelpers.GetOperationSourceLocations(context, target.State, target.ActiveCommitted);
         if (sources.Count == 0)
             return ApplicationCommandResult.Rendered();
 
         string itemName = sources.Count == 1
-            ? Path.GetFileName(sources[0]) ?? sources[0]
+            ? context.TryGetSource(sources[0].SourceId, out var source) ? source.GetFileName(sources[0].SourcePath) : sources[0].SourcePath
             : $"{sources.Count} items";
 
-        bool useRecycleBin = sourceLocations.Count > 0 &&
-                             sourceLocations.All(location => location.SourceId == PanelSourceId.Local) &&
+        bool useRecycleBin = sources.Count > 0 &&
+                             sources.All(location => location.SourceId == PanelSourceId.Local) &&
                              context.Settings.FileOperations.UseRecycleBinForDelete &&
                              context.FileOperations.SupportsRecycleBin;
         string confirmation = useRecycleBin
@@ -43,12 +42,12 @@ internal sealed class DeleteCommand : IApplicationCommand
         }
 
         bool searchResults = target.State.SearchRequest is not null;
-        IReadOnlyList<string> operationSources = searchResults
-            ? SearchResultsDeleteSupport.CollapseNestedSources(sources)
+        IReadOnlyList<PanelLocation> operationSources = searchResults
+            ? sources.GroupBy(location => location.SourceId).SelectMany(group =>
+                group.Key == PanelSourceId.Local
+                    ? SearchResultsDeleteSupport.CollapseNestedSources(group.Select(location => location.SourcePath).ToArray()).Select(PanelLocation.Local)
+                    : group).ToArray()
             : sources;
-        IReadOnlyList<PanelLocation> operationSourceLocations = searchResults
-            ? operationSources.Select(PanelLocation.Local).ToList()
-            : sourceLocations;
         FileOperationResult? result = null;
 
         try
@@ -57,7 +56,6 @@ internal sealed class DeleteCommand : IApplicationCommand
             {
                 Kind = FileOperationKind.Delete,
                 Sources = operationSources,
-                SourceLocations = operationSourceLocations,
                 Options = context.BuildFileOperationOptions() with
                 {
                     UseRecycleBinForDelete = useRecycleBin,
@@ -67,7 +65,7 @@ internal sealed class DeleteCommand : IApplicationCommand
 
             if (searchResults)
             {
-                SearchResultsDeleteSupport.Reconcile(target.State, operationSources, result);
+                SearchResultsDeleteSupport.Reconcile(target.State, operationSources.Where(location => location.SourceId == PanelSourceId.Local).Select(location => location.SourcePath).ToArray(), result);
                 context.Controller.NormalizeCursor(target.State, target.VisibleRows);
                 context.Controller.RefreshSelectionSummary(target.State);
             }

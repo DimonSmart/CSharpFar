@@ -36,7 +36,7 @@ internal sealed class CreateFolderCommand : IApplicationCommand
                     : [error],
             Validate = attempt =>
             {
-                if (attempt.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
+                if (target.State.SourceId == PanelSourceId.Local && attempt.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
                     return "Invalid characters in folder path.";
 
                 string newPath = context.CombinePanelPath(target.State, attempt);
@@ -46,8 +46,7 @@ internal sealed class CreateFolderCommand : IApplicationCommand
                     {
                         Kind = FileOperationKind.CreateDirectory,
                         Sources = [],
-                        Destination = newPath,
-                        DestinationLocation = new PanelLocation(target.State.SourceId, newPath),
+                        Destination = new PanelLocation(target.State.SourceId, newPath),
                         Options = context.BuildFileOperationOptions(),
                     });
                     return null;

@@ -100,8 +100,8 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(conflictResolver);
         using var sourceUsage = (_sources as FilePanelSourceRegistry)?.AcquireUsage(
-            (request.SourceLocations ?? []).Select(location => location.SourceId)
-                .Append(request.DestinationLocation?.SourceId ?? PanelSourceId.Local).ToArray());
+            request.Sources.Select(location => location.SourceId)
+                .Append(request.Destination?.SourceId ?? PanelSourceId.Local).ToArray());
 
         var state = new OperationState(request.Kind, progress, request.PauseController);
 
@@ -147,8 +147,8 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
     {
         ArgumentNullException.ThrowIfNull(request);
         using var sourceUsage = (_sources as FilePanelSourceRegistry)?.AcquireUsage(
-            (request.SourceLocations ?? []).Select(location => location.SourceId)
-                .Append(request.DestinationLocation?.SourceId ?? PanelSourceId.Local).ToArray());
+            request.Sources.Select(location => location.SourceId)
+                .Append(request.Destination?.SourceId ?? PanelSourceId.Local).ToArray());
         ValidateAccessibleSources(request);
 
         if (UsesProviderLocations(request))
@@ -222,16 +222,9 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
     private static int CountProviderPlanItems(IEnumerable<ProviderOperationPlanItem> roots) =>
         FlattenProviderPlan(roots).Count();
 
-    private static bool UsesProviderLocations(FileOperationRequest request)
-    {
-        if (request.SourceLocations is null && request.DestinationLocation is null)
-            return false;
-
-        bool hasRemoteSource = request.SourceLocations?.Any(l => l.SourceId != PanelSourceId.Local) == true;
-        bool hasRemoteDestination = request.DestinationLocation is { SourceId: var sourceId } &&
-                                    sourceId != PanelSourceId.Local;
-        return hasRemoteSource || hasRemoteDestination;
-    }
+    private static bool UsesProviderLocations(FileOperationRequest request) =>
+        request.Sources.Any(location => location.SourceId != PanelSourceId.Local) ||
+        request.Destination is { SourceId: var id } && id != PanelSourceId.Local;
 
     private void ValidateAccessibleSources(FileOperationRequest request)
     {
@@ -1185,29 +1178,28 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         value.Contains(Path.AltDirectorySeparatorChar) ||
         Path.IsPathRooted(value);
 
-    private static string RequireDestination(FileOperationRequest request) =>
-        string.IsNullOrWhiteSpace(request.Destination)
-            ? throw new ArgumentException("Destination is required.", nameof(request))
-            : request.Destination;
-
-    private static IReadOnlyList<PanelLocation> RequireSourceLocations(FileOperationRequest request)
+    private static string RequireDestination(FileOperationRequest request)
     {
-        if (request.SourceLocations is { Count: > 0 } sourceLocations)
-            return sourceLocations;
-
-        if (request.Sources.Count > 0)
-            return request.Sources.Select(PanelLocation.Local).ToList();
-
-        throw new ArgumentException("At least one source is required.", nameof(request));
+        PanelLocation destination = RequireDestinationLocation(request);
+        if (destination.SourceId != PanelSourceId.Local)
+            throw new ArgumentException("Expected a local destination.", nameof(request));
+        return destination.SourcePath;
     }
 
-    private static PanelLocation RequireDestinationLocation(FileOperationRequest request)
+    private static IReadOnlyList<string> RequireLocalSourcePaths(FileOperationRequest request)
     {
-        if (request.DestinationLocation is { } destinationLocation)
-            return destinationLocation;
-
-        return PanelLocation.Local(RequireDestination(request));
+        if (request.Sources.Any(location => location.SourceId != PanelSourceId.Local))
+            throw new ArgumentException("Expected local sources.", nameof(request));
+        return request.Sources.Select(location => location.SourcePath).ToArray();
     }
+
+    private static IReadOnlyList<PanelLocation> RequireSourceLocations(FileOperationRequest request) =>
+        request.Sources.Count > 0 ? request.Sources :
+            throw new ArgumentException("At least one source is required.", nameof(request));
+
+    private static PanelLocation RequireDestinationLocation(FileOperationRequest request) =>
+        request.Destination is { } destination && !string.IsNullOrWhiteSpace(destination.SourcePath)
+            ? destination : throw new ArgumentException("Destination is required.", nameof(request));
 
     private List<ProviderOperationPlanItem> BuildProviderCopyPlan(
         IReadOnlyList<PanelLocation> sources,
@@ -1239,25 +1231,10 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
 
     private static IEnumerable<PanelSourceId> EnumerateReferencedSources(FileOperationRequest request)
     {
-        if (request.SourceLocations is { Count: > 0 } sourceLocations)
-        {
-            foreach (PanelLocation location in sourceLocations)
-                yield return location.SourceId;
-        }
-        else if (request.Sources.Count > 0)
-        {
-            yield return PanelSourceId.Local;
-        }
-
-        if (request.DestinationLocation is { } destinationLocation)
-        {
-            yield return destinationLocation.SourceId;
-        }
-        else if (request.Kind is FileOperationKind.Copy or FileOperationKind.Move or FileOperationKind.CreateDirectory &&
-                 !string.IsNullOrWhiteSpace(request.Destination))
-        {
-            yield return PanelSourceId.Local;
-        }
+        foreach (PanelLocation location in request.Sources)
+            yield return location.SourceId;
+        if (request.Destination is { } destination)
+            yield return destination.SourceId;
     }
 
     internal static string CombineProviderPath(PanelSourceId sourceId, string directoryPath, string name)

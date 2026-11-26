@@ -33,11 +33,9 @@ internal sealed class RenameCommand : IApplicationCommand
             result => DestinationTemplatePreview.Show(context, new FileOperationRequest
             {
                 Kind = FileOperationKind.Move,
-                Sources = [item.FullPath],
-                SourceLocations = [item.Location],
-                Destination = result.Destination,
+                Sources = [item.Location],
                 UseDestinationTemplate = result.UseDestinationTemplate,
-                DestinationLocation = BuildDestinationLocation(context, target.State, result.Destination),
+                Destination = BuildDestinationLocation(context, target.State, result.Destination),
                 Options = result.Options,
             }));
         if (dialogResult is null)
@@ -51,11 +49,9 @@ internal sealed class RenameCommand : IApplicationCommand
             context.ExecuteFileOperation(new FileOperationRequest
             {
                 Kind = FileOperationKind.Move,
-                Sources = [item.FullPath],
-                SourceLocations = [item.Location],
-                Destination = dialogResult.Destination,
+                Sources = [item.Location],
                 UseDestinationTemplate = dialogResult.UseDestinationTemplate,
-                DestinationLocation = BuildDestinationLocation(context, target.State, dialogResult.Destination),
+                Destination = BuildDestinationLocation(context, target.State, dialogResult.Destination),
                 Options = dialogResult.Options,
             });
 
@@ -79,7 +75,7 @@ internal sealed class RenameCommand : IApplicationCommand
         if (state.SourceId == PanelSourceId.Local)
             return PanelLocation.Local(destination);
 
-        string path = destination.Contains('/')
+        string path = context.TryGetSource(state.SourceId, out var source) && source.PathSeparators.Any(destination.Contains)
             ? destination
             : context.CombinePanelPath(state, destination);
         return new PanelLocation(state.SourceId, path);

@@ -518,16 +518,8 @@ internal sealed class ApplicationCommandContext
     public ApplicationCommandResult OpenModuleDiskMenuItem(Guid actionId, PanelSide panelSide) =>
         _modulePanelOpener.OpenDiskMenuItem(actionId, panelSide);
 
-    public string CombinePanelPath(FilePanelState state, string name)
-    {
-        if (state.SourceId == PanelSourceId.Local)
-            return Path.Combine(state.SourcePath, name);
-
-        string directory = state.SourcePath.TrimEnd('/');
-        return directory.Length == 0 || directory == "/"
-            ? "/" + name
-            : directory + "/" + name;
-    }
+    public string CombinePanelPath(FilePanelState state, string name) =>
+        _sourceRegistry.GetSource(state.SourceId).CombinePath(state.SourcePath, name);
 
     public bool TryGetSource(PanelSourceId sourceId, out IFilePanelSource source) =>
         _sourceRegistry.TryGetSource(sourceId, out source);

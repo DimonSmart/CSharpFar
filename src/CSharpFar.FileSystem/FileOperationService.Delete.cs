@@ -92,7 +92,7 @@ public sealed partial class FileOperationService
 
         public void ExecuteLocal(FileOperationRequest request, OperationState state, CancellationToken cancellationToken)
         {
-            var plan = BuildDeletePlan(request.Sources, state, cancellationToken);
+            var plan = BuildDeletePlan(RequireLocalSourcePaths(request), state, cancellationToken);
             state.SetTotals(plan.TotalBytes, plan.Items.Count);
             state.StartProgressTimer();
 
