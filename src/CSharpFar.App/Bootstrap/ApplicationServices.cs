@@ -38,6 +38,7 @@ internal sealed class ApplicationServices
     public required ExternalPluginSession ExternalPlugins { get; init; }
     public required IDiagnosticLog DiagnosticLog { get; init; }
     public required IHistoryStore History { get; init; }
+    public required UserMenuStore UserMenu { get; init; }
     public required Action DrainUiActions { get; init; }
     public required AppSettingsAlias Settings { get; init; }
     public required ITextClipboard Clipboard { get; init; }
