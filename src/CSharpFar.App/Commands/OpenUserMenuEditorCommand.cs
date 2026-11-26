@@ -23,12 +23,12 @@ internal sealed class OpenUserMenuEditorCommand(PanelCommandTargetResolver targe
         ? MenuCommandIds.SettingsOpenLocalUserMenu
         : MenuCommandIds.SettingsOpenUserMenu;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
+    public bool CanExecute(object? args = null) =>
         !local || PanelCommandUserMenuOperands.CanUseLocalUserMenu(sourceRegistry, targetResolver.ResolvePanelTarget(args));
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
-        if (!CanExecute(context, args))
+        if (!CanExecute(args))
             return ApplicationCommandResult.Rendered();
 
         string? path = local

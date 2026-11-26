@@ -17,7 +17,7 @@ internal sealed class EditFileCommand(PanelCommandTargetResolver targetResolver,
 {
     public string CommandId => FunctionKeyCommandIds.Edit;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null)
+    public bool CanExecute(object? args = null)
     {
         var target = targetResolver.ResolvePanelTarget(args);
         return PanelCommandTargetResolver.CommittedLocationMatches(target.State, target.ActiveCommitted) &&
@@ -28,7 +28,7 @@ internal sealed class EditFileCommand(PanelCommandTargetResolver targetResolver,
             !item.IsDirectory;
     }
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         var target = targetResolver.ResolvePanelTarget(args);
         if (!PanelCommandTargetResolver.CommittedLocationMatches(target.State, target.ActiveCommitted))

@@ -1,6 +1,8 @@
 using CSharpFar.App.Bootstrap;
 using CSharpFar.App.CommandLine;
 using CSharpFar.App.Commands;
+using CSharpFar.App.FunctionKeys;
+using CSharpFar.App.DirectoryShortcuts;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.UserMenu;
 using CSharpFar.Console;
@@ -32,63 +34,63 @@ public sealed class DemoModeLocalSourceGuardTests : IDisposable
     [Fact]
     public void SearchFilesCommand_CanExecute_FalseWhenLocalSourceIsUnregistered()
     {
-        var context = CreateContext();
-        context.LeftPanel.CurrentLocation = PanelLocation.Local(_root);
+        var services = CreateServices();
+        services.Session.Panels.Left.CurrentLocation = PanelLocation.Local(_root);
 
-        Assert.False(new SearchFilesCommand().CanExecute(context));
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Search));
     }
 
     [Fact]
     public void CompareCommand_CanExecute_FalseWhenPanelsLookLocalButLocalSourceIsUnregistered()
     {
-        var context = CreateContext();
-        context.LeftPanel.CurrentLocation = PanelLocation.Local(_root);
-        context.RightPanel.CurrentLocation = PanelLocation.Local(_root);
+        var services = CreateServices();
+        services.Session.Panels.Left.CurrentLocation = PanelLocation.Local(_root);
+        services.Session.Panels.Right.CurrentLocation = PanelLocation.Local(_root);
 
-        Assert.False(new CompareCommand(CompareCommandKind.Folders).CanExecute(context));
-        Assert.False(new CompareCommand(CompareCommandKind.FileSets).CanExecute(context));
+        Assert.False(services.CommandRegistry.CanExecute(ApplicationCommandIds.CompareFolders));
+        Assert.False(services.CommandRegistry.CanExecute(ApplicationCommandIds.CompareFileSets));
     }
 
     [Fact]
     public void DirectoryHistoryCommand_DoesNotNavigateWhenLocalSourceIsUnregistered()
     {
-        var context = CreateContext();
-        context.LeftPanel.CurrentLocation = PanelLocation.Local(_root);
-        context.History.AddDirectory(new DirectoryHistoryItem { Path = Path.Combine(_root, "missing") });
+        var services = CreateServices();
+        services.Session.Panels.Left.CurrentLocation = PanelLocation.Local(_root);
+        services.History.AddDirectory(new DirectoryHistoryItem { Path = Path.Combine(_root, "missing") });
 
-        new DirectoryHistoryCommand().Execute(context);
+        services.CommandRegistry.Execute(FunctionKeyCommandIds.DirectoryHistory);
 
-        Assert.Equal(PanelLocation.Local(_root), context.LeftPanel.CurrentLocation);
+        Assert.Equal(PanelLocation.Local(_root), services.Session.Panels.Left.CurrentLocation);
     }
 
     [Fact]
     public void FileHistoryCommand_DoesNotOpenWhenLocalSourceIsUnregistered()
     {
-        var context = CreateContext();
-        context.LeftPanel.CurrentLocation = PanelLocation.Local(_root);
-        context.History.AddFile(new FileHistoryItem { Path = Path.Combine(_root, "missing.txt") });
+        var services = CreateServices();
+        services.Session.Panels.Left.CurrentLocation = PanelLocation.Local(_root);
+        services.History.AddFile(new FileHistoryItem { Path = Path.Combine(_root, "missing.txt") });
 
-        new FileHistoryCommand().Execute(context);
+        services.CommandRegistry.Execute(FunctionKeyCommandIds.FileHistory);
 
-        Assert.Equal(PanelLocation.Local(_root), context.LeftPanel.CurrentLocation);
+        Assert.Equal(PanelLocation.Local(_root), services.Session.Panels.Left.CurrentLocation);
     }
 
     [Fact]
     public void NavigateToDirectoryShortcutCommand_CanExecute_FalseWhenLocalSourceIsUnregistered()
     {
-        var context = CreateContext();
-        context.LeftPanel.CurrentLocation = PanelLocation.Local(_root);
-        context.Settings.DirectoryShortcuts.Items.Add(new AppSettings.DirectoryShortcutItem
+        var services = CreateServices();
+        services.Session.Panels.Left.CurrentLocation = PanelLocation.Local(_root);
+        services.Settings.DirectoryShortcuts.Items.Add(new AppSettings.DirectoryShortcutItem
         {
             Number = 1,
             Name = "Root",
             Path = _root,
         });
 
-        var command = new NavigateToDirectoryShortcutCommand();
+        Assert.True(services.CommandRegistry.TryGetCommand(DirectoryShortcutCommandIds.Navigate, out var command));
 
-        Assert.False(command.CanExecute(context, new NavigateToDirectoryShortcutArgs(1)));
-        Assert.False(command.CanExecute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _root, PanelSide.Left)));
+        Assert.False(command.CanExecute(new NavigateToDirectoryShortcutArgs(1)));
+        Assert.False(command.CanExecute(new NavigateToCommittedDirectoryShortcutArgs(1, _root, PanelSide.Left)));
     }
 
     [Fact]
@@ -111,7 +113,7 @@ public sealed class DemoModeLocalSourceGuardTests : IDisposable
         Assert.Equal(PanelLocation.Local(_root), state.CurrentLocation);
     }
 
-    private ApplicationCommandContext CreateContext()
+    private ApplicationServices CreateServices()
     {
         var settings = new AppSettings();
         string configDirectory = Path.Combine(_root, "config");
@@ -132,6 +134,6 @@ public sealed class DemoModeLocalSourceGuardTests : IDisposable
             sourceRegistry: new FilePanelSourceRegistry([DemoFilePanelSource.ImportFromDirectory(fixture)]),
             configDirectory: configDirectory,
             runOptions: new ApplicationRunOptions(ApplicationRunMode.Demo, fixture));
-        return services.CommandContext;
+        return services;
     }
 }

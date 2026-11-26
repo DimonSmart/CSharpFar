@@ -16,13 +16,13 @@ internal sealed class DeleteCommand(PanelCommandTargetResolver targetResolver, P
 {
     public string CommandId => FunctionKeyCommandIds.Delete;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
+    public bool CanExecute(object? args = null) =>
         FileOperationCommandHelpers.HasCapability(targetResolver.ResolvePanelTarget(args).State, PanelProviderCapabilities.Delete);
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         var target = targetResolver.ResolvePanelTarget(args);
-        if (!CanExecute(context, args))
+        if (!CanExecute(args))
         {
             FileOperationCommandHelpers.ShowReadOnlyPanelMessage(dialogs, "Delete");
             return ApplicationCommandResult.Rendered();

@@ -67,9 +67,8 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     public void Execute_MenuCommandWithMissingArgs_ReturnsFailedMenuResult(string commandId)
     {
         var registry = CreateServices().CommandRegistry;
-        var context = CreateContext();
 
-        var result = registry.Execute(commandId, context).ToMenuCommandResult();
+        var result = registry.Execute(commandId).ToMenuCommandResult();
 
         Assert.False(result.Success);
         Assert.False(string.IsNullOrWhiteSpace(result.ErrorMessage));
@@ -79,9 +78,8 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     public void Execute_UnknownCommand_ReturnsFailedMenuResult()
     {
         var registry = CreateServices().CommandRegistry;
-        var context = CreateContext();
 
-        var result = registry.Execute("missing.command", context).ToMenuCommandResult();
+        var result = registry.Execute("missing.command").ToMenuCommandResult();
 
         Assert.False(result.Success);
         Assert.Contains("Unsupported", result.ErrorMessage, StringComparison.Ordinal);
@@ -91,44 +89,44 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     public void Execute_PanelScopedCommandUsesCommittedSideInsteadOfLiveActiveSide()
     {
         var services = CreateServices(seedPanelFiles: true);
-        var left = services.CommandContext.LeftPanel;
-        var right = services.CommandContext.RightPanel;
+        var left = services.Session.Panels.Left;
+        var right = services.Session.Panels.Right;
         PrepareDistinctPanelSortState(left, right);
         SortMode originalRightSortMode = right.SortMode;
-        services.CommandContext.ActiveSide = PanelSide.Left;
+        services.PanelWorkspace.ActiveSide = PanelSide.Left;
         var invocation = new ApplicationPanelCommandInvocation(
             PanelSide.Left,
             10,
             ApplicationPanelKeyboardSnapshot.Capture(left),
             ApplicationPanelKeyboardSnapshot.Capture(right));
 
-        services.CommandContext.ActiveSide = PanelSide.Right;
+        services.PanelWorkspace.ActiveSide = PanelSide.Right;
         var result = services.CommandRegistry.Execute(
-            FunctionKeyCommandIds.SortByName, services.CommandContext, invocation);
-        services.CommandContext.WaitForPanelLoads();
+            FunctionKeyCommandIds.SortByName, invocation);
+        services.WaitForPanelLoads();
 
         Assert.True(result.ShouldRender);
         Assert.Equal(SortMode.Name, left.SortMode);
         Assert.Equal(originalRightSortMode, right.SortMode);
         Assert.Equal(["..", "a.txt", "z.txt"], PanelItemNames(left));
         Assert.Equal(["..", "right-z.bin", "right-a.txt"], PanelItemNames(right));
-        Assert.Equal(PanelSide.Right, services.CommandContext.ActiveSide);
+        Assert.Equal(PanelSide.Right, services.PanelWorkspace.ActiveSide);
     }
 
     [Fact]
     public void ResolvePanelTarget_PreservesBothCommittedPanelSnapshots()
     {
         var services = CreateServices();
-        var left = services.CommandContext.LeftPanel;
-        var right = services.CommandContext.RightPanel;
+        var left = services.Session.Panels.Left;
+        var right = services.Session.Panels.Right;
         left.CurrentLocation = new PanelLocation(new PanelSourceId("left-provider"), @"/left");
         right.CurrentLocation = new PanelLocation(new PanelSourceId("right-provider"), @"/right");
         var active = new ApplicationPanelKeyboardFrame(left.CurrentLocation, false, null, null, null);
         var passive = new ApplicationPanelKeyboardFrame(right.CurrentLocation, false, null, null, null);
         var invocation = new ApplicationPanelCommandInvocation(PanelSide.Left, 4, active, passive);
-        services.CommandContext.ActiveSide = PanelSide.Right;
+        services.PanelWorkspace.ActiveSide = PanelSide.Right;
 
-        var target = services.CommandContext.ResolvePanelTarget(invocation);
+        var target = services.PanelTargetResolver.ResolvePanelTarget(invocation);
 
         Assert.Same(left, target.State);
         Assert.Same(right, target.PassiveState);
@@ -144,9 +142,9 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     {
         var operations = new RecordingFileOperationService();
         var services = CreateServices(fileOperations: operations);
-        services.CommandContext.Settings.Ui.ConfirmDelete = false;
-        var left = services.CommandContext.LeftPanel;
-        var right = services.CommandContext.RightPanel;
+        services.Settings.Ui.ConfirmDelete = false;
+        var left = services.Session.Panels.Left;
+        var right = services.Session.Panels.Right;
         AddItem(left, "committed.txt");
         left.CursorIndex = left.Items.Count - 1;
         var invocation = new ApplicationPanelCommandInvocation(
@@ -168,7 +166,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
             IsDirectory = false,
         };
 
-        var result = services.CommandRegistry.Execute(FunctionKeyCommandIds.Delete, services.CommandContext, invocation);
+        var result = services.CommandRegistry.Execute(FunctionKeyCommandIds.Delete, invocation);
 
         Assert.Empty(operations.Requests);
         Assert.True(result.ShouldRender);
@@ -211,8 +209,8 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     private void AssertEditorContextFactoryDoesNotUseLivePassiveItem(bool samePathDifferentProvider)
     {
         var services = CreateServices();
-        var left = services.CommandContext.LeftPanel;
-        var right = services.CommandContext.RightPanel;
+        var left = services.Session.Panels.Left;
+        var right = services.Session.Panels.Right;
         AddItem(left, "active.txt");
         AddItem(right, "committed.txt");
         left.CursorIndex = left.Items.Count - 1;
@@ -234,7 +232,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
                 : PanelSourceId.Local,
             IsDirectory = false,
         };
-        var target = services.CommandContext.ResolvePanelTarget(invocation);
+        var target = services.PanelTargetResolver.ResolvePanelTarget(invocation);
 
         var context = PanelCommandEditorContextFactory.Create(services.PanelController, target);
 
@@ -246,8 +244,8 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     public void UserMenuOperands_CurrentLocationsUnchanged_CreatesOperands()
     {
         var services = CreateServices();
-        var left = services.CommandContext.LeftPanel;
-        var right = services.CommandContext.RightPanel;
+        var left = services.Session.Panels.Left;
+        var right = services.Session.Panels.Right;
         AddItem(left, "committed.txt");
         AddItem(right, "passive.txt");
         left.CurrentLocation = PanelLocation.Local(_tempDir);
@@ -258,7 +256,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
             PanelSide.Left, 10,
             new ApplicationPanelKeyboardFrame(left.CurrentLocation, false, 1, left.Items[1].Location, left.Items[1].Name),
             new ApplicationPanelKeyboardFrame(right.CurrentLocation, false, 1, right.Items[1].Location, right.Items[1].Name));
-        var target = services.CommandContext.ResolvePanelTarget(invocation);
+        var target = services.PanelTargetResolver.ResolvePanelTarget(invocation);
 
         bool created = PanelCommandUserMenuOperands.TryCreate(target, services.PanelController, out var operands);
         string expanded = operands.Expand("{current}|{panelDir}|{otherPanelDir}");
@@ -275,8 +273,8 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     public void UserMenuOperands_LocationChanged_DoesNotCreateOperands(CommittedLocationMutation mutation)
     {
         var services = CreateServices();
-        var left = services.CommandContext.LeftPanel;
-        var right = services.CommandContext.RightPanel;
+        var left = services.Session.Panels.Left;
+        var right = services.Session.Panels.Right;
         AddItem(left, "committed.txt");
         AddItem(right, "passive.txt");
         left.CursorIndex = left.Items.Count - 1;
@@ -287,7 +285,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
             ApplicationPanelKeyboardSnapshot.Capture(left),
             ApplicationPanelKeyboardSnapshot.Capture(right));
         MutateCommittedLocation(left, right, mutation);
-        var target = services.CommandContext.ResolvePanelTarget(invocation);
+        var target = services.PanelTargetResolver.ResolvePanelTarget(invocation);
 
         bool created = PanelCommandUserMenuOperands.TryCreate(target, services.PanelController, out _);
 
@@ -298,8 +296,8 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     public void UserMenuOperands_StaleCurrentItemIsNotReplacedWithLiveItem()
     {
         var services = CreateServices();
-        var left = services.CommandContext.LeftPanel;
-        var right = services.CommandContext.RightPanel;
+        var left = services.Session.Panels.Left;
+        var right = services.Session.Panels.Right;
         AddItem(left, "committed.txt");
         left.CursorIndex = left.Items.Count - 1;
         var invocation = new ApplicationPanelCommandInvocation(
@@ -313,7 +311,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
             FullPath = Path.Combine(_tempDir, "live.txt"),
             IsDirectory = false,
         };
-        var target = services.CommandContext.ResolvePanelTarget(invocation);
+        var target = services.PanelTargetResolver.ResolvePanelTarget(invocation);
 
         bool created = PanelCommandUserMenuOperands.TryCreate(target, services.PanelController, out var operands);
         string expanded = operands.Expand("{current}");
@@ -327,19 +325,19 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     {
         var services = CreateServices(seedPanelFiles: true);
         WireRegistry(services);
-        PrepareDistinctPanelSortState(services.CommandContext.LeftPanel, services.CommandContext.RightPanel);
+        PrepareDistinctPanelSortState(services.Session.Panels.Left, services.Session.Panels.Right);
         var frame = Frame(PanelSide.Left, FunctionKeyCommandIds.SortByName, ConsoleKey.F3,
-            services.CommandContext.LeftPanel, services.CommandContext.RightPanel);
-        services.CommandContext.ActiveSide = PanelSide.Right;
+            services.Session.Panels.Left, services.Session.Panels.Right);
+        services.PanelWorkspace.ActiveSide = PanelSide.Right;
 
         var request = services.ApplicationInputDispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
             new KeyConsoleInputEvent(new ConsoleKeyInfo('\0', ConsoleKey.F3, false, false, true)),
             frame, ApplicationTargetIds.WorkspaceKeyboard, UiInputRouteKind.KeyboardTarget));
 
         Assert.True(request.ShouldRender);
-        Assert.Equal(SortMode.Name, services.CommandContext.LeftPanel.SortMode);
-        Assert.Equal(SortMode.Size, services.CommandContext.RightPanel.SortMode);
-        Assert.Equal(PanelSide.Right, services.CommandContext.ActiveSide);
+        Assert.Equal(SortMode.Name, services.Session.Panels.Left.SortMode);
+        Assert.Equal(SortMode.Size, services.Session.Panels.Right.SortMode);
+        Assert.Equal(PanelSide.Right, services.PanelWorkspace.ActiveSide);
     }
 
     [Fact]
@@ -347,19 +345,19 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     {
         var services = CreateServices(seedPanelFiles: true);
         WireRegistry(services);
-        PrepareDistinctPanelSortState(services.CommandContext.LeftPanel, services.CommandContext.RightPanel);
+        PrepareDistinctPanelSortState(services.Session.Panels.Left, services.Session.Panels.Right);
         var frame = Frame(PanelSide.Left, FunctionKeyCommandIds.SortByName, ConsoleKey.F3,
-            services.CommandContext.LeftPanel, services.CommandContext.RightPanel);
-        services.CommandContext.ActiveSide = PanelSide.Right;
+            services.Session.Panels.Left, services.Session.Panels.Right);
+        services.PanelWorkspace.ActiveSide = PanelSide.Right;
 
         var request = services.ApplicationInputDispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
             new MouseConsoleInputEvent(2, 24, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             frame, ApplicationTargetIds.FunctionKeyAction(FunctionKeyLayer.Control, ConsoleKey.F3), UiInputRouteKind.HitTarget));
 
         Assert.True(request.ShouldRender);
-        Assert.Equal(SortMode.Name, services.CommandContext.LeftPanel.SortMode);
-        Assert.Equal(SortMode.Size, services.CommandContext.RightPanel.SortMode);
-        Assert.Equal(PanelSide.Right, services.CommandContext.ActiveSide);
+        Assert.Equal(SortMode.Name, services.Session.Panels.Left.SortMode);
+        Assert.Equal(SortMode.Size, services.Session.Panels.Right.SortMode);
+        Assert.Equal(PanelSide.Right, services.PanelWorkspace.ActiveSide);
     }
 
     [Theory]
@@ -377,8 +375,8 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     {
         var operations = new RecordingFileOperationService();
         var services = CreateServices(fileOperations: operations);
-        var left = services.CommandContext.LeftPanel;
-        var right = services.CommandContext.RightPanel;
+        var left = services.Session.Panels.Left;
+        var right = services.Session.Panels.Right;
         string sourcePath = Path.Combine(_tempDir, "source.txt");
         left.SelectedLocations.Add(PanelLocation.Local(sourcePath));
         var invocation = new ApplicationPanelCommandInvocation(
@@ -387,31 +385,11 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
             ApplicationPanelKeyboardSnapshot.Capture(right));
         MutateCommittedLocation(left, right, mutation);
 
-        var result = services.CommandRegistry.Execute(commandId, services.CommandContext, invocation);
+        var result = services.CommandRegistry.Execute(commandId, invocation);
 
         Assert.True(result.ShouldRender);
         Assert.Empty(operations.Requests);
         Assert.Contains(PanelLocation.Local(sourcePath), left.SelectedLocations);
-    }
-
-    private ApplicationCommandContext CreateContext()
-    {
-        var fs = new FakeFileSystemService();
-        fs.AddDirectory(_tempDir);
-
-        var settings = new AppSettings();
-        settings.Panels.LeftStartDirectory = _tempDir;
-        settings.Panels.RightStartDirectory = _tempDir;
-
-        var services = ApplicationServicesBuilder.Create(
-            new ScreenRenderer(new FakeConsoleDriver()),
-            fs,
-            new NoOpShellService(),
-            new NoOpFileOperationService(),
-            new InMemoryHistoryStore(),
-            settings);
-
-        return services.CommandContext;
     }
 
     private ApplicationServices CreateServices(
@@ -433,7 +411,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
             new ScreenRenderer(new FakeConsoleDriver()), fs, new NoOpShellService(),
             fileOperations ?? new NoOpFileOperationService(), new InMemoryHistoryStore(), settings);
         services.Callbacks.ClosePanelQuickSearchForState = _ => { };
-        services.Callbacks.PanelSideForState = state => ReferenceEquals(state, services.CommandContext.LeftPanel) ? PanelSide.Left : PanelSide.Right;
+        services.Callbacks.PanelSideForState = state => ReferenceEquals(state, services.Session.Panels.Left) ? PanelSide.Left : PanelSide.Right;
         services.Callbacks.VisibleRowsForSide = _ => 10;
         return services;
     }
@@ -441,7 +419,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     private static void WireRegistry(ApplicationServices services)
     {
         bool Execute(string commandId, object? args) =>
-            services.CommandRegistry.Execute(commandId, services.CommandContext, args).ShouldRender;
+            services.CommandRegistry.Execute(commandId, args).ShouldRender;
         services.KeyboardInputContext.ExecuteRegisteredCommand = Execute;
         services.KeyboardInputContext.SetFunctionKeyLayer = _ => false;
         services.MouseInputContext.ExecuteRegisteredCommand = Execute;

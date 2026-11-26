@@ -32,8 +32,8 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
         FilePanelState panel = PreparePanel(services, source, Dir(source, "/root/a"));
         source.Set("/root/a", File(source, "/root/a/file.bin", 12));
 
-        Assert.True(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.View, services.CommandContext));
-        ApplicationCommandResult result = services.CommandRegistry.Execute(FunctionKeyCommandIds.View, services.CommandContext);
+        Assert.True(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.View));
+        ApplicationCommandResult result = services.CommandRegistry.Execute(FunctionKeyCommandIds.View);
 
         Assert.True(result.ShouldRender);
         await source.WaitForEnumerationAsync("/root/a");
@@ -47,12 +47,12 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
         var enumerateOnly = new ControlledSource(PanelProviderCapabilities.Enumerate);
         var services = Services(enumerateOnly);
         PreparePanel(services, enumerateOnly, File(enumerateOnly, "/root/file.bin", 10));
-        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.View, services.CommandContext));
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.View));
 
         var readable = new ControlledSource(PanelProviderCapabilities.Enumerate | PanelProviderCapabilities.OpenRead);
         var readableServices = Services(readable);
         PreparePanel(readableServices, readable, File(readable, "/root/file.bin", 10));
-        Assert.True(readableServices.CommandRegistry.CanExecute(FunctionKeyCommandIds.View, readableServices.CommandContext));
+        Assert.True(readableServices.CommandRegistry.CanExecute(FunctionKeyCommandIds.View));
     }
 
     [Fact]
@@ -70,13 +70,13 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
             IsParentDirectory = true,
         };
         FilePanelState panel = PreparePanel(services, source, parent);
-        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.View, services.CommandContext));
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.View));
 
         panel.Items[0] = Dir(source, "/root/link", FileAttributes.ReparsePoint);
-        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.View, services.CommandContext));
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.View));
 
         panel.Items[0] = Mount(source, "/root/mount");
-        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.View, services.CommandContext));
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.View));
         Assert.Empty(source.Calls);
     }
 
@@ -87,16 +87,16 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
         var services = Services(source);
         FilePanelState panel = PreparePanel(services, source, File(source, "/root/file.txt", 10));
 
-        Assert.True(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit, services.CommandContext));
+        Assert.True(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit));
 
         panel.Items[0] = Dir(source, "/root/folder");
-        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit, services.CommandContext));
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit));
 
         panel.Items[0] = Dir(source, "/root/link", FileAttributes.ReparsePoint);
-        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit, services.CommandContext));
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit));
 
         panel.Items[0] = Mount(source, "/root/mount");
-        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit, services.CommandContext));
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit));
 
         panel.Items[0] = new FilePanelItem
         {
@@ -106,17 +106,17 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
             IsDirectory = true,
             IsParentDirectory = true,
         };
-        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit, services.CommandContext));
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit));
 
         panel.Items.Clear();
-        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit, services.CommandContext));
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit));
 
         panel.Items.Add(File(source, "/root/file.txt", 10));
         panel.ProviderCapabilities = PanelProviderCapabilities.Enumerate;
-        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit, services.CommandContext));
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit));
 
         panel.ProviderCapabilities = PanelProviderCapabilities.SearchResults;
-        Assert.True(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit, services.CommandContext));
+        Assert.True(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.Edit));
     }
 
     [Fact]
@@ -128,9 +128,9 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
 
         try
         {
-            services.CommandRegistry.Execute(FunctionKeyCommandIds.View, services.CommandContext);
+            services.CommandRegistry.Execute(FunctionKeyCommandIds.View);
             await source.WaitForEnumerationAsync("/root/a");
-            services.CommandRegistry.Execute(FunctionKeyCommandIds.View, services.CommandContext);
+            services.CommandRegistry.Execute(FunctionKeyCommandIds.View);
             await Task.Delay(50);
 
             Assert.Equal(1, source.CallCount("/root/a"));
@@ -157,10 +157,10 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
 
         try
         {
-            Assert.True(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.CalculateDirectorySizes, services.CommandContext));
-            services.CommandRegistry.Execute(FunctionKeyCommandIds.CalculateDirectorySizes, services.CommandContext);
+            Assert.True(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.CalculateDirectorySizes));
+            services.CommandRegistry.Execute(FunctionKeyCommandIds.CalculateDirectorySizes);
             await source.WaitForEnumerationAsync("/root/a");
-            services.CommandRegistry.Execute(FunctionKeyCommandIds.CalculateDirectorySizes, services.CommandContext);
+            services.CommandRegistry.Execute(FunctionKeyCommandIds.CalculateDirectorySizes);
             await Task.Delay(50);
             Assert.Equal(1, source.CallCount("/root/a"));
             Assert.Equal(0, source.CallCount("/root/b"));
@@ -184,8 +184,8 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
         FilePanelState panel = PreparePanel(services, source, Dir(source, "/root/a"));
         panel.ContentKind = PanelContentKind.Virtual;
 
-        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.CalculateDirectorySizes, services.CommandContext));
-        services.CommandRegistry.Execute(FunctionKeyCommandIds.CalculateDirectorySizes, services.CommandContext);
+        Assert.False(services.CommandRegistry.CanExecute(FunctionKeyCommandIds.CalculateDirectorySizes));
+        services.CommandRegistry.Execute(FunctionKeyCommandIds.CalculateDirectorySizes);
         Thread.Sleep(30);
         Assert.Empty(source.Calls);
     }
@@ -217,14 +217,14 @@ public sealed class PanelDirectorySizeCommandTests : IDisposable
         ControlledSource source,
         params FilePanelItem[] items)
     {
-        FilePanelState panel = services.CommandContext.LeftPanel;
+        FilePanelState panel = services.Session.Panels.Left;
         panel.CurrentLocation = new PanelLocation(source.SourceId, "/root");
         panel.ProviderCapabilities = source.Capabilities;
         panel.ContentKind = PanelContentKind.Source;
         panel.Items.Clear();
         panel.Items.AddRange(items);
         panel.CursorIndex = 0;
-        services.CommandContext.ActiveSide = PanelSide.Left;
+        services.PanelWorkspace.ActiveSide = PanelSide.Left;
         return panel;
     }
 

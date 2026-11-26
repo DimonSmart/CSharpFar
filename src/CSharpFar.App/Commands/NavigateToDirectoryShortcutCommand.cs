@@ -27,7 +27,7 @@ internal sealed class NavigateToDirectoryShortcutCommand(PanelWorkspaceControlle
 {
     public string CommandId => DirectoryShortcutCommandIds.Navigate;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
+    public bool CanExecute(object? args = null) =>
         args switch
         {
             NavigateToDirectoryShortcutArgs menu =>
@@ -40,9 +40,9 @@ internal sealed class NavigateToDirectoryShortcutCommand(PanelWorkspaceControlle
             _ => false,
         };
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
-        if (!CanExecute(context, args))
+        if (!CanExecute(args))
             return ApplicationCommandResult.Rendered();
 
         (string? path, PanelSide side) = args switch

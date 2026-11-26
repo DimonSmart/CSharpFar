@@ -7,10 +7,10 @@ internal sealed class PanelSetSortModeCommand(PanelWorkspaceController workspace
 {
     public string CommandId => MenuCommandIds.PanelSetSortMode;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
+    public bool CanExecute(object? args = null) =>
         args is SetPanelSortModeArgs;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         if (args is not SetPanelSortModeArgs sortArgs)
             return ApplicationCommandResult.Failure("Missing panel sort arguments.");

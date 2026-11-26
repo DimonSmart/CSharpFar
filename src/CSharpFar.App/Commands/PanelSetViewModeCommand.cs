@@ -12,10 +12,10 @@ internal sealed class PanelSetViewModeCommand(PanelSessionState panels, AppSetti
 {
     public string CommandId => MenuCommandIds.PanelSetViewMode;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
+    public bool CanExecute(object? args = null) =>
         args is SetPanelViewModeArgs;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         if (args is not SetPanelViewModeArgs viewArgs)
             return ApplicationCommandResult.Failure("Missing panel view mode arguments.");

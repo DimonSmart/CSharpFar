@@ -16,9 +16,9 @@ internal sealed class CommandHistoryCommand(DialogService dialogs, IHistoryStore
 {
     public string CommandId => FunctionKeyCommandIds.CommandHistory;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) => true;
+    public bool CanExecute(object? args = null) => true;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         try
         {

@@ -9,9 +9,9 @@ internal sealed class DiagnosticsCommand(DialogService dialogs, ITextClipboard c
 {
     public string CommandId => ApplicationCommandIds.Diagnostics;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) => true;
+    public bool CanExecute(object? args = null) => true;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         new DiagnosticsDialog(dialogs, clipboard, diagnosticLog, new DiagnosticReportBuilder(),
             ApplicationVersionProvider.GetVersionInfo(), () => terminalSurface.GetDiagnostics()).Show();

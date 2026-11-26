@@ -16,10 +16,10 @@ internal sealed class RenameCommand(PanelCommandTargetResolver targetResolver, P
 {
     public string CommandId => FunctionKeyCommandIds.Rename;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
+    public bool CanExecute(object? args = null) =>
         FileOperationCommandHelpers.HasCapability(targetResolver.ResolvePanelTarget(args).State, PanelProviderCapabilities.Rename);
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         var target = targetResolver.ResolvePanelTarget(args);
         if (!FileOperationCommandHelpers.HasCapability(target.State, PanelProviderCapabilities.Rename))

@@ -635,23 +635,13 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
     private static MenuCommandResult Execute(Application app, MenuCommandRequest request)
     {
         var registry = app.CommandRegistry;
-        var context = GetCommandContext(app);
-        return registry.Execute(request.CommandId, context, request.Args).ToMenuCommandResult();
+        return registry.Execute(request.CommandId, request.Args).ToMenuCommandResult();
     }
 
     private static CommandShortcutTextProvider ShortcutTextProvider() =>
         new(
             new DefaultKeyboardShortcutBindingProvider().GetBindings(),
             new DefaultFunctionKeyBindingProvider().GetBindings());
-
-    private static ApplicationCommandContext GetCommandContext(Application app)
-    {
-        var field = typeof(Application).GetField(
-            "_commandContext",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-
-        return (ApplicationCommandContext)field!.GetValue(app)!;
-    }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
 

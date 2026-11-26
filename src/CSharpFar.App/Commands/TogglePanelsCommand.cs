@@ -5,9 +5,9 @@ internal sealed class TogglePanelsCommand(ApplicationWorkspaceModeController wor
 {
     public string CommandId => ApplicationCommandIds.TogglePanels;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) => true;
+    public bool CanExecute(object? args = null) => true;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null) =>
+    public ApplicationCommandResult Execute(object? args = null) =>
         workspaceMode.TogglePanels()
             ? ApplicationCommandResult.Rendered()
             : ApplicationCommandResult.NotRendered();

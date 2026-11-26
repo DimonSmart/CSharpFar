@@ -1,4 +1,5 @@
 using CSharpFar.App.UserMenu;
+using CSharpFar.App.Plugins;
 using CSharpFar.App.CommandLine;
 using CSharpFar.App.Highlighting;
 using CSharpFar.App.Files;
@@ -68,6 +69,7 @@ internal static class DefaultApplicationCommands
         NativeModuleCatalog moduleCatalog,
         ModalDialogHost modalDialogs,
         Action resetTransientNavigationUi,
+        ExternalPluginSession externalPlugins,
         PanelDirectorySizeCoordinator? directorySizes = null) =>
     [
         new HelpCommand(interactiveSurfaces, session.App),
@@ -112,7 +114,7 @@ internal static class DefaultApplicationCommands
         new PrintTerminalDiagnosticsCommand(terminalSurface, panelWorkspace, session.Panels, externalConsoleCommandRunner),
         new OpenSettingsCommand(settings, session.Panels, session.App, dialogs, highlightState, settingsChange),
         new OpenDirectoryShortcutEditorCommand(panelWorkspace, settings, dialogs, formFields, saveSettings),
-        new OpenPluginsCommand(),
+        new OpenPluginsCommand(dialogs, externalPlugins),
         new OpenUserMenuEditorCommand(targetResolver, sourceRegistry, userMenu, dialogs, formFields),
         new OpenUserMenuEditorCommand(targetResolver, sourceRegistry, userMenu, dialogs, formFields, local: true),
         new NavigateToDirectoryShortcutCommand(panelWorkspace, sourceRegistry, settings, dialogs, panelNavigation, autoRefresh, resetTransientNavigationUi),

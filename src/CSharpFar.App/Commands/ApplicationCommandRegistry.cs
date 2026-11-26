@@ -16,7 +16,6 @@ internal sealed class ApplicationCommandRegistry
 
     public bool CanExecute(
         string commandId,
-        ApplicationCommandContext context,
         object? args = null)
     {
         if (!TryGetCommand(commandId, out var command))
@@ -25,17 +24,16 @@ internal sealed class ApplicationCommandRegistry
                 commandId,
                 "Unsupported application command.");
 
-        return command.CanExecute(context, args);
+        return command.CanExecute(args);
     }
 
     public ApplicationCommandResult Execute(
         string commandId,
-        ApplicationCommandContext context,
         object? args = null)
     {
         if (!TryGetCommand(commandId, out var command))
             return ApplicationCommandResult.Failure($"Unsupported command: {commandId}");
 
-        return command.Execute(context, args);
+        return command.Execute(args);
     }
 }

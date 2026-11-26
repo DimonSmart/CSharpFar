@@ -94,7 +94,8 @@ public sealed class Application
         set => _session.Panels.RightViewMode = value;
     }
     private readonly ApplicationCommandRegistry _commandRegistry;
-    private readonly ApplicationCommandContext _commandContext;
+    private readonly ExternalPluginSession _externalPlugins;
+    private readonly IDiagnosticLog _diagnosticLog;
     private readonly TopMenu _topMenu;
     private FunctionKeyLayer _functionKeyLayer
     {
@@ -190,14 +191,15 @@ public sealed class Application
         _moduleCatalog = services.ModuleCatalog;
         _modulePanelOpener = services.ModulePanelOpener;
         _commandRegistry = services.CommandRegistry;
-        _commandContext = services.CommandContext;
+        _externalPlugins = services.ExternalPlugins;
+        _diagnosticLog = services.DiagnosticLog;
+        DrainUiActions = services.DrainUiActions;
         _keyboardInputContext = services.KeyboardInputContext;
         _applicationInputDispatcher = services.ApplicationInputDispatcher;
         _terminalSurface = services.TerminalSurface;
         BindCallbacks(services.Callbacks);
         BindKeyboardInputContext(_keyboardInputContext);
         BindMouseInputContext(services.MouseInputContext);
-        BindRenderContext(_renderContext);
         _runtime = services.Runtime;
         // Modals consume keyboard events before the workspace router sees them.
         // Synchronize the workspace's displayed layer when a modal closes.
@@ -207,12 +209,12 @@ public sealed class Application
 
     internal void ConfigureExternalPlugins(ExternalPluginManager manager)
     {
-        _commandContext.ExternalPlugins = manager;
         manager.Complete(_pluginRuntime, _startupPluginErrors);
-        if (_commandContext.DiagnosticLog.IsEnabled)
+        _externalPlugins.MarkReady(manager);
+        if (_diagnosticLog.IsEnabled)
         {
             foreach (var entry in manager.Entries.Where(item => item.DiagnosticDetails is not null))
-                _commandContext.DiagnosticLog.Write(
+                _diagnosticLog.Write(
                     DiagnosticCategory.Plugin,
                     $"Extension '{entry.FolderName}' [{entry.FailureStage}]: {entry.DiagnosticDetails}");
         }
@@ -244,11 +246,6 @@ public sealed class Application
         context.OpenPanelItem = OpenPanelItem;
     }
 
-    private void BindRenderContext(ApplicationRenderContext context)
-    {
-        context.BuildMenuDefinition = _commandContext.BuildMenuDefinition;
-    }
-
     private void BindCallbacks(ApplicationServiceCallbacks callbacks)
     {
         callbacks.ActiveState = () => _panelWorkspace.ActiveState;
@@ -278,7 +275,8 @@ public sealed class Application
     }
 
     internal ApplicationSession Session => _session;
-    internal ApplicationCommandContext CommandContext => _commandContext;
+    internal PanelAutoRefreshService AutoRefresh => _autoRefresh;
+    internal Action DrainUiActions { get; }
     internal ApplicationCommandRegistry CommandRegistry => _commandRegistry;
 
     internal event Action? ApplicationInputRequested
@@ -427,10 +425,10 @@ public sealed class Application
     }
 
     private bool CanExecuteFunctionKeyCommand(string commandId) =>
-        _commandRegistry.CanExecute(commandId, _commandContext);
+        _commandRegistry.CanExecute(commandId);
 
     private bool ExecuteRegisteredCommand(string commandId, object? args = null) =>
-        _commandRegistry.Execute(commandId, _commandContext, args).ShouldRender;
+        _commandRegistry.Execute(commandId, args).ShouldRender;
 
     private void ToggleSelectAllPanelItems(PanelSide side) =>
         _ctrl.ToggleSelectAll(GetPanelState(side), PanelOptions);
@@ -512,7 +510,7 @@ public sealed class Application
 
     private ApplicationRuntimeRenderRequest ExecuteMenuCommand(MenuCommandRequest request)
     {
-        var result = _commandRegistry.Execute(request.CommandId, _commandContext, request.Args);
+        var result = _commandRegistry.Execute(request.CommandId, request.Args);
         return new ApplicationRuntimeRenderRequest(result.ShouldRender);
     }
 

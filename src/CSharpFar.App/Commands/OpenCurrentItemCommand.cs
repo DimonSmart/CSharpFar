@@ -11,9 +11,9 @@ internal sealed class OpenCurrentItemCommand(PanelController controller, PanelWo
 {
     public string CommandId => ApplicationCommandIds.OpenCurrentItem;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) => true;
+    public bool CanExecute(object? args = null) => true;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         var item = controller.CurrentItem(workspace.ActiveState);
         if (item is not null)

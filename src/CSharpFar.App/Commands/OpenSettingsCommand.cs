@@ -16,9 +16,9 @@ internal sealed class OpenSettingsCommand(AppSettingsAlias settings, PanelSessio
 {
     public string CommandId => MenuCommandIds.SettingsOpenPanelSettings;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) => true;
+    public bool CanExecute(object? args = null) => true;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         var options = settings.Panels.Options;
         var panelSettings = new CSharpFarPanelSettings(

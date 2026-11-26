@@ -21,12 +21,12 @@ internal sealed class OpenDirectoryShortcutEditorCommand(PanelWorkspaceControlle
 {
     public string CommandId => MenuCommandIds.SettingsOpenDirectoryShortcuts;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
+    public bool CanExecute(object? args = null) =>
         workspace.IsPanelsMode;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
-        if (!CanExecute(context))
+        if (!CanExecute())
             return ApplicationCommandResult.Rendered();
 
         var normalized = DirectoryShortcutNormalizer.Normalize(settings.DirectoryShortcuts);

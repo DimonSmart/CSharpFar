@@ -8,9 +8,9 @@ internal sealed class AboutCommand(DialogService dialogs, IUriLauncher uriLaunch
 {
     public string CommandId => ApplicationCommandIds.About;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) => true;
+    public bool CanExecute(object? args = null) => true;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         new AboutDialog(dialogs, uriLauncher, updateCheckService, updateInstaller,
             ApplicationVersionProvider.GetVersionInfo(), () => state.Running = false).Show();

@@ -15,13 +15,13 @@ internal sealed class CalculateDirectorySizesCommand(PanelCommandTargetResolver 
 {
     public string CommandId => FunctionKeyCommandIds.CalculateDirectorySizes;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null)
+    public bool CanExecute(object? args = null)
     {
         var target = targetResolver.ResolvePanelTarget(args);
         return directorySizes?.CanCalculateAll(target.State) == true;
     }
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         var target = targetResolver.ResolvePanelTarget(args);
         if (!PanelCommandTargetResolver.CommittedLocationMatches(target.State, target.ActiveCommitted))

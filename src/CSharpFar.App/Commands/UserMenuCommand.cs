@@ -20,9 +20,9 @@ internal sealed class UserMenuCommand(PanelCommandTargetResolver targetResolver,
 {
     public string CommandId => globalOnly ? FunctionKeyCommandIds.GlobalUserMenu : FunctionKeyCommandIds.UserMenu;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) => true;
+    public bool CanExecute(object? args = null) => true;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         var target = targetResolver.ResolvePanelTarget(args);
         if (!PanelCommandUserMenuOperands.TryCreate(target, controller, out var operands))
