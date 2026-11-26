@@ -47,8 +47,24 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
         foreach (string commandId in ConstStringValues(typeof(MenuCommandIds)))
             Assert.Contains(commandId, commandIds);
 
-        Assert.Contains(ApplicationCommandIds.OpenCurrentItem, commandIds);
+        foreach (string commandId in ConstStringValues(typeof(ApplicationCommandIds)))
+            Assert.Contains(commandId, commandIds);
         Assert.Contains(DirectoryShortcutCommandIds.Navigate, commandIds);
+        Assert.Equal(57, commandIds.Count);
+        Assert.Equal(commandIds.Count, registry.CommandIds.Count);
+    }
+
+    [Fact]
+    public void Registry_AcceptsAdditionalCommandAndRejectsDuplicateIds()
+    {
+        var command = new SaveSettingsCommand(() => { });
+        var registry = new ApplicationCommandRegistry([command]);
+        Assert.True(registry.TryGetCommand(command.CommandId, out var found));
+        Assert.Same(command, found);
+        Assert.True(registry.CanExecute(command.CommandId));
+        Assert.True(registry.Execute(command.CommandId).Success);
+        Assert.Throws<ArgumentException>(() => new ApplicationCommandRegistry([command, command]));
+        Assert.Throws<ArgumentOutOfRangeException>(() => registry.CanExecute("unknown"));
     }
 
     [Fact]
