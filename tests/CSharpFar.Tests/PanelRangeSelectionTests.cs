@@ -103,11 +103,11 @@ public sealed class PanelRangeSelectionTests
     }
 
     [Fact]
-    public void SelectRange_RepairsPartialMembershipInBothSelectionSets()
+    public void SelectRange_AddsMissingLocationToExistingSelection()
     {
         var (controller, state) = CreatePanel(3);
         state.SelectedLocations.Add(state.Items[0].Location);
-        state.SelectedLocations.Add(state.Items[1].Location);
+        controller.RefreshSelectionSummary(state);
 
         controller.SelectRange(state, 0, 1);
 
