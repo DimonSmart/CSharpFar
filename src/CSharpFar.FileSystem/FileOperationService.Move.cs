@@ -54,13 +54,14 @@ public sealed partial class FileOperationService
                 int before = state.MovedCount;
                 try
                 {
-                    await SafeFileWriteService.ExecuteBatchAsync(batching,
+                    string? warning = await SafeFileWriteService.ExecuteBatchAsync(batching,
                         ToPublicPlan(plan, destination.SourceId), async batch =>
                         {
                             await MoveProviderPlanItemsAsync(plan, batch, request.Options,
                                 conflictResolver, state, cancellationToken).ConfigureAwait(false);
                             state.ReportCommitting(destination.SourcePath);
                         }, cancellationToken).ConfigureAwait(false);
+                    if (warning is not null) state.AddWarning(destination.SourcePath, warning);
                 }
                 catch
                 {
@@ -118,7 +119,8 @@ public sealed partial class FileOperationService
             if ((sourceSource.Capabilities & fromRequired) != fromRequired ||
                 (targetSource.Capabilities & toRequired) != toRequired ||
                 (sourceSource.SourceId != PanelSourceId.Local && sourceSource is not IFileOperationBatchProvider) ||
-                (targetSource.SourceId != PanelSourceId.Local && targetSource is not IFileOperationBatchProvider))
+                (targetSource.SourceId != PanelSourceId.Local && targetSource is not IFileOperationBatchProvider &&
+                    targetSource is not ISafeNewFilePublicationProvider))
                 throw new NotSupportedException("Cross-provider move requires verified copy and delete capabilities.");
 
             var plan = owner.BuildProviderCopyPlan(sources, destination, request.Options,
@@ -133,13 +135,14 @@ public sealed partial class FileOperationService
                 int before = state.CopiedCount;
                 try
                 {
-                    await SafeFileWriteService.ExecuteBatchAsync(batching,
+                    string? warning = await SafeFileWriteService.ExecuteBatchAsync(batching,
                         ToPublicPlan(plan, destination.SourceId), async batch =>
                         {
                             await owner.CopyProviderPlanItemsAsync(plan, batch, request.Options, resolver,
                                 state, cancellationToken, copiedFiles, copiedFolders).ConfigureAwait(false);
                             state.ReportCommitting(destination.SourcePath);
                         }, cancellationToken).ConfigureAwait(false);
+                    if (warning is not null) state.AddWarning(destination.SourcePath, warning);
                 }
                 catch
                 {
@@ -173,12 +176,13 @@ public sealed partial class FileOperationService
                     }).ToArray());
                     try
                     {
-                        await SafeFileWriteService.ExecuteBatchAsync(sourceBatching, deletePlan, async batch =>
+                        string? warning = await SafeFileWriteService.ExecuteBatchAsync(sourceBatching, deletePlan, async batch =>
                         {
                             await RemoveCopiedSourcesAsync(batch, copiedFiles, copiedFolders,
                                 state, cancellationToken).ConfigureAwait(false);
                             state.ReportCommitting(sources[0].SourcePath);
                         }, cancellationToken).ConfigureAwait(false);
+                        if (warning is not null) state.AddWarning(sources[0].SourcePath, warning);
                     }
                     catch
                     {

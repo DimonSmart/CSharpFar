@@ -2,9 +2,9 @@ namespace CSharpFar.FileSystem;
 
 // A replacement is made from a complete same-directory staging file. Existing
 // bytes are never removed to make room for a copy still in progress.
-internal static class SafeLocalFilePublisher
+public static class SafeLocalFilePublisher
 {
-    internal static string CreateStagingPath(string target) =>
+    public static string CreateStagingPath(string target) =>
         Path.Combine(Path.GetDirectoryName(target)!,
             $".{Path.GetFileName(target)}.csharpfar-{Guid.NewGuid():N}.tmp");
 
@@ -30,10 +30,10 @@ internal static class SafeLocalFilePublisher
         else File.Move(source, target);
     }
 
-    internal readonly record struct DestinationSnapshot(long Length, DateTime LastWriteTimeUtc,
+    public readonly record struct DestinationSnapshot(long Length, DateTime LastWriteTimeUtc,
         DateTime CreationTimeUtc, FileAttributes Attributes);
 
-    internal static DestinationSnapshot? CaptureDestination(string path)
+    public static DestinationSnapshot? CaptureDestination(string path)
     {
         if (!PathExists(path)) return null;
         var info = new FileInfo(path);
@@ -42,6 +42,9 @@ internal static class SafeLocalFilePublisher
             (attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0 ? 0 : info.Length,
             info.LastWriteTimeUtc, info.CreationTimeUtc, attributes);
     }
+
+    public static string? PublishChecked(string staging, string destination, DestinationSnapshot? expected) =>
+        PublishChecked(staging, destination, expected, null, null);
 
     internal static string? PublishChecked(string staging, string destination, DestinationSnapshot? expected,
         Func<string, string, string?>? replace = null, Action<string, string>? create = null)

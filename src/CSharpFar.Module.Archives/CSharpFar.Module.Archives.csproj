@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\CSharpFar.Core\CSharpFar.Core.csproj" />
+    <ProjectReference Include="..\CSharpFar.FileSystem\CSharpFar.FileSystem.csproj" />
     <ProjectReference Include="..\CSharpFar.Plugin.Abstractions\CSharpFar.Plugin.Abstractions.csproj" />
     <PackageReference Include="SharpCompress" Version="0.50.7" />
   </ItemGroup>

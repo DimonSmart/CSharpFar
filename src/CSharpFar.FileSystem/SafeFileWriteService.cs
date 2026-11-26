@@ -56,7 +56,7 @@ public static class SafeFileWriteService
         {
             var location = new PanelLocation(source.SourceId, path);
             var plan = new FileOperationPlan([new FileOperationPlanItem(location, location, false)]);
-            await ExecuteBatchAsync(batching, plan, async batch =>
+            return await ExecuteBatchAsync(batching, plan, async batch =>
             {
                 var existing = batch.GetItem(path, cancellationToken);
                 if (existing is not null && (existing.IsDirectory || existing.Attributes.HasFlag(FileAttributes.ReadOnly)))
@@ -64,7 +64,6 @@ public static class SafeFileWriteService
                 await WriteProviderAsync(batch, path, existing, bytes.LongLength, Write,
                     keepPartial: false, cancellationToken).ConfigureAwait(false);
             }, cancellationToken).ConfigureAwait(false);
-            return null;
         }
 
         return await WriteProviderAsync(source, path, source.GetItem(path, cancellationToken),
@@ -132,7 +131,7 @@ public static class SafeFileWriteService
         }
         catch (Exception error)
         {
-            if (publishing)
+            if (publishing && source is not IRecoverableEntryRenameProvider)
             {
                 // A lost reply can mean the rename already happened. Inspect but never
                 // infer ownership of the final name from its size or existence alone.
@@ -167,16 +166,18 @@ public static class SafeFileWriteService
                         new AggregateException(error, cleanup));
                 }
             }
-            if (owned && keepPartial && error is not OperationCanceledException)
+            if (owned && keepPartial && error is OperationCanceledException)
+                throw new OperationCanceledException($"Partial data retained at '{staging}'.", error, cancellationToken);
+            if (owned && keepPartial)
                 throw new IOException($"Write failed; partial data retained at '{staging}'.", error);
             throw;
         }
     }
 
-    internal static async Task ExecuteBatchAsync(IFileOperationBatchProvider provider, FileOperationPlan plan,
+    internal static async Task<string?> ExecuteBatchAsync(IFileOperationBatchProvider provider, FileOperationPlan plan,
         Func<IFileOperationBatch, Task> prepare, CancellationToken cancellationToken)
     {
-        await using var batch = await provider.BeginBatchAsync(plan, cancellationToken).ConfigureAwait(false);
+        var batch = await provider.BeginBatchAsync(plan, cancellationToken).ConfigureAwait(false);
         try
         {
             await prepare(batch).ConfigureAwait(false);
@@ -185,13 +186,26 @@ public static class SafeFileWriteService
         }
         catch (Exception error)
         {
+            var errors = new List<Exception> { error };
             try { await batch.AbortAsync(CancellationToken.None).ConfigureAwait(false); }
-            catch (Exception abort)
-            {
-                throw new IOException("File transaction failed and abort failed.", new AggregateException(error, abort));
-            }
+            catch (Exception abort) { errors.Add(abort); }
+            try { await batch.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception cleanup) { errors.Add(cleanup); }
+            if (errors.Count > 1)
+                throw new IOException("File transaction failed and recovery or cleanup failed.",
+                    new AggregateException(errors));
             throw;
         }
+
+        var warnings = new List<string>();
+        try { await batch.DisposeAsync().ConfigureAwait(false); }
+        catch (Exception cleanup)
+        {
+            warnings.Add("Transaction committed, but disposal failed: " + cleanup.Message);
+        }
+        if (batch is IFileOperationBatchDiagnostics diagnostics)
+            warnings.AddRange(diagnostics.Warnings);
+        return warnings.Count == 0 ? null : string.Join(Environment.NewLine, warnings);
     }
 }
 

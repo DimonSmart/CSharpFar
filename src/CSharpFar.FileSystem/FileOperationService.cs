@@ -136,9 +136,11 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                     throw new ArgumentOutOfRangeException(nameof(request), request.Kind, "Unsupported file operation.");
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException error)
         {
             state.Cancelled = true;
+            if (error.Message.StartsWith("Partial data retained", StringComparison.Ordinal))
+                state.AddWarning(request.Destination?.SourcePath ?? string.Empty, error.Message);
         }
         catch (UnknownFilePublicationException error)
         {
@@ -297,13 +299,14 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
             int before = state.CopiedCount;
             try
             {
-                await SafeFileWriteService.ExecuteBatchAsync(batching, publicPlan, async batch =>
+                string? warning = await SafeFileWriteService.ExecuteBatchAsync(batching, publicPlan, async batch =>
                 {
                     await CopyProviderPlanItemsAsync(plan, batch, request.Options,
                         conflictResolver, state, cancellationToken,
                         copiedFiles, copiedFolders, useLocalStrategy: useLocalStrategy).ConfigureAwait(false);
                     state.ReportCommitting(destination.SourcePath);
                 }, cancellationToken).ConfigureAwait(false);
+                if (warning is not null) state.AddWarning(destination.SourcePath, warning);
             }
             catch
             {

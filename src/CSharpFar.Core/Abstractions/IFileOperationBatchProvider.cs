@@ -22,3 +22,9 @@ public interface IFileOperationBatch : IFilePanelSource, IAsyncDisposable
     Task CommitAsync(CancellationToken cancellationToken = default);
     Task AbortAsync(CancellationToken cancellationToken = default);
 }
+
+/// <summary>Optional diagnostics for a committed batch whose auxiliary cleanup failed.</summary>
+public interface IFileOperationBatchDiagnostics
+{
+    IReadOnlyList<string> Warnings { get; }
+}
