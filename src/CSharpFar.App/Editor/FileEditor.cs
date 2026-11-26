@@ -82,20 +82,20 @@ internal sealed partial class FileEditor
     {
         _activeSource = null;
         _activeSourcePath = null;
-        if (_fileService.RequiresSizeWarning(filePath) &&
-            !_dialogs.Confirm(
-                "Editor",
-                $"File is larger than the editor warning limit ({_settings.FileSizeLimitBytes / 1024 / 1024} MB).",
-                "Open anyway?"))
-        {
-            return;
-        }
-
         EditorSession session;
         try
         {
-            session = _fileService.Load(filePath, newFileFormat);
+            if (RunLocalOperation("Reading file metadata",
+                    ct => _fileService.RequiresSizeWarningAsync(filePath, ct)) &&
+                !_dialogs.Confirm("Editor",
+                    $"File is larger than the editor warning limit ({_settings.FileSizeLimitBytes / 1024 / 1024} MB).",
+                    "Open anyway?"))
+                return;
+
+            session = RunLocalOperation("Opening editor",
+                ct => _fileService.LoadAsync(filePath, newFileFormat, ct));
         }
+        catch (OperationCanceledException) { return; }
         catch (Exception ex)
         {
             _dialogs.Message("Editor", ex.Message);
@@ -170,6 +170,29 @@ internal sealed partial class FileEditor
                 _activeSourcePath = null;
             }
         }
+    }
+
+    // Keep the modal operation alive for writes until the safe publisher reports
+    // its actual outcome; cancelling an open can abandon its result immediately.
+    private T RunLocalOperation<T>(string title, Func<CancellationToken, Task<T>> operation, bool writing = false)
+    {
+        using var activity = new System.Diagnostics.Activity("CSharpFar.Editor.LocalIO").Start();
+        activity.SetTag("editor.operation", title);
+        if (!writing) return RunOpenOperation(title, operation);
+
+        return _dialogs.Operation<string, T, T>(new OperationDialogDefinition<string, T, T>
+        {
+            Title = title,
+            PreferredWidth = 54,
+            PreferredHeight = 8,
+            MinWidth = 30,
+            MinHeight = 8,
+            Operation = operation,
+            Synchronize = () => new OperationDialogState<string>(status: "Saving file... (Esc to cancel)"),
+            HandleCancel = () => OperationDialogOutcome<T>.RequestCancellation,
+            HandleOperationCompleted = value => OperationDialogOutcome<T>.Complete(value),
+            Complete = value => value,
+        });
     }
 
     private T RunOpenOperation<T>(string title, Func<CancellationToken, Task<T>> operation) =>
@@ -687,7 +710,15 @@ internal sealed partial class FileEditor
             }
             else
             {
-                _fileService.Save(session);
+                // Capture the document on its owning thread, then publish off-thread.
+                using var cancellation = new CancellationTokenSource();
+                Task<EditorFileService.SaveResult> pending = _fileService.WriteAsync(session, cancellation.Token);
+                var result = RunLocalOperation("Saving file", async ct =>
+                {
+                    using var registration = ct.Register(() => _ = cancellation.CancelAsync());
+                    return await pending.ConfigureAwait(false);
+                }, writing: true);
+                EditorFileService.ApplySaveResult(session, result);
             }
             if (session.LastSaveWarning is { } warning)
                 _dialogs.Message("Save Warning", warning);

@@ -151,11 +151,19 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleFrameWriter, ICo
     public void EnqueueInput(ConsoleInputEvent inputEvent) =>
         _inputQueue.Enqueue(inputEvent);
 
+    // Scripted input normally belongs to the editor after its local I/O dialog.
+    // Tests that intentionally interact with that dialog can disable this barrier.
+    public bool DeferScriptedEditorInput { get; set; } = true;
+
+    private bool IsEditorIoActive => DeferScriptedEditorInput &&
+        System.Diagnostics.Activity.Current?.OperationName == "CSharpFar.Editor.LocalIO";
+
     public ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        InvokeBeforeReadInput();
-        if (_inputQueue.TryDequeue(out var inputEvent))
+        if (!IsEditorIoActive)
+            InvokeBeforeReadInput();
+        if (!IsEditorIoActive && _inputQueue.TryDequeue(out var inputEvent))
         {
             LastDequeuedInput = inputEvent;
             return inputEvent;
@@ -172,6 +180,11 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleFrameWriter, ICo
 
     public bool TryReadInput(bool intercept, [NotNullWhen(true)] out ConsoleInputEvent? inputEvent)
     {
+        if (IsEditorIoActive)
+        {
+            inputEvent = null;
+            return false;
+        }
         InvokeBeforeTryReadInput();
         bool dequeued = _inputQueue.TryDequeue(out inputEvent);
         if (dequeued)
