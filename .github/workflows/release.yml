@@ -389,10 +389,14 @@ jobs:
         with:
           subject-path: artifacts/plugin-sdk/*.nupkg
 
+  azure-blob:
+    name: Verify and package Azure Blob extension
+    uses: ./.github/workflows/azure-blob.yml
+
   release:
     name: Create release
     runs-on: ubuntu-latest
-    needs: [build, sdk]
+    needs: [build, sdk, azure-blob]
 
     steps:
       - name: Checkout
@@ -413,7 +417,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $assetsDir | Out-Null
 
           Get-ChildItem -Path $releaseDir -File -Recurse |
-            Where-Object { $_.Name -notlike "*.sha256" } |
+            Where-Object { $_.Name -notlike "*.sha256" -and $_.Name -ne "panel.png" } |
             Copy-Item -Destination $assetsDir
 
           $checksumLines = Get-ChildItem -Path $releaseDir -Filter "*.sha256" -File -Recurse |
@@ -470,6 +474,9 @@ jobs:
             "- macOS Intel CLI: download ``$macX64Asset``, unpack it and run ``csharpfar``.",
             "",
             "The macOS app is currently unsigned and not notarized. On first launch macOS may require using Open from the Finder context menu.",
+            "",
+            "### Azure Blob Storage extension",
+            "- Download the separate Azure Blob plugin ZIP, extract its azure-blob directory into your CSharpFar config extensions directory, and restart.",
             "",
             "### Plugin SDK",
             "- The release includes versioned NuGet packages for CSharpFar.Core, CSharpFar.Plugin.Abstractions and CSharpFar.Plugin.Templates.",

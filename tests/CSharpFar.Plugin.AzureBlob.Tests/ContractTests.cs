@@ -75,6 +75,19 @@ public sealed class ContractTests
         Assert.IsType<AzureBlobPanelProvider>(Assert.Single(host.Providers));
     }
 
+    [Fact]
+    public async Task NetworkFailureIsSanitized()
+    {
+        var options = new BlobClientOptions();
+        options.Retry.MaxRetries = 0;
+        options.Retry.NetworkTimeout = TimeSpan.FromSeconds(1);
+        var source = new AzureBlobFilePanelSource(
+            new BlobContainerClient(new Uri("http://127.0.0.1:1/data?sig=VERY_SECRET"), options), "Test", false);
+        var error = await Assert.ThrowsAnyAsync<IOException>(() => source.EnumerateDirectoryAsync("/"));
+        Assert.DoesNotContain("VERY_SECRET", error.ToString());
+        Assert.Null(error.InnerException);
+    }
+
     private sealed class Host : IPluginHost
     {
         public List<PluginCommandDescriptor> Commands { get; } = [];
