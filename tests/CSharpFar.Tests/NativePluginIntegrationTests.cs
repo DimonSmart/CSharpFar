@@ -1,4 +1,11 @@
 using CSharpFar.App.Modules;
+using CSharpFar.App.Bootstrap;
+using CSharpFar.App.Commands;
+using CSharpFar.App.Panels;
+using CSharpFar.Core.Controllers;
+using CSharpFar.FileSystem;
+using CSharpFar.Tests.Fakes;
+using CSharpFar.Ui;
 using CSharpFar.App.Plugins;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
@@ -49,6 +56,57 @@ public sealed class NativePluginIntegrationTests
         Assert.Equal(PluginRunMode.Demo, plugin.LastRunMode);
         Assert.Equal("shown", Assert.Single(ui.Messages));
         Assert.False(catalog.TryOpenFromCommandLine("not-a-plugin argument", PanelSide.Left, out _));
+    }
+
+    [Fact]
+    public async Task ModuleOpenCommand_OpensPluginInLiveActivePanelWithoutApplication()
+    {
+        var ui = new TestUi();
+        var runtime = new NativePluginRuntime(
+            new TestApp { RunMode = PluginRunMode.Demo }, _ => new TestSettings(), _ => ui, _ => new NoCredentials());
+        var source = new VirtualPanelSource();
+        var plugin = new IndependentPlugin(source);
+        Assert.True((await runtime.RegisterAsync(
+            new PluginDescriptor { Id = "outside", Title = "Independent" }, plugin)).Success);
+        runtime.Seal();
+
+        var fs = new FakeFileSystemService();
+        string root = Path.GetTempPath();
+        fs.AddDirectory(root);
+        var settings = new AppSettings();
+        settings.Panels.LeftStartDirectory = root;
+        settings.Panels.RightStartDirectory = root;
+        var registry = new FilePanelSourceRegistry([new LocalFilePanelSource(fs)]);
+        var controller = new PanelController(new PanelViewBuilder(fs, new PanelSortService(), sources: registry));
+        var session = ApplicationSessionFactory.Create(settings, controller, fs);
+        var host = UiTestHost.Create(new FakeConsoleDriver());
+        var quickSearch = new PanelQuickSearchController(controller, () => session.Panels.ActiveSide,
+            () => true, side => side == PanelSide.Left ? session.Panels.Left : session.Panels.Right, _ => 10);
+        var workspace = new PanelWorkspaceController(host.Screen, session, quickSearch, () => settings.Panels.Options);
+        var catalog = new NativeModuleCatalog(runtime);
+        var messages = new List<string>();
+        var opener = new ModulePanelOpener(catalog, registry, controller, host.Screen,
+            new DialogService(host.ModalDialogs, new FormFieldFactory()), () => session.App.Palette,
+            () => settings.Panels.Options, workspace.GetPanelState, workspace.SetActiveSide,
+            value => session.App.QuickView = value, showMessage: (_, message) => messages.Add(message));
+        try
+        {
+            var command = new ModuleOpenCommand(opener, workspace);
+            Assert.False(command.CanExecute());
+            var args = new ModuleOpenCommandArgs(Assert.Single(catalog.MenuItems).ActionId);
+            Assert.True(command.CanExecute(args));
+            workspace.SetActiveSide(PanelSide.Right);
+            Assert.True(command.Execute(args).Success);
+            Assert.Equal(PanelSide.Right, plugin.LastCommandSide);
+            Assert.Equal(source.SourceId, session.Panels.Right.SourceId);
+            Assert.Equal(PanelSourceId.Local, session.Panels.Left.SourceId);
+            Assert.Empty(messages);
+        }
+        finally
+        {
+            await opener.ShutdownAsync();
+            await runtime.DisposeAsync();
+        }
     }
 
     [Fact]

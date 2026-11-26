@@ -81,3 +81,4 @@ is non-normative engineering history.
 | IDD-0088 | spec | Deterministic demo recording | Owns scripted real-UI frame capture, demo scenarios and screenshot/GIF/video artifacts | IDD-0001 recording details |
 | IDD-0089 | spec | Read-only archive provider | ZIP, RAR/RAR5, 7z, TAR and compressed TAR; archive navigation and extraction | |
 | IDD-0090 | adr | Provider-qualified file identity | Canonical selection, operations and provider path semantics; SDK 2 migration | |
+| IDD-0091 | adr | Explicit application command dependencies | Internal command composition, argument-only dispatch and shared panel target resolution; committed frames owned by IDD-0067 | |
