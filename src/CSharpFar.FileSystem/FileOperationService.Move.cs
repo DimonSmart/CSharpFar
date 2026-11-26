@@ -19,8 +19,7 @@ public sealed partial class FileOperationService
         {
             string destination = RequireDestination(request);
             bool singleRename = request.Sources.Count == 1 && !IsPath(destination);
-            string effectiveDestination = singleRename ? Path.Combine(Path.GetDirectoryName(request.Sources[0].SourcePath)!, destination) : destination;
-            var plan = BuildLocalMovePlan(RequireLocalSourcePaths(request), effectiveDestination, singleRename, request.Options, request.UseDestinationTemplate, cancellationToken);
+            var plan = BuildLocalMovePlan(RequireLocalSourcePaths(request), destination, singleRename, request.Options, request.UseDestinationTemplate, cancellationToken);
             return new FileOperationPlan(plan.Select(item => item.Mapping).ToArray());
         }
 
@@ -517,12 +516,9 @@ public sealed partial class FileOperationService
 
             string destination = RequireDestination(request);
             bool singleRename = request.Sources.Count == 1 && !IsPath(destination);
-            string effectiveDestination = singleRename
-                ? Path.Combine(Path.GetDirectoryName(request.Sources[0].SourcePath)!, destination)
-                : destination;
             var plan = BuildLocalMovePlan(
                 RequireLocalSourcePaths(request),
-                effectiveDestination,
+                destination,
                 singleRename,
                 request.Options,
                 request.UseDestinationTemplate,
@@ -1095,15 +1091,28 @@ public sealed partial class FileOperationService
                 string target = template is not null
                     ? template.Evaluate(CreateLocalTemplateContext(source))
                     : pattern.HasWildcards
-                    ? Path.Combine(string.IsNullOrEmpty(pattern.ParentPath) ? Path.GetDirectoryName(source)! : pattern.ParentPath, pattern.TransformName(Path.GetFileName(source)))
-                    : singleRename
-                        ? destination
-                        : Path.Combine(destination, Path.GetFileName(source));
+                    ? Path.Combine(pattern.ParentPath, pattern.TransformName(Path.GetFileName(source)))
+                    : ResolveOrdinaryLocalMoveTarget(source, destination, sources.Count, singleRename);
+                target = ResolveLocalDestinationPath(target, PanelLocation.Local(source));
                 plan.Add(new LocalMovePlanItem(source, target));
             }
 
             ValidateLocalMovePlan(plan, useDestinationTemplate || pattern.HasWildcards);
             return plan;
+        }
+
+        private static string ResolveOrdinaryLocalMoveTarget(string source, string destination, int sourceCount, bool singleRename)
+        {
+            string resolved = ResolveLocalDestinationPath(destination, PanelLocation.Local(source));
+            if (singleRename)
+                return resolved;
+
+            // Preserve the established absolute-directory move contract.
+            if (sourceCount == 1 && !Path.IsPathFullyQualified(destination) &&
+                !Path.EndsInDirectorySeparator(destination) && !Directory.Exists(resolved))
+                return resolved;
+
+            return Path.Combine(resolved, Path.GetFileName(source));
         }
 
         private static bool IsSelectedMoveSource(

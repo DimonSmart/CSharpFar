@@ -59,9 +59,14 @@ internal sealed class FileCopyPlanBuilder(
                     : await ResolveProviderCopyTargetPathAsync(
                         destinationSource,
                         item,
-                        destination.SourcePath,
+                        destination.SourceId == PanelSourceId.Local
+                            ? FileOperationService.ResolveLocalDestinationPath(destination.SourcePath, location)
+                            : destination.SourcePath,
                         sources.Count,
                         cancellationToken).ConfigureAwait(false));
+
+            if (destination.SourceId == PanelSourceId.Local)
+                targetPath = FileOperationService.ResolveLocalDestinationPath(targetPath, location);
 
             if (!hasMask)
             {
@@ -345,9 +350,6 @@ internal sealed class FileCopyPlanBuilder(
         CancellationToken cancellationToken)
     {
         if (sourceCount > 1 || item.IsDirectory)
-            return destinationSource.CombinePath(destinationPath, item.Name);
-
-        if (destinationSource.SourceId == PanelSourceId.Local && !FileOperationService.IsPath(destinationPath))
             return destinationSource.CombinePath(destinationPath, item.Name);
 
         if (destinationPath.Length == 0 || destinationSource.PathSeparators.Contains(destinationPath[^1]))

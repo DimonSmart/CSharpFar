@@ -1198,6 +1198,21 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         }
     }
 
+    // Resolve concrete destinations after wildcard or template expansion.
+    // The process working directory is unrelated to either file panel.
+    internal static string ResolveLocalDestinationPath(string destination, PanelLocation source)
+    {
+        if (Path.IsPathFullyQualified(destination))
+            return destination;
+
+        if (source.SourceId != PanelSourceId.Local || !Path.IsPathFullyQualified(source.SourcePath))
+            throw new IOException("A relative local destination requires a local source or an explicit destination directory.");
+
+        string parent = Path.GetDirectoryName(source.SourcePath)
+            ?? throw new IOException("Source has no parent directory.");
+        return Path.GetFullPath(destination, parent);
+    }
+
     internal static bool IsPath(string value) =>
         value.Contains(Path.DirectorySeparatorChar) ||
         value.Contains(Path.AltDirectorySeparatorChar) ||
