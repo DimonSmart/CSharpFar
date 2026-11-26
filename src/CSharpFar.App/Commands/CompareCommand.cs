@@ -106,7 +106,7 @@ internal sealed class CompareCommand : IApplicationCommand
     }
 
     private static IReadOnlyList<string> ExistingSelectedPaths(FilePanelState state) =>
-        state.SelectedPaths.ToList();
+        state.SelectedLocations.Where(location => location.SourceId == PanelSourceId.Local).Select(location => location.SourcePath).ToList();
 
     private static void StoreOptions(AppSettings.CompareSettings settings, ComparisonOptions options)
     {
