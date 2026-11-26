@@ -92,8 +92,8 @@ public class MoveOperationTests : IDisposable
         await Svc().ExecuteAsync(new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            Sources = [first, second],
-            Destination = Path.Combine(_dst, "{modified:yyyy-MM-dd}", "{name}_OLD{ext}"),
+            Sources = [PanelLocation.Local(first), PanelLocation.Local(second)],
+            Destination = PanelLocation.Local(Path.Combine(_dst, "{modified:yyyy-MM-dd}", "{name}_OLD{ext}")),
             UseDestinationTemplate = true,
             Options = new FileOperationOptions(),
         }, progress: null, conflictResolver: new OverwriteResolver());
@@ -113,8 +113,8 @@ public class MoveOperationTests : IDisposable
         var request = new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            Sources = [first, second],
-            Destination = Path.Combine(_dst, "{modified:HH:mm}", "{name}{ext}"),
+            Sources = [PanelLocation.Local(first), PanelLocation.Local(second)],
+            Destination = PanelLocation.Local(Path.Combine(_dst, "{modified:HH:mm}", "{name}{ext}")),
             UseDestinationTemplate = true,
             Options = new FileOperationOptions(),
         };
@@ -147,8 +147,8 @@ public class MoveOperationTests : IDisposable
         var request = new FileOperationRequest
         {
             Kind = FileOperationKind.Move,
-            Sources = [first, second],
-            Destination = Path.Combine(_dst, "{modified:HH:mm}", "{name}{ext}"),
+            Sources = [PanelLocation.Local(first), PanelLocation.Local(second)],
+            Destination = PanelLocation.Local(Path.Combine(_dst, "{modified:HH:mm}", "{name}{ext}")),
             UseDestinationTemplate = true,
             Options = new FileOperationOptions(),
         };
@@ -180,8 +180,8 @@ public class MoveOperationTests : IDisposable
         await Svc().ExecuteAsync(new FileOperationRequest
         {
             Kind = FileOperationKind.Move,
-            Sources = [source],
-            Destination = "{name}_OLD{ext}",
+            Sources = [PanelLocation.Local(source)],
+            Destination = PanelLocation.Local("{name}_OLD{ext}"),
             UseDestinationTemplate = true,
             Options = new FileOperationOptions(),
         }, progress: null, conflictResolver: new OverwriteResolver());
@@ -199,8 +199,8 @@ public class MoveOperationTests : IDisposable
         await Assert.ThrowsAsync<IOException>(() => Svc().ExecuteAsync(new FileOperationRequest
         {
             Kind = FileOperationKind.Move,
-            Sources = [first, second],
-            Destination = Path.Combine(_dst, "same.txt"),
+            Sources = [PanelLocation.Local(first), PanelLocation.Local(second)],
+            Destination = PanelLocation.Local(Path.Combine(_dst, "same.txt")),
             UseDestinationTemplate = true,
             Options = new FileOperationOptions(),
         }, progress: null, conflictResolver: new OverwriteResolver()));
@@ -220,8 +220,8 @@ public class MoveOperationTests : IDisposable
         await Svc().ExecuteAsync(new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            Sources = [directory],
-            Destination = Path.Combine(_dst, "{modified:yyyy}", "{name}"),
+            Sources = [PanelLocation.Local(directory)],
+            Destination = PanelLocation.Local(Path.Combine(_dst, "{modified:yyyy}", "{name}")),
             UseDestinationTemplate = true,
             Options = new FileOperationOptions(),
         }, progress: null, conflictResolver: new OverwriteResolver());
@@ -239,8 +239,8 @@ public class MoveOperationTests : IDisposable
         await Svc().ExecuteAsync(new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            Sources = [source],
-            Destination = literalDestination,
+            Sources = [PanelLocation.Local(source)],
+            Destination = PanelLocation.Local(literalDestination),
             Options = new FileOperationOptions(),
         }, progress: null, conflictResolver: new OverwriteResolver());
 
@@ -256,8 +256,8 @@ public class MoveOperationTests : IDisposable
         await Svc().ExecuteAsync(new FileOperationRequest
         {
             Kind = FileOperationKind.Move,
-            Sources = [text, csv],
-            Destination = Path.Combine(_dst, "*.bak"),
+            Sources = [PanelLocation.Local(text), PanelLocation.Local(csv)],
+            Destination = PanelLocation.Local(Path.Combine(_dst, "*.bak")),
             Options = new FileOperationOptions { FileMask = "*.txt" },
         }, progress: null, conflictResolver: new OverwriteResolver());
 
@@ -279,8 +279,8 @@ public class MoveOperationTests : IDisposable
         await Svc().ExecuteAsync(new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            Sources = [first, second],
-            Destination = _dst,
+            Sources = [PanelLocation.Local(first), PanelLocation.Local(second)],
+            Destination = PanelLocation.Local(_dst),
             Options = new FileOperationOptions { DefaultConflictDecision = ConflictDecisionMode.RenameAll },
         }, progress: null, conflictResolver: new OverwriteResolver());
 
@@ -313,8 +313,8 @@ public class MoveOperationTests : IDisposable
         await service.ExecuteAsync(new FileOperationRequest
         {
             Kind = FileOperationKind.Move,
-            Sources = [directory],
-            Destination = Path.Combine(_dst, "*_old"),
+            Sources = [PanelLocation.Local(directory)],
+            Destination = PanelLocation.Local(Path.Combine(_dst, "*_old")),
             Options = new FileOperationOptions { FileMask = "*.txt" },
         }, progress: null, conflictResolver: new OverwriteResolver());
 
@@ -332,8 +332,8 @@ public class MoveOperationTests : IDisposable
         await Svc().ExecuteAsync(new FileOperationRequest
         {
             Kind = FileOperationKind.Move,
-            Sources = [text, csv],
-            Destination = Path.Combine(_dst, "*.bak"),
+            Sources = [PanelLocation.Local(text), PanelLocation.Local(csv)],
+            Destination = PanelLocation.Local(Path.Combine(_dst, "*.bak")),
             Options = new FileOperationOptions { FileMask = "*.txt" },
         }, progress: null, conflictResolver: new OverwriteResolver());
 
@@ -357,8 +357,8 @@ public class MoveOperationTests : IDisposable
         await service.ExecuteAsync(new FileOperationRequest
         {
             Kind = FileOperationKind.Move,
-            Sources = [directory],
-            Destination = Path.Combine(_dst, "*_old"),
+            Sources = [PanelLocation.Local(directory)],
+            Destination = PanelLocation.Local(Path.Combine(_dst, "*_old")),
             Options = new FileOperationOptions { FileMask = "*.txt" },
         }, progress: null, conflictResolver: new DelegateResolver(conflict =>
             Path.GetFileName(conflict.DestinationPath) == "B.txt"
@@ -382,8 +382,8 @@ public class MoveOperationTests : IDisposable
         await Svc().ExecuteAsync(new FileOperationRequest
         {
             Kind = FileOperationKind.Move,
-            Sources = [directory, text],
-            Destination = Path.Combine(_dst, "*.bak"),
+            Sources = [PanelLocation.Local(directory), PanelLocation.Local(text)],
+            Destination = PanelLocation.Local(Path.Combine(_dst, "*.bak")),
             Options = new FileOperationOptions { FileMask = "*.txt" },
         }, progress: null, conflictResolver: new OverwriteResolver());
 
@@ -403,8 +403,8 @@ public class MoveOperationTests : IDisposable
         await service.ExecuteAsync(new FileOperationRequest
         {
             Kind = FileOperationKind.Move,
-            Sources = [source],
-            Destination = Path.Combine(_dst, "*.bak"),
+            Sources = [PanelLocation.Local(source)],
+            Destination = PanelLocation.Local(Path.Combine(_dst, "*.bak")),
             Options = new FileOperationOptions(),
         }, progress: null, conflictResolver: resolver);
 

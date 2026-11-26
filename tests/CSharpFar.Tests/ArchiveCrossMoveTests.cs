@@ -40,9 +40,8 @@ public sealed class ArchiveCrossMoveTests : IDisposable
         new FileOperationService(registry).ExecuteAsync(new FileOperationRequest
         {
             Kind = FileOperationKind.Move,
-            Sources = [],
-            SourceLocations = [source],
-            DestinationLocation = destination,
+            Sources = [source],
+            Destination = destination,
             Options = new FileOperationOptions(),
         }, null, new Resolver(conflict));
 

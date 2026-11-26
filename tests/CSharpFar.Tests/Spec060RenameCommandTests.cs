@@ -53,8 +53,8 @@ public sealed class Spec060RenameCommandTests : IDisposable
 
         FileOperationRequest request = Assert.Single(fileOperations.Requests);
         Assert.Equal(FileOperationKind.Move, request.Kind);
-        Assert.Equal([currentPath], request.Sources);
-        Assert.Equal("renamed.txt", request.Destination);
+        Assert.Equal([PanelLocation.Local(currentPath)], request.Sources);
+        Assert.Equal("renamed.txt", request.Destination?.SourcePath);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class Spec060RenameCommandTests : IDisposable
 
         FileOperationRequest request = Assert.Single(fileOperations.Requests);
         Assert.Equal(FileOperationKind.Move, request.Kind);
-        Assert.Equal("*.bak", request.Destination);
+        Assert.Equal("*.bak", request.Destination?.SourcePath);
     }
 
     private Application CreateApp(
