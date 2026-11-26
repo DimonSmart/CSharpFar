@@ -107,7 +107,11 @@ internal static class CommandServicesFactory
             () => panelWorkspace.ActiveSide,
             panelQuickSearch.Close,
             temporarily => commandCompletionController.Hide(temporarily));
-        var commandRegistry = ApplicationCommandRegistry.CreateDefault(directorySizes: directorySizes);
+        var targetResolver = new PanelCommandTargetResolver(panelWorkspace);
+        var commandRegistry = new ApplicationCommandRegistry(DefaultApplicationCommands.Create(
+            interactiveSurfaces, session, dialogs, uriLauncher, updateCheckService, applicationUpdateInstaller,
+            clipboard, diagnosticLog, terminalSurface, settings, saveSettings, workspaceModeController,
+            modulePanelOpener, panelWorkspace, panelRefresh, panelSort, topMenu, targetResolver, directorySizes));
         var commandContext = new ApplicationCommandContext(
             interactiveSurfaces,
             modalDialogs,

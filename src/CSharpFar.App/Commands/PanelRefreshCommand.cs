@@ -1,8 +1,9 @@
+using CSharpFar.App.Panels;
 using CSharpFar.Core.Menu;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class PanelRefreshCommand : IApplicationCommand
+internal sealed class PanelRefreshCommand(PanelWorkspaceController workspace, PanelRefreshService panelRefresh) : IApplicationCommand
 {
     public string CommandId => MenuCommandIds.PanelRefresh;
 
@@ -14,9 +15,9 @@ internal sealed class PanelRefreshCommand : IApplicationCommand
         if (args is not PanelCommandArgs panelArgs)
             return ApplicationCommandResult.Failure("Missing panel arguments.");
 
-        context.SafeRefresh(
-            context.GetPanelState(panelArgs.PanelSide),
-            context.VisibleRows(panelArgs.PanelSide));
+        panelRefresh.SafeRefresh(
+            workspace.GetPanelState(panelArgs.PanelSide),
+            workspace.VisibleRows(panelArgs.PanelSide));
         return ApplicationCommandResult.Rendered();
     }
 }

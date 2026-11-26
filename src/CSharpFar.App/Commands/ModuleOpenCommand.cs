@@ -1,10 +1,12 @@
+using CSharpFar.App.Modules;
+using CSharpFar.App.Panels;
 using CSharpFar.Core.Menu;
 
 namespace CSharpFar.App.Commands;
 
 internal sealed record ModuleOpenCommandArgs(Guid ActionId);
 
-internal sealed class ModuleOpenCommand : IApplicationCommand
+internal sealed class ModuleOpenCommand(ModulePanelOpener modulePanelOpener, PanelWorkspaceController workspace) : IApplicationCommand
 {
     public string CommandId => MenuCommandIds.ModuleOpen;
 
@@ -16,6 +18,6 @@ internal sealed class ModuleOpenCommand : IApplicationCommand
         if (args is not ModuleOpenCommandArgs moduleArgs)
             return ApplicationCommandResult.Failure("Module command arguments are required.");
 
-        return context.OpenModuleMenuItem(moduleArgs.ActionId);
+        return modulePanelOpener.OpenMenuItem(moduleArgs.ActionId, workspace.ActiveSide);
     }
 }

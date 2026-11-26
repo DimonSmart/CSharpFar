@@ -38,7 +38,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     [Fact]
     public void CreateDefault_ContainsHandlersForEveryFunctionKeyAndMenuCommand()
     {
-        var registry = ApplicationCommandRegistry.CreateDefault();
+        var registry = CreateServices().CommandRegistry;
         var commandIds = registry.CommandIds.ToHashSet(StringComparer.Ordinal);
 
         foreach (string commandId in ConstStringValues(typeof(FunctionKeyCommandIds)))
@@ -54,7 +54,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     [Fact]
     public void CreateDefault_ContainsTerminalDiagnosticsCommand()
     {
-        var registry = ApplicationCommandRegistry.CreateDefault();
+        var registry = CreateServices().CommandRegistry;
 
         Assert.Contains(MenuCommandIds.DiagnosticsPrintTerminalInfo, registry.CommandIds);
     }
@@ -66,7 +66,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     [InlineData(MenuCommandIds.PanelRefresh)]
     public void Execute_MenuCommandWithMissingArgs_ReturnsFailedMenuResult(string commandId)
     {
-        var registry = ApplicationCommandRegistry.CreateDefault();
+        var registry = CreateServices().CommandRegistry;
         var context = CreateContext();
 
         var result = registry.Execute(commandId, context).ToMenuCommandResult();
@@ -78,7 +78,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     [Fact]
     public void Execute_UnknownCommand_ReturnsFailedMenuResult()
     {
-        var registry = ApplicationCommandRegistry.CreateDefault();
+        var registry = CreateServices().CommandRegistry;
         var context = CreateContext();
 
         var result = registry.Execute("missing.command", context).ToMenuCommandResult();

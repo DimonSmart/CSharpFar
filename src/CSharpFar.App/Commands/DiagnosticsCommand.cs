@@ -1,6 +1,11 @@
+using CSharpFar.App.Dialogs;
+using CSharpFar.App.Diagnostics;
+using CSharpFar.App.Rendering;
+using CSharpFar.App.Updates;
+using CSharpFar.Ui;
 namespace CSharpFar.App.Commands;
 
-internal sealed class DiagnosticsCommand : IApplicationCommand
+internal sealed class DiagnosticsCommand(DialogService dialogs, ITextClipboard clipboard, IDiagnosticLog diagnosticLog, TerminalSurfaceController terminalSurface) : IApplicationCommand
 {
     public string CommandId => ApplicationCommandIds.Diagnostics;
 
@@ -8,7 +13,8 @@ internal sealed class DiagnosticsCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        context.ShowDiagnostics();
+        new DiagnosticsDialog(dialogs, clipboard, diagnosticLog, new DiagnosticReportBuilder(),
+            ApplicationVersionProvider.GetVersionInfo(), () => terminalSurface.GetDiagnostics()).Show();
         return ApplicationCommandResult.Rendered();
     }
 }
