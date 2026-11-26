@@ -232,9 +232,10 @@ internal sealed class ModulePanelOpener
         catch { lease.Dispose(); throw; }
 
         var origin = state.CurrentLocation;
+        long originRevision = state.ContentRevision;
         if (invocation.IsCompleted)
         {
-            try { CompleteFileOpen(invocation.Result, state, side, item, origin, fallback); }
+            try { CompleteFileOpen(invocation.Result, state, side, item, origin, originRevision, fallback); }
             finally { lease.Dispose(); }
             return true;
         }
@@ -245,7 +246,7 @@ internal sealed class ModulePanelOpener
             TrackOperation(ReleaseAfterAsync(DiscardFileResultAsync(invocation), lease));
             return true;
         }
-        TrackOperation(ReleaseAfterAsync(AwaitFileOpenAsync(invocation, state, side, item, origin, fallback), lease));
+        TrackOperation(AwaitFileOpenAsync(invocation, state, side, item, origin, originRevision, fallback, lease));
         return true;
     }
 
@@ -256,22 +257,22 @@ internal sealed class ModulePanelOpener
 
     private async Task AwaitFileOpenAsync(
         ValueTask<PluginFileOpenResult> invocation,
-        FilePanelState state, PanelSide side, FilePanelItem item, PanelLocation origin,
-        Action<FilePanelState, FilePanelItem> fallback)
+        FilePanelState state, PanelSide side, FilePanelItem item, PanelLocation origin, long originRevision,
+        Action<FilePanelState, FilePanelItem> fallback, IDisposable lease)
     {
         PluginFileOpenResult result;
         try { result = await invocation.ConfigureAwait(false); }
         catch (OperationCanceledException) { result = PluginFileOpenResult.Cancelled(); }
         catch (Exception error) { result = PluginFileOpenResult.Failed(error.Message); }
-        PostCompletion(() => CompleteFileOpen(result, state, side, item, origin, fallback), result.Panel);
+        PostCompletion(() => CompleteFileOpen(result, state, side, item, origin, originRevision, fallback), result.Panel, lease);
     }
 
     private void CompleteFileOpen(
         PluginFileOpenResult result,
-        FilePanelState state, PanelSide side, FilePanelItem item, PanelLocation origin,
+        FilePanelState state, PanelSide side, FilePanelItem item, PanelLocation origin, long originRevision,
         Action<FilePanelState, FilePanelItem> fallback)
     {
-        if (state.CurrentLocation != origin || state.IsLoading)
+        if (state.CurrentLocation != origin || state.ContentRevision != originRevision || state.IsLoading)
         {
             DiscardUnusedPanel(result.Panel);
             return;
@@ -337,7 +338,7 @@ internal sealed class ModulePanelOpener
         catch (Exception error) { ReportOperationError(error); }
     }
 
-    private void PostCompletion(Action action, PluginPanelOpenRequest? panel)
+    private void PostCompletion(Action action, PluginPanelOpenRequest? panel, IDisposable? lease = null)
     {
         try
         {
@@ -348,19 +349,25 @@ internal sealed class ModulePanelOpener
                 {
                     _postToUi!(() =>
                     {
-                        if (Volatile.Read(ref _shuttingDown) != 0)
-                            DiscardUnusedPanel(panel);
-                        else
-                            action();
+                        try
+                        {
+                            if (Volatile.Read(ref _shuttingDown) != 0)
+                                DiscardUnusedPanel(panel);
+                            else
+                                action();
+                        }
+                        finally { lease?.Dispose(); }
                     });
                     return;
                 }
             }
             DiscardUnusedPanel(panel);
+            lease?.Dispose();
         }
         catch (Exception error)
         {
             DiscardUnusedPanel(panel);
+            lease?.Dispose();
             ReportOperationError(error);
         }
     }

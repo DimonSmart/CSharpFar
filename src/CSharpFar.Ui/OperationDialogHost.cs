@@ -123,9 +123,10 @@ public sealed class OperationDialogHost
         ArgumentNullException.ThrowIfNull(handle);
         options.Validate();
 
-        using var operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        CancellationToken operationToken = operationCancellation.Token;
         using var completionWake = new CancellationTokenSource();
-        Task<TBackground> task = Task.Run(() => operation(operationCancellation.Token), CancellationToken.None);
+        Task<TBackground> task = Task.Run(() => operation(operationToken), CancellationToken.None);
         _ = task.ContinueWith(
             static (_, state) =>
             {
@@ -137,13 +138,14 @@ public sealed class OperationDialogHost
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
 
+        Task? cancellationTask = null;
         bool cancellationNotified = false;
         bool cancellationPending = false;
         bool operationCompletionHandled = false;
 
         void RequestCancellation()
         {
-            operationCancellation.Cancel();
+            cancellationTask ??= operationCancellation.CancelAsync();
             if (!cancellationNotified)
             {
                 cancellationNotified = true;
@@ -237,6 +239,21 @@ public sealed class OperationDialogHost
             ObserveOnClose();
             throw;
         }
+        finally
+        {
+            // A cancelled persistent dialog may return before its provider does.
+            // Keep the linked token alive until both the worker and cancellation callbacks finish.
+            _ = ReleaseCancellationAsync(task, cancellationTask ?? Task.CompletedTask, operationCancellation);
+        }
+    }
+
+    private static async Task ReleaseCancellationAsync(Task worker, Task cancellation, CancellationTokenSource source)
+    {
+        try { await worker.ConfigureAwait(false); }
+        catch { /* The modal operation owns presentation of worker failures. */ }
+        try { await cancellation.ConfigureAwait(false); }
+        catch (Exception error) { System.Diagnostics.Trace.TraceError(error.ToString()); }
+        finally { source.Dispose(); }
     }
 
     private static void ObserveEventually(Task task)
