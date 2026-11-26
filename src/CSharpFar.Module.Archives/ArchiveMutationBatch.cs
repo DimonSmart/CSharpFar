@@ -11,7 +11,7 @@ internal sealed record ArchiveMutationEntry(
 /// Private copy-on-write archive view. Files are staged on disk, never in RAM;
 /// changes to the source file only occur in ArchivePublication.PublishAsync.
 /// </summary>
-internal sealed class ArchiveMutationBatch : IFileOperationBatch
+internal sealed class ArchiveMutationBatch : IFileOperationBatch, IFileOperationBatchDiagnostics
 {
     private readonly ArchiveFilePanelSource _owner;
     private readonly Dictionary<string, ArchiveMutationEntry> _entries;
@@ -24,6 +24,9 @@ internal sealed class ArchiveMutationBatch : IFileOperationBatch
     private bool _committed;
     private bool _aborted;
     private bool _disposed;
+    private readonly List<string> _warnings = [];
+    public IReadOnlyList<string> Warnings => _warnings;
+    internal void AddWarning(string warning) => _warnings.Add(warning);
 
     internal ArchiveMutationBatch(ArchiveFilePanelSource owner, byte[] originalDigest)
     {
@@ -125,7 +128,7 @@ internal sealed class ArchiveMutationBatch : IFileOperationBatch
 
         string staged = Path.Combine(Path.GetTempPath(),
             "csharpfar-stage-" + Guid.NewGuid().ToString("N") + ".tmp");
-        var stream = new FileStream(staged, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+        var stream = new FileStream(staged, FileMode.CreateNew, FileAccess.Write, FileShare.Delete,
             65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
         _temporaryFiles.Add(staged);
         lock (_gate) _activeWriters++;
@@ -257,6 +260,8 @@ internal sealed class ArchiveMutationBatch : IFileOperationBatch
         {
             _aborted = true;
             Cleanup();
+            if (_warnings.Count > 0)
+                throw new IOException(string.Join(Environment.NewLine, _warnings));
         }
         return Task.CompletedTask;
     }
@@ -273,8 +278,10 @@ internal sealed class ArchiveMutationBatch : IFileOperationBatch
         foreach (var path in _temporaryFiles)
         {
             try { File.Delete(path); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                AddWarning($"Archive staging cleanup failed: '{path}': {error.Message}");
+            }
         }
         _temporaryFiles.Clear();
     }

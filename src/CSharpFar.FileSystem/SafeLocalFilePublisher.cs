@@ -2,9 +2,9 @@ namespace CSharpFar.FileSystem;
 
 // A replacement is made from a complete same-directory staging file. Existing
 // bytes are never removed to make room for a copy still in progress.
-internal static class SafeLocalFilePublisher
+public static class SafeLocalFilePublisher
 {
-    internal static string CreateStagingPath(string target) =>
+    public static string CreateStagingPath(string target) =>
         Path.Combine(Path.GetDirectoryName(target)!,
             $".{Path.GetFileName(target)}.csharpfar-{Guid.NewGuid():N}.tmp");
 
@@ -30,8 +30,46 @@ internal static class SafeLocalFilePublisher
         else File.Move(source, target);
     }
 
+    public readonly record struct DestinationSnapshot(long Length, DateTime LastWriteTimeUtc,
+        DateTime CreationTimeUtc, FileAttributes Attributes);
+
+    public static DestinationSnapshot? CaptureDestination(string path)
+    {
+        if (!PathExists(path)) return null;
+        var info = new FileInfo(path);
+        var attributes = info.Attributes;
+        return new DestinationSnapshot(
+            (attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0 ? 0 : info.Length,
+            info.LastWriteTimeUtc, info.CreationTimeUtc, attributes);
+    }
+
+    public static string? PublishChecked(string staging, string destination, DestinationSnapshot? expected) =>
+        PublishChecked(staging, destination, expected, null, null);
+
+    internal static string? PublishChecked(string staging, string destination, DestinationSnapshot? expected,
+        Func<string, string, string?>? replace = null, Action<string, string>? create = null)
+    {
+        if (CaptureDestination(destination) != expected)
+            throw new IOException($"Destination changed before publication: '{destination}'.");
+        if (expected is null)
+        {
+            (create ?? MoveStagingPath)(staging, destination);
+            return null;
+        }
+        return (replace ?? Publish)(staging, destination);
+    }
+
     // A non-null return value is a retained backup that could not be cleaned up.
-    internal static string? Publish(string staging, string destination)
+    internal sealed record PublicationOperations
+    {
+        internal Action<string, string, string> Replace { get; init; } = (source, target, backup) => File.Replace(source, target, backup);
+        internal Action<string, string> Move { get; init; } = File.Move;
+        internal Action<string> Delete { get; init; } = File.Delete;
+    }
+
+    internal static string? Publish(string staging, string destination) => Publish(staging, destination, new PublicationOperations());
+
+    internal static string? Publish(string staging, string destination, PublicationOperations operations)
     {
         if (Directory.Exists(destination) ||
             (PathExists(destination) && (File.GetAttributes(destination) & FileAttributes.Directory) != 0))
@@ -54,14 +92,14 @@ internal static class SafeLocalFilePublisher
         // original stays at the known backup path until commit succeeds.
         if (OperatingSystem.IsWindows() &&
             (File.GetAttributes(destination) & FileAttributes.ReadOnly) != 0)
-            return PublishReadOnlyWindowsFile(staging, destination, backup);
+            return PublishReadOnlyWindowsFile(staging, destination, backup, operations);
 
-        try { File.Replace(staging, destination, backup); }
+        try { operations.Replace(staging, destination, backup); }
         catch (Exception error)
         {
             if (PathExists(backup))
             {
-                try { File.Move(backup, destination, overwrite: true); }
+                try { operations.Move(backup, destination); }
                 catch (Exception rollback)
                 {
                     throw new IOException($"Publication and rollback failed for '{destination}'. Original backup: '{backup}'.",
@@ -71,20 +109,20 @@ internal static class SafeLocalFilePublisher
             throw new IOException($"Publication failed for '{destination}'; previous destination preserved.", error);
         }
 
-        try { File.Delete(backup); return null; }
+        try { operations.Delete(backup); return null; }
         catch (IOException) { return backup; }
         catch (UnauthorizedAccessException) { return backup; }
     }
-    private static string? PublishReadOnlyWindowsFile(string staging, string destination, string backup)
+    private static string? PublishReadOnlyWindowsFile(string staging, string destination, string backup, PublicationOperations operations)
     {
-        File.Move(destination, backup);
+        operations.Move(destination, backup);
         try
         {
-            File.Move(staging, destination);
+            operations.Move(staging, destination);
         }
         catch (Exception error)
         {
-            try { File.Move(backup, destination); }
+            try { operations.Move(backup, destination); }
             catch (Exception restoreError)
             {
                 throw new IOException(
@@ -102,7 +140,7 @@ internal static class SafeLocalFilePublisher
         try
         {
             File.SetAttributes(backup, File.GetAttributes(backup) & ~FileAttributes.ReadOnly);
-            File.Delete(backup);
+            operations.Delete(backup);
             return null;
         }
         catch (IOException) { return backup; }

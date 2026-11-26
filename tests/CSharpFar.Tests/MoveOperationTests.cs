@@ -975,7 +975,8 @@ public class MoveOperationTests : IDisposable
         Assert.Equal("new", File.ReadAllText(destination));
         string backup = Assert.Single(Directory.GetFiles(_dst, "dup.txt.csharpfar-replace-backup-*"));
         Assert.Equal("old", File.ReadAllText(backup));
-        FileOperationItemError cleanupError = Assert.Single(result.Errors);
+        Assert.Empty(result.Errors);
+        FileOperationItemError cleanupError = Assert.Single(result.Warnings);
         Assert.Equal(backup, cleanupError.Path);
         Assert.Contains("cleanup failed", cleanupError.Message, StringComparison.OrdinalIgnoreCase);
     }

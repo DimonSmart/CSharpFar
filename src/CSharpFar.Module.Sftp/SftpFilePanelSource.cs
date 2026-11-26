@@ -7,7 +7,7 @@ using Renci.SshNet.Common;
 
 namespace CSharpFar.Module.Sftp;
 
-public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource, ITemporaryFilePanelSource, IFilePanelSourceActivation
+public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource, ITemporaryFilePanelSource, IFilePanelSourceActivation, ISafeNewFilePublicationProvider
 {
     private static readonly char[] ProviderPathSeparators = ['/'];
     private readonly SftpConnectionInfo _connection;
@@ -201,6 +201,14 @@ public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource
             throw CreateSftpException(ex, "open file for writing", path);
         }
     }
+
+    // SFTP v3 SSH_FXP_RENAME requires failure if newpath already exists.
+    // Do not use the POSIX rename extension (which replaces the destination).
+    public Task<Stream> OpenStagingWriteAsync(string stagingPath, CancellationToken cancellationToken = default) =>
+        OpenWriteAsync(stagingPath, overwrite: false, cancellationToken);
+
+    public Task RenameWithoutOverwriteAsync(string stagingPath, string destinationPath, CancellationToken cancellationToken = default) =>
+        RenameAsync(stagingPath, destinationPath, cancellationToken);
 
     public Task CreateDirectoryAsync(
         string sourcePath,
@@ -413,6 +421,7 @@ public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource
         private readonly SftpClient _client;
         private readonly Stream _inner;
         private readonly Func<Exception, Exception> _translateException;
+        private bool _disposed;
 
         public ClientOwnedStream(
             SftpClient client,
@@ -498,10 +507,11 @@ public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing)
+            if (disposing && !_disposed)
             {
-                _inner.Dispose();
-                _client.Dispose();
+                _disposed = true;
+                try { _inner.Dispose(); }
+                finally { _client.Dispose(); }
             }
 
             base.Dispose(disposing);
@@ -509,8 +519,10 @@ public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource
 
         public override async ValueTask DisposeAsync()
         {
-            await _inner.DisposeAsync().ConfigureAwait(false);
-            _client.Dispose();
+            if (_disposed) return;
+            _disposed = true;
+            try { await _inner.DisposeAsync().ConfigureAwait(false); }
+            finally { _client.Dispose(); }
             await base.DisposeAsync().ConfigureAwait(false);
         }
     }

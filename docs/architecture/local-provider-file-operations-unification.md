@@ -1300,6 +1300,47 @@ platform-specific filesystem operations
 
 That boundary removes the duplication that caused the recent explicit-target bug without sacrificing the richer capabilities of the local filesystem.
 
+## Safe file publication
+
+The current publication boundary is shared by file operations and editor saves:
+`SafeLocalFilePublisher` commits an owned local staging path; `SafeFileWriteService`
+coordinates complete writes, verification, provider publication and transaction
+completion. Local copy modes retain their specialized resume/salvage, metadata and
+symlink handling and use the same final publication primitive. Archive serialization
+retains its format-specific validation and digest check and uses the same local publisher.
+
+| Destination | New file | Existing file |
+| --- | --- | --- |
+| Local | Exclusive staging, verified size, no-overwrite move | Stage, check revision, File.Replace with backup; recoverable fallback for Windows read-only copy |
+| SFTP | Exclusive SFTP create, verify size, standard SFTP v3 rename (not POSIX overwrite) | Rejected without an independently verified replacement guarantee |
+| FTP/FTPS | Rejected: STOR/RNTO do not provide exclusive creation plus no-overwrite guarantees | Rejected |
+| Archive / transactional provider | Stage inside a batch, then commit | Same batch contract |
+| Other provider | Only with explicit safe-new capability | Only with a transaction / verified safe replacement |
+
+New optional contracts are `ISafeEntryRenameProvider`,
+`ISafeNewFilePublicationProvider`, `IRecoverableEntryRenameProvider`, and
+`IFileOperationBatchDiagnostics`. Existing provider interfaces are not expanded
+with required members. Raw stream and rename APIs alone do not imply safe
+publication. Recovery uses cancellation-independent operations after publication
+starts. Local replacement checks a metadata snapshot immediately before publication;
+this is not an atomic compare-and-swap against an unrelated concurrent writer.
+Archive digest checks also do not prevent an unrelated process racing the final
+filesystem operation. A misbehaving server or provider cannot be made safe by
+client-side checks. This is not a power-loss durability guarantee.
+
+On an unconfirmed network publication the source is retained; the final
+destination is not deleted or rewritten as a recovery guess. Retained staging
+or backup paths are included in errors. Cleanup failures after confirmed commit
+are reported through warnings without changing successful counts or editor
+dirty state. Cross-volume directory replacement deliberately retains its
+whole-tree backup until source removal, unlike single-file publication.
+
+Tests: `SafeCopyP1Tests`, `SafeFilePublicationTests`,
+`EditorFileServiceTests`, archive batch/writable tests, move tests, and
+`NetworkPublicationIntegrationTests` with isolated real servers.
+Run the latter with `bash eng/testing/run-file-publication-integration.sh`
+on a disposable Linux test runner after a Release build.
+
 ## Move/rename safety boundary
 
 Local and provider move share the same safety contract: a failed direct rename/move is an error, not an implicit copy/delete signal. Fallback is entered only for an explicitly classified unsupported direct move.

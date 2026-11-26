@@ -53,6 +53,8 @@ internal sealed class FileOperationUiRunner
                 pauseController.Resume();
             });
 
+        if (result.Warnings.Count > 0)
+            _dialogs.Message("File Operation Warning", result.Warnings[0].Message);
         if (result.Cancelled)
             throw new OperationCanceledException();
         if (result.Errors.Count > 0)

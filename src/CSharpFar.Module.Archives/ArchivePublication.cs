@@ -4,6 +4,7 @@ using SharpCompress.Common;
 using SharpCompress.Writers;
 using SharpCompress.Writers.SevenZip;
 using System.Security.Cryptography;
+using CSharpFar.FileSystem;
 
 namespace CSharpFar.Module.Archives;
 
@@ -21,10 +22,8 @@ internal static class ArchivePublication
     {
         owner.CheckFresh();
         string original = owner.ArchiveFile;
-        string directory = Path.GetDirectoryName(original)!;
-        string temporary = Path.Combine(directory,
-            "." + Path.GetFileName(original) + ".csharpfar-" + Guid.NewGuid().ToString("N") + ".tmp");
-        string backup = temporary + ".backup";
+        string temporary = SafeLocalFilePublisher.CreateStagingPath(original);
+        bool owned = false;
         bool published = false;
         try
         {
@@ -33,6 +32,12 @@ internal static class ArchivePublication
             using var guard = new FileStream(original + ".csharpfar-lock",
                 FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
             await CheckRevisionAsync(owner, batch.OriginalDigest, cancellationToken).ConfigureAwait(false);
+            var expected = SafeLocalFilePublisher.CaptureDestination(original)
+                ?? throw new IOException("The archive disappeared before rebuilding.");
+            if (expected.Attributes.HasFlag(FileAttributes.ReadOnly))
+                throw new IOException("The archive is read-only.");
+            using (var reservation = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                owned = true;
             if (owner.Format == "ZIP")
             {
                 ArchiveZipSafety.Validate(original);
@@ -63,31 +68,36 @@ internal static class ArchivePublication
             await CheckRevisionAsync(owner, batch.OriginalDigest, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
 
-            // File.Replace is a single filesystem replacement, never delete+move.
-            // If unavailable, reject rather than putting the original at risk.
-            File.Replace(temporary, original, backup, ignoreMetadataErrors: false);
+            string? backup = SafeLocalFilePublisher.PublishChecked(temporary, original, expected);
             published = true;
+            if (backup is not null)
+                batch.AddWarning($"Archive published, but backup cleanup failed: '{backup}'.");
 
             // Publication is already committed; cleanup/refresh must not turn a
             // successful write into a reported abort.
             try { owner.Published(validatedIndex); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
+            catch (Exception refresh) when (refresh is IOException or UnauthorizedAccessException)
+            {
+                batch.AddWarning($"Archive published, but refresh failed for '{original}': {refresh.Message}");
+            }
         }
-        finally
+        catch (Exception error)
         {
-            if (!published)
+            if (published)
+            {
+                batch.AddWarning($"Archive published, but finalization failed for '{original}': {error.Message}");
+                return;
+            }
+            if (owned)
             {
                 try { File.Delete(temporary); }
-                catch (IOException) { }
-                catch (UnauthorizedAccessException) { }
+                catch (Exception cleanup)
+                {
+                    throw new IOException($"Archive rebuild failed and staging cleanup failed: '{temporary}'.",
+                        new AggregateException(error, cleanup));
+                }
             }
-            else
-            {
-                try { File.Delete(backup); }
-                catch (IOException) { }
-                catch (UnauthorizedAccessException) { }
-            }
+            throw;
         }
     }
 
@@ -112,7 +122,7 @@ internal static class ArchivePublication
         var originalZipEntries = sourceZip.Entries.ToDictionary(
             entry => ArchivePath.NormalizeEntry(entry.FullName), StringComparer.Ordinal);
 
-        await using var output = new FileStream(temporary, FileMode.CreateNew,
+        await using var output = new FileStream(temporary, FileMode.Truncate,
             FileAccess.ReadWrite, FileShare.None, BufferSize, FileOptions.Asynchronous);
         using (var writer = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
         {
@@ -160,7 +170,7 @@ internal static class ArchivePublication
         ArchiveFilePanelSource owner, ArchiveMutationBatch batch,
         string temporary, CancellationToken cancellationToken)
     {
-        await using var output = new FileStream(temporary, FileMode.CreateNew,
+        await using var output = new FileStream(temporary, FileMode.Truncate,
             FileAccess.ReadWrite, FileShare.None, BufferSize, FileOptions.Asynchronous);
         await using (var writer = await WriterFactory.OpenAsyncWriter(
             output, ArchiveType.SevenZip,
@@ -199,7 +209,7 @@ internal static class ArchivePublication
         string temporary, CancellationToken cancellationToken)
     {
         var oldMetadata = ArchiveTarSafety.ReadMetadata(owner.ArchiveFile, owner.Format);
-        await using var output = new FileStream(temporary, FileMode.CreateNew,
+        await using var output = new FileStream(temporary, FileMode.Truncate,
             FileAccess.ReadWrite, FileShare.None, BufferSize, FileOptions.Asynchronous);
         await using GZipStream? gzip = owner.Format == "TAR.GZ"
             ? new GZipStream(output, CompressionLevel.Optimal, leaveOpen: true) : null;

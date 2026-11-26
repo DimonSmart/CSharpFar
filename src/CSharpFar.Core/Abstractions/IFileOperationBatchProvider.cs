@@ -19,6 +19,14 @@ public interface IFileOperationBatchProvider
 /// </summary>
 public interface IFileOperationBatch : IFilePanelSource, IAsyncDisposable
 {
+    /// <summary>Observe cancellation before final publication. Once publication begins,
+    /// finish it or recover; do not report cancellation after a successful commit.</summary>
     Task CommitAsync(CancellationToken cancellationToken = default);
     Task AbortAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>Optional diagnostics for a committed batch whose auxiliary cleanup failed.</summary>
+public interface IFileOperationBatchDiagnostics
+{
+    IReadOnlyList<string> Warnings { get; }
 }

@@ -51,20 +51,21 @@ public sealed partial class FileOperationService
 
             if (source is IFileOperationBatchProvider batching)
             {
-                await using var batch = await batching.BeginBatchAsync(
-                    ToPublicPlan(plan, destination.SourceId), cancellationToken).ConfigureAwait(false);
+                int before = state.MovedCount;
                 try
                 {
-                    await MoveProviderPlanItemsAsync(plan, batch, request.Options,
-                        conflictResolver, state, cancellationToken).ConfigureAwait(false);
-                    cancellationToken.ThrowIfCancellationRequested();
-                    state.ReportCommitting(destination.SourcePath);
-                    await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
+                    string? warning = await SafeFileWriteService.ExecuteBatchAsync(batching,
+                        ToPublicPlan(plan, destination.SourceId), async batch =>
+                        {
+                            await MoveProviderPlanItemsAsync(plan, batch, request.Options,
+                                conflictResolver, state, cancellationToken).ConfigureAwait(false);
+                            state.ReportCommitting(destination.SourcePath);
+                        }, cancellationToken).ConfigureAwait(false);
+                    if (warning is not null) state.AddWarning(destination.SourcePath, warning);
                 }
                 catch
                 {
-                    try { await batch.AbortAsync(CancellationToken.None).ConfigureAwait(false); }
-                    catch { /* Preserve the original error. */ }
+                    state.MovedCount = before;
                     throw;
                 }
             }
@@ -118,7 +119,8 @@ public sealed partial class FileOperationService
             if ((sourceSource.Capabilities & fromRequired) != fromRequired ||
                 (targetSource.Capabilities & toRequired) != toRequired ||
                 (sourceSource.SourceId != PanelSourceId.Local && sourceSource is not IFileOperationBatchProvider) ||
-                (targetSource.SourceId != PanelSourceId.Local && targetSource is not IFileOperationBatchProvider))
+                (targetSource.SourceId != PanelSourceId.Local && targetSource is not IFileOperationBatchProvider &&
+                    targetSource is not ISafeNewFilePublicationProvider))
                 throw new NotSupportedException("Cross-provider move requires verified copy and delete capabilities.");
 
             var plan = owner.BuildProviderCopyPlan(sources, destination, request.Options,
@@ -130,20 +132,21 @@ public sealed partial class FileOperationService
 
             if (targetSource is IFileOperationBatchProvider batching)
             {
-                await using var batch = await batching.BeginBatchAsync(
-                    ToPublicPlan(plan, destination.SourceId), cancellationToken).ConfigureAwait(false);
+                int before = state.CopiedCount;
                 try
                 {
-                    await owner.CopyProviderPlanItemsAsync(plan, batch, request.Options, resolver,
-                        state, cancellationToken, copiedFiles, copiedFolders).ConfigureAwait(false);
-                    cancellationToken.ThrowIfCancellationRequested();
-                    state.ReportCommitting(destination.SourcePath);
-                    await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
+                    string? warning = await SafeFileWriteService.ExecuteBatchAsync(batching,
+                        ToPublicPlan(plan, destination.SourceId), async batch =>
+                        {
+                            await owner.CopyProviderPlanItemsAsync(plan, batch, request.Options, resolver,
+                                state, cancellationToken, copiedFiles, copiedFolders).ConfigureAwait(false);
+                            state.ReportCommitting(destination.SourcePath);
+                        }, cancellationToken).ConfigureAwait(false);
+                    if (warning is not null) state.AddWarning(destination.SourcePath, warning);
                 }
                 catch
                 {
-                    try { await batch.AbortAsync(CancellationToken.None).ConfigureAwait(false); }
-                    catch { /* Keep the primary error. */ }
+                    state.CopiedCount = before;
                     throw;
                 }
             }
@@ -171,21 +174,19 @@ public sealed partial class FileOperationService
                         var location = new PanelLocation(sourceSource.SourceId, path);
                         return new FileOperationPlanItem(location, location, false);
                     }).ToArray());
-                    await using var batch = await sourceBatching.BeginBatchAsync(deletePlan,
-                        cancellationToken).ConfigureAwait(false);
                     try
                     {
-                        await RemoveCopiedSourcesAsync(batch, copiedFiles, copiedFolders,
-                            state, cancellationToken).ConfigureAwait(false);
-                        cancellationToken.ThrowIfCancellationRequested();
-                        state.ReportCommitting(sources[0].SourcePath);
-                        await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
+                        string? warning = await SafeFileWriteService.ExecuteBatchAsync(sourceBatching, deletePlan, async batch =>
+                        {
+                            await RemoveCopiedSourcesAsync(batch, copiedFiles, copiedFolders,
+                                state, cancellationToken).ConfigureAwait(false);
+                            state.ReportCommitting(sources[0].SourcePath);
+                        }, cancellationToken).ConfigureAwait(false);
+                        if (warning is not null) state.AddWarning(sources[0].SourcePath, warning);
                     }
                     catch
                     {
                         state.MovedCount = movedBeforeBatch;
-                        try { await batch.AbortAsync(CancellationToken.None).ConfigureAwait(false); }
-                        catch { }
                         throw;
                     }
                 }
@@ -340,7 +341,7 @@ public sealed partial class FileOperationService
                 }
 
                 await EnsureProviderDestinationDirectoryAsync(source, targetPath, cancellationToken).ConfigureAwait(false);
-                await source.RenameAsync(sourcePath, targetPath, cancellationToken).ConfigureAwait(false);
+                await RenameWithoutOverwriteAsync(source, sourcePath, targetPath, cancellationToken).ConfigureAwait(false);
                 state.MovedCount++;
                 state.AddBytes(sourceItem.Size ?? 0);
                 state.CompleteItem();
@@ -401,6 +402,40 @@ public sealed partial class FileOperationService
                 await source.DeleteAsync(sourcePath, recursive: false, cancellationToken).ConfigureAwait(false);
         }
 
+        private static async Task RenameWithoutOverwriteAsync(IFilePanelSource source,
+            string sourcePath, string destinationPath, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (source is IFileOperationBatch)
+            {
+                await source.RenameAsync(sourcePath, destinationPath, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            if (source is not ISafeEntryRenameProvider rename)
+                throw new NotSupportedException($"Provider '{source.DisplayName}' cannot guarantee a non-overwriting rename.");
+            try
+            {
+                await rename.RenameWithoutOverwriteAsync(sourcePath, destinationPath, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception error) when (source is not IRecoverableEntryRenameProvider)
+            {
+                bool originalExists, targetExists;
+                try
+                {
+                    originalExists = source.GetItem(sourcePath, CancellationToken.None) is not null;
+                    targetExists = source.GetItem(destinationPath, CancellationToken.None) is not null;
+                }
+                catch (Exception inspection)
+                {
+                    throw new UnknownFilePublicationException(destinationPath, sourcePath,
+                        "Rename state inspection failed.", new AggregateException(error, inspection));
+                }
+                if (originalExists && !targetExists) throw;
+                throw new UnknownFilePublicationException(destinationPath, sourcePath,
+                    $"Original exists: {originalExists}; destination exists: {targetExists}.", error);
+            }
+        }
+
         private async Task ReplaceProviderItemAsync(
             IFilePanelSource source,
             string sourcePath,
@@ -409,31 +444,22 @@ public sealed partial class FileOperationService
             OperationState state,
             CancellationToken cancellationToken)
         {
-            PanelProviderCapabilities required = PanelProviderCapabilities.Rename | PanelProviderCapabilities.Delete;
-            if ((source.Capabilities & required) != required)
-                throw new NotSupportedException("This provider cannot safely replace an existing destination.");
-
+            if (source is not IFileOperationBatch && source is not IRecoverableEntryRenameProvider)
+                throw new NotSupportedException($"Provider '{source.DisplayName}' cannot safely replace an existing destination.");
+            if (!SafeFileWriteService.SameDestination(destinationItem, source.GetItem(destinationPath, cancellationToken)))
+                throw new IOException($"Destination changed before replacement: '{destinationPath}'.");
             string backupPath = GenerateProviderTemporaryPath(source, destinationPath, "backup", cancellationToken);
-            await source.RenameAsync(destinationPath, backupPath, cancellationToken).ConfigureAwait(false);
+            await RenameWithoutOverwriteAsync(source, destinationPath, backupPath, cancellationToken).ConfigureAwait(false);
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                await source.RenameAsync(sourcePath, destinationPath, cancellationToken).ConfigureAwait(false);
+                await RenameWithoutOverwriteAsync(source, sourcePath, destinationPath, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception moveError)
             {
                 try
                 {
-                    if (source.GetItem(destinationPath, CancellationToken.None) is null)
-                    {
-                        await source.RenameAsync(backupPath, destinationPath, CancellationToken.None).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        throw new IOException(
-                            $"Replacement failed and destination is occupied. Original destination was preserved as: {backupPath}");
-                    }
+                    await RenameWithoutOverwriteAsync(source, backupPath, destinationPath, CancellationToken.None).ConfigureAwait(false);
                 }
                 catch (Exception rollbackError)
                 {
@@ -447,11 +473,12 @@ public sealed partial class FileOperationService
 
             try
             {
-                await source.DeleteAsync(backupPath, destinationItem.IsDirectory, cancellationToken).ConfigureAwait(false);
+                await source.DeleteAsync(backupPath, destinationItem.IsDirectory, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception cleanupError)
             {
-                state.AddError(backupPath, $"Replacement succeeded, but backup cleanup failed: {cleanupError.Message}");
+                if (source is IFileOperationBatch) throw;
+                state.AddWarning(backupPath, $"Replacement succeeded, but backup cleanup failed: {cleanupError.Message}");
             }
         }
 
@@ -526,8 +553,21 @@ public sealed partial class FileOperationService
 
                     foreach (string copiedSource in outcome.SuccessfullyCopiedSources)
                     {
-                        File.Delete(copiedSource);
-                        state.MovedCount++;
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            state.PartiallyMoved = true;
+                            cancellationToken.ThrowIfCancellationRequested();
+                        }
+                        try
+                        {
+                            File.Delete(copiedSource);
+                            state.MovedCount++;
+                        }
+                        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+                        {
+                            state.PartiallyMoved = true;
+                            state.AddError(copiedSource, $"Copy succeeded, but source removal failed: {error.Message}");
+                        }
                     }
 
                     continue;
@@ -593,6 +633,7 @@ public sealed partial class FileOperationService
                 if (sourceIsDirectory && IsPathInside(target, source))
                     throw new IOException("Cannot move a directory into itself.");
 
+                var expectedDestination = SafeLocalFilePublisher.CaptureDestination(target);
                 bool destinationIsFile = File.Exists(target);
                 bool destinationIsDirectory = Directory.Exists(target);
                 if (destinationIsFile || destinationIsDirectory)
@@ -642,6 +683,7 @@ public sealed partial class FileOperationService
                                     source,
                                     target,
                                     sourceIsFile,
+                                    expectedDestination,
                                     options,
                                     conflictResolver,
                                     state,
@@ -658,6 +700,7 @@ public sealed partial class FileOperationService
                                     source,
                                     target,
                                     sourceIsFile,
+                                    expectedDestination,
                                     options,
                                     conflictResolver,
                                     state,
@@ -702,8 +745,18 @@ public sealed partial class FileOperationService
                 if (!outcome.CopiedSomething || !outcome.Completed)
                     return;
 
-                owner.DeletePath(source, useRecycleBin: false);
-                state.MovedCount++;
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    owner.DeletePath(source, useRecycleBin: false);
+                    state.MovedCount++;
+                }
+                catch (Exception error)
+                {
+                    state.PartiallyMoved = true;
+                    if (error is OperationCanceledException) state.Cancelled = true;
+                    state.AddError(source, $"Destination published, but source removal did not complete: {error.Message}");
+                }
                 return;
             }
         }
@@ -754,12 +807,15 @@ public sealed partial class FileOperationService
             string source,
             string destination,
             bool sourceIsFile,
+            SafeLocalFilePublisher.DestinationSnapshot? expectedDestination,
             FileOperationOptions options,
             IFileOperationConflictResolver conflictResolver,
             OperationState state,
             CancellationToken cancellationToken,
             bool allowFallback)
         {
+            if (SafeLocalFilePublisher.CaptureDestination(destination) != expectedDestination)
+                throw new IOException($"Destination changed before replacement: '{destination}'.");
             if (RequiresCopyDeleteFallback(source, destination))
             {
                 if (!allowFallback)
@@ -768,6 +824,7 @@ public sealed partial class FileOperationService
                 await ReplaceLocalViaStagingAsync(
                         source,
                         destination,
+                        expectedDestination,
                         options,
                         conflictResolver,
                         state,
@@ -800,6 +857,7 @@ public sealed partial class FileOperationService
                 await ReplaceLocalViaStagingAsync(
                         source,
                         destination,
+                        expectedDestination,
                         options,
                         conflictResolver,
                         state,
@@ -814,6 +872,7 @@ public sealed partial class FileOperationService
         private async Task ReplaceLocalViaStagingAsync(
             string source,
             string destination,
+            SafeLocalFilePublisher.DestinationSnapshot? expectedDestination,
             FileOperationOptions options,
             IFileOperationConflictResolver conflictResolver,
             OperationState state,
@@ -842,8 +901,18 @@ public sealed partial class FileOperationService
                 throw new IOException("Replacement staging copy failed; the original destination was not changed.");
             }
 
-            cancellationToken.ThrowIfCancellationRequested();
-            MoveOwnedPath(destination, backup);
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (SafeLocalFilePublisher.CaptureDestination(destination) != expectedDestination)
+                    throw new IOException($"Destination changed before replacement: '{destination}'.");
+                MoveOwnedPath(destination, backup);
+            }
+            catch
+            {
+                CleanupOwnedLocalPath(staging, state, "Unpublished staging cleanup failed");
+                throw;
+            }
 
             try
             {
@@ -960,7 +1029,10 @@ public sealed partial class FileOperationService
             }
             catch (Exception cleanupError)
             {
-                state.AddError(path, $"{message}: {cleanupError.Message}. Preserved at: {path}");
+                if (message.StartsWith("Replacement succeeded", StringComparison.Ordinal))
+                    state.AddWarning(path, $"{message}: {cleanupError.Message}. Preserved at: {path}");
+                else
+                    state.AddError(path, $"{message}: {cleanupError.Message}. Preserved at: {path}");
             }
         }
 

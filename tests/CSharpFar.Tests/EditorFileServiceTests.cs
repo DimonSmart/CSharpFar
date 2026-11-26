@@ -76,6 +76,79 @@ public sealed class EditorFileServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ProviderSaveAsync_PostCommitCleanupFailureIsWarning()
+    {
+        var source = new InMemoryBatchFilePanelSource { FailDisposeAfterCommit = true };
+        source.SeedFile("/document.txt", "old");
+        var service = new EditorFileService(new AppSettings.EditorSettings());
+        var session = service.Load(source, "/document.txt", "/document.txt");
+        session.MoveToDocumentEnd();
+        session.InsertText(" new");
+
+        await service.SaveAsync(session, source, "/document.txt");
+
+        Assert.False(session.Document.IsDirty);
+        Assert.NotNull(session.LastSaveWarning);
+        Assert.Contains("cleanup failure", session.LastSaveWarning);
+        Assert.Equal("old new", source.ReadText("/document.txt"));
+        Assert.Equal(1, source.Committed);
+    }
+
+    [Fact]
+    public void Save_NewFileCreatedAfterOpeningIsNotOverwritten()
+    {
+        string path = Path.Combine(_tempDir, "new.txt");
+        var service = new EditorFileService(new AppSettings.EditorSettings());
+        var session = service.Load(path);
+        session.InsertText("editor");
+        File.WriteAllText(path, "external");
+        Assert.Throws<IOException>(() => service.Save(session));
+        Assert.True(session.Document.IsDirty);
+        Assert.Equal("external", File.ReadAllText(path));
+    }
+
+    [Fact]
+    public void Save_NewFilePublishesCompleteContent()
+    {
+        string path = Path.Combine(_tempDir, "new.txt");
+        var service = new EditorFileService(new AppSettings.EditorSettings());
+        var session = service.Load(path);
+        session.InsertText("editor");
+        service.Save(session);
+        Assert.False(session.Document.IsDirty);
+        Assert.Equal("editor", File.ReadAllText(path));
+        Assert.Single(Directory.GetFiles(_tempDir));
+    }
+
+    [Fact]
+    public void Save_ExternallyChangedFileIsNotOverwritten()
+    {
+        string path = Path.Combine(_tempDir, "changed.txt");
+        File.WriteAllText(path, "old");
+        var service = new EditorFileService(new AppSettings.EditorSettings());
+        var session = service.Load(path);
+        session.MoveToDocumentEnd();
+        session.InsertText(" edit");
+        File.WriteAllText(path, "external update");
+        Assert.Throws<IOException>(() => service.Save(session));
+        Assert.True(session.Document.IsDirty);
+        Assert.Equal("external update", File.ReadAllText(path));
+    }
+
+    [Fact]
+    public async Task Save_ProviderWithoutSafePublicationRejectsOverwrite()
+    {
+        var source = new MemoryFilePanelView(new PanelSourceId("unverified"));
+        source.SeedFile("/doc", "old");
+        var service = new EditorFileService(new AppSettings.EditorSettings());
+        var session = service.Load(source, "/doc", "/doc");
+        session.InsertText("edit");
+        await Assert.ThrowsAsync<NotSupportedException>(() => service.SaveAsync(session, source, "/doc"));
+        Assert.True(session.Document.IsDirty);
+        Assert.Equal("old", source.ReadText("/doc"));
+    }
+
+    [Fact]
     public void Load_DoesNotUseTextFileReaderSizeLimitAsHardStop()
     {
         string path = Path.Combine(_tempDir, "large.txt");
