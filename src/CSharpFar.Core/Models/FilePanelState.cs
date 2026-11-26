@@ -50,7 +50,7 @@ public sealed class FilePanelState
     public PanelLoadError? LoadError { get; internal set; }
     public bool IsLoading { get; internal set; }
     public bool IsLoadingIndicatorVisible { get; internal set; }
-    internal long ContentRevision { get; set; }
+    public long ContentRevision { get; internal set; }
     public string? DisplayTitle { get; internal set; }
     public string? DisplayTitleBasePath { get; internal set; }
     public bool ShowCurrentItemFullPath { get; internal set; }

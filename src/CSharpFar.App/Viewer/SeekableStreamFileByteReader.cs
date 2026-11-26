@@ -10,6 +10,8 @@ internal sealed class SeekableStreamFileByteReader(Stream stream, IDisposable? u
     private int _disposed;
     private int _resourcesDisposed;
     private int _cancellationFinished;
+    private readonly TaskCompletionSource _disposal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal Task Disposal => _disposal.Task;
 
     public long Length => _length;
 
@@ -93,7 +95,12 @@ internal sealed class SeekableStreamFileByteReader(Stream stream, IDisposable? u
                 await stream.DisposeAsync().ConfigureAwait(false);
             }
             catch (Exception ex) { System.Diagnostics.Trace.TraceError(ex.ToString()); }
-            finally { usage?.Dispose(); }
+            finally
+            {
+                try { usage?.Dispose(); }
+                catch (Exception ex) { System.Diagnostics.Trace.TraceError(ex.ToString()); }
+                finally { _disposal.TrySetResult(); }
+            }
         });
     }
 }

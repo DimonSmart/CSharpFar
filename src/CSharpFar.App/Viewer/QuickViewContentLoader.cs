@@ -124,7 +124,11 @@ internal sealed class QuickViewContentLoader(FilePanelSourceRegistry sources, Ac
             try { result = await QuickViewContent.ReadAsync(source, item, token).ConfigureAwait(false); }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { result = new("Cancelled"); }
             catch (Exception ex) { result = new(ex.Message); }
-            finally { lease.Dispose(); }
+            finally
+            {
+                try { lease.Dispose(); }
+                catch (Exception ex) { System.Diagnostics.Trace.TraceError(ex.ToString()); }
+            }
 
             postToUi(() =>
             {

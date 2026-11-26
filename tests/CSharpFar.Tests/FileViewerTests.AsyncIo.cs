@@ -573,6 +573,7 @@ public partial class FileViewerTests
         reader.Dispose();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => read);
+        await reader.Disposal.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.True(stream.IsDisposed);
     }
 
