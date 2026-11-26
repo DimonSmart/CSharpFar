@@ -46,31 +46,16 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        bool existedBefore = target.State.SourceId == PanelSourceId.Local
-            ? File.Exists(filePath)
-            : context.Controller.CurrentItem(target.State)?.Location == fileLocation;
         EditorDocumentFormat newFileFormat = result.CodePage.CreateDocumentFormat(context.Settings.Editor);
-        if (fileLocation.SourceId == PanelSourceId.Local)
-        {
-            context.EditFileWithNewFileFormat(
-                filePath,
-                newFileFormat,
-                PanelCommandEditorContextFactory.Create(context, target));
-        }
-        else
-        {
-            context.EditFileWithNewFileFormat(
-                fileLocation,
-                newFileFormat,
-                PanelCommandEditorContextFactory.Create(context, target));
-        }
-
-        if (target.State.SourceId == PanelSourceId.Local && File.Exists(filePath))
+        var outcome = context.EditFileWithNewFileFormat(
+            fileLocation, newFileFormat, PanelCommandEditorContextFactory.Create(context, target));
+        if (fileLocation.SourceId == PanelSourceId.Local && outcome.ExistsAfter)
             context.History.AddFile(new FileHistoryItem { Path = filePath });
 
-        context.SafeRefresh(target.State, target.VisibleRows);
-        if (!existedBefore)
-            context.Controller.SetCursorByName(target.State, Path.GetFileName(filePath.Replace('/', Path.DirectorySeparatorChar)), target.VisibleRows);
+        if (outcome.ExistsAfter && !outcome.ExistedBefore)
+            context.RefreshAndSelect(target.State, target.VisibleRows, fileLocation);
+        else
+            context.SafeRefresh(target.State, target.VisibleRows);
 
         return ApplicationCommandResult.Rendered();
     }

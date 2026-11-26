@@ -335,12 +335,12 @@ internal sealed class ApplicationCommandContext
             _sourceRegistry).Show(location);
     }
 
-    public void EditFileWithNewFileFormat(
+    public EditorOpenResult EditFileWithNewFileFormat(
         string path,
         EditorDocumentFormat newFileFormat,
         EditorFileNameInsertionContext? fileNameInsertionContext = null)
     {
-        new FileEditor(
+        return new FileEditor(
             _interactiveSurfaces,
             ModalDialogs,
             Dialogs,
@@ -352,18 +352,17 @@ internal sealed class ApplicationCommandContext
             null).ShowWithNewFileFormat(path, newFileFormat);
     }
 
-    public void EditFileWithNewFileFormat(
+    public EditorOpenResult EditFileWithNewFileFormat(
         PanelLocation location,
         EditorDocumentFormat newFileFormat,
         EditorFileNameInsertionContext? fileNameInsertionContext = null)
     {
         if (location.SourceId == PanelSourceId.Local)
         {
-            EditFileWithNewFileFormat(location.SourcePath, newFileFormat, fileNameInsertionContext);
-            return;
+            return EditFileWithNewFileFormat(location.SourcePath, newFileFormat, fileNameInsertionContext);
         }
 
-        new FileEditor(
+        return new FileEditor(
             _interactiveSurfaces,
             ModalDialogs,
             Dialogs,
@@ -467,6 +466,12 @@ internal sealed class ApplicationCommandContext
     public void SafeRefresh(FilePanelState state, int visibleRows) =>
         _panelRefresh.SafeRefresh(state, visibleRows);
 
+    public void RefreshAndSelect(FilePanelState state, int visibleRows, PanelLocation location) =>
+        _panelRefresh.SafeRefresh(state, visibleRows, loaded =>
+        {
+            if (loaded) Controller.SetCursorByLocation(state, location, VisibleRowsForSide(SideForState(state)));
+        });
+
     public void NavigatePanel(FilePanelState state, PanelLocation location, bool preserveOnError, Action<bool> completed, bool requireExistingLocalDirectory = false) =>
         _panelNavigation.Navigate(state, location, preserveOnError, completed, requireExistingLocalDirectory);
 
@@ -548,7 +553,8 @@ internal sealed class ApplicationCommandContext
             Path.IsPathFullyQualified(state.SourcePath) &&
             TryGetSource(PanelSourceId.Local, out IFilePanelSource source) &&
             source is LocalFilePanelSource &&
-            Directory.Exists(state.SourcePath);
+            state.LastSuccessfulLoadLocation is { } loaded &&
+            state.SelectedLocations.Comparer.Equals(loaded, state.CurrentLocation);
     }
 
     public bool CanAccessLocalFileSystem(FilePanelState state) =>

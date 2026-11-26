@@ -73,12 +73,12 @@ internal sealed partial class FileEditor
     public void Show(string filePath) => Show(filePath, newFileFormat: null);
     public void Show(PanelLocation location) => Show(location, newFileFormat: null);
 
-    public void ShowWithNewFileFormat(string filePath, EditorDocumentFormat newFileFormat) =>
+    public EditorOpenResult ShowWithNewFileFormat(string filePath, EditorDocumentFormat newFileFormat) =>
         Show(filePath, newFileFormat);
-    public void ShowWithNewFileFormat(PanelLocation location, EditorDocumentFormat newFileFormat) =>
+    public EditorOpenResult ShowWithNewFileFormat(PanelLocation location, EditorDocumentFormat newFileFormat) =>
         Show(location, newFileFormat);
 
-    private void Show(string filePath, EditorDocumentFormat? newFileFormat)
+    private EditorOpenResult Show(string filePath, EditorDocumentFormat? newFileFormat)
     {
         _activeSource = null;
         _activeSourcePath = null;
@@ -90,18 +90,19 @@ internal sealed partial class FileEditor
                 !_dialogs.Confirm("Editor",
                     $"File is larger than the editor warning limit ({_settings.FileSizeLimitBytes / 1024 / 1024} MB).",
                     "Open anyway?"))
-                return;
+                return default;
 
             session = RunLocalOperation("Opening editor",
                 ct => _fileService.LoadAsync(filePath, newFileFormat, ct));
         }
-        catch (OperationCanceledException) { return; }
+        catch (OperationCanceledException) { return default; }
         catch (Exception ex)
         {
             _dialogs.Message("Editor", ex.Message);
-            return;
+            return default;
         }
 
+        bool existedBefore = session.LocalDestinationVersion is not null;
         try
         {
             session.RaiseOpened();
@@ -111,21 +112,21 @@ internal sealed partial class FileEditor
         {
             session.RaiseClosed();
         }
+        return new(existedBefore, session.LocalDestinationVersion is not null || session.DestinationVersionInvalid);
     }
 
-    private void Show(PanelLocation location, EditorDocumentFormat? newFileFormat)
+    private EditorOpenResult Show(PanelLocation location, EditorDocumentFormat? newFileFormat)
     {
         if (location.SourceId == PanelSourceId.Local)
         {
-            Show(location.SourcePath, newFileFormat);
-            return;
+            return Show(location.SourcePath, newFileFormat);
         }
 
         if (_sourceRegistry is null ||
             !_sourceRegistry.TryAcquireUsage(location.SourceId, out var source, out var sessionLease))
         {
             _dialogs.Message("Editor", $"Panel source '{location.SourceId}' is not registered.");
-            return;
+            return default;
         }
 
         using (sessionLease)
@@ -141,7 +142,7 @@ internal sealed partial class FileEditor
                 if (warning && !_dialogs.Confirm("Editor",
                         $"File is larger than the editor warning limit ({_settings.FileSizeLimitBytes / 1024 / 1024} MB).",
                         "Open anyway?"))
-                    return;
+                    return default;
 
                 session = RunOpenOperation("Opening editor", async ct =>
                 {
@@ -149,13 +150,14 @@ internal sealed partial class FileEditor
                     return await _fileService.LoadAsync(source, location.SourcePath, location.SourcePath, newFileFormat, ct).ConfigureAwait(false);
                 });
             }
-            catch (OperationCanceledException) { return; }
+            catch (OperationCanceledException) { return default; }
             catch (Exception ex)
             {
                 _dialogs.Message("Editor", ex.Message);
-                return;
+                return default;
             }
 
+            bool existedBefore = session.ProviderDestinationVersion is not null;
             _activeSource = source;
             _activeSourcePath = location.SourcePath;
             try
@@ -169,6 +171,7 @@ internal sealed partial class FileEditor
                 _activeSource = null;
                 _activeSourcePath = null;
             }
+            return new(existedBefore, session.ProviderDestinationVersion is not null || session.DestinationVersionInvalid);
         }
     }
 
@@ -1626,3 +1629,5 @@ internal sealed partial class FileEditor
     }
 
 }
+
+internal readonly record struct EditorOpenResult(bool ExistedBefore, bool ExistsAfter);

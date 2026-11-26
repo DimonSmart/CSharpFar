@@ -42,7 +42,7 @@ internal sealed class PanelRefreshService
         RefreshPanelAfterFileOperation(right, PanelSide.Right);
     }
 
-    public void SafeRefresh(FilePanelState state, int visibleRows)
+    public void SafeRefresh(FilePanelState state, int visibleRows, Action<bool>? completed = null)
     {
         if (!HasCapability(state, PanelProviderCapabilities.Refresh))
             return;
@@ -57,10 +57,14 @@ internal sealed class PanelRefreshService
         {
             loading.Refresh(state, _panelOptions(),
                 () => ResolveSide is null ? visibleRows : _visibleRows(ResolveSide(state)),
-                loaded => { if (loaded) _afterRefresh?.Invoke(state); });
+                loaded => { if (loaded) _afterRefresh?.Invoke(state); completed?.Invoke(loaded); });
         }
-        else if (_controller.TryRefreshDirectory(state, visibleRows, _panelOptions()))
-            _afterRefresh?.Invoke(state);
+        else
+        {
+            bool loaded = _controller.TryRefreshDirectory(state, visibleRows, _panelOptions());
+            if (loaded) _afterRefresh?.Invoke(state);
+            completed?.Invoke(loaded);
+        }
     }
 
     private void RefreshPanelAfterFileOperation(FilePanelState state, PanelSide side)

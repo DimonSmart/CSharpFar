@@ -164,6 +164,7 @@ public sealed class PanelController
         state.ContentRevision++;
         bool sameSource = state.ContentKind == PanelContentKind.Source && state.SourceId == location.SourceId;
         state.CurrentLocation = location;
+        state.LastSuccessfulLoadLocation = location;
         state.Items.Clear();
         state.Items.AddRange(view.Items);
         state.Summary = view.Summary;
@@ -389,6 +390,7 @@ public sealed class PanelController
         int previousCursorIndex = state.CursorIndex;
         PanelLocation? previousLocation = CurrentItem(state)?.Location;
         state.ContentRevision++;
+        state.LastSuccessfulLoadLocation = state.CurrentLocation;
         state.Items.Clear();
         state.Items.AddRange(view.Items);
         state.Summary = view.Summary;

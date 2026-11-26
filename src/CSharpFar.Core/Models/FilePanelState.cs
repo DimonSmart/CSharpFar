@@ -51,6 +51,7 @@ public sealed class FilePanelState
     public bool IsLoading { get; internal set; }
     public bool IsLoadingIndicatorVisible { get; internal set; }
     public long ContentRevision { get; internal set; }
+    public PanelLocation? LastSuccessfulLoadLocation { get; internal set; }
     public string? DisplayTitle { get; internal set; }
     public string? DisplayTitleBasePath { get; internal set; }
     public bool ShowCurrentItemFullPath { get; internal set; }
