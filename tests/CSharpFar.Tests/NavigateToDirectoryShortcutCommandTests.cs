@@ -34,10 +34,10 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
     [Fact]
     public void Execute_EmptySlot_DoesNotNavigate()
     {
-        var context = CreateContext(out _, out _);
+        var services = CreateServices(out _, out _);
+        var context = services.CommandContext;
 
-        new NavigateToDirectoryShortcutCommand()
-            .Execute(context, new NavigateToDirectoryShortcutArgs(1));
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToDirectoryShortcutArgs(1));
         context.WaitForPanelLoads();
 
         Assert.Equal(_root, context.ActiveState.CurrentDirectory);
@@ -46,12 +46,12 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
     [Fact]
     public void Execute_ExistingPath_NavigatesOnlyActivePanelAndKeepsShortcut()
     {
-        var context = CreateContext(out _, out _);
+        var services = CreateServices(out _, out _);
+        var context = services.CommandContext;
         context.Settings.DirectoryShortcuts.Items.Add(Item(1, _target));
         string passiveDirectory = context.PassiveState.CurrentDirectory;
 
-        new NavigateToDirectoryShortcutCommand()
-            .Execute(context, new NavigateToDirectoryShortcutArgs(1));
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToDirectoryShortcutArgs(1));
         context.WaitForPanelLoads();
 
         Assert.Equal(_target, context.ActiveState.CurrentDirectory);
@@ -62,13 +62,13 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
     [Fact]
     public void Execute_MissingPath_ShowsMessageAndKeepsShortcut()
     {
-        var context = CreateContext(out var driver, out _);
+        var services = CreateServices(out var driver, out _);
+        var context = services.CommandContext;
         string missingPath = Path.Combine(_root, "missing");
         context.Settings.DirectoryShortcuts.Items.Add(Item(1, missingPath));
         driver.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
 
-        new NavigateToDirectoryShortcutCommand()
-            .Execute(context, new NavigateToDirectoryShortcutArgs(1));
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToDirectoryShortcutArgs(1));
         context.WaitForPanelLoads();
 
         Assert.Equal(_root, context.ActiveState.CurrentDirectory);
@@ -78,11 +78,11 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
     [Fact]
     public void Execute_CommittedPath_NavigatesRenderedPathWhenSettingsChanged()
     {
-        var context = CreateContext(out _, out _);
+        var services = CreateServices(out _, out _);
+        var context = services.CommandContext;
         context.Settings.DirectoryShortcuts.Items.Add(Item(1, _otherTarget));
 
-        new NavigateToDirectoryShortcutCommand()
-            .Execute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
         context.WaitForPanelLoads();
 
         Assert.Equal(_target, context.ActiveState.CurrentDirectory);
@@ -91,10 +91,10 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
     [Fact]
     public void Execute_CommittedPath_NavigatesRenderedPathWhenShortcutWasDeleted()
     {
-        var context = CreateContext(out _, out _);
+        var services = CreateServices(out _, out _);
+        var context = services.CommandContext;
 
-        new NavigateToDirectoryShortcutCommand()
-            .Execute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
         context.WaitForPanelLoads();
 
         Assert.Equal(_target, context.ActiveState.CurrentDirectory);
@@ -103,12 +103,12 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
     [Fact]
     public void Execute_CommittedInvocationIgnoresHiddenWorkspaceMode()
     {
-        var context = CreateContext(out _, out _);
+        var services = CreateServices(out _, out _);
+        var context = services.CommandContext;
         string passiveDirectory = context.PassiveState.CurrentDirectory;
         context.TogglePanels();
 
-        new NavigateToDirectoryShortcutCommand()
-            .Execute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
         context.WaitForPanelLoads();
 
         Assert.Equal(_target, context.LeftPanel.CurrentDirectory);
@@ -118,12 +118,12 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
     [Fact]
     public void Execute_CommittedInvocationUsesCommittedSideWhenLiveSideChanged()
     {
-        var context = CreateContext(out _, out _);
+        var services = CreateServices(out _, out _);
+        var context = services.CommandContext;
         string rightDirectory = context.RightPanel.CurrentDirectory;
         context.ActiveSide = PanelSide.Right;
 
-        new NavigateToDirectoryShortcutCommand()
-            .Execute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
         context.WaitForPanelLoads();
 
         Assert.Equal(_target, context.LeftPanel.CurrentDirectory);
@@ -134,11 +134,11 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
     [Fact]
     public void Execute_CurrentSettingsPath_NavigatesLatestPathWhenCommittedPathAbsent()
     {
-        var context = CreateContext(out _, out _);
+        var services = CreateServices(out _, out _);
+        var context = services.CommandContext;
         context.Settings.DirectoryShortcuts.Items.Add(Item(1, _otherTarget));
 
-        new NavigateToDirectoryShortcutCommand()
-            .Execute(context, new NavigateToDirectoryShortcutArgs(1));
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToDirectoryShortcutArgs(1));
         context.WaitForPanelLoads();
 
         Assert.Equal(_otherTarget, context.ActiveState.CurrentDirectory);
@@ -147,10 +147,11 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
     [Fact]
     public void CanExecute_DemoPanel_IsUnavailable()
     {
-        var context = CreateContext(out _, out _);
+        var services = CreateServices(out _, out _);
+        var context = services.CommandContext;
         context.LeftPanel.CurrentLocation = PanelLocation.Demo("/");
 
-        var command = new NavigateToDirectoryShortcutCommand();
+        Assert.True(services.CommandRegistry.TryGetCommand(DirectoryShortcutCommandIds.Navigate, out var command));
 
         Assert.False(command.CanExecute(context, new NavigateToDirectoryShortcutArgs(1)));
         Assert.False(command.CanExecute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left)));
@@ -159,18 +160,18 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
     [Fact]
     public void Execute_CommittedPath_DemoPanel_DoesNotNavigate()
     {
-        var context = CreateContext(out _, out _);
+        var services = CreateServices(out _, out _);
+        var context = services.CommandContext;
         context.LeftPanel.CurrentLocation = PanelLocation.Demo("/");
 
-        new NavigateToDirectoryShortcutCommand()
-            .Execute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
         context.WaitForPanelLoads();
 
         Assert.Equal("/", context.LeftPanel.CurrentDirectory);
         Assert.Equal(PanelSourceId.Demo, context.LeftPanel.SourceId);
     }
 
-    private ApplicationCommandContext CreateContext(
+    private ApplicationServices CreateServices(
         out FakeConsoleDriver driver,
         out AppSettings settings)
     {
@@ -189,7 +190,7 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
             new NoOpFileOperationService(),
             new InMemoryHistoryStore(),
             settings);
-        return services.CommandContext;
+        return services;
     }
 
     private static AppSettings.DirectoryShortcutItem Item(int number, string path) =>

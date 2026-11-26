@@ -1,39 +1,45 @@
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
+using CSharpFar.Ui;
+using CSharpFar.Core.Services;
+using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Abstractions;
+using CSharpFar.App.UserMenu;
+using CSharpFar.App.State;
+using CSharpFar.App.Rendering;
+using CSharpFar.App.Panels;
+using CSharpFar.App.Modules;
+using CSharpFar.App.CommandLine;
+using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.Dialogs;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
 
-internal abstract class DriveSelectionCommand : IApplicationCommand
+internal abstract class DriveSelectionCommand(string commandId, PanelSide panelSide, PanelWorkspaceController workspace, PanelSessionState panels, ApplicationState appState, IVolumeService? volumeService, NativeModuleCatalog moduleCatalog, ModulePanelOpener modulePanelOpener, ModalDialogHost modalDialogs, DialogService dialogs, PanelNavigationService navigation, PanelAutoRefreshService autoRefresh, IHistoryStore history, Action resetFunctionKeyLayer) : IApplicationCommand
 {
-    protected DriveSelectionCommand(string commandId, PanelSide panelSide)
-    {
-        CommandId = commandId;
-        PanelSide = panelSide;
-    }
-
-    public string CommandId { get; }
-    protected PanelSide PanelSide { get; }
+    public string CommandId { get; } = commandId;
+    protected PanelSide PanelSide { get; } = panelSide;
     public bool CanExecute(ApplicationCommandContext context, object? args = null) => true;
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        try { return ExecuteCore(context); }
-        finally { context.ResetFunctionKeyLayer(); }
+        try { return ExecuteCore(); }
+        finally { resetFunctionKeyLayer(); }
     }
 
-    private ApplicationCommandResult ExecuteCore(ApplicationCommandContext context)
+    private ApplicationCommandResult ExecuteCore()
     {
-        var targetState = PanelSide == PanelSide.Left ? context.LeftPanel : context.RightPanel;
-        var otherState = PanelSide == PanelSide.Left ? context.RightPanel : context.LeftPanel;
-        var volumes = context.VolumeService?.GetVolumes() ?? [];
+        var targetState = PanelSide == PanelSide.Left ? panels.Left : panels.Right;
+        var otherState = PanelSide == PanelSide.Left ? panels.Right : panels.Left;
+        var volumes = volumeService?.GetVolumes() ?? [];
         var items = volumes
             .Select(v => new VolumeSelectionItem
             {
                 Label = v.DisplayName, Shortcut = v.Shortcut, Volume = v,
                 Action = VolumeSelectionAction.OpenVolume,
             }).ToList();
-        foreach (var moduleItem in context.ModuleDiskMenuItems)
+        foreach (var moduleItem in moduleCatalog.DiskMenuItems)
         {
             items.Add(new VolumeSelectionItem
             {
@@ -47,13 +53,13 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
 
         int initialCursor = FindInitialCursor(items, targetState.CurrentDirectory, targetState.SourceId);
         bool mac = OperatingSystem.IsMacOS() && targetState.SourceId != PanelSourceId.Demo;
-        var selected = new DriveDialog(context.ModalDialogs, context.Dialogs).Show(items, initialCursor, mac);
+        var selected = new DriveDialog(modalDialogs, dialogs).Show(items, initialCursor, mac);
         if (selected is null) return ApplicationCommandResult.Rendered();
 
         if (selected.Action == VolumeSelectionAction.OpenModule)
         {
             if (selected.ModuleActionId is { } actionId)
-                return context.OpenModuleDiskMenuItem(actionId, selected.ModulePanelSide ?? PanelSide);
+                return modulePanelOpener.OpenDiskMenuItem(actionId, selected.ModulePanelSide ?? PanelSide);
             return ApplicationCommandResult.Rendered();
         }
 
@@ -65,19 +71,19 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
         PanelLocation destination = targetState.SourceId == PanelSourceId.Demo
             ? new PanelLocation(PanelSourceId.Demo, directoryPath)
             : PanelLocation.Local(directoryPath);
-        context.NavigatePanel(targetState, destination, preserveOnError: true, loaded =>
+        navigation.Navigate(targetState, destination, preserveOnError: true, loaded =>
         {
             if (!loaded)
             {
-                context.Dialogs.Message("Change drive", $"Unable to open volume: {volume.RootPath}");
+                dialogs.Message("Change drive", $"Unable to open volume: {volume.RootPath}");
                 return;
             }
-            PanelSide side = context.SideForState(targetState);
-            context.QuickView = false;
-            context.ActiveSide = side;
+            PanelSide side = workspace.PanelSideForState(targetState);
+            appState.QuickView = false;
+            workspace.ActiveSide = side;
             if (destination.SourceId == PanelSourceId.Local)
-                context.History.AddDirectory(new DirectoryHistoryItem { Path = directoryPath });
-            context.StartWatching(targetState, side);
+                history.AddDirectory(new DirectoryHistoryItem { Path = directoryPath });
+            autoRefresh.StartWatching(targetState, side);
         });
         return ApplicationCommandResult.Rendered();
     }

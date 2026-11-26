@@ -122,7 +122,10 @@ internal static class CommandServicesFactory
             formFields, fileOperationWorkflow, topic => new HelpViewer(interactiveSurfaces, session.App.Palette).Show(topic),
             fileMetadata, fileAttributesDialogFactory, settingsChange, highlightState, panelFileViewer,
             history, searchService, commandCompletionController, commandHistoryNavigator,
-            () => session.FunctionKeyLayer = CSharpFar.App.FunctionKeys.FunctionKeyLayer.Plain, directorySizes));
+            () => session.FunctionKeyLayer = CSharpFar.App.FunctionKeys.FunctionKeyLayer.Plain,
+            userMenu, commandLineCommandExecutor, externalConsoleCommandRunner, volumeService, moduleCatalog, modalDialogs,
+            () => { panelQuickSearch.Close(); commandCompletionController.Hide(temporarily: false); commandHistoryNavigator.Reset(); },
+            directorySizes));
         var commandContext = new ApplicationCommandContext(
             interactiveSurfaces,
             modalDialogs,

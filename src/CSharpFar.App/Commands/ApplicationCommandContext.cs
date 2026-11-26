@@ -420,21 +420,8 @@ internal sealed class ApplicationCommandContext
     public bool IsSourceAvailable(PanelSourceId sourceId) =>
         _sourceRegistry.TryGetSource(sourceId, out _);
 
-    internal bool CanUseLocalUserMenu(ResolvedPanelCommandTarget target)
-    {
-        FilePanelState state = target.State;
-        return CommittedLocationMatches(target.State, target.ActiveCommitted) &&
-            CommittedLocationMatches(target.PassiveState, target.PassiveCommitted) &&
-            state.SourceId == PanelSourceId.Local &&
-            state.ContentKind == PanelContentKind.Source &&
-            state.SearchRequest is null &&
-            state.LoadError is null &&
-            Path.IsPathFullyQualified(state.SourcePath) &&
-            TryGetSource(PanelSourceId.Local, out IFilePanelSource source) &&
-            source is LocalFilePanelSource &&
-            state.LastSuccessfulLoadLocation is { } loaded &&
-            state.SelectedLocations.Comparer.Equals(loaded, state.CurrentLocation);
-    }
+    internal bool CanUseLocalUserMenu(ResolvedPanelCommandTarget target) =>
+        PanelCommandUserMenuOperands.CanUseLocalUserMenu(_sourceRegistry, target);
 
     public bool CanAccessLocalFileSystem(FilePanelState state) =>
         state.SourceId == PanelSourceId.Local &&
