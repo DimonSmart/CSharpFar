@@ -45,7 +45,7 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
         var launcher = new RecordingFileLauncher();
         var app = CreateApp(fs, driver, launcher);
 
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal([filePath], launcher.OpenedFiles);
     }
@@ -69,7 +69,7 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
         var launcher = new RecordingFileLauncher(FileLaunchMode.AssociatedDetached, () => driver.RenderingOutputMode);
         var app = CreateApp(fs, driver, launcher);
 
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal([filePath], launcher.OpenedFiles);
         Assert.Equal([true], launcher.RenderingModesDuringOpen);
@@ -96,7 +96,7 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
 
         var app = CreateApp(fs, driver, new RecordingFileLauncher());
 
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal(childPath, GetLeftPanel(app).CurrentDirectory);
     }
@@ -120,7 +120,7 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
         var launcher = new RecordingFileLauncher();
         var app = CreateApp(fs, driver, launcher);
 
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal([filePath], launcher.OpenedFiles);
     }
@@ -145,7 +145,7 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
 
         var app = CreateApp(fs, driver, new RecordingFileLauncher());
 
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal(childPath, GetLeftPanel(app).CurrentDirectory);
     }
@@ -168,7 +168,7 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
         var launcher = new RecordingFileLauncher();
         var app = CreateApp(fs, driver, launcher);
 
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         var left = GetLeftPanel(app);
         Assert.Empty(launcher.OpenedFiles);
@@ -202,7 +202,7 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
         var launcher = new RecordingFileLauncher();
         var app = CreateApp(fs, driver, launcher);
 
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Empty(launcher.OpenedFiles);
     }
@@ -227,7 +227,7 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
         var launcher = new RecordingFileLauncher();
         var app = CreateApp(fs, driver, launcher);
 
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Empty(launcher.OpenedFiles);
     }
@@ -251,7 +251,7 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
         var launcher = new RecordingFileLauncher(FileLaunchMode.CurrentConsole, () => driver.RenderingOutputMode);
         var app = CreateApp(fs, driver, launcher);
 
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal([filePath], launcher.OpenedFiles);
         Assert.Equal([_root], launcher.WorkingDirectories);

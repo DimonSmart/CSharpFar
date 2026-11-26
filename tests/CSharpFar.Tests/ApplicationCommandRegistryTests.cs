@@ -433,6 +433,8 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
             new ScreenRenderer(new FakeConsoleDriver()), fs, new NoOpShellService(),
             fileOperations ?? new NoOpFileOperationService(), new InMemoryHistoryStore(), settings);
         services.Callbacks.ClosePanelQuickSearchForState = _ => { };
+        services.Callbacks.PanelSideForState = state => ReferenceEquals(state, services.CommandContext.LeftPanel) ? PanelSide.Left : PanelSide.Right;
+        services.Callbacks.VisibleRowsForSide = _ => 10;
         return services;
     }
 

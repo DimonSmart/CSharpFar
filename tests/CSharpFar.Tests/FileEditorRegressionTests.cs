@@ -337,7 +337,8 @@ public sealed class FileEditorRegressionTests : IDisposable
         var source = new ThrowingPanelSource();
         var registry = new FilePanelSourceRegistry([source]);
         var driver = new FakeConsoleDriver(80, 25);
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        // Acknowledge the error dialog, not the preceding asynchronous opening surface.
+        driver.BeforeReadInput = _ => driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
         var editor = CreateFileEditor(new ScreenRenderer(driver), new AppSettings.EditorSettings(), registry);
 
         editor.Show(new PanelLocation(source.SourceId, "/broken.txt"));

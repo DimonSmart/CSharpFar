@@ -38,7 +38,7 @@ public sealed class Spec036NavigateToRootTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(fs, driver, _subDir);
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         var expected = Path.GetPathRoot(_subDir)!;
         Assert.Equal(expected, GetLeftPanel(app).CurrentDirectory);
@@ -57,7 +57,7 @@ public sealed class Spec036NavigateToRootTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(fs, driver, rootPath);
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal(rootPath, GetLeftPanel(app).CurrentDirectory);
     }

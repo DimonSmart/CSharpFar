@@ -79,6 +79,7 @@ public sealed class PanelLoadingCoordinator(
             new PanelViewRequest
             {
                 Location = normalized,
+                RequireExistingLocalDirectory = preserveOnError,
                 DirectoryPath = normalized.SourcePath,
                 SortMode = panel.SortMode,
                 SortDescending = panel.SortDescending,

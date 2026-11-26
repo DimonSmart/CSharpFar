@@ -74,6 +74,7 @@ public sealed partial class ApplicationNavigationTests
         var app = CreateApp(fs, new FakeConsoleDriver(width: 80, height: 12), _tempDir, shell);
 
         app.ExecuteCommand("cd child");
+        app.WaitForPanelLoads();
 
         Assert.Equal(child, GetLeftPanel(app).CurrentDirectory);
         Assert.Empty(shell.Commands);

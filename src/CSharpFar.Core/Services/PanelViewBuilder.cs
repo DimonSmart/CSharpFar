@@ -68,6 +68,9 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
             IFilePanelSource? source = isLocal ? null : ResolveSource(location.SourceId);
             string sourcePath = source is null ? request.DirectoryPath : FromProvider(source, () => source.NormalizePath(location.SourcePath));
 
+            if (isLocal && request.RequireExistingLocalDirectory && !_fs.DirectoryExists(sourcePath))
+                throw new DirectoryNotFoundException(sourcePath);
+
             IReadOnlyList<FilePanelItem> raw = isLocal
                 ? _fs.ReadDirectory(sourcePath)
                 : await FromProviderAsync(source!, () => source!.AsAsync().EnumerateDirectoryAsync(sourcePath, cancellationToken))
