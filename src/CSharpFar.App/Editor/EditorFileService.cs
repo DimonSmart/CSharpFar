@@ -1,6 +1,7 @@
 using System.Text;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 using CSharpFar.Core.Text;
 using CSharpFar.FileSystem;
 
@@ -77,15 +78,33 @@ public sealed class EditorFileService
         { HasDestinationVersion = true, LocalDestinationVersion = destinationVersion };
     }
 
-    public EditorSession Load(
+    public Task<bool> RequiresSizeWarningAsync(string path, CancellationToken cancellationToken = default) =>
+        Task.Run(() => RequiresSizeWarning(path), cancellationToken);
+
+    public async Task<bool> RequiresSizeWarningAsync(IFilePanelSource source, string path, CancellationToken cancellationToken = default)
+    {
+        if (_settings.FileSizeLimitBytes <= 0) return false;
+        var item = await source.AsAsync().GetItemAsync(path, cancellationToken).ConfigureAwait(false);
+        return item is { IsDirectory: false, Size: long size } && size > _settings.FileSizeLimitBytes;
+    }
+
+    public Task<EditorSession> LoadAsync(string path, EditorDocumentFormat? newFileFormat = null,
+        CancellationToken cancellationToken = default) =>
+        Task.Run(() => Load(path, newFileFormat), cancellationToken);
+
+    public EditorSession Load(IFilePanelSource source, string sourcePath, string displayPath,
+        EditorDocumentFormat? newFileFormat = null) =>
+        LoadAsync(source, sourcePath, displayPath, newFileFormat).GetAwaiter().GetResult();
+
+    public async Task<EditorSession> LoadAsync(
         IFilePanelSource source,
         string sourcePath,
         string displayPath,
-        EditorDocumentFormat? newFileFormat = null)
+        EditorDocumentFormat? newFileFormat = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
 
-        var item = source.GetItem(sourcePath);
+        var item = await source.AsAsync().GetItemAsync(sourcePath, cancellationToken).ConfigureAwait(false);
         if (item is null)
         {
             var initialFormat = newFileFormat ?? CreateDefaultNewFileFormat(_settings);
@@ -99,10 +118,10 @@ public sealed class EditorFileService
             throw new IOException("Cannot open a directory in the editor.");
 
         byte[] bytes;
-        using (var stream = source.OpenReadAsync(sourcePath).GetAwaiter().GetResult())
+        await using (var stream = await source.AsAsync().OpenReadAsync(sourcePath, cancellationToken).ConfigureAwait(false))
         using (var memory = new MemoryStream())
         {
-            stream.CopyTo(memory);
+            await stream.CopyToAsync(memory, cancellationToken).ConfigureAwait(false);
             bytes = memory.ToArray();
         }
 
@@ -130,34 +149,78 @@ public sealed class EditorFileService
         { HasDestinationVersion = true, ProviderDestinationVersion = item };
     }
 
-    public void Save(EditorSession session)
-    {
-        ArgumentNullException.ThrowIfNull(session);
-        EnsureWritable(session);
-        var expected = session.HasDestinationVersion ? session.LocalDestinationVersion :
-            SafeLocalFilePublisher.CaptureDestination(Path.GetFullPath(session.FilePath));
-        string? warning = SafeFileWriteService.WriteLocalAsync(session.FilePath, Encode(session), expected)
-            .GetAwaiter().GetResult();
-        CompleteSave(session, warning, () => session.LocalDestinationVersion =
-            SafeLocalFilePublisher.CaptureDestination(Path.GetFullPath(session.FilePath)));
-    }
+    public void Save(EditorSession session) =>
+        ApplySaveResult(session, WriteAsync(session).GetAwaiter().GetResult());
 
     public void Save(EditorSession session, IFilePanelSource source, string sourcePath) =>
         SaveAsync(session, source, sourcePath).GetAwaiter().GetResult();
 
-    public async Task SaveAsync(
-        EditorSession session, IFilePanelSource source, string sourcePath,
+    public async Task SaveAsync(EditorSession session, IFilePanelSource source, string sourcePath,
+        CancellationToken cancellationToken = default) =>
+        ApplySaveResult(session, await WriteAsync(session, source, sourcePath, cancellationToken).ConfigureAwait(false));
+
+    // Capture editor state on its owning thread; only immutable data goes to the worker.
+    internal Task<SaveResult> WriteAsync(EditorSession session, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        EnsureWritable(session);
+        var bytes = Encode(session);
+        var path = session.FilePath;
+        var hasExpected = session.HasDestinationVersion;
+        var expected = session.LocalDestinationVersion;
+        return Task.Run(async () =>
+        {
+            if (!hasExpected) expected = SafeLocalFilePublisher.CaptureDestination(Path.GetFullPath(path));
+            var warning = await SafeFileWriteService.WriteLocalAsync(path, bytes, expected, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                return new SaveResult(warning, SafeLocalFilePublisher.CaptureDestination(Path.GetFullPath(path)), null, false);
+            }
+            catch (Exception error) { return new SaveResult(RefreshWarning(warning, error), null, null, true); }
+        }, cancellationToken);
+    }
+
+    internal Task<SaveResult> WriteAsync(EditorSession session, IFilePanelSource source, string sourcePath,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(source);
         EnsureWritable(session);
-        var expected = session.HasDestinationVersion ? session.ProviderDestinationVersion :
-            source.GetItem(sourcePath, cancellationToken);
-        string? warning = await SafeFileWriteService.WriteDocumentAsync(
-            source, sourcePath, Encode(session), expected, cancellationToken).ConfigureAwait(false);
-        CompleteSave(session, warning, () => session.ProviderDestinationVersion =
-            source.GetItem(sourcePath, CancellationToken.None));
+        var bytes = Encode(session);
+        var hasExpected = session.HasDestinationVersion;
+        var expected = session.ProviderDestinationVersion;
+        return Task.Run(async () =>
+        {
+            if (!hasExpected) expected = await source.AsAsync().GetItemAsync(sourcePath, cancellationToken).ConfigureAwait(false);
+            var warning = await SafeFileWriteService.WriteDocumentAsync(source, sourcePath, bytes, expected, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var version = await source.AsAsync().GetItemAsync(sourcePath, CancellationToken.None).ConfigureAwait(false);
+                return new SaveResult(warning, null, version, false);
+            }
+            catch (Exception error) { return new SaveResult(RefreshWarning(warning, error), null, null, true); }
+        }, cancellationToken);
+    }
+
+    internal sealed record SaveResult(string? Warning, SafeLocalFilePublisher.DestinationSnapshot? LocalVersion,
+        FilePanelItem? ProviderVersion, bool VersionInvalid);
+
+    private static string RefreshWarning(string? warning, Exception error) =>
+        string.Join(Environment.NewLine, new[] { warning,
+            "File saved, but the destination version could not be refreshed: " + error.Message }.Where(message => message is not null));
+
+    internal static void ApplySaveResult(EditorSession session, SaveResult result)
+    {
+        session.DestinationVersionInvalid = result.VersionInvalid;
+        if (!result.VersionInvalid)
+        {
+            session.HasDestinationVersion = true;
+            session.LocalDestinationVersion = result.LocalVersion;
+            session.ProviderDestinationVersion = result.ProviderVersion;
+        }
+        session.LastSaveWarning = result.Warning;
+        session.Document.MarkClean();
+        session.RaiseSaved();
     }
 
     private static void EnsureWritable(EditorSession session)
@@ -173,25 +236,6 @@ public sealed class EditorFileService
         Encoding encoding = session.Document.Format.CreateSaveEncoding();
         byte[] content = encoding.GetBytes(session.Document.Buffer.GetText(session.Document.Format));
         return [.. encoding.GetPreamble(), .. content];
-    }
-
-    private static void CompleteSave(EditorSession session, string? warning, Action refreshVersion)
-    {
-        try
-        {
-            refreshVersion();
-            session.HasDestinationVersion = true;
-        }
-        catch (Exception refresh)
-        {
-            session.DestinationVersionInvalid = true;
-            warning = string.Join(Environment.NewLine, new[] { warning,
-                "File saved, but the destination version could not be refreshed: " + refresh.Message }
-                .Where(message => message is not null));
-        }
-        session.LastSaveWarning = warning;
-        session.Document.MarkClean();
-        session.RaiseSaved();
     }
 
     public static EditorLineEnding ToEditorLineEnding(TextLineEndingKind kind) =>

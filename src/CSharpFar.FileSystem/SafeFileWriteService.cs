@@ -1,5 +1,6 @@
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 
 namespace CSharpFar.FileSystem;
 
@@ -67,9 +68,9 @@ public static class SafeFileWriteService
             ? new OperationCanceledException($"Partial data retained at '{staging}'.", error, cancellationToken)
             : new IOException($"Write failed; partial data retained at '{staging}'.", error);
 
-    public static Task<string?> WriteDocumentAsync(IFilePanelSource source, string path,
+    public static async Task<string?> WriteDocumentAsync(IFilePanelSource source, string path,
         byte[] bytes, CancellationToken cancellationToken = default) =>
-        WriteDocumentAsync(source, path, bytes, source.GetItem(path, cancellationToken), cancellationToken);
+        await WriteDocumentAsync(source, path, bytes, await source.AsAsync().GetItemAsync(path, cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
 
     public static async Task<string?> WriteDocumentAsync(IFilePanelSource source, string path,
         byte[] bytes, FilePanelItem? expected, CancellationToken cancellationToken = default)
@@ -114,7 +115,7 @@ public static class SafeFileWriteService
         var safe = source as ISafeNewFilePublicationProvider;
         if (!batch && !local && (safe is null || expected is not null))
             throw new NotSupportedException($"Provider '{source.DisplayName}' cannot safely publish {(expected is null ? "a new file" : "a replacement file")}.");
-        if (!SameDestination(expected, source.GetItem(path, cancellationToken)))
+        if (!SameDestination(expected, await source.AsAsync().GetItemAsync(path, cancellationToken).ConfigureAwait(false)))
             throw new IOException($"Destination changed before writing: '{path}'.");
 
         if (local)
@@ -139,7 +140,7 @@ public static class SafeFileWriteService
         {
             long written;
             await using (var stream = batch
-                ? await source.OpenWriteAsync(staging, batch && expected is not null, cancellationToken).ConfigureAwait(false)
+                ? await source.AsAsync().OpenWriteAsync(staging, batch && expected is not null, cancellationToken).ConfigureAwait(false)
                 : await safe!.OpenStagingWriteAsync(staging, cancellationToken).ConfigureAwait(false))
             {
                 owned = !batch;
@@ -148,7 +149,7 @@ public static class SafeFileWriteService
             }
             if (expectedLength is long length && length != written)
                 throw new IOException($"Incomplete write to '{staging}' ({written}/{length} bytes).");
-            var stagedItem = source.GetItem(staging, cancellationToken);
+            var stagedItem = await source.AsAsync().GetItemAsync(staging, cancellationToken).ConfigureAwait(false);
             if (stagedItem is null || stagedItem.IsDirectory ||
                 (stagedItem.Size is long actual && actual != written))
                 throw new IOException($"Staged file verification failed: '{staging}'.");
@@ -168,8 +169,8 @@ public static class SafeFileWriteService
                 string observation;
                 try
                 {
-                    bool temporaryExists = source.GetItem(staging, CancellationToken.None) is not null;
-                    bool destinationExists = source.GetItem(path, CancellationToken.None) is not null;
+                    bool temporaryExists = await source.AsAsync().GetItemAsync(staging, CancellationToken.None).ConfigureAwait(false) is not null;
+                    bool destinationExists = await source.AsAsync().GetItemAsync(path, CancellationToken.None).ConfigureAwait(false) is not null;
                     observation = $"Staging exists: {temporaryExists}; destination exists: {destinationExists}.";
                     if (temporaryExists && !destinationExists)
                         publishing = false;
@@ -187,8 +188,8 @@ public static class SafeFileWriteService
             {
                 try
                 {
-                    if (source.GetItem(staging, CancellationToken.None) is not null)
-                        await source.DeleteAsync(staging, recursive: false, CancellationToken.None).ConfigureAwait(false);
+                    if (await source.AsAsync().GetItemAsync(staging, CancellationToken.None).ConfigureAwait(false) is not null)
+                        await source.AsAsync().DeleteAsync(staging, recursive: false, CancellationToken.None).ConfigureAwait(false);
                 }
                 catch (Exception cleanup)
                 {
