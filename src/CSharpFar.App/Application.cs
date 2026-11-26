@@ -257,6 +257,7 @@ public sealed class Application
 
     internal ApplicationSession Session => _session;
     internal PanelAutoRefreshService AutoRefresh => _autoRefresh;
+    internal PanelNavigationService PanelNavigation => _panelNavigation;
     internal Action DrainUiActions { get; }
     internal ApplicationCommandRegistry CommandRegistry => _commandRegistry;
 

@@ -1,5 +1,6 @@
 using CSharpFar.App;
 using CSharpFar.App.Bootstrap;
+using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.State;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
@@ -263,7 +264,7 @@ public sealed class ApplicationTopMenuPolicyTests
     [Theory]
     [InlineData(PanelSide.Left, "Left")]
     [InlineData(PanelSide.Right, "Right")]
-    public void CommandContextOpenTopMenu_SelectsThatPanelsSemanticMenuAndClosesQuickSearch(PanelSide side, string expectedId)
+    public void OpenTopMenuCommand_SelectsThatPanelsSemanticMenuAndClosesQuickSearch(PanelSide side, string expectedId)
     {
         var services = Services();
         services.Session.Panels.Left.Items.Add(new FilePanelItem
@@ -276,7 +277,7 @@ public sealed class ApplicationTopMenuPolicyTests
         Assert.True(services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.G, alt: true)).Handled);
         Assert.NotNull(services.PanelQuickSearch.State);
 
-        Assert.True(services.CommandContext.OpenTopMenu(side));
+        Assert.True(services.CommandRegistry.Execute(FunctionKeyCommandIds.TopMenu, new PanelCommandArgs { PanelSide = side }).ShouldRender);
         services.Composition.Render();
 
         Assert.Null(services.PanelQuickSearch.State);
