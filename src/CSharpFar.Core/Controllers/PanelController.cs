@@ -426,7 +426,8 @@ public sealed class PanelController
     public void SetCursorByName(FilePanelState state, string name, int visibleRows)
     {
         int idx = state.Items.FindIndex(
-            i => string.Equals(i.Name, name, StringComparison.OrdinalIgnoreCase));
+            i => (_sources is not null && _sources.TryGetSource(i.SourceId, out var source)
+                ? source.PathComparer : i.SourceId == PanelSourceId.Local ? LocalFileSystemPathComparer.Current : StringComparer.Ordinal).Equals(i.Name, name));
         if (idx >= 0) { state.CursorIndex = idx; EnsureVisible(state, visibleRows); }
     }
 

@@ -61,17 +61,17 @@ internal sealed class CreateFolderCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
 
         context.SafeRefresh(target.State, target.VisibleRows);
-        context.Controller.SetCursorByName(target.State, FirstCreatedDirectoryName(name), target.VisibleRows);
+        context.Controller.SetCursorByName(target.State, FirstCreatedDirectoryName(name, context.TryGetSource(target.State.SourceId, out var source) ? source.PathSeparators.ToArray() : []), target.VisibleRows);
         return ApplicationCommandResult.Rendered();
     }
 
     private static bool CommittedLocationMatches(ResolvedPanelCommandTarget target) =>
         ApplicationCommandContext.CommittedLocationMatches(target.State, target.ActiveCommitted);
 
-    private static string FirstCreatedDirectoryName(string path)
+    private static string FirstCreatedDirectoryName(string path, char[] separators)
     {
-        string trimmed = path.Trim(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        int separator = trimmed.IndexOfAny([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar]);
+        string trimmed = path.Trim(separators);
+        int separator = trimmed.IndexOfAny(separators);
         return separator < 0 ? trimmed : trimmed[..separator];
     }
 }

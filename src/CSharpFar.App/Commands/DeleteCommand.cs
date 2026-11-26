@@ -43,10 +43,7 @@ internal sealed class DeleteCommand : IApplicationCommand
 
         bool searchResults = target.State.SearchRequest is not null;
         IReadOnlyList<PanelLocation> operationSources = searchResults
-            ? sources.GroupBy(location => location.SourceId).SelectMany(group =>
-                group.Key == PanelSourceId.Local
-                    ? SearchResultsDeleteSupport.CollapseNestedSources(group.Select(location => location.SourcePath).ToArray()).Select(PanelLocation.Local)
-                    : group).ToArray()
+            ? SearchResultsDeleteSupport.CollapseNestedLocations(sources, context)
             : sources;
         FileOperationResult? result = null;
 
@@ -65,7 +62,7 @@ internal sealed class DeleteCommand : IApplicationCommand
 
             if (searchResults)
             {
-                SearchResultsDeleteSupport.Reconcile(target.State, operationSources.Where(location => location.SourceId == PanelSourceId.Local).Select(location => location.SourcePath).ToArray(), result);
+                SearchResultsDeleteSupport.ReconcileLocations(target.State, operationSources, result, context);
                 context.Controller.NormalizeCursor(target.State, target.VisibleRows);
                 context.Controller.RefreshSelectionSummary(target.State);
             }

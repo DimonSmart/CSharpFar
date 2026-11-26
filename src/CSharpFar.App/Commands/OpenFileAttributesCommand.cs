@@ -23,7 +23,7 @@ internal sealed class OpenFileAttributesCommand : IApplicationCommand
         }
 
         var targets = GetTargetItems(context, target);
-        if (targets.Count == 0)
+        if (targets.Count == 0 || targets.Any(item => item.SourceId != PanelSourceId.Local))
             return ApplicationCommandResult.Rendered();
 
         var paths = targets.Select(static item => item.FullPath).ToList();

@@ -37,6 +37,52 @@ internal static class SearchResultsDeleteSupport
             (operationCompletedCleanly || !PathExists(item.FullPath)));
     }
 
+    public static IReadOnlyList<PanelLocation> CollapseNestedLocations(
+        IReadOnlyList<PanelLocation> locations, ApplicationCommandContext context)
+    {
+        var roots = new List<PanelLocation>();
+        foreach (var location in locations)
+        {
+            if (roots.Any(root => IsSameOrDescendant(location, root, context)))
+                continue;
+            roots.RemoveAll(root => IsSameOrDescendant(root, location, context));
+            roots.Add(location);
+        }
+        return roots;
+    }
+
+    public static void ReconcileLocations(FilePanelState state, IReadOnlyList<PanelLocation> roots,
+        FileOperationResult result, ApplicationCommandContext context)
+    {
+        bool clean = !result.Cancelled && result.Errors.Count == 0;
+        state.Items.RemoveAll(item =>
+            roots.Any(root => IsSameOrDescendant(item.Location, root, context)) &&
+            (clean || (item.SourceId == PanelSourceId.Local
+                ? !PathExists(item.SourcePath)
+                : context.TryGetSource(item.SourceId, out var source) && source.GetItem(item.SourcePath) is null)));
+    }
+
+    private static bool IsSameOrDescendant(PanelLocation location, PanelLocation root, ApplicationCommandContext context)
+    {
+        if (location.SourceId != root.SourceId)
+            return false;
+        if (!context.TryGetSource(location.SourceId, out var source))
+            return location == root;
+        string current = source.NormalizePath(location.SourcePath);
+        string ancestor = source.NormalizePath(root.SourcePath);
+        var visited = new HashSet<string>(source.PathComparer);
+        while (visited.Add(current))
+        {
+            if (source.PathComparer.Equals(current, ancestor))
+                return true;
+            string? parent = source.GetParentPath(current);
+            if (parent is null)
+                break;
+            current = source.NormalizePath(parent);
+        }
+        return false;
+    }
+
     private static bool PathExists(string path)
     {
         try
