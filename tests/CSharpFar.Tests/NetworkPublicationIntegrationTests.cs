@@ -1,5 +1,7 @@
 using System.Text;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Abstractions;
+using CSharpFar.Core.Services;
 using CSharpFar.FileSystem;
 using CSharpFar.Module.Ftp;
 using CSharpFar.Module.Sftp;
@@ -41,9 +43,9 @@ public sealed class NetworkPublicationIntegrationTests
         string fresh = root + "/published";
         Assert.Null(await SafeFileWriteService.WriteDocumentAsync(source, fresh, Encoding.UTF8.GetBytes("complete")));
         Assert.Equal("complete", await Read(source, fresh));
-        await Assert.ThrowsAsync<NotSupportedException>(() =>
-            SafeFileWriteService.WriteDocumentAsync(source, target, Encoding.UTF8.GetBytes("replacement")));
-        Assert.Equal("original", await Read(source, target));
+        Assert.Null(await SafeFileWriteService.WriteDocumentAsync(source, target, Encoding.UTF8.GetBytes("replacement")));
+        Assert.Equal("replacement", await Read(source, target));
+        await ExerciseCopiesAndRename(source, root);
 
         using var cts = new CancellationTokenSource();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
@@ -58,7 +60,7 @@ public sealed class NetworkPublicationIntegrationTests
     }
 
     [Fact]
-    public async Task Ftp_RefusesUnverifiedPublicationAndPreservesExistingFile()
+    public async Task Ftp_BestEffortCopyOverwriteAndRename()
     {
         if (!Enabled) return;
         using var source = new FtpFilePanelSource(new FtpConnectionInfo
@@ -70,12 +72,63 @@ public sealed class NetworkPublicationIntegrationTests
         }, Env("CSHARPFAR_TEST_PASSWORD"));
 
         Assert.Equal("original", await Read(source, "/target"));
-        await Assert.ThrowsAsync<NotSupportedException>(() =>
-            SafeFileWriteService.WriteDocumentAsync(source, "/target", Encoding.UTF8.GetBytes("replacement")));
-        await Assert.ThrowsAsync<NotSupportedException>(() =>
-            SafeFileWriteService.WriteDocumentAsync(source, "/new", Encoding.UTF8.GetBytes("new")));
-        Assert.Equal("original", await Read(source, "/target"));
-        Assert.Null(source.GetItem("/new"));
+        await ExerciseCopiesAndRename(source, "/");
+        using var cts = new CancellationTokenSource();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            SafeFileWriteService.WriteProviderAsync(source, "/cancelled", null, 4, async stream =>
+            {
+                await stream.WriteAsync(Encoding.UTF8.GetBytes("data"));
+                cts.Cancel();
+                return 4;
+            }, false, cts.Token));
+        await Assert.ThrowsAnyAsync<IOException>(() => source.OpenWriteAsync("/target", overwrite: false));
+    }
+
+    private static async Task ExerciseCopiesAndRename(IFilePanelSource remote, string root)
+    {
+        string localRoot = Path.Combine(Path.GetTempPath(), "network-publication-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(localRoot);
+        try
+        {
+            string local = Path.Combine(localRoot, "upload");
+            await File.WriteAllTextAsync(local, "first");
+            string target = remote.CombinePath(root, "upload");
+            var service = new FileOperationService(new FilePanelSourceRegistry(
+                [new LocalFilePanelSource(new FileSystemService()), remote]));
+            async Task<FileOperationResult> Execute(FileOperationKind kind, PanelLocation from, PanelLocation to,
+                ConflictDecisionMode decision = ConflictDecisionMode.Overwrite) =>
+                await service.ExecuteAsync(new FileOperationRequest
+                {
+                    Kind = kind, Sources = [from], Destination = to,
+                    Options = new FileOperationOptions { DefaultConflictDecision = decision },
+                }, null, new Resolver());
+            Assert.Equal(1, (await Execute(FileOperationKind.Copy, PanelLocation.Local(local),
+                new PanelLocation(remote.SourceId, target))).CopiedCount);
+            Assert.Equal("first", await Read(remote, target));
+            await File.WriteAllTextAsync(local, "replacement contents");
+            Assert.Equal(1, (await Execute(FileOperationKind.Copy, PanelLocation.Local(local),
+                new PanelLocation(remote.SourceId, target), ConflictDecisionMode.Skip)).SkippedCount);
+            Assert.Equal("first", await Read(remote, target));
+            Assert.Equal(1, (await Execute(FileOperationKind.Copy, PanelLocation.Local(local),
+                new PanelLocation(remote.SourceId, target))).CopiedCount);
+            Assert.Equal("replacement contents", await Read(remote, target));
+            string renamed = remote.CombinePath(root, "renamed-upload");
+            Assert.Equal(1, (await Execute(FileOperationKind.Move,
+                new PanelLocation(remote.SourceId, target), new PanelLocation(remote.SourceId, renamed))).MovedCount);
+            Assert.Null(remote.GetItem(target));
+            Assert.Equal("replacement contents", await Read(remote, renamed));
+            string downloaded = Path.Combine(localRoot, "download");
+            Assert.Equal(1, (await Execute(FileOperationKind.Copy, new PanelLocation(remote.SourceId, renamed),
+                PanelLocation.Local(downloaded))).CopiedCount);
+            Assert.Equal("replacement contents", await File.ReadAllTextAsync(downloaded));
+        }
+        finally { Directory.Delete(localRoot, recursive: true); }
+    }
+
+    private sealed class Resolver : IFileOperationConflictResolver
+    {
+        public FileOperationConflictDecision Resolve(FileOperationConflict conflict) =>
+            FileOperationConflictDecision.FromMode(ConflictDecisionMode.Overwrite);
     }
 
     private static async Task<string> Read(CSharpFar.Core.Abstractions.IFilePanelSource source, string path)

@@ -120,21 +120,31 @@ public static class SafeFileWriteService
             : keepPartial
                 ? "Partial data may be retained at the destination."
                 : "Partial data may remain: exclusive ownership of the destination cannot be established.";
-        long written;
+        cancellationToken.ThrowIfCancellationRequested();
+        long written = 0;
+        Exception? writeError = null;
         bool closing = false;
         try
         {
             await using (var stream = await source.AsAsync().OpenWriteAsync(path, overwrite, cancellationToken).ConfigureAwait(false))
             {
-                written = await write(stream).ConfigureAwait(false);
-                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    written = await write(stream).ConfigureAwait(false);
+                    await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception error)
+                {
+                    writeError = error;
+                }
                 closing = true;
             }
         }
         catch (UnknownFilePublicationException) { throw; }
         catch (Exception error) when (closing)
         {
-            throw new UnknownFilePublicationException(path, path, consequence, error);
+            throw new UnknownFilePublicationException(path, path, consequence,
+                writeError is null ? error : new AggregateException(writeError, error));
         }
         catch (OperationCanceledException error)
         {
@@ -145,6 +155,11 @@ public static class SafeFileWriteService
             throw new IOException($"Write failed for '{path}'. {consequence}", error);
         }
 
+        if (writeError is UnknownFilePublicationException unknown) throw unknown;
+        if (writeError is OperationCanceledException cancelled)
+            throw new OperationCanceledException($"Partial data retained or possibly retained at '{path}'. {consequence}", cancelled, cancellationToken);
+        if (writeError is not null)
+            throw new IOException($"Write failed for '{path}'. {consequence}", writeError);
         if (expectedLength is long length && length != written)
             throw new IOException($"Incomplete write to '{path}' ({written}/{length} bytes). {consequence}");
         if (cancellationToken.IsCancellationRequested)
@@ -175,7 +190,8 @@ public static class SafeFileWriteService
         var safe = source as ISafeNewFilePublicationProvider;
         if (!source.Capabilities.HasFlag(PanelProviderCapabilities.OpenWrite))
             throw new NotSupportedException($"Provider '{source.DisplayName}' does not support writing.");
-        if (expected is not null && (expected.IsDirectory || expected.Attributes.HasFlag(FileAttributes.ReadOnly)))
+        if (expected is not null && (expected.IsDirectory ||
+            (!local && expected.Attributes.HasFlag(FileAttributes.ReadOnly))))
             throw new IOException("The destination is a directory or read-only.");
         if (!SameDestination(expected, await source.AsAsync().GetItemAsync(path, cancellationToken).ConfigureAwait(false)))
             throw new IOException($"Destination changed before writing: '{path}'.");
