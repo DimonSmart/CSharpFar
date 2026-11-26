@@ -127,6 +127,7 @@ public sealed class PanelController
                 DirectoriesFirst = true,
             });
 
+        state.ContentRevision++;
         state.CurrentLocation = NormalizeLocation(content.Location);
         state.Items.Clear();
         state.Items.AddRange(sortedItems);
@@ -155,11 +156,12 @@ public sealed class PanelController
         RefreshSelectedSummary(state);
     }
 
-    private void ApplyLoadedLocation(
+    internal void ApplyLoadedLocation(
         FilePanelState state,
         PanelLocation location,
         PanelView view)
     {
+        state.ContentRevision++;
         bool sameSource = state.ContentKind == PanelContentKind.Source && state.SourceId == location.SourceId;
         state.CurrentLocation = location;
         state.Items.Clear();
@@ -181,6 +183,9 @@ public sealed class PanelController
         state.CursorIndex = 0;
         state.ScrollOffset = 0;
     }
+
+    internal Task<PanelView> PrepareViewAsync(PanelViewRequest request, CancellationToken cancellationToken) =>
+        _viewBuilder.BuildAsync(request, cancellationToken);
 
     private PanelView BuildView(
         FilePanelState state,
@@ -366,10 +371,6 @@ public sealed class PanelController
         int visibleRows,
         AppSettings.PanelOptionsSettings? options = null)
     {
-        int previousCursorIndex = state.CursorIndex;
-        var previousItem = CurrentItem(state);
-        PanelLocation? previousLocation = previousItem?.Location;
-
         options ??= new AppSettings.PanelOptionsSettings();
         var view = _viewBuilder.Build(new PanelViewRequest
         {
@@ -380,6 +381,14 @@ public sealed class PanelController
             SortDescending = state.SortDescending,
             SelectedLocations = state.SelectedLocations,
         });
+        ApplyRefreshedView(state, view, visibleRows);
+    }
+
+    internal void ApplyRefreshedView(FilePanelState state, PanelView view, int visibleRows)
+    {
+        int previousCursorIndex = state.CursorIndex;
+        PanelLocation? previousLocation = CurrentItem(state)?.Location;
+        state.ContentRevision++;
         state.Items.Clear();
         state.Items.AddRange(view.Items);
         state.Summary = view.Summary;
@@ -596,6 +605,7 @@ public sealed class PanelController
             SortDescending = state.SortDescending,
             SelectedLocations = state.SelectedLocations,
         });
+        state.ContentRevision++;
         state.Items.Clear();
         state.Items.AddRange(view.Items);
         state.Summary = view.Summary;
@@ -744,7 +754,7 @@ public sealed class PanelController
             ? PanelLocation.Local(_localPathNormalizer.Normalize(location.SourcePath))
             : location;
 
-    private bool TryNormalizeLocation(
+    internal bool TryNormalizeLocation(
         PanelLocation location,
         out PanelLocation normalizedLocation)
     {
@@ -767,7 +777,7 @@ public sealed class PanelController
         return true;
     }
 
-    private static void ApplyLoadError(
+    internal static void ApplyLoadError(
         FilePanelState state,
         PanelLocation location,
         Exception exception)

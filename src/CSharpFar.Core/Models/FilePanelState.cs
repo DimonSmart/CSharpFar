@@ -48,6 +48,8 @@ public sealed class FilePanelState
     public PanelProviderCapabilities ProviderCapabilities { get; internal set; } =
         PanelProviderCapabilities.LocalFileSystem;
     public PanelLoadError? LoadError { get; internal set; }
+    public bool IsLoading { get; internal set; }
+    internal long ContentRevision { get; set; }
     public string? DisplayTitle { get; internal set; }
     public string? DisplayTitleBasePath { get; internal set; }
     public bool ShowCurrentItemFullPath { get; internal set; }
