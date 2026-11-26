@@ -1,4 +1,6 @@
 using CSharpFar.App.Input;
+using CSharpFar.App.AutoRefresh;
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 using CSharpFar.App.Panels;
 using CSharpFar.App.State;
 using CSharpFar.App.Viewer;
@@ -16,7 +18,8 @@ internal static class ApplicationAuxiliaryInputBindings
         MouseInputContext mouseInputContext,
         ApplicationSession session,
         PanelController controller,
-        ApplicationServiceCallbacks callbacks,
+        AppSettingsAlias settings,
+        PanelAutoRefreshService autoRefresh,
         PanelWorkspaceController panelWorkspace,
         QuickViewDirectorySizeController quickViewDirectorySize,
         FileUsagePanelController fileUsagePanel,
@@ -69,13 +72,13 @@ internal static class ApplicationAuxiliaryInputBindings
             {
                 if (!loaded) return;
                 var side = ReferenceEquals(targetPanel, session.Panels.Left) ? PanelSide.Left : PanelSide.Right;
-                controller.SetCursorByName(targetPanel, Path.GetFileName(target), callbacks.VisibleRowsForSide(side));
-                callbacks.StartWatching(targetPanel, side);
+                controller.SetCursorByName(targetPanel, Path.GetFileName(target), panelWorkspace.VisibleRows(side));
+                autoRefresh.StartWatching(targetPanel, side);
             }
             if (navigation is not null)
                 navigation.Navigate(targetPanel, PanelLocation.Local(parent), preserveOnError: true, Complete);
             else
-                Complete(controller.TryLoadDirectory(targetPanel, parent, callbacks.PanelOptions()));
+                Complete(controller.TryLoadDirectory(targetPanel, parent, settings.Panels.Options));
             return true;
         };
         mouseInputContext.ActivateQuickViewDirectoryMonitorChange = changeId =>

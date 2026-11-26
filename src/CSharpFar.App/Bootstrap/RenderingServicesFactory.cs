@@ -40,7 +40,7 @@ internal static class RenderingServicesFactory
             () => session.App.Palette,
             controller,
             () => highlightState.Current,
-            () => callbacks.PanelOptions(),
+            () => settings.Panels.Options,
             directorySizes, quickViewContent);
         var clockRenderer = new ClockRenderer(() => session.App.Palette);
         var functionKeyBarRenderer = new ApplicationFunctionKeyBarRenderer(

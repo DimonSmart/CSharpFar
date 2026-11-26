@@ -77,7 +77,8 @@ internal static class CommandServicesFactory
         FileHighlightState highlightState,
         IDiagnosticLog diagnosticLog,
         UpdateCheckService updateCheckService,
-        IApplicationUpdateInstaller applicationUpdateInstaller)
+        IApplicationUpdateInstaller applicationUpdateInstaller,
+        ExternalConsoleCommandRunner externalConsoleCommandRunner)
     {
         var changeDirectoryCommandExecutor = new ChangeDirectoryCommandExecutor(
             panelController,
@@ -87,13 +88,6 @@ internal static class CommandServicesFactory
             () => settings.Panels.Options,
             (state, side) => autoRefresh.StartWatching(state, side),
             navigation: panelNavigation);
-        var externalConsoleCommandRunner = new ExternalConsoleCommandRunner(
-            screen,
-            terminalSurface,
-            commandLineRenderer,
-            session.App,
-            session.CommandLine.State,
-            () => panelRefresh.RefreshPanels(session.Panels.Left, session.Panels.Right));
         var commandLineCommandExecutor = new CommandLineCommandExecutor(
             session.CommandLine.State,
             commandHistoryNavigator,
