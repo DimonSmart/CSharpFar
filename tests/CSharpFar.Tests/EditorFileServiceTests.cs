@@ -135,17 +135,24 @@ public sealed class EditorFileServiceTests : IDisposable
         Assert.Equal("external update", File.ReadAllText(path));
     }
 
-    [Fact]
-    public async Task Save_ProviderWithoutSafePublicationRejectsOverwrite()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Save_ProviderWithoutSafePublicationUsesBestEffort(bool fail)
     {
         var source = new MemoryFilePanelView(new PanelSourceId("unverified"));
         source.SeedFile("/doc", "old");
         var service = new EditorFileService(new AppSettings.EditorSettings());
         var session = service.Load(source, "/doc", "/doc");
-        session.InsertText("edit");
-        await Assert.ThrowsAsync<NotSupportedException>(() => service.SaveAsync(session, source, "/doc"));
-        Assert.True(session.Document.IsDirty);
-        Assert.Equal("old", source.ReadText("/doc"));
+        session.MoveToDocumentEnd();
+        session.InsertText(" edit");
+        source.FailWrite = fail;
+        if (fail)
+            await Assert.ThrowsAsync<CSharpFar.FileSystem.UnknownFilePublicationException>(() => service.SaveAsync(session, source, "/doc"));
+        else
+            await service.SaveAsync(session, source, "/doc");
+        Assert.Equal(fail, session.Document.IsDirty);
+        Assert.Equal(fail ? "old" : "old edit", source.ReadText("/doc"));
     }
 
     [Fact]
