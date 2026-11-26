@@ -154,6 +154,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleFrameWriter, ICo
     // Scripted input normally belongs to the editor after its local I/O dialog.
     // Tests that intentionally interact with that dialog can disable this barrier.
     public bool DeferScriptedEditorInput { get; set; } = true;
+    public bool FailOnEmptyScript { get; set; }
 
     private bool IsEditorIoActive => DeferScriptedEditorInput &&
         System.Diagnostics.Activity.Current?.OperationName == "CSharpFar.Editor.LocalIO";
@@ -169,6 +170,8 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleFrameWriter, ICo
             return inputEvent;
         }
 
+        if (FailOnEmptyScript && !IsEditorIoActive)
+            throw new InvalidOperationException("Scripted input exhausted. Screen:\n" + string.Join(Environment.NewLine, Enumerable.Range(0, _size.Height).Select(GetRow)));
         if (cancellationToken.CanBeCanceled)
         {
             cancellationToken.WaitHandle.WaitOne();

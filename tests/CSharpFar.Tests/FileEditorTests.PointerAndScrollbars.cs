@@ -90,7 +90,7 @@ public sealed partial class FileEditorTests
         string filePath = Path.Combine(_tempDir, "editor-resize-mouse.txt");
         File.WriteAllText(filePath, "one\ntwo\nthree\nfour\nfive");
 
-        var driver = new FakeConsoleDriver(width: 80, height: 5);
+        var driver = new FakeConsoleDriver(width: 80, height: 5) { FailOnEmptyScript = true };
         driver.BeforeTryReadInput = current => current.SetSize(80, 8);
         driver.EnqueueInput(LeftMouse(x: 0, y: 4));
         driver.EnqueueKey(new ConsoleKeyInfo('X', ConsoleKey.X, shift: false, alt: false, control: false));
