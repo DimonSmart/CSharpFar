@@ -1,11 +1,12 @@
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 using CSharpFar.Core.Menu;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class ToggleShowFreeSizeCommand : SettingToggleCommand
+internal sealed class ToggleShowFreeSizeCommand(AppSettingsAlias settings, PanelSettingsChangeService settingsChange) : SettingToggleCommand(settingsChange)
 {
     public override string CommandId => MenuCommandIds.SettingsToggleShowFreeSize;
 
-    protected override void Toggle(ApplicationCommandContext context) =>
-        context.PanelOptions.ShowFreeSize = !context.PanelOptions.ShowFreeSize;
+    protected override void Toggle() =>
+        settings.Panels.Options.ShowFreeSize = !settings.Panels.Options.ShowFreeSize;
 }

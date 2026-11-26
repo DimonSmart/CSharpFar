@@ -1,3 +1,4 @@
+using CSharpFar.App.Highlighting;
 using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.CommandLine;
 using CSharpFar.App.Commands;
@@ -73,7 +74,7 @@ internal static class CommandServicesFactory
         IVolumeService? volumeService,
         IFileMetadataService fileMetadata,
         Func<IFileAttributesDialog> fileAttributesDialogFactory,
-        IFileHighlightService? highlightService,
+        FileHighlightState highlightState,
         IDiagnosticLog diagnosticLog,
         UpdateCheckService updateCheckService,
         IApplicationUpdateInstaller applicationUpdateInstaller)
@@ -112,13 +113,14 @@ internal static class CommandServicesFactory
             fileOperations, () => settings.FileOperations.ShowTotalProgress, formFields);
         var fileOperationWorkflow = new PanelFileOperationWorkflow(operationRunner, fileOperations, dialogs,
             settings, panelRefresh, session.Panels);
+        var settingsChange = new PanelSettingsChangeService(panelRefresh, session.Panels, saveSettings);
         var commandRegistry = new ApplicationCommandRegistry(DefaultApplicationCommands.Create(
             interactiveSurfaces, session, dialogs, uriLauncher, updateCheckService, applicationUpdateInstaller,
             clipboard, diagnosticLog, terminalSurface, settings, saveSettings, workspaceModeController,
             modulePanelOpener, panelWorkspace, panelRefresh, panelSort, topMenu, targetResolver,
             panelController, panelNavigation, autoRefresh, sourceRegistry, searchResults, panelFileOpener,
             formFields, fileOperationWorkflow, topic => new HelpViewer(interactiveSurfaces, session.App.Palette).Show(topic),
-            fileMetadata, fileAttributesDialogFactory, directorySizes));
+            fileMetadata, fileAttributesDialogFactory, settingsChange, highlightState, directorySizes));
         var commandContext = new ApplicationCommandContext(
             interactiveSurfaces,
             modalDialogs,
@@ -158,7 +160,7 @@ internal static class CommandServicesFactory
             volumeService,
             fileMetadata,
             fileAttributesDialogFactory,
-            highlightService,
+            highlightState,
             diagnosticLog,
             updateCheckService,
             applicationUpdateInstaller);

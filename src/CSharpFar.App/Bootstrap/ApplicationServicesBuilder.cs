@@ -288,7 +288,7 @@ internal static class ApplicationServicesBuilder
             new DefaultKeyboardShortcutBindingProvider().GetBindings(),
             functionKeyBindingProvider.GetBindings());
         var menuLayoutService = new MenuLayoutService(shortcutTextProvider);
-        var highlightService = FileHighlightServiceFactory.Create(effectiveSettings);
+        var highlightState = new FileHighlightState(FileHighlightServiceFactory.Create(effectiveSettings));
         var commandNavigation = CommandServicesFactory.CreateNavigation(effectiveHistory, session);
         var commandCompletionController = commandNavigation.CommandCompletionController;
         var commandHistoryNavigator = commandNavigation.CommandHistoryNavigator;
@@ -377,7 +377,7 @@ internal static class ApplicationServicesBuilder
             menuLayoutService,
             callbacks,
             effectiveSettings,
-            highlightService,
+            highlightState,
             fileUsage ?? new UnsupportedFileUsagePlatformService(), quickViewContent);
         var terminalSurface = rendering.TerminalSurface;
         var commandLineRenderer = rendering.CommandLineRenderer;
@@ -630,7 +630,7 @@ internal static class ApplicationServicesBuilder
                     formFields,
                     canOpenSystemProperties: System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
                         System.Runtime.InteropServices.OSPlatform.Windows))),
-                highlightService,
+                highlightState,
                 diagnosticLog,
                 updateCheckService,
                 effectiveApplicationUpdateInstaller);

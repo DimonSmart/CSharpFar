@@ -1,15 +1,17 @@
+using CSharpFar.App.Highlighting;
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 using CSharpFar.Core.Menu;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class ToggleHighlightFilesCommand : SettingToggleCommand
+internal sealed class ToggleHighlightFilesCommand(AppSettingsAlias settings, PanelSettingsChangeService settingsChange, FileHighlightState highlightState) : SettingToggleCommand(settingsChange)
 {
     public override string CommandId => MenuCommandIds.SettingsToggleHighlightFiles;
 
-    protected override void Toggle(ApplicationCommandContext context)
+    protected override void Toggle()
     {
-        context.Settings.Panels.FileHighlighting.Enabled =
-            !context.Settings.Panels.FileHighlighting.Enabled;
-        context.HighlightService = context.CreateHighlightService();
+        settings.Panels.FileHighlighting.Enabled =
+            !settings.Panels.FileHighlighting.Enabled;
+        highlightState.Current = FileHighlightServiceFactory.Create(settings);
     }
 }
