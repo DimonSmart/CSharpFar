@@ -6,7 +6,7 @@ namespace CSharpFar.Architecture.Tests;
 
 public sealed class PlatformDependencyArchitectureTests
 {
-    private enum Zone { Neutral, Windows, Ansi, Linux, MacOs, HostWindows, HostLinux, HostMacOs, Tool, Package }
+    private enum Zone { Neutral, Windows, Ansi, Linux, MacOs, HostWindows, HostLinux, HostMacOs, Tool, Package, Extension }
 
     private static readonly Dictionary<string, Zone> Zones = new(StringComparer.Ordinal)
     {
@@ -23,6 +23,7 @@ public sealed class PlatformDependencyArchitectureTests
         ["CSharpFar.NetworkTraffic"] = Zone.Neutral,
         ["CSharpFar.Platform.Abstractions"] = Zone.Neutral,
         ["CSharpFar.Plugin.Abstractions"] = Zone.Neutral,
+        ["CSharpFar.Plugin.AzureBlob"] = Zone.Extension,
         ["CSharpFar.Shell"] = Zone.Neutral,
         ["CSharpFar.Ui"] = Zone.Neutral,
         ["CSharpFar.Console.Windows"] = Zone.Windows,
@@ -63,6 +64,8 @@ public sealed class PlatformDependencyArchitectureTests
                 $"Unknown ProjectReference in {name}: {dependency}"));
 
             var zone = Zones[name];
+            if (zone == Zone.Extension)
+                Assert.All(refs, dependency => Assert.Contains(dependency, new[] { "CSharpFar.Core", "CSharpFar.Plugin.Abstractions" }));
             if (zone is Zone.Package or Zone.Tool) continue;
             var allowed = Allowed(zone);
             var path = FindForbiddenPath(graph, name, x => !allowed.Contains(Zones[x]));
@@ -150,6 +153,7 @@ public sealed class PlatformDependencyArchitectureTests
     private static HashSet<Zone> Allowed(Zone zone) => zone switch
     {
         Zone.Neutral => [Zone.Neutral],
+        Zone.Extension => [Zone.Neutral, Zone.Extension],
         Zone.Windows or Zone.HostWindows => [Zone.Neutral, Zone.Windows, Zone.HostWindows],
         Zone.Ansi => [Zone.Neutral, Zone.Ansi],
         Zone.Linux or Zone.HostLinux => [Zone.Neutral, Zone.Ansi, Zone.Linux, Zone.HostLinux],

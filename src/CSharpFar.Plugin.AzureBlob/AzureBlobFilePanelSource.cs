@@ -8,12 +8,15 @@ using CSharpFar.Core.Models;
 namespace CSharpFar.Plugin.AzureBlob;
 
 public sealed class AzureBlobFilePanelSource(BlobContainerClient container, string displayName, bool readOnly)
-    : IAsyncFilePanelSource, ISafeNewFilePublicationProvider, IFileProviderPhysicalIdentity
+    : IAsyncFilePanelSource, ISafeNewFilePublicationProvider, IFileProviderPhysicalIdentity, ITemporaryFilePanelSource
 {
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> stages = new(StringComparer.Ordinal);
+    private const string StageKey = "csharpfar_stage";
+    public bool IsTemporary => true;
     private const string MarkerKey = "csharpfar_directory";
     private const string MarkerValue = "azure-blob-v1";
     private static BlobRequestConditions Exclusive => new() { IfNoneMatch = ETag.All };
-    public PanelSourceId SourceId { get; } = new("azure-blob:" + Guid.NewGuid().ToString("N"));
+    public PanelSourceId SourceId { get; } = PanelSourceId.Module(new Guid("67f4cdd6-53bb-4406-8ae1-a42380395ac7"), Guid.NewGuid().ToString("N"));
     public string DisplayName => displayName;
     public string PhysicalIdentity => "azure-blob:" + container.Uri.GetLeftPart(UriPartial.Path).TrimEnd('/');
     public PanelProviderCapabilities Capabilities => PanelProviderCapabilities.Enumerate | PanelProviderCapabilities.OpenRead |
@@ -62,7 +65,7 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
         {
             string prefix = AzureBlobPath.Prefix(path);
             var items = new List<FilePanelItem>();
-            await foreach (var entry in container.GetBlobsByHierarchyAsync(BlobTraits.Metadata,
+            await foreach (var entry in container.GetBlobsByHierarchyAsync(BlobTraits.Metadata, BlobStates.None,
                 delimiter: "/", prefix: prefix, cancellationToken: token).ConfigureAwait(false))
             {
                 if (entry.IsPrefix)
@@ -99,7 +102,7 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
             catch (RequestFailedException error) when (error.Status == 404) { }
             string prefix = AzureBlobPath.Prefix(path);
             bool directory = false;
-            await foreach (var blob in container.GetBlobsAsync(BlobTraits.Metadata, prefix: prefix,
+            await foreach (var blob in container.GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix: prefix,
                 cancellationToken: token).ConfigureAwait(false))
             {
                 if (blob.Name == prefix && !IsMarker(blob.Name, blob.Properties.ContentLength, blob.Metadata))
@@ -130,9 +133,12 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
 
     public Task<Stream> OpenWriteAsync(string path, bool overwrite, CancellationToken token = default)
         => overwrite ? Task.FromException<Stream>(new AzureOperationException("Overwriting existing blobs is not supported."))
-            : OpenStagingWriteAsync(path, token);
+            : OpenExclusiveWriteAsync(path, false, token);
 
-    public async Task<Stream> OpenStagingWriteAsync(string path, CancellationToken token = default)
+    public Task<Stream> OpenStagingWriteAsync(string path, CancellationToken token = default)
+        => OpenExclusiveWriteAsync(path, true, token);
+
+    private async Task<Stream> OpenExclusiveWriteAsync(string path, bool staging, CancellationToken token)
     {
         Writable();
         try
@@ -142,8 +148,10 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
                 throw new AzureOperationException("The destination already exists.");
             // The SDK's overwrite flag must be true, but OpenConditions are applied
             // to its initial empty upload. All subsequent commits use its returned ETag.
+            string? owner = staging ? Guid.NewGuid().ToString("N") : null;
             var stream = await container.GetBlockBlobClient(name).OpenWriteAsync(true,
-                new BlockBlobOpenWriteOptions { OpenConditions = Exclusive }, token).ConfigureAwait(false);
+                new BlockBlobOpenWriteOptions { OpenConditions = Exclusive, Metadata = owner is null ? null : new Dictionary<string, string> { [StageKey] = owner } }, token).ConfigureAwait(false);
+            if (owner is not null) stages[name] = owner;
             return new AzureSafeStream(stream);
         }
         catch (Exception error) { throw AzureErrors.Safe(error); }
@@ -155,7 +163,7 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
         try
         {
             if (IsRootPath(path)) return;
-            var existing = await GetItemAsync(path, token).ConfigureAwait(false);
+            var existing = await GetItemAsync(path.TrimEnd('/'), token).ConfigureAwait(false);
             if (existing?.IsDirectory == true) return;
             if (existing is not null) throw new AzureOperationException("A file already has this name.");
             string prefix = AzureBlobPath.Prefix(path);
@@ -178,12 +186,17 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
             {
                 var blob = container.GetBlobClient(AzureBlobPath.BlobName(item.FullPath));
                 var properties = (await blob.GetPropertiesAsync(cancellationToken: token).ConfigureAwait(false)).Value;
+                string name = AzureBlobPath.BlobName(item.FullPath);
+                if (stages.TryGetValue(name, out var owner) &&
+                    (!properties.Metadata.TryGetValue(StageKey, out var actualOwner) || owner != actualOwner))
+                    throw new AzureOperationException("Staging ownership changed; object was not deleted.");
                 await blob.DeleteAsync(conditions: new BlobRequestConditions { IfMatch = properties.ETag }, cancellationToken: token).ConfigureAwait(false);
+                stages.TryRemove(name, out _);
                 return;
             }
             string prefix = AzureBlobPath.Prefix(item.FullPath);
             var entries = new List<BlobItem>();
-            await foreach (var blob in container.GetBlobsAsync(BlobTraits.Metadata, prefix: prefix,
+            await foreach (var blob in container.GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix: prefix,
                 cancellationToken: token).ConfigureAwait(false))
             {
                 if (blob.Name.EndsWith('/') && !IsMarker(blob.Name, blob.Properties.ContentLength, blob.Metadata))
@@ -219,7 +232,7 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
         {
             var item = await GetItemAsync(source, token).ConfigureAwait(false)
                 ?? throw new AzureOperationException("Source does not exist.");
-            if (await GetItemAsync(destination, token).ConfigureAwait(false) is not null)
+            if (await GetItemAsync(destination.TrimEnd('/'), token).ConfigureAwait(false) is not null)
                 throw new AzureOperationException("Destination already exists.");
             if (!item.IsDirectory)
             {
@@ -230,7 +243,7 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
             if (from.Length == 0 || to.Length == 0 || to.StartsWith(from, StringComparison.Ordinal))
                 throw new AzureOperationException("Invalid directory rename.");
             var names = new List<string>();
-            await foreach (var blob in container.GetBlobsAsync(BlobTraits.Metadata, prefix: from, cancellationToken: token).ConfigureAwait(false))
+            await foreach (var blob in container.GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix: from, cancellationToken: token).ConfigureAwait(false))
             {
                 if (blob.Name.EndsWith('/') && !IsMarker(blob.Name, blob.Properties.ContentLength, blob.Metadata))
                     throw new AzureOperationException("A user blob ending in slash cannot be renamed safely.");
@@ -258,6 +271,13 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
         var source = container.GetBlobClient(from);
         var destination = container.GetBlobClient(to);
         var properties = (await source.GetPropertiesAsync(cancellationToken: token).ConfigureAwait(false)).Value;
+        var metadata = new Dictionary<string, string>(properties.Metadata, StringComparer.OrdinalIgnoreCase);
+        if (stages.TryGetValue(from, out var owner))
+        {
+            if (!metadata.TryGetValue(StageKey, out var actualOwner) || actualOwner != owner)
+                throw new AzureOperationException("Staging ownership changed; source retained.");
+            metadata.Remove(StageKey);
+        }
         await using var input = (await source.DownloadStreamingAsync(new BlobDownloadOptions
         {
             Conditions = new BlobRequestConditions { IfMatch = properties.ETag }
@@ -268,7 +288,7 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
         {
             await destination.UploadAsync(input, new BlobUploadOptions
             {
-                Conditions = Exclusive, Metadata = properties.Metadata,
+                Conditions = Exclusive, Metadata = metadata,
                 HttpHeaders = new BlobHttpHeaders { ContentType = properties.ContentType,
                     ContentEncoding = properties.ContentEncoding, ContentLanguage = properties.ContentLanguage,
                     CacheControl = properties.CacheControl, ContentDisposition = properties.ContentDisposition }
@@ -282,6 +302,7 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
         {
             await source.DeleteAsync(conditions: new BlobRequestConditions { IfMatch = properties.ETag },
                 cancellationToken: CancellationToken.None).ConfigureAwait(false);
+            stages.TryRemove(from, out _);
         }
         catch (Exception)
         { throw new AzureOperationException("Destination published; source deletion is unconfirmed. Inspect both names before retrying."); }
