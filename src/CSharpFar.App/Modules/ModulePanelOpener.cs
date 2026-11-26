@@ -425,7 +425,14 @@ internal sealed class ModulePanelOpener
         _navigation?.ClearNavigation(_getPanelState(PanelSide.Left));
         _navigation?.ClearNavigation(_getPanelState(PanelSide.Right));
         _sourceRegistry.DisposeOwnedSources(_cleanup.Discard);
-        await _cleanup.AwaitPendingAsync().ConfigureAwait(false);
+        try
+        {
+            await _cleanup.AwaitPendingAsync().WaitAsync(ShutdownGracePeriod).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            ReportOperationError(new TimeoutException("Plugin source disposal exceeded the shutdown grace period."));
+        }
     }
 
     /// <summary>Finish rejected-source cleanup after the input loop stops.</summary>

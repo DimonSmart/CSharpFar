@@ -19,6 +19,7 @@ public sealed class ModulePanelOpenerCleanupTests
         Assert.True(fixture.Registry.TryAddOwned(owned));
 
         Task shutdown = fixture.Opener.ShutdownAsync();
+        await owned.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal(1, owned.DisposeCalls);
         Assert.False(shutdown.IsCompleted);
         Assert.False(fixture.Registry.TryGetSource(owned.SourceId, out _));
@@ -37,6 +38,7 @@ public sealed class ModulePanelOpenerCleanupTests
         var rejected = new AsyncSource();
 
         fixture.Opener.OpenPanel(PanelSide.Right, Request(rejected));
+        await rejected.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.Equal(1, rejected.DisposeCalls);
         Assert.False(rejected.Disposed.IsCompleted);
@@ -88,6 +90,7 @@ public sealed class ModulePanelOpenerCleanupTests
         Assert.False(fixture.QuickView);
         Assert.Empty(fixture.Messages);
         Assert.Equal(0, existing.DisposeCalls);
+        await incoming.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal(1, incoming.DisposeCalls);
 
         incoming.CompleteDisposal();
@@ -104,6 +107,7 @@ public sealed class ModulePanelOpenerCleanupTests
         fixture.Opener.OpenPanel(PanelSide.Right, Request(source));
 
         Assert.False(fixture.Registry.TryGetSource(source.SourceId, out _));
+        await source.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal(1, source.DisposeCalls);
         Assert.Equal(fixture.InitialLocation, fixture.State.CurrentLocation);
         Assert.Equal(PanelSide.Left, fixture.ActiveSide);
@@ -128,7 +132,6 @@ public sealed class ModulePanelOpenerCleanupTests
 
         fixture.Opener.OpenPanel(PanelSide.Right, Request(incoming));
 
-        Assert.Equal(1, incoming.DisposeCalls);
         Assert.Equal(0, existing.DisposeCalls);
         Assert.Same(existing, fixture.Registry.GetSource(existing.SourceId));
         await fixture.Opener.AwaitPendingCleanupsAsync();
@@ -137,7 +140,7 @@ public sealed class ModulePanelOpenerCleanupTests
 
 
     [Fact]
-    public void UnexpectedProviderFailure_DuringOpenPreservesPreviousPanel()
+    public async Task UnexpectedProviderFailure_DuringOpenPreservesPreviousPanel()
     {
         var fixture = new Fixture();
         var source = new SyncSource { ThrowUnexpectedOnRead = true };
@@ -145,6 +148,7 @@ public sealed class ModulePanelOpenerCleanupTests
         fixture.Opener.OpenPanel(PanelSide.Right, Request(source));
 
         Assert.False(fixture.Registry.TryGetSource(source.SourceId, out _));
+        await fixture.Opener.AwaitPendingCleanupsAsync().WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal(1, source.DisposeCalls);
         Assert.Equal(fixture.InitialLocation, fixture.State.CurrentLocation);
         Assert.Equal(PanelSide.Left, fixture.ActiveSide);
@@ -252,19 +256,20 @@ public sealed class ModulePanelOpenerCleanupTests
     }
 
     [Fact]
-    public void TemporarySource_OpenFailureLeavesNoRegistration()
+    public async Task TemporarySource_OpenFailureLeavesNoRegistration()
     {
         var fixture = new Fixture();
         var source = new TemporarySource { FailLoad = true };
         fixture.Opener.OpenPanel(PanelSide.Right, Request(source));
 
         Assert.False(fixture.Registry.TryGetSource(source.SourceId, out _));
+        await fixture.Opener.AwaitPendingCleanupsAsync().WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal(1, source.DisposeCalls);
         Assert.Equal(fixture.InitialLocation, fixture.State.CurrentLocation);
     }
 
     [Fact]
-    public void TemporarySource_PanelOpenerReleasesAfterLeavingRemotePanel()
+    public async Task TemporarySource_PanelOpenerReleasesAfterLeavingRemotePanel()
     {
         var fixture = new Fixture();
         var source = new TemporarySource();
@@ -275,6 +280,7 @@ public sealed class ModulePanelOpenerCleanupTests
         fixture.Opener.CleanupUnusedTemporarySources();
 
         Assert.False(fixture.Registry.TryGetSource(source.SourceId, out _));
+        await fixture.Opener.AwaitPendingCleanupsAsync().WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal(1, source.DisposeCalls);
     }
 
@@ -379,9 +385,11 @@ public sealed class ModulePanelOpenerCleanupTests
         private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int DisposeCalls { get; private set; }
         public Task Disposed => _completion.Task;
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public ValueTask DisposeAsync()
         {
             DisposeCalls++;
+            Started.TrySetResult();
             return new ValueTask(_completion.Task);
         }
         public void CompleteDisposal() => _completion.SetResult();

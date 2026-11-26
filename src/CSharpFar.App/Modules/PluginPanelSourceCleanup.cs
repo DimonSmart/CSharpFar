@@ -24,7 +24,7 @@ internal sealed class PluginPanelSourceCleanup(Action<Exception>? reportError)
             _discarded.Add(source, new object());
         }
 
-        Task cleanup = DisposeAndReportAsync(source);
+        Task cleanup = Task.Run(() => DisposeAndReportAsync(source));
         bool tracked;
         lock (_gate)
         {
