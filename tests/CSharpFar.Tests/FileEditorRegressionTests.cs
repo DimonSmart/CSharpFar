@@ -365,6 +365,65 @@ public sealed class FileEditorRegressionTests : IDisposable
         Assert.Null(pathField.GetValue(editor));
     }
 
+    [Fact]
+    public void Show_CancellingDelayedRemoteOpenRetainsSourceUntilWorkerFinishes()
+    {
+        var source = new DelayedReadSource();
+        var registry = new FilePanelSourceRegistry([]);
+        Assert.True(registry.TryAddOwned(source));
+        var driver = new FakeConsoleDriver(80, 25);
+        void CancelWhenReadStarts(FakeConsoleDriver current)
+        {
+            if (source.Started.Task.IsCompleted)
+            {
+                current.BeforeTryReadInput = null;
+                current.BeforeReadInput = null;
+                current.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, shift: false, alt: false, control: false));
+            }
+            else
+            {
+                current.BeforeTryReadInput = CancelWhenReadStarts;
+                current.BeforeReadInput = CancelWhenReadStarts;
+            }
+        }
+        driver.BeforeTryReadInput = CancelWhenReadStarts;
+        driver.BeforeReadInput = CancelWhenReadStarts;
+        using var released = new ManualResetEventSlim();
+        try
+        {
+            var editor = CreateFileEditor(new ScreenRenderer(driver), new AppSettings.EditorSettings(), registry);
+            editor.Show(new PanelLocation(source.SourceId, "/slow.txt"));
+            Assert.True(source.Started.Task.IsCompleted);
+            Assert.True(source.Token.IsCancellationRequested);
+            Assert.NotEqual(Environment.CurrentManagedThreadId, source.WorkerThread);
+            registry.RetireOwnedSource(source, _ => released.Set());
+            Assert.False(released.IsSet);
+            source.Read.TrySetResult(new MemoryStream([1, 2, 3]));
+            Assert.True(released.Wait(TimeSpan.FromSeconds(10)));
+            Assert.False(registry.TryGetSource(source.SourceId, out _));
+        }
+        finally
+        {
+            source.Read.TrySetResult(new MemoryStream());
+        }
+    }
+
+    private sealed class DelayedReadSource : ThrowingPanelSource
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<Stream> Read { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public CancellationToken Token { get; private set; }
+        public int WorkerThread { get; private set; }
+
+        public override Task<Stream> OpenReadAsync(string path, CancellationToken token = default)
+        {
+            Token = token;
+            WorkerThread = Environment.CurrentManagedThreadId;
+            Started.TrySetResult();
+            return Read.Task;
+        }
+    }
+
     private static void ShowFileEditor(
         ScreenRenderer renderer,
         string filePath,
@@ -394,7 +453,7 @@ public sealed class FileEditorRegressionTests : IDisposable
             sourceRegistry);
     }
 
-    private sealed class ThrowingPanelSource : IFilePanelSource
+    private class ThrowingPanelSource : IFilePanelSource
     {
         public PanelSourceId SourceId { get; } = new("test-throwing-editor-source");
         public string DisplayName => "Throwing";
@@ -416,7 +475,7 @@ public sealed class FileEditorRegressionTests : IDisposable
                 Size = 1,
             };
 
-        public Task<Stream> OpenReadAsync(string sourcePath, CancellationToken cancellationToken = default) =>
+        public virtual Task<Stream> OpenReadAsync(string sourcePath, CancellationToken cancellationToken = default) =>
             throw new IOException("Synthetic load failure.");
 
         public Task<Stream> OpenWriteAsync(string sourcePath, bool overwrite, CancellationToken cancellationToken = default) =>
