@@ -44,6 +44,7 @@ def check(host, extension, screenshot):
                 "ReadOnly": False
             }]
         }))
+        (config / "settings.json").write_text(json.dumps({"application": {"confirmExit": False}, "ui": {"confirmDelete": False}}))
         (work / "local-upload.txt").write_text("LOCAL_AZURE_PROBE")
         screen = pyte.Screen(120, 35)
         stream = pyte.ByteStream(screen)
@@ -109,6 +110,7 @@ def check(host, extension, screenshot):
             fcntl.ioctl(terminal, termios.TIOCSWINSZ, struct.pack("HHHH", 35, 120, 0, 0))
             wait_for(lambda: b"\x1b[?1003h" in output, "terminal initialization")
             wait_text("Quit")
+            wait_text("local-upload.txt")
             send(b"azure:\r")
             wait_text("Quick connect")
             send(b"\r")
@@ -121,10 +123,35 @@ def check(host, extension, screenshot):
             send(b"\x1bOR")   # F3
             wait_text("AZURE_PROBE_VIEW")
             send(b"\x1b")
-            wait_text("probe-view.txt")
+            wait_for(lambda: "folder" in visible() and "Quit" in visible() and "AZURE_PROBE_VIEW" not in visible(), "return to file panels")
             print("PASS: installed DLL, public command, connection selection, remote panel and F3 viewer.")
+            send(b"\x1b[15~")  # F5, download selected remote file
+            wait_text("Copy probe-view.txt to:")
+            send(b"\r")
+            wait_for(lambda: (work / "probe-view.txt").exists() and
+                     (work / "probe-view.txt").read_text() == "AZURE_PROBE_VIEW",
+                     "downloaded file")
+            wait_for(lambda: "Copy probe-view.txt to:" not in visible() and "Quit" in visible(), "copy completed")
+            # At the remote root, create a new directory and remove that same directory.
+            send(b"\x1b[18~")
+            wait_text("Create the folder:")
+            send(b"smoke-created\r")
+            wait_for(lambda: "smoke-created" in visible() and "Create the folder:" not in visible(), "directory created")
+            send(b"\x1b[19~")
+            wait_for(lambda: "smoke-created" not in visible() and "Quit" in visible(), "directory deleted")
+            print("PASS: standard F5 download, F7 create directory and F8 delete.")
+            # Upload from the passive local panel using the normal copy dialog.
+            send(b"\t")
+            send(b"\x1b[F")
+            send(b"\x1b[A")
+            send(b"\x1b[15~")
+            wait_text("Copy local-upload.txt to:")
+            send(b"\r")
+            wait_for(lambda: visible().count("local-upload.txt") >= 2 and "Copy local-upload.txt to:" not in visible(),
+                     "uploaded file visible in both panels")
+            print("PASS: standard F5 upload to Azure.")
             send(b"\x1b[21~")  # F10
-            # Quit confirmation defaults to Cancel.
+            # Also handle confirmation if the host elects to show one.
             deadline = time.monotonic() + 15
             while time.monotonic() < deadline:
                 result, status = os.waitpid(pid, os.WNOHANG)
@@ -134,15 +161,15 @@ def check(host, extension, screenshot):
                     pid = None
                     break
                 if "Exit CSharpFar" in visible():
-                    send(b"\x1b[D\r")
+                    send(b"e")
                     # Don't keep sending keys while the process is shutting down.
                     time.sleep(0.2)
                 try:
                     pump()
-                except OSError:
+                except (OSError, AssertionError):
                     time.sleep(0.1)
             if pid is not None:
-                raise AssertionError("CSharpFar did not exit after F10")
+                raise AssertionError(f"CSharpFar did not exit after F10:\n{visible()}")
         finally:
             if pid is not None:
                 try:
