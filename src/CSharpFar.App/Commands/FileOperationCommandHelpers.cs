@@ -1,3 +1,4 @@
+using CSharpFar.Ui;
 using CSharpFar.App.Dialogs;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Services;

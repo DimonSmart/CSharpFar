@@ -1,3 +1,4 @@
+using CSharpFar.Ui;
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.Files;
 using CSharpFar.App.Panels;
