@@ -1,3 +1,10 @@
+using CSharpFar.App.Panels;
+using CSharpFar.App.State;
+using CSharpFar.Core.Abstractions;
+using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Services;
+using CSharpFar.App.Viewer;
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using CSharpFar.App.Dialogs;
@@ -7,7 +14,7 @@ using CSharpFar.Ui;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class OpenFileAttributesCommand : IApplicationCommand
+internal sealed class OpenFileAttributesCommand(PanelCommandTargetResolver targetResolver, PanelController controller, DialogService dialogs, IFileMetadataService fileMetadata, Func<IFileAttributesDialog> fileAttributesDialogFactory, PanelRefreshService panelRefresh, PanelSessionState panels) : IApplicationCommand
 {
     public string CommandId => FunctionKeyCommandIds.Attributes;
 
@@ -15,14 +22,14 @@ internal sealed class OpenFileAttributesCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        var target = context.ResolvePanelTarget(args);
+        var target = targetResolver.ResolvePanelTarget(args);
         if (target.State.SourceId != PanelSourceId.Local)
         {
-            context.Dialogs.Message("Attributes", "File attributes are supported only for local files.");
+            dialogs.Message("Attributes", "File attributes are supported only for local files.");
             return ApplicationCommandResult.Rendered();
         }
 
-        var targets = GetTargetItems(context, target);
+        var targets = GetTargetItems(target);
         if (targets.Count == 0 || targets.Any(item => item.SourceId != PanelSourceId.Local))
             return ApplicationCommandResult.Rendered();
 
@@ -31,39 +38,38 @@ internal sealed class OpenFileAttributesCommand : IApplicationCommand
         try
         {
             snapshot = paths.Count == 1
-                ? context.FileMetadata.GetMetadata(paths[0])
-                : context.FileMetadata.GetMergedMetadata(paths);
+                ? fileMetadata.GetMetadata(paths[0])
+                : fileMetadata.GetMergedMetadata(paths);
         }
         catch (Exception ex)
         {
-            context.Dialogs.Message("Attributes Error", ex.Message);
+            dialogs.Message("Attributes Error", ex.Message);
             return ApplicationCommandResult.Rendered();
         }
 
-        var dialog = context.CreateFileAttributesDialog();
+        var dialog = fileAttributesDialogFactory();
         var result = dialog.Show(snapshot);
         if (result is null)
             return ApplicationCommandResult.Rendered();
 
         if (result.OpenSystemProperties)
         {
-            OpenSystemProperties(paths[0], context);
+            OpenSystemProperties(paths[0]);
             return ApplicationCommandResult.Rendered();
         }
 
         if (!HasChanges(result.ChangeSet))
             return ApplicationCommandResult.Rendered();
 
-        FileMetadataApplyResult applyResult = context.FileMetadata.ApplyMetadata(paths, result.ChangeSet);
+        FileMetadataApplyResult applyResult = fileMetadata.ApplyMetadata(paths, result.ChangeSet);
         if (applyResult.Errors.Count > 0)
-            ShowApplyErrors(context, applyResult);
+            ShowApplyErrors(applyResult);
 
-        context.RefreshPanels();
+        panelRefresh.RefreshPanels(panels.Left, panels.Right);
         return ApplicationCommandResult.Rendered();
     }
 
-    private static IReadOnlyList<FilePanelItem> GetTargetItems(
-        ApplicationCommandContext context,
+    private IReadOnlyList<FilePanelItem> GetTargetItems(
         ResolvedPanelCommandTarget target)
     {
         if (target.State.SelectedLocations.Count > 0)
@@ -73,8 +79,8 @@ internal sealed class OpenFileAttributesCommand : IApplicationCommand
                 .ToList();
         }
 
-        FilePanelItem? item = ApplicationCommandContext.TryResolveCommittedCurrentItem(
-            target.State, target.ActiveCommitted, context.Controller, out var resolvedItem) ? resolvedItem : null;
+        FilePanelItem? item = PanelCommandTargetResolver.TryResolveCommittedCurrentItem(
+            target.State, target.ActiveCommitted, controller, out var resolvedItem) ? resolvedItem : null;
         return item is null || item.IsParentDirectory ? [] : [item];
     }
 
@@ -84,16 +90,16 @@ internal sealed class OpenFileAttributesCommand : IApplicationCommand
         changeSet.LastWriteTime is not null ||
         changeSet.LastAccessTime is not null;
 
-    private static void ShowApplyErrors(ApplicationCommandContext context, FileMetadataApplyResult result)
+    private void ShowApplyErrors(FileMetadataApplyResult result)
     {
         string details = string.Join(
             Environment.NewLine,
             result.Errors.Select(error => $"{Path.GetFileName(error.Path)}: {error.Message}"));
         string message = $"Changed: {result.ChangedCount}{Environment.NewLine}Failed: {result.Errors.Count}{Environment.NewLine}{Environment.NewLine}{details}";
-        context.Dialogs.Message("Attributes Error", message);
+        dialogs.Message("Attributes Error", message);
     }
 
-    private static void OpenSystemProperties(string path, ApplicationCommandContext context)
+    private void OpenSystemProperties(string path)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return;
@@ -109,7 +115,7 @@ internal sealed class OpenFileAttributesCommand : IApplicationCommand
         }
         catch (Exception ex)
         {
-            context.Dialogs.Message("System Properties", ex.Message);
+            dialogs.Message("System Properties", ex.Message);
         }
     }
 }

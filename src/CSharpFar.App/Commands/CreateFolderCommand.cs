@@ -1,29 +1,36 @@
+using CSharpFar.App.Panels;
+using CSharpFar.App.State;
+using CSharpFar.Core.Abstractions;
+using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Services;
+using CSharpFar.App.Viewer;
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class CreateFolderCommand : IApplicationCommand
+internal sealed class CreateFolderCommand(PanelCommandTargetResolver targetResolver, PanelController controller, DialogService dialogs, FilePanelSourceRegistry sourceRegistry, PanelFileOperationWorkflow operations, PanelRefreshService panelRefresh) : IApplicationCommand
 {
     public string CommandId => FunctionKeyCommandIds.CreateFolder;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.HasCapability(context.ResolvePanelTarget(args).State, PanelProviderCapabilities.CreateDirectory);
+        FileOperationCommandHelpers.HasCapability(targetResolver.ResolvePanelTarget(args).State, PanelProviderCapabilities.CreateDirectory);
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        var target = context.ResolvePanelTarget(args);
+        var target = targetResolver.ResolvePanelTarget(args);
         if (!CanExecute(context, args))
         {
-            context.ShowReadOnlyPanelMessage("Create folder");
+            FileOperationCommandHelpers.ShowReadOnlyPanelMessage(dialogs, "Create folder");
             return ApplicationCommandResult.Rendered();
         }
 
         if (!CommittedLocationMatches(target))
             return ApplicationCommandResult.Rendered();
 
-        string? name = context.Dialogs.Input(new SingleLineInputDialogOptions
+        string? name = dialogs.Input(new SingleLineInputDialogOptions
         {
             Title = "Make folder",
             Prompt = "Create the folder:",
@@ -39,15 +46,15 @@ internal sealed class CreateFolderCommand : IApplicationCommand
                 if (target.State.SourceId == PanelSourceId.Local && attempt.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
                     return "Invalid characters in folder path.";
 
-                string newPath = context.CombinePanelPath(target.State, attempt);
+                string newPath = FileOperationCommandHelpers.CombinePanelPath(sourceRegistry, target.State, attempt);
                 try
                 {
-                    context.ExecuteFileOperation(new FileOperationRequest
+                    operations.Execute(new FileOperationRequest
                     {
                         Kind = FileOperationKind.CreateDirectory,
                         Sources = [],
                         Destination = new PanelLocation(target.State.SourceId, newPath),
-                        Options = context.BuildFileOperationOptions(),
+                        Options = operations.BuildOptions(),
                     });
                     return null;
                 }
@@ -60,13 +67,13 @@ internal sealed class CreateFolderCommand : IApplicationCommand
         if (name is null)
             return ApplicationCommandResult.Rendered();
 
-        context.SafeRefresh(target.State, target.VisibleRows);
-        context.Controller.SetCursorByName(target.State, FirstCreatedDirectoryName(name, context.TryGetSource(target.State.SourceId, out var source) ? source.PathSeparators.ToArray() : []), target.VisibleRows);
+        panelRefresh.SafeRefresh(target.State, target.VisibleRows);
+        controller.SetCursorByName(target.State, FirstCreatedDirectoryName(name, sourceRegistry.TryGetSource(target.State.SourceId, out var source) ? source.PathSeparators.ToArray() : []), target.VisibleRows);
         return ApplicationCommandResult.Rendered();
     }
 
     private static bool CommittedLocationMatches(ResolvedPanelCommandTarget target) =>
-        ApplicationCommandContext.CommittedLocationMatches(target.State, target.ActiveCommitted);
+        PanelCommandTargetResolver.CommittedLocationMatches(target.State, target.ActiveCommitted);
 
     private static string FirstCreatedDirectoryName(string path, char[] separators)
     {

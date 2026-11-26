@@ -1,10 +1,17 @@
+using CSharpFar.App.Panels;
+using CSharpFar.App.State;
+using CSharpFar.Core.Abstractions;
+using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Services;
+using CSharpFar.App.Viewer;
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class CopyCommand(bool toCurrentDirectory = false) : IApplicationCommand
+internal sealed class CopyCommand(PanelCommandTargetResolver targetResolver, PanelController controller, DialogService dialogs, FormFieldFactory fields, FilePanelSourceRegistry sourceRegistry, PanelFileOperationWorkflow operations, Action<HelpTopic> showHelp, bool toCurrentDirectory = false) : IApplicationCommand
 {
     public string CommandId => toCurrentDirectory
         ? FunctionKeyCommandIds.CopyToCurrentDirectory
@@ -12,47 +19,47 @@ internal sealed class CopyCommand(bool toCurrentDirectory = false) : IApplicatio
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null)
     {
-        var target = context.ResolvePanelTarget(args);
+        var target = targetResolver.ResolvePanelTarget(args);
         FilePanelState destination = toCurrentDirectory ? target.State : target.PassiveState;
-        return context.HasCapability(target.State, PanelProviderCapabilities.CopyFrom) &&
-               context.HasCapability(destination, PanelProviderCapabilities.CopyTo);
+        return FileOperationCommandHelpers.HasCapability(target.State, PanelProviderCapabilities.CopyFrom) &&
+               FileOperationCommandHelpers.HasCapability(destination, PanelProviderCapabilities.CopyTo);
     }
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        var target = context.ResolvePanelTarget(args);
+        var target = targetResolver.ResolvePanelTarget(args);
         FilePanelState destinationState = toCurrentDirectory ? target.State : target.PassiveState;
-        if (!context.HasCapability(target.State, PanelProviderCapabilities.CopyFrom))
+        if (!FileOperationCommandHelpers.HasCapability(target.State, PanelProviderCapabilities.CopyFrom))
         {
-            context.ShowReadOnlyPanelMessage("Copy");
+            FileOperationCommandHelpers.ShowReadOnlyPanelMessage(dialogs, "Copy");
             return ApplicationCommandResult.Rendered();
         }
 
-        if (!context.HasCapability(destinationState, PanelProviderCapabilities.CopyTo))
+        if (!FileOperationCommandHelpers.HasCapability(destinationState, PanelProviderCapabilities.CopyTo))
         {
             if (toCurrentDirectory)
-                context.ShowReadOnlyPanelMessage("Copy");
+                FileOperationCommandHelpers.ShowReadOnlyPanelMessage(dialogs, "Copy");
             else
-                context.Dialogs.Message(
+                dialogs.Message(
                     "Copy",
                     "Cannot copy to search results panel.\nSearch results are read-only.");
             return ApplicationCommandResult.Rendered();
         }
 
-        if (!ApplicationCommandContext.CommittedLocationMatches(target.State, target.ActiveCommitted) ||
+        if (!PanelCommandTargetResolver.CommittedLocationMatches(target.State, target.ActiveCommitted) ||
             (!toCurrentDirectory &&
-             !ApplicationCommandContext.CommittedLocationMatches(target.PassiveState, target.PassiveCommitted)))
+             !PanelCommandTargetResolver.CommittedLocationMatches(target.PassiveState, target.PassiveCommitted)))
             return ApplicationCommandResult.Rendered();
 
-        var sources = FileOperationCommandHelpers.GetOperationSourceLocations(context, target.State, target.ActiveCommitted);
+        var sources = FileOperationCommandHelpers.GetOperationSourceLocations(controller, target.State, target.ActiveCommitted);
         if (sources.Count == 0)
             return ApplicationCommandResult.Rendered();
 
         var (initialDestination, initialUseTemplate) = toCurrentDirectory
-            ? BuildSameDirectoryDestination(context, target.State, sources)
+            ? BuildSameDirectoryDestination(target.State, sources)
             : (target.PassiveCommitted?.CurrentDirectory ?? target.PassiveState.CurrentDirectory, false);
 
-        var initialOptions = context.BuildFileOperationOptions();
+        var initialOptions = operations.BuildOptions();
         if (toCurrentDirectory)
             initialOptions = initialOptions with { DefaultConflictDecision = ConflictDecisionMode.Rename };
 
@@ -65,39 +72,38 @@ internal sealed class CopyCommand(bool toCurrentDirectory = false) : IApplicatio
             Options = result.Options,
         };
 
-        var dialogResult = new FileOperationDialog(context.Dialogs, context.Fields, context.ShowHelp).ShowCopy(
+        var dialogResult = new FileOperationDialog(dialogs, fields, showHelp).ShowCopy(
             sources.Select(location => location.SourcePath).ToArray(),
             initialDestination,
             initialOptions,
-            result => DestinationTemplatePreview.Show(context, CreateRequest(result)),
+            result => operations.Preview(CreateRequest(result)),
             initialUseTemplate: initialUseTemplate);
         if (dialogResult is null)
             return ApplicationCommandResult.Rendered();
 
         try
         {
-            context.ExecuteFileOperation(CreateRequest(dialogResult));
+            operations.Execute(CreateRequest(dialogResult));
 
             target.State.SelectedLocations.Clear();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            context.Dialogs.Message("Copy Error", ex.Message);
+            dialogs.Message("Copy Error", ex.Message);
         }
 
-        context.RefreshPanelsAfterFileOperation();
+        operations.RefreshAfterOperation();
         return ApplicationCommandResult.Rendered();
     }
 
-    private static (string Destination, bool UseTemplate) BuildSameDirectoryDestination(
-        ApplicationCommandContext context,
+    private (string Destination, bool UseTemplate) BuildSameDirectoryDestination(
         FilePanelState state,
         IReadOnlyList<PanelLocation> sources)
     {
         if (sources.Count == 1)
         {
-            string name = context.TryGetSource(sources[0].SourceId, out var source)
+            string name = sourceRegistry.TryGetSource(sources[0].SourceId, out var source)
                 ? source.GetFileName(sources[0].SourcePath)
                 : throw new InvalidOperationException("Source is unavailable.");
             bool isDirectory = state.Items.Any(item =>
@@ -108,12 +114,12 @@ internal sealed class CopyCommand(bool toCurrentDirectory = false) : IApplicatio
                 string copyName = dot > 0 && dot < name.Length - 1
                     ? name[..dot] + " (copy)" + name[dot..]
                     : name + " (copy)";
-                return (context.CombinePanelPath(state, copyName), false);
+                return (FileOperationCommandHelpers.CombinePanelPath(sourceRegistry, state, copyName), false);
             }
         }
 
         const string nameTemplate = "{name} (copy){ext}";
-        string fullPath = context.CombinePanelPath(state, nameTemplate);
+        string fullPath = FileOperationCommandHelpers.CombinePanelPath(sourceRegistry, state, nameTemplate);
         string literalDirectoryPrefix = fullPath[..^nameTemplate.Length]
             .Replace("{", "{{", StringComparison.Ordinal)
             .Replace("}", "}}", StringComparison.Ordinal);

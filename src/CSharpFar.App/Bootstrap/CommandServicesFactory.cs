@@ -108,11 +108,17 @@ internal static class CommandServicesFactory
             panelQuickSearch.Close,
             temporarily => commandCompletionController.Hide(temporarily));
         var targetResolver = new PanelCommandTargetResolver(panelWorkspace);
+        var operationRunner = new FileOperationUiRunner(modalDialogs, dialogs, () => session.App.Palette,
+            fileOperations, () => settings.FileOperations.ShowTotalProgress, formFields);
+        var fileOperationWorkflow = new PanelFileOperationWorkflow(operationRunner, fileOperations, dialogs,
+            settings, panelRefresh, session.Panels);
         var commandRegistry = new ApplicationCommandRegistry(DefaultApplicationCommands.Create(
             interactiveSurfaces, session, dialogs, uriLauncher, updateCheckService, applicationUpdateInstaller,
             clipboard, diagnosticLog, terminalSurface, settings, saveSettings, workspaceModeController,
             modulePanelOpener, panelWorkspace, panelRefresh, panelSort, topMenu, targetResolver,
-            panelController, panelNavigation, autoRefresh, sourceRegistry, searchResults, panelFileOpener, directorySizes));
+            panelController, panelNavigation, autoRefresh, sourceRegistry, searchResults, panelFileOpener,
+            formFields, fileOperationWorkflow, topic => new HelpViewer(interactiveSurfaces, session.App.Palette).Show(topic),
+            fileMetadata, fileAttributesDialogFactory, directorySizes));
         var commandContext = new ApplicationCommandContext(
             interactiveSurfaces,
             modalDialogs,
