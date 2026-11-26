@@ -83,7 +83,7 @@ internal sealed class ChangeDirectoryCommandExecutor
                 navigation.Navigate(state, PanelLocation.Local(targetDirectory), preserveOnError: true, loaded =>
                 {
                     if (loaded) _startWatching(state, navigation.ResolveSide?.Invoke(state) ?? initialSide);
-                });
+                }, requireExistingLocalDirectory: true);
             }
             else if (_controller.TryLoadDirectory(state, targetDirectory, _panelOptions()))
                 _startWatching(state, _activeSide());

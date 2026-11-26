@@ -67,7 +67,7 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
                 context.StartWatching(state, context.SideForState(state));
             else
                 context.Dialogs.Message("Directory Shortcut", $"Cannot open directory: {canonicalPath}");
-        });
+        }, requireExistingLocalDirectory: true);
 
         return ApplicationCommandResult.Rendered();
     }

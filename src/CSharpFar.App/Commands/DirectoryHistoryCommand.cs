@@ -50,7 +50,7 @@ internal sealed class DirectoryHistoryCommand : IApplicationCommand
                     context.StartWatching(target.State, context.SideForState(target.State));
                 else
                     context.Dialogs.Message("Directory History", $"Cannot open directory: {canonicalPath}");
-            });
+            }, requireExistingLocalDirectory: true);
 
             return ApplicationCommandResult.Rendered();
         }

@@ -21,8 +21,8 @@ public sealed class PanelLoadingCoordinator(
 
     public void Navigate(FilePanelState panel, PanelLocation location,
         AppSettings.PanelOptionsSettings options, bool preserveOnError = false,
-        Action<bool>? completed = null) =>
-        RequestLoad(panel, location, options, refresh: false, preserveOnError, null, completed);
+        Action<bool>? completed = null, bool requireExistingLocalDirectory = false) =>
+        RequestLoad(panel, location, options, refresh: false, preserveOnError, null, completed, requireExistingLocalDirectory);
 
     public void Refresh(FilePanelState panel, AppSettings.PanelOptionsSettings options,
         Func<int> visibleRows, Action<bool>? completed = null)
@@ -37,7 +37,7 @@ public sealed class PanelLoadingCoordinator(
                 panel.SortDescending != current.ViewRequest.SortDescending)
             {
                 RequestLoad(panel, current.Location, options, current.Refresh, current.PreserveOnError,
-                    current.VisibleRows, current.Completed);
+                    current.VisibleRows, current.Completed, current.ViewRequest.RequireExistingLocalDirectory);
                 return;
             }
             if (current.Refresh)
@@ -60,7 +60,7 @@ public sealed class PanelLoadingCoordinator(
 
     private void RequestLoad(FilePanelState panel, PanelLocation location,
         AppSettings.PanelOptionsSettings options, bool refresh, bool preserveOnError,
-        Func<int>? visibleRows, Action<bool>? completed)
+        Func<int>? visibleRows, Action<bool>? completed, bool requireExistingLocalDirectory = false)
     {
         if (_disposed)
             return;
@@ -80,7 +80,7 @@ public sealed class PanelLoadingCoordinator(
             new PanelViewRequest
             {
                 Location = normalized,
-                RequireExistingLocalDirectory = preserveOnError,
+                RequireExistingLocalDirectory = requireExistingLocalDirectory,
                 DirectoryPath = normalized.SourcePath,
                 SortMode = panel.SortMode,
                 SortDescending = panel.SortDescending,

@@ -338,7 +338,23 @@ public sealed class FileEditorRegressionTests : IDisposable
         var registry = new FilePanelSourceRegistry([source]);
         var driver = new FakeConsoleDriver(80, 25);
         // Acknowledge the error dialog, not the preceding asynchronous opening surface.
-        driver.BeforeReadInput = _ => driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        void AcknowledgeFailure(FakeConsoleDriver current)
+        {
+            if (Enumerable.Range(0, current.GetSize().Height).Any(y =>
+                    current.GetRow(y).Contains("Synthetic load failure.", StringComparison.Ordinal)))
+            {
+                current.BeforeReadInput = null;
+                current.BeforeTryReadInput = null;
+                current.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+            }
+            else
+            {
+                current.BeforeReadInput = AcknowledgeFailure;
+                current.BeforeTryReadInput = AcknowledgeFailure;
+            }
+        }
+        driver.BeforeReadInput = AcknowledgeFailure;
+        driver.BeforeTryReadInput = AcknowledgeFailure;
         var editor = CreateFileEditor(new ScreenRenderer(driver), new AppSettings.EditorSettings(), registry);
 
         editor.Show(new PanelLocation(source.SourceId, "/broken.txt"));
