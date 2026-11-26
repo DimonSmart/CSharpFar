@@ -1,8 +1,8 @@
 [CmdletBinding()]
 param(
-    # The initial public v1.0.0 SDK commit. Move this only with a reviewed
-    # major-version migration or a deliberate rebaseline.
-    [string]$BaselineCommit = '6d9873abc0c855d93325d5227b34fe6f8eabadb8'
+    # SDK 1 baseline: 6d9873abc0c855d93325d5227b34fe6f8eabadb8.
+    # SDK 2 migration: IDD-0090; do not move this baseline for compatible releases.
+    [string]$BaselineCommit = '354507c74d299d23a71e9092671634c8476ec333'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,7 +36,7 @@ try {
         }
     }
     finally { Pop-Location }
-    Write-Host 'PASS: public plugin SDK binaries remain compatible with the v1.0.0 baseline.'
+    Write-Host 'PASS: public plugin SDK binaries remain compatible with the v2.0.0 baseline.'
 }
 finally {
     if ($worktreeAdded) {
