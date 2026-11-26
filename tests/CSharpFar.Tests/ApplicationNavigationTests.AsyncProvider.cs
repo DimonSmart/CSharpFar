@@ -1,4 +1,5 @@
 using CSharpFar.Console;
+using CSharpFar.App.Commands;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
@@ -32,12 +33,12 @@ public sealed partial class ApplicationNavigationTests
         var initial = slowPanel.CurrentLocation;
         try
         {
-            app.CommandContext.NavigatePanel(slowPanel, new PanelLocation(source.SourceId, "/slow"), true, _ => { });
+            app.PanelNavigation.Navigate(slowPanel, new PanelLocation(source.SourceId, "/slow"), true, _ => { });
             Assert.True(source.Started.Task.Wait(TimeSpan.FromSeconds(10)));
             Assert.NotEqual(Environment.CurrentManagedThreadId, source.WorkerThread);
             Assert.True(SpinWait.SpinUntil(() =>
             {
-                app.CommandContext.DrainUiActions?.Invoke();
+                app.DrainUiActions();
                 return slowPanel.IsLoadingIndicatorVisible;
             }, TimeSpan.FromSeconds(10)));
             Render(app);
@@ -46,7 +47,7 @@ public sealed partial class ApplicationNavigationTests
             Assert.Equal(initial, slowPanel.CurrentLocation);
 
             HandleKeyAndRender(app, Key(ConsoleKey.Tab));
-            Assert.Equal(PanelSide.Right, app.CommandContext.ActiveSide);
+            Assert.Equal(PanelSide.Right, app.Session.Panels.ActiveSide);
             int cursor = otherPanel.CursorIndex;
             HandleKeyAndRender(app, Key(ConsoleKey.DownArrow));
             Assert.True(otherPanel.CursorIndex > cursor);
@@ -56,7 +57,7 @@ public sealed partial class ApplicationNavigationTests
             Render(app);
             Assert.Contains("Loading", string.Join(Environment.NewLine,
                 Enumerable.Range(0, driver.GetSize().Height).Select(driver.GetRow)));
-            app.CommandContext.SwapPanels();
+            app.CommandRegistry.Execute(ApplicationCommandIds.SwapPanels);
             Render(app);
             Assert.Same(slowPanel, GetRightPanel(app));
             Assert.Same(otherPanel, GetLeftPanel(app));

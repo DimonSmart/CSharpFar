@@ -78,9 +78,9 @@ public sealed class DiagnosticsTests
                 ApplicationRunMode.Normal,
                 DiagnosticsEnabled: true));
 
-        Assert.True(services.CommandContext.DiagnosticLog.IsEnabled);
+        Assert.True(services.DiagnosticLog.IsEnabled);
         Assert.Contains(
-            services.CommandContext.DiagnosticLog.GetSnapshot(),
+            services.DiagnosticLog.GetSnapshot(),
             entry => entry.Category == DiagnosticCategory.Application &&
                      entry.Message.Contains("Diagnostics enabled", StringComparison.Ordinal));
     }
