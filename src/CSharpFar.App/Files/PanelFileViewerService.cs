@@ -171,7 +171,7 @@ internal sealed class PanelFileViewerService
             cancellationToken.ThrowIfCancellationRequested();
 
             if (input.CanSeek)
-                return new RemoteViewerInput(input, new SeekableStreamFileByteReader(input), usage);
+                return new RemoteViewerInput(new SeekableStreamFileByteReader(input, usage));
 
             // Non-seekable streams are buffered on disk, never into an unbounded byte array.
             spool = Path.Combine(Path.GetTempPath(), "csharpfar-view-" + Guid.NewGuid().ToString("N"));
@@ -182,12 +182,18 @@ internal sealed class PanelFileViewerService
                 await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
             }
 
-            return new RemoteViewerInput(input, new RandomAccessFileByteReader(spool), usage, spool);
+            await input.DisposeAsync().ConfigureAwait(false);
+            input = null;
+            usage.Dispose();
+            return new RemoteViewerInput(new RandomAccessFileByteReader(spool), spool);
         }
         catch
         {
-            input?.Dispose();
-            usage.Dispose();
+            try
+            {
+                if (input is not null) await input.DisposeAsync().ConfigureAwait(false);
+            }
+            finally { usage.Dispose(); }
             if (spool is not null)
             {
                 try { File.Delete(spool); }
@@ -197,37 +203,22 @@ internal sealed class PanelFileViewerService
         }
     }
 
-    private sealed class RemoteViewerInput(
-        Stream input, IFileByteReader reader, IDisposable usage, string? spool = null) : IDisposable
+    private sealed class RemoteViewerInput(IFileByteReader reader, string? spool = null) : IDisposable
     {
         public IFileByteReader Reader { get; } = reader;
 
         public void Dispose()
         {
-            bool readerOwnsInput = Reader is SeekableStreamFileByteReader;
             try
             {
-                if (Reader is IDisposable disposable)
-                    disposable.Dispose();
+                if (Reader is IDisposable disposable) disposable.Dispose();
             }
             finally
             {
-                try
+                if (spool is not null)
                 {
-                    if (!readerOwnsInput)
-                        input.Dispose();
-                }
-                finally
-                {
-                    try { usage.Dispose(); }
-                    finally
-                    {
-                        if (spool is not null)
-                        {
-                            try { File.Delete(spool); }
-                            catch (FileNotFoundException) { }
-                        }
-                    }
+                    try { File.Delete(spool); }
+                    catch (FileNotFoundException) { }
                 }
             }
         }

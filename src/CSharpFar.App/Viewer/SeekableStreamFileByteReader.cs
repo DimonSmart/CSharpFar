@@ -1,7 +1,7 @@
 namespace CSharpFar.App.Viewer;
 
 /// <summary>Serialized random-access reads over an owned seekable provider stream.</summary>
-internal sealed class SeekableStreamFileByteReader(Stream stream) : IFileByteReader, IDisposable
+internal sealed class SeekableStreamFileByteReader(Stream stream, IDisposable? usage = null) : IFileByteReader, IDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _disposeCancellation = new();
@@ -9,6 +9,7 @@ internal sealed class SeekableStreamFileByteReader(Stream stream) : IFileByteRea
     private int _activeReads;
     private int _disposed;
     private int _resourcesDisposed;
+    private int _cancellationFinished;
 
     public long Length => _length;
 
@@ -53,8 +54,18 @@ internal sealed class SeekableStreamFileByteReader(Stream stream) : IFileByteRea
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
 
-        _disposeCancellation.Cancel();
-        TryDisposeResources();
+        _ = CancelAndDisposeAsync();
+    }
+
+    private async Task CancelAndDisposeAsync()
+    {
+        try { await _disposeCancellation.CancelAsync().ConfigureAwait(false); }
+        catch (Exception ex) { System.Diagnostics.Trace.TraceError(ex.ToString()); }
+        finally
+        {
+            Volatile.Write(ref _cancellationFinished, 1);
+            TryDisposeResources();
+        }
     }
 
     private void ReleaseRead()
@@ -66,14 +77,23 @@ internal sealed class SeekableStreamFileByteReader(Stream stream) : IFileByteRea
     private void TryDisposeResources()
     {
         if (Volatile.Read(ref _disposed) == 0 ||
+            Volatile.Read(ref _cancellationFinished) == 0 ||
             Volatile.Read(ref _activeReads) != 0 ||
             Interlocked.Exchange(ref _resourcesDisposed, 1) != 0)
         {
             return;
         }
 
-        _gate.Dispose();
-        _disposeCancellation.Dispose();
-        stream.Dispose();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                _gate.Dispose();
+                _disposeCancellation.Dispose();
+                await stream.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex) { System.Diagnostics.Trace.TraceError(ex.ToString()); }
+            finally { usage?.Dispose(); }
+        });
     }
 }
