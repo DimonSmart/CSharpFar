@@ -164,8 +164,8 @@ internal sealed class CompareOptionsDialog
 
     private static FormRow ContextSelection(FilePanelState leftPanel, FilePanelState rightPanel)
     {
-        int leftCount = leftPanel.SelectedPaths.Count;
-        int rightCount = rightPanel.SelectedPaths.Count;
+        int leftCount = leftPanel.SelectedLocations.Count;
+        int rightCount = rightPanel.SelectedLocations.Count;
         return leftCount + rightCount == 0
             ? FormControls.Label("Scope: current folders")
             : FormControls.Label($"Selected: left {leftCount}, right {rightCount}");

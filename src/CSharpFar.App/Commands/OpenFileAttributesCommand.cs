@@ -66,10 +66,10 @@ internal sealed class OpenFileAttributesCommand : IApplicationCommand
         ApplicationCommandContext context,
         ResolvedPanelCommandTarget target)
     {
-        if (target.State.SelectedPaths.Count > 0)
+        if (target.State.SelectedLocations.Count > 0)
         {
             return target.State.Items
-                .Where(item => !item.IsParentDirectory && target.State.SelectedPaths.Contains(item.FullPath))
+                .Where(item => !item.IsParentDirectory && target.State.SelectedLocations.Contains(item.Location))
                 .ToList();
         }
 
