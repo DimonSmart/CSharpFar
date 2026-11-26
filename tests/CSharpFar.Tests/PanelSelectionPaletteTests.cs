@@ -36,7 +36,7 @@ public sealed class PanelSelectionPaletteTests
             var screen = new ScreenRenderer(driver);
             FilePanelState state = MakeState();
             state.CursorIndex = 1;
-            state.SelectedPaths.Add(state.Items[0].FullPath);
+            state.SelectedLocations.Add(state.Items[0].Location);
 
             UiTestRender.Render(screen, canvas =>
             {
@@ -59,7 +59,7 @@ public sealed class PanelSelectionPaletteTests
         var driver = new FakeConsoleDriver(40, 12);
         FilePanelState state = MakeState();
         state.CursorIndex = 0;
-        state.SelectedPaths.Add(state.Items[0].FullPath);
+        state.SelectedLocations.Add(state.Items[0].Location);
         var palette = CSharpFarPaletteRegistry.Default;
 
         UiTestRender.Render(new ScreenRenderer(driver), canvas =>

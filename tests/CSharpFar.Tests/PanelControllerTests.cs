@@ -83,11 +83,11 @@ public class PanelControllerTests
         var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
-        state.SelectedPaths.Add(Root + @"\file.txt");
+        state.SelectedLocations.Add(PanelLocation.Local(Root + @"\file.txt"));
 
         ctrl.LoadDirectory(state, Sub1);
 
-        Assert.Empty(state.SelectedPaths);
+        Assert.Empty(state.SelectedLocations);
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public class PanelControllerTests
         var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(new ThrowingFileSystemService()));
         var state = new FilePanelState { CurrentDirectory = Root };
         state.Items.Add(new FilePanelItem { Name = "old.txt", FullPath = Root + @"\old.txt", IsDirectory = false });
-        state.SelectedPaths.Add(Root + @"\old.txt");
+        state.SelectedLocations.Add(PanelLocation.Local(Root + @"\old.txt"));
         state.CursorIndex = 3;
         state.ScrollOffset = 2;
 
@@ -167,7 +167,7 @@ public class PanelControllerTests
         Assert.Equal(Root, state.CurrentDirectory);
         Assert.Single(state.Items);
         Assert.Equal("old.txt", state.Items[0].Name);
-        Assert.Contains(Root + @"\old.txt", state.SelectedPaths);
+        Assert.Contains(PanelLocation.Local(Root + @"\old.txt"), state.SelectedLocations);
         Assert.Equal(3, state.CursorIndex);
         Assert.Equal(2, state.ScrollOffset);
     }
@@ -183,8 +183,8 @@ public class PanelControllerTests
         var ctrl = TestPanelControllerFactory.Create(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
-        state.SelectedPaths.Add(Root + @"\a.txt");
-        state.SelectedPaths.Add(Root + @"\b.txt");
+        state.SelectedLocations.Add(PanelLocation.Local(Root + @"\a.txt"));
+        state.SelectedLocations.Add(PanelLocation.Local(Root + @"\b.txt"));
 
         fs.AddDirectory(Root,
             new FilePanelItem { Name = "a.txt", FullPath = Root + @"\a.txt", IsDirectory = false },
@@ -192,9 +192,9 @@ public class PanelControllerTests
 
         ctrl.RefreshDirectory(state, visibleRows: 10);
 
-        Assert.Contains(Root + @"\a.txt", state.SelectedPaths);
-        Assert.DoesNotContain(Root + @"\b.txt", state.SelectedPaths);
-        Assert.Single(state.SelectedPaths);
+        Assert.Contains(PanelLocation.Local(Root + @"\a.txt"), state.SelectedLocations);
+        Assert.DoesNotContain(PanelLocation.Local(Root + @"\b.txt"), state.SelectedLocations);
+        Assert.Single(state.SelectedLocations);
     }
 
     [Fact]

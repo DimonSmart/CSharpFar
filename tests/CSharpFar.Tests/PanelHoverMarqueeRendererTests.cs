@@ -20,7 +20,7 @@ public sealed class PanelHoverMarqueeRendererTests
             Item("selected-directory-ending", directory: true),
             Item("parent-directory-ending", directory: true, parent: true));
         state.CursorIndex = 0;
-        state.SelectedPaths.Add(state.Items[1].FullPath);
+        state.SelectedLocations.Add(state.Items[1].Location);
         var registrations = new List<HoverMarqueeRegistration>();
 
         UiTestRender.Render(screen, canvas =>
