@@ -469,7 +469,7 @@ internal sealed class ApplicationCommandContext
     public void RefreshAndSelect(FilePanelState state, int visibleRows, PanelLocation location) =>
         _panelRefresh.SafeRefresh(state, visibleRows, loaded =>
         {
-            if (loaded) Controller.SetCursorByLocation(state, location, VisibleRowsForSide(SideForState(state)));
+            if (loaded) Controller.SetCursorByLocation(state, location, VisibleRows(SideForState(state)));
         });
 
     public void NavigatePanel(FilePanelState state, PanelLocation location, bool preserveOnError, Action<bool> completed, bool requireExistingLocalDirectory = false) =>
