@@ -10,8 +10,12 @@ public sealed class AzureBlobPanelProvider : IPanelProvider
     public string Title => "Azure Blob Storage";
 
     public ValueTask<PluginPanelOpenRequest> OpenAsync(IPanelProviderContext context, CancellationToken cancellationToken)
-        => ValueTask.FromResult(Open(context.Ui, context.Settings, cancellationToken)
-            ?? throw new OperationCanceledException("Azure connection cancelled."));
+    {
+        PluginPanelOpenRequest? request;
+        try { request = Open(context.Ui, context.Settings, cancellationToken); }
+        catch (Exception error) { throw AzureErrors.Safe(error, cancellationToken); }
+        return ValueTask.FromResult(request ?? throw new OperationCanceledException("Azure connection cancelled."));
+    }
 
     public ValueTask<PluginCommandResult> ExecuteAsync(IPluginUiService ui, IPluginSettingsService settings, CancellationToken token)
     {
@@ -20,7 +24,7 @@ public sealed class AzureBlobPanelProvider : IPanelProvider
             var request = Open(ui, settings, token);
             return ValueTask.FromResult(request is null ? PluginCommandResult.Cancelled() : PluginCommandResult.OpenPanel(request));
         }
-        catch (OperationCanceledException) { return ValueTask.FromResult(PluginCommandResult.Cancelled()); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { return ValueTask.FromResult(PluginCommandResult.Cancelled()); }
         catch (Exception error) { return ValueTask.FromResult(PluginCommandResult.Failed(AzureErrors.Message(error))); }
     }
 
@@ -146,14 +150,15 @@ internal static class AzureErrors
             _ => $"Azure request failed (HTTP {failure.Status}). Check permissions, connection and object state."
         },
         Azure.Identity.AuthenticationFailedException => "Azure CLI authentication failed. Run az login and check the account's storage access.",
-        OperationCanceledException => "Azure operation cancelled.",
+        OperationCanceledException => "Azure network operation timed out or was interrupted.",
         AzureOperationException => error.Message,
         _ => "Azure operation failed. Check connection settings, path and permissions."
     };
 
-    public static Exception Safe(Exception error) => error is OperationCanceledException cancelled
-        ? new OperationCanceledException("Azure operation cancelled.", cancelled.CancellationToken)
-        : new AzureOperationException(Message(error));
+    public static Exception Safe(Exception error, CancellationToken token = default) =>
+        error is OperationCanceledException && token.IsCancellationRequested
+            ? new OperationCanceledException("Azure operation cancelled.", token)
+            : new AzureOperationException(Message(error));
 }
 
 internal sealed class AzureOperationException(string message) : IOException(message);

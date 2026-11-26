@@ -87,7 +87,7 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
                 throw new AzureOperationException("A file and virtual directory have the same name; operations are unsafe.");
             return items;
         }
-        catch (Exception error) { throw AzureErrors.Safe(error); }
+        catch (Exception error) { throw AzureErrors.Safe(error, token); }
     }
 
     public async Task<FilePanelItem?> GetItemAsync(string path, CancellationToken token = default)
@@ -118,7 +118,7 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
             if (properties is not null) return Item("/" + file, false, properties.ContentLength, properties.LastModified);
             return directory ? Item("/" + prefix, true) : null;
         }
-        catch (Exception error) { throw AzureErrors.Safe(error); }
+        catch (Exception error) { throw AzureErrors.Safe(error, token); }
     }
 
     public async Task<Stream> OpenReadAsync(string path, CancellationToken token = default)
@@ -130,7 +130,7 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
                 new BlobOpenReadOptions(allowModifications: false), token).ConfigureAwait(false);
             return new AzureSafeStream(stream);
         }
-        catch (Exception error) { throw AzureErrors.Safe(error); }
+        catch (Exception error) { throw AzureErrors.Safe(error, token); }
     }
 
     public Task<Stream> OpenWriteAsync(string path, bool overwrite, CancellationToken token = default)
@@ -156,7 +156,7 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
             if (owner is not null) stages[name] = owner;
             return new AzureSafeStream(stream);
         }
-        catch (Exception error) { throw AzureErrors.Safe(error); }
+        catch (Exception error) { throw AzureErrors.Safe(error, token); }
     }
 
     public async Task CreateDirectoryAsync(string path, CancellationToken token = default)
@@ -173,7 +173,7 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
                 new BlobUploadOptions { Conditions = Exclusive, Metadata = new Dictionary<string, string> { [MarkerKey] = MarkerValue } },
                 token).ConfigureAwait(false);
         }
-        catch (Exception error) { throw AzureErrors.Safe(error); }
+        catch (Exception error) { throw AzureErrors.Safe(error, token); }
     }
 
     public async Task DeleteAsync(string path, bool recursive, CancellationToken token = default)
@@ -221,7 +221,7 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
             catch (Exception) when (deleted > 0)
             { throw new AzureOperationException($"Directory deletion may be partial ({deleted} acknowledged). Refresh before retrying."); }
         }
-        catch (Exception error) { throw AzureErrors.Safe(error); }
+        catch (Exception error) { throw AzureErrors.Safe(error, token); }
     }
 
     public Task RenameAsync(string source, string destination, CancellationToken token = default)
@@ -265,7 +265,7 @@ public sealed class AzureBlobFilePanelSource(BlobContainerClient container, stri
             catch (Exception) when (moved > 0)
             { throw new AzureOperationException($"Directory rename may be partial ({moved} acknowledged). Refresh before retrying."); }
         }
-        catch (Exception error) { throw AzureErrors.Safe(error); }
+        catch (Exception error) { throw AzureErrors.Safe(error, token); }
     }
 
     private async Task CopyThenDelete(string from, string to, CancellationToken token)
