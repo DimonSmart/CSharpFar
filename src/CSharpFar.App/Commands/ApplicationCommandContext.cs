@@ -295,87 +295,21 @@ internal sealed class ApplicationCommandContext
             ApplicationVersionProvider.GetVersionInfo(),
             () => GetTerminalDiagnostics()).Show();
 
-    public void ViewFile(string path) =>
-        new FileViewer(_interactiveSurfaces, ModalDialogs, Dialogs, Fields, Palette).Show(path);
+    public void ViewFile(string path) => _panelFileViewer.ViewFile(path);
 
-    public void EditFile(
-        string path,
-        EditorFileNameInsertionContext? fileNameInsertionContext = null)
-    {
-        new FileEditor(
-            _interactiveSurfaces,
-            ModalDialogs,
-            Dialogs,
-            Palette,
-            Settings.Editor,
-            TextClipboard,
-            Fields,
-            fileNameInsertionContext,
-            null).Show(path);
-    }
+    public void EditFile(string path, EditorFileNameInsertionContext? fileNameInsertionContext = null) =>
+        _panelFileViewer.EditFile(path, fileNameInsertionContext);
 
-    public void EditFile(
-        PanelLocation location,
-        EditorFileNameInsertionContext? fileNameInsertionContext = null)
-    {
-        if (location.SourceId == PanelSourceId.Local)
-        {
-            EditFile(location.SourcePath, fileNameInsertionContext);
-            return;
-        }
+    public void EditFile(PanelLocation location, EditorFileNameInsertionContext? fileNameInsertionContext = null) =>
+        _panelFileViewer.EditFile(location, fileNameInsertionContext);
 
-        new FileEditor(
-            _interactiveSurfaces,
-            ModalDialogs,
-            Dialogs,
-            Palette,
-            Settings.Editor,
-            TextClipboard,
-            Fields,
-            fileNameInsertionContext,
-            null,
-            _sourceRegistry).Show(location);
-    }
+    public EditorOpenResult EditFileWithNewFileFormat(string path, EditorDocumentFormat newFileFormat,
+        EditorFileNameInsertionContext? fileNameInsertionContext = null) =>
+        _panelFileViewer.EditFileWithNewFileFormat(path, newFileFormat, fileNameInsertionContext);
 
-    public EditorOpenResult EditFileWithNewFileFormat(
-        string path,
-        EditorDocumentFormat newFileFormat,
-        EditorFileNameInsertionContext? fileNameInsertionContext = null)
-    {
-        return new FileEditor(
-            _interactiveSurfaces,
-            ModalDialogs,
-            Dialogs,
-            Palette,
-            Settings.Editor,
-            TextClipboard,
-            Fields,
-            fileNameInsertionContext,
-            null).ShowWithNewFileFormat(path, newFileFormat);
-    }
-
-    public EditorOpenResult EditFileWithNewFileFormat(
-        PanelLocation location,
-        EditorDocumentFormat newFileFormat,
-        EditorFileNameInsertionContext? fileNameInsertionContext = null)
-    {
-        if (location.SourceId == PanelSourceId.Local)
-        {
-            return EditFileWithNewFileFormat(location.SourcePath, newFileFormat, fileNameInsertionContext);
-        }
-
-        return new FileEditor(
-            _interactiveSurfaces,
-            ModalDialogs,
-            Dialogs,
-            Palette,
-            Settings.Editor,
-            TextClipboard,
-            Fields,
-            fileNameInsertionContext,
-            null,
-            _sourceRegistry).ShowWithNewFileFormat(location, newFileFormat);
-    }
+    public EditorOpenResult EditFileWithNewFileFormat(PanelLocation location, EditorDocumentFormat newFileFormat,
+        EditorFileNameInsertionContext? fileNameInsertionContext = null) =>
+        _panelFileViewer.EditFileWithNewFileFormat(location, newFileFormat, fileNameInsertionContext);
 
     public void SaveSettings() => _saveSettings?.Invoke();
 

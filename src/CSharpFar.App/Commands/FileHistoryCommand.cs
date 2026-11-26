@@ -1,3 +1,11 @@
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
+using CSharpFar.Core.Services;
+using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Abstractions;
+using CSharpFar.App.Panels;
+using CSharpFar.App.Files;
+using CSharpFar.App.CommandLine;
+using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.Core.History;
@@ -6,7 +14,7 @@ using CSharpFar.Ui;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class FileHistoryCommand : IApplicationCommand
+internal sealed class FileHistoryCommand(PanelCommandTargetResolver targetResolver, PanelController controller, PanelFileViewerService viewer, PanelRefreshService panelRefresh, DialogService dialogs, IHistoryStore history, FilePanelSourceRegistry sourceRegistry, Action resetFunctionKeyLayer) : IApplicationCommand
 {
     public string CommandId => FunctionKeyCommandIds.FileHistory;
 
@@ -14,16 +22,16 @@ internal sealed class FileHistoryCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        var target = context.ResolvePanelTarget(args);
-        if (!context.CanAccessLocalFileSystem(target.State))
+        var target = targetResolver.ResolvePanelTarget(args);
+        if (!PanelCommandTargetResolver.CanAccessLocalFileSystem(sourceRegistry, target.State))
             return ApplicationCommandResult.Rendered();
 
         try
         {
-            var result = context.Dialogs.Select(new SelectionDialogOptions<FileHistoryItem>
+            var result = dialogs.Select(new SelectionDialogOptions<FileHistoryItem>
             {
                 Title = "File History",
-                Items = context.History.GetFileHistory().Reverse().ToArray(),
+                Items = history.GetFileHistory().Reverse().ToArray(),
                 ItemText = static item => item.Path,
                 Presentation = SelectionDialogPresentation.Standard,
             });
@@ -33,21 +41,21 @@ internal sealed class FileHistoryCommand : IApplicationCommand
 
             if (!File.Exists(path))
             {
-                context.Dialogs.Message("File History", $"File not found: {path}");
+                dialogs.Message("File History", $"File not found: {path}");
                 return ApplicationCommandResult.Rendered();
             }
 
-            var choice = new OpenFileDialog(context.Dialogs).Show(Path.GetFileName(path));
+            var choice = new OpenFileDialog(dialogs).Show(Path.GetFileName(path));
             switch (choice)
             {
                 case OpenFileChoice.View:
-                    context.History.AddFile(new FileHistoryItem { Path = path });
-                    context.ViewFile(path);
+                    history.AddFile(new FileHistoryItem { Path = path });
+                    viewer.ViewFile(path);
                     break;
                 case OpenFileChoice.Edit:
-                    context.History.AddFile(new FileHistoryItem { Path = path });
-                    context.EditFile(path, PanelCommandEditorContextFactory.Create(context, target));
-                    context.SafeRefresh(target.State, target.VisibleRows);
+                    history.AddFile(new FileHistoryItem { Path = path });
+                    viewer.EditFile(path, PanelCommandEditorContextFactory.Create(controller, target));
+                    panelRefresh.SafeRefresh(target.State, target.VisibleRows);
                     break;
             }
 
@@ -55,7 +63,7 @@ internal sealed class FileHistoryCommand : IApplicationCommand
         }
         finally
         {
-            context.ResetFunctionKeyLayer();
+            resetFunctionKeyLayer();
         }
     }
 

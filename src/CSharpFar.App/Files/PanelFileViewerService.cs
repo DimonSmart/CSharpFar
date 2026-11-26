@@ -63,6 +63,88 @@ internal sealed class PanelFileViewerService
         _uriLauncher = uriLauncher;
     }
 
+    public void ViewFile(string path) =>
+        new FileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette()).Show(path);
+
+    public void EditFile(
+        string path,
+        EditorFileNameInsertionContext? fileNameInsertionContext = null)
+    {
+        new FileEditor(
+            _surfaces,
+            _modalDialogs,
+            _dialogs,
+            _palette(),
+            _settings.Editor,
+            _clipboard,
+            _fields,
+            fileNameInsertionContext,
+            null).Show(path);
+    }
+
+    public void EditFile(
+        PanelLocation location,
+        EditorFileNameInsertionContext? fileNameInsertionContext = null)
+    {
+        if (location.SourceId == PanelSourceId.Local)
+        {
+            EditFile(location.SourcePath, fileNameInsertionContext);
+            return;
+        }
+
+        new FileEditor(
+            _surfaces,
+            _modalDialogs,
+            _dialogs,
+            _palette(),
+            _settings.Editor,
+            _clipboard,
+            _fields,
+            fileNameInsertionContext,
+            null,
+            _sourceRegistry).Show(location);
+    }
+
+    public EditorOpenResult EditFileWithNewFileFormat(
+        string path,
+        EditorDocumentFormat newFileFormat,
+        EditorFileNameInsertionContext? fileNameInsertionContext = null)
+    {
+        return new FileEditor(
+            _surfaces,
+            _modalDialogs,
+            _dialogs,
+            _palette(),
+            _settings.Editor,
+            _clipboard,
+            _fields,
+            fileNameInsertionContext,
+            null).ShowWithNewFileFormat(path, newFileFormat);
+    }
+
+    public EditorOpenResult EditFileWithNewFileFormat(
+        PanelLocation location,
+        EditorDocumentFormat newFileFormat,
+        EditorFileNameInsertionContext? fileNameInsertionContext = null)
+    {
+        if (location.SourceId == PanelSourceId.Local)
+        {
+            return EditFileWithNewFileFormat(location.SourcePath, newFileFormat, fileNameInsertionContext);
+        }
+
+        return new FileEditor(
+            _surfaces,
+            _modalDialogs,
+            _dialogs,
+            _palette(),
+            _settings.Editor,
+            _clipboard,
+            _fields,
+            fileNameInsertionContext,
+            null,
+            _sourceRegistry).ShowWithNewFileFormat(location, newFileFormat);
+    }
+
     public void ViewPanelFile(FilePanelState state, FilePanelItem item)
     {
         if (state.SourceId == PanelSourceId.Local)

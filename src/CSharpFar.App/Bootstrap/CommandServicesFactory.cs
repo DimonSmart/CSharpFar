@@ -120,7 +120,9 @@ internal static class CommandServicesFactory
             modulePanelOpener, panelWorkspace, panelRefresh, panelSort, topMenu, targetResolver,
             panelController, panelNavigation, autoRefresh, sourceRegistry, searchResults, panelFileOpener,
             formFields, fileOperationWorkflow, topic => new HelpViewer(interactiveSurfaces, session.App.Palette).Show(topic),
-            fileMetadata, fileAttributesDialogFactory, settingsChange, highlightState, directorySizes));
+            fileMetadata, fileAttributesDialogFactory, settingsChange, highlightState, panelFileViewer,
+            history, searchService, commandCompletionController, commandHistoryNavigator,
+            () => session.FunctionKeyLayer = CSharpFar.App.FunctionKeys.FunctionKeyLayer.Plain, directorySizes));
         var commandContext = new ApplicationCommandContext(
             interactiveSurfaces,
             modalDialogs,

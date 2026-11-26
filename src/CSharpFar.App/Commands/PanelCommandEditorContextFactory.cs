@@ -1,3 +1,4 @@
+using CSharpFar.Core.Controllers;
 using CSharpFar.App.Editor;
 using CSharpFar.Core.Models;
 
@@ -6,17 +7,17 @@ namespace CSharpFar.App.Commands;
 internal static class PanelCommandEditorContextFactory
 {
     internal static EditorFileNameInsertionContext Create(
-        ApplicationCommandContext context,
+        PanelController controller,
         ResolvedPanelCommandTarget target,
         FilePanelItem? resolvedActiveItem = null)
     {
         FilePanelItem? activeItem = resolvedActiveItem ??
-            (ApplicationCommandContext.TryResolveCommittedCurrentItem(
-                target.State, target.ActiveCommitted, context.Controller, out var resolvedActive)
+            (PanelCommandTargetResolver.TryResolveCommittedCurrentItem(
+                target.State, target.ActiveCommitted, controller, out var resolvedActive)
                 ? resolvedActive
                 : null);
-        FilePanelItem? passiveItem = ApplicationCommandContext.TryResolveCommittedCurrentItem(
-            target.PassiveState, target.PassiveCommitted, context.Controller, out var resolvedPassive)
+        FilePanelItem? passiveItem = PanelCommandTargetResolver.TryResolveCommittedCurrentItem(
+            target.PassiveState, target.PassiveCommitted, controller, out var resolvedPassive)
             ? resolvedPassive
             : null;
 

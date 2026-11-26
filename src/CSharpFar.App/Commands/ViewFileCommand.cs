@@ -1,59 +1,61 @@
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
+using CSharpFar.Ui;
+using CSharpFar.Core.Services;
+using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Abstractions;
+using CSharpFar.App.Files;
+using CSharpFar.App.CommandLine;
+using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Panels;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class ViewFileCommand : IApplicationCommand
+internal sealed class ViewFileCommand(PanelCommandTargetResolver targetResolver, PanelController controller, PanelFileViewerService viewer, PanelDirectorySizeCoordinator? directorySizes = null) : IApplicationCommand
 {
-    private readonly PanelDirectorySizeCoordinator? _directorySizes;
-
-    public ViewFileCommand(PanelDirectorySizeCoordinator? directorySizes = null) =>
-        _directorySizes = directorySizes;
-
     public string CommandId => FunctionKeyCommandIds.View;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null)
     {
-        var target = context.ResolvePanelTarget(args);
-        FilePanelItem? item = ResolveItem(context, target);
+        var target = targetResolver.ResolvePanelTarget(args);
+        FilePanelItem? item = ResolveItem(target);
         if (item is null || item.IsParentDirectory)
             return false;
 
         return item.IsDirectory
-            ? _directorySizes?.CanCalculate(target.State, item) == true
-            : context.HasCapability(target.State, PanelProviderCapabilities.OpenRead);
+            ? directorySizes?.CanCalculate(target.State, item) == true
+            : FileOperationCommandHelpers.HasCapability(target.State, PanelProviderCapabilities.OpenRead);
     }
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        var target = context.ResolvePanelTarget(args);
-        if (!ApplicationCommandContext.CommittedLocationMatches(target.State, target.ActiveCommitted))
+        var target = targetResolver.ResolvePanelTarget(args);
+        if (!PanelCommandTargetResolver.CommittedLocationMatches(target.State, target.ActiveCommitted))
             return ApplicationCommandResult.Rendered();
 
-        FilePanelItem? item = ResolveItem(context, target);
+        FilePanelItem? item = ResolveItem(target);
         if (item is null || item.IsParentDirectory)
             return ApplicationCommandResult.Rendered();
 
         if (item.IsDirectory)
         {
-            if (_directorySizes?.CanCalculate(target.State, item) == true)
-                _directorySizes.Calculate(target.Side, target.State, item);
+            if (directorySizes?.CanCalculate(target.State, item) == true)
+                directorySizes.Calculate(target.Side, target.State, item);
             return ApplicationCommandResult.Rendered();
         }
 
-        if (context.HasCapability(target.State, PanelProviderCapabilities.OpenRead))
-            context.ViewPanelFile(target.State, item);
+        if (FileOperationCommandHelpers.HasCapability(target.State, PanelProviderCapabilities.OpenRead))
+            viewer.ViewPanelFile(target.State, item);
         return ApplicationCommandResult.Rendered();
     }
 
-    private static FilePanelItem? ResolveItem(
-        ApplicationCommandContext context,
+    private FilePanelItem? ResolveItem(
         ResolvedPanelCommandTarget target) =>
-        ApplicationCommandContext.TryResolveCommittedCurrentItem(
+        PanelCommandTargetResolver.TryResolveCommittedCurrentItem(
             target.State,
             target.ActiveCommitted,
-            context.Controller,
+            controller,
             out var resolvedItem)
             ? resolvedItem
             : null;

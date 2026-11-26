@@ -236,7 +236,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
         };
         var target = services.CommandContext.ResolvePanelTarget(invocation);
 
-        var context = PanelCommandEditorContextFactory.Create(services.CommandContext, target);
+        var context = PanelCommandEditorContextFactory.Create(services.PanelController, target);
 
         Assert.Null(context.PassivePanelItemName);
         Assert.Null(context.PassivePanelItemPath);
