@@ -59,17 +59,20 @@ public sealed class NetworkPublicationIntegrationTests
         Assert.DoesNotContain(source.EnumerateDirectory(root), entry => entry.Name.Contains(".csharpfar-"));
     }
 
-    [Fact]
-    public async Task Ftp_BestEffortCopyOverwriteAndRename()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Ftp_BestEffortCopyOverwriteAndRename(bool tls)
     {
         if (!Enabled) return;
         using var source = new FtpFilePanelSource(new FtpConnectionInfo
         {
             Id = "publication-integration", DisplayName = "Loopback integration FTP",
-            Host = "127.0.0.1", Port = int.Parse(Env("CSHARPFAR_FTP_PORT")),
-            Username = Env("CSHARPFAR_TEST_USER"), SecurityMode = FtpConnectionSecurityMode.PlainFtp,
-            UseDataConnectionTls = false,
-        }, Env("CSHARPFAR_TEST_PASSWORD"));
+            Host = "127.0.0.1", Port = int.Parse(Env(tls ? "CSHARPFAR_FTPS_PORT" : "CSHARPFAR_FTP_PORT")),
+            Username = Env("CSHARPFAR_TEST_USER"),
+            SecurityMode = tls ? FtpConnectionSecurityMode.ExplicitFtps : FtpConnectionSecurityMode.PlainFtp,
+            UseDataConnectionTls = tls,
+        }, Env("CSHARPFAR_TEST_PASSWORD"), acceptCertificate: (_, _) => true);
 
         Assert.Equal("original", await Read(source, "/target"));
         await ExerciseCopiesAndRename(source, "/");
@@ -81,7 +84,17 @@ public sealed class NetworkPublicationIntegrationTests
                 cts.Cancel();
                 return 4;
             }, false, cts.Token));
-        await Assert.ThrowsAnyAsync<IOException>(() => source.OpenWriteAsync("/target", overwrite: false));
+        await Assert.ThrowsAnyAsync<IOException>(async () =>
+        {
+            await using var stream = await source.OpenWriteAsync("/target", overwrite: false);
+        });
+        Assert.Equal("original", await Read(source, "/target"));
+        await Assert.ThrowsAnyAsync<IOException>(() =>
+            SafeFileWriteService.WriteDocumentAsync(source, "/missing-directory/file", Encoding.UTF8.GetBytes("data")));
+        await Assert.ThrowsAsync<UnknownFilePublicationException>(() =>
+            SafeFileWriteService.WriteDocumentAsync(source, "/reject-completion", Encoding.UTF8.GetBytes("data")));
+        // The server received the bytes but refused to confirm the transfer.
+        Assert.Equal("data", await Read(source, "/reject-completion"));
     }
 
     private static async Task ExerciseCopiesAndRename(IFilePanelSource remote, string root)
@@ -116,6 +129,13 @@ public sealed class NetworkPublicationIntegrationTests
             Assert.Equal(1, (await Execute(FileOperationKind.Move,
                 new PanelLocation(remote.SourceId, target), new PanelLocation(remote.SourceId, renamed))).MovedCount);
             Assert.Null(remote.GetItem(target));
+            Assert.Equal("replacement contents", await Read(remote, renamed));
+            string occupied = remote.CombinePath(root, "occupied");
+            Assert.Null(await SafeFileWriteService.WriteDocumentAsync(remote, occupied, Encoding.UTF8.GetBytes("protected")));
+            Assert.Equal(1, (await Execute(FileOperationKind.Move,
+                new PanelLocation(remote.SourceId, renamed), new PanelLocation(remote.SourceId, occupied),
+                ConflictDecisionMode.Skip)).SkippedCount);
+            Assert.Equal("protected", await Read(remote, occupied));
             Assert.Equal("replacement contents", await Read(remote, renamed));
             string downloaded = Path.Combine(localRoot, "download");
             Assert.Equal(1, (await Execute(FileOperationKind.Copy, new PanelLocation(remote.SourceId, renamed),
