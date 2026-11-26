@@ -96,10 +96,10 @@ internal sealed class PanelNavigationService
             frame.Lease?.Dispose();
     }
 
-    public void Navigate(FilePanelState state, PanelLocation location, bool preserveOnError, Action<bool> completed, bool requireExistingLocalDirectory = false)
+    public void Navigate(FilePanelState state, PanelLocation location, bool preserveOnError, Action<bool> completed, bool requireExistingLocalDirectory = false, Action? abandoned = null)
     {
         if (Loading is { } loading)
-            loading.Navigate(state, location, _panelOptions(), preserveOnError, completed, requireExistingLocalDirectory);
+            loading.Navigate(state, location, _panelOptions(), preserveOnError, completed, requireExistingLocalDirectory, abandoned);
         else
             completed(_controller.TryLoadLocation(state, location, _panelOptions(), preserveOnError));
     }

@@ -168,17 +168,22 @@ internal sealed class ModulePanelOpener
 
         var location = new PanelLocation(source.SourceId, request.InitialDirectory);
         if (_navigation is { } navigation)
-            navigation.Navigate(state, location, preserveOnError: true, Complete);
+            navigation.Navigate(state, location, preserveOnError: true, Complete, abandoned: RetireRejectedSource);
         else
             Complete(_controller.TryLoadLocation(state, location, _panelOptions(), preserveOnError: true));
+
+        void RetireRejectedSource()
+        {
+            if (newlyRegistered && _getPanelState(PanelSide.Left).SourceId != source.SourceId &&
+                _getPanelState(PanelSide.Right).SourceId != source.SourceId)
+                _sourceRegistry.RetireOwnedSource(source, _cleanup.Discard);
+        }
 
         void Complete(bool loaded)
         {
             if (!loaded)
             {
-                if (newlyRegistered && _getPanelState(PanelSide.Left).SourceId != source.SourceId &&
-                    _getPanelState(PanelSide.Right).SourceId != source.SourceId)
-                    _sourceRegistry.RetireOwnedSource(source, _cleanup.Discard);
+                RetireRejectedSource();
                 _showMessage("Plugin", "Unable to open plugin panel. The existing panel was not changed.");
                 return;
             }
@@ -213,25 +218,40 @@ internal sealed class ModulePanelOpener
         FilePanelState state, PanelSide side, FilePanelItem item,
         Action<FilePanelState, FilePanelItem> fallback)
     {
-        if (!_sourceRegistry.TryGetSource(item.SourceId, out var source) ||
-            !_moduleCatalog.TryOpenFile(source, item, side, out var invocation, _operationCancellation.Token))
+        if (!_sourceRegistry.TryAcquireUsage(item.SourceId, out var source, out var lease))
             return false;
+        ValueTask<PluginFileOpenResult> invocation;
+        try
+        {
+            if (!_moduleCatalog.TryOpenFile(source, item, side, out invocation, _operationCancellation.Token))
+            {
+                lease.Dispose();
+                return false;
+            }
+        }
+        catch { lease.Dispose(); throw; }
 
         var origin = state.CurrentLocation;
         if (invocation.IsCompleted)
         {
-            CompleteFileOpen(invocation.Result, state, side, item, origin, fallback);
+            try { CompleteFileOpen(invocation.Result, state, side, item, origin, fallback); }
+            finally { lease.Dispose(); }
             return true;
         }
 
         if (_postToUi is null)
         {
             _showMessage("Open file", "Asynchronous file handlers require a UI completion queue.");
-            TrackOperation(DiscardFileResultAsync(invocation));
+            TrackOperation(ReleaseAfterAsync(DiscardFileResultAsync(invocation), lease));
             return true;
         }
-        TrackOperation(AwaitFileOpenAsync(invocation, state, side, item, origin, fallback));
+        TrackOperation(ReleaseAfterAsync(AwaitFileOpenAsync(invocation, state, side, item, origin, fallback), lease));
         return true;
+    }
+
+    private static async Task ReleaseAfterAsync(Task task, IDisposable lease)
+    {
+        using (lease) await task.ConfigureAwait(false);
     }
 
     private async Task AwaitFileOpenAsync(
@@ -251,7 +271,7 @@ internal sealed class ModulePanelOpener
         FilePanelState state, PanelSide side, FilePanelItem item, PanelLocation origin,
         Action<FilePanelState, FilePanelItem> fallback)
     {
-        if (state.CurrentLocation != origin)
+        if (state.CurrentLocation != origin || state.IsLoading)
         {
             DiscardUnusedPanel(result.Panel);
             return;
@@ -263,6 +283,7 @@ internal sealed class ModulePanelOpener
                 fallback(state, item);
                 break;
             case PluginFileOpenResultKind.OpenPanel:
+                side = ReferenceEquals(state, _getPanelState(PanelSide.Left)) ? PanelSide.Left : PanelSide.Right;
                 OpenPanel(side, result.Panel!, item);
                 break;
             case PluginFileOpenResultKind.Failed:

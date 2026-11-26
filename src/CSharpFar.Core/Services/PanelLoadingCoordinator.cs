@@ -21,8 +21,8 @@ public sealed class PanelLoadingCoordinator(
 
     public void Navigate(FilePanelState panel, PanelLocation location,
         AppSettings.PanelOptionsSettings options, bool preserveOnError = false,
-        Action<bool>? completed = null, bool requireExistingLocalDirectory = false) =>
-        RequestLoad(panel, location, options, refresh: false, preserveOnError, null, completed, requireExistingLocalDirectory);
+        Action<bool>? completed = null, bool requireExistingLocalDirectory = false, Action? abandoned = null) =>
+        RequestLoad(panel, location, options, refresh: false, preserveOnError, null, completed, requireExistingLocalDirectory, abandoned);
 
     public void Refresh(FilePanelState panel, AppSettings.PanelOptionsSettings options,
         Func<int> visibleRows, Action<bool>? completed = null)
@@ -37,7 +37,8 @@ public sealed class PanelLoadingCoordinator(
                 panel.SortDescending != current.ViewRequest.SortDescending)
             {
                 RequestLoad(panel, current.Location, options, current.Refresh, current.PreserveOnError,
-                    current.VisibleRows, current.Completed, current.ViewRequest.RequireExistingLocalDirectory);
+                    current.VisibleRows, current.Completed, current.ViewRequest.RequireExistingLocalDirectory, current.Abandoned,
+                    replacingSameRequest: true);
                 return;
             }
             if (current.Refresh)
@@ -60,7 +61,8 @@ public sealed class PanelLoadingCoordinator(
 
     private void RequestLoad(FilePanelState panel, PanelLocation location,
         AppSettings.PanelOptionsSettings options, bool refresh, bool preserveOnError,
-        Func<int>? visibleRows, Action<bool>? completed, bool requireExistingLocalDirectory = false)
+        Func<int>? visibleRows, Action<bool>? completed, bool requireExistingLocalDirectory = false,
+        Action? abandoned = null, bool replacingSameRequest = false)
     {
         if (_disposed)
             return;
@@ -88,10 +90,10 @@ public sealed class PanelLoadingCoordinator(
                 SelectedLocations = refresh
                     ? new HashSet<PanelLocation>(panel.SelectedLocations, panel.SelectedLocations.Comparer)
                     : new HashSet<PanelLocation>(),
-            }, refresh, preserveOnError, visibleRows, completed, lease, ReportError);
+            }, refresh, preserveOnError, visibleRows, completed, abandoned, lease, ReportError);
 
         slot.RefreshAgain = null;
-        CancelCurrent(slot);
+        CancelCurrent(slot, notifyAbandoned: !replacingSameRequest);
         slot.Current = request;
         panel.IsLoading = true;
         _ = ShowIndicatorAsync(panel, slot, request, request.Token);
@@ -129,12 +131,13 @@ public sealed class PanelLoadingCoordinator(
             ShowParentDirectoryInRootFolders = options.ShowParentDirectoryInRootFolders,
         };
 
-    private static void CancelCurrent(Slot slot)
+    private static void CancelCurrent(Slot slot, bool notifyAbandoned = true)
     {
         var current = slot.Current;
         slot.Current = null;
         if (current is null)
             return;
+        if (notifyAbandoned) current.NotifyAbandoned();
         current.Cancel();
         if (ReferenceEquals(slot.Pending, current))
         {
@@ -224,6 +227,7 @@ public sealed class PanelLoadingCoordinator(
                         request.Completed?.Invoke(false);
                     }
                 }
+                else request.NotifyAbandoned();
             }
             catch (Exception exception)
             {
@@ -280,7 +284,7 @@ public sealed class PanelLoadingCoordinator(
     private sealed class LoadRequest(
         PanelLocation location, IFilePanelSource source, long revision, PanelViewRequest viewRequest,
         bool refresh, bool preserveOnError, Func<int>? visibleRows, Action<bool>? completed,
-        IDisposable lease, Action<Exception> reportError)
+        Action? abandoned, IDisposable lease, Action<Exception> reportError)
     {
         private readonly CancellationTokenSource _cancellation = new();
         private int _workerFinished;
@@ -295,6 +299,12 @@ public sealed class PanelLoadingCoordinator(
         public bool PreserveOnError { get; } = preserveOnError;
         public Func<int>? VisibleRows { get; } = visibleRows;
         public Action<bool>? Completed { get; } = completed;
+        public Action? Abandoned { get; } = abandoned;
+        public void NotifyAbandoned()
+        {
+            try { Abandoned?.Invoke(); }
+            catch (Exception ex) { reportError(ex); }
+        }
         public CancellationToken Token => _cancellation.Token;
         public bool WorkerFinished => Volatile.Read(ref _workerFinished) != 0;
 
