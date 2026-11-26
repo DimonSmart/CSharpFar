@@ -88,6 +88,19 @@ public sealed class ContractTests
         Assert.Null(error.InnerException);
     }
 
+    [Fact]
+    public async Task ExplicitCancellationRemainsCancellation()
+    {
+        var source = new AzureBlobFilePanelSource(
+            new BlobContainerClient(new Uri("http://127.0.0.1:1/data?sig=VERY_SECRET")), "Test", false);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => source.EnumerateDirectoryAsync("/", cancellation.Token));
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.DoesNotContain("VERY_SECRET", error.ToString());
+        Assert.Null(error.InnerException);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
