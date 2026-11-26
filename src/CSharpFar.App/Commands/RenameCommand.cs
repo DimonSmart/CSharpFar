@@ -1,41 +1,48 @@
+using CSharpFar.App.Panels;
+using CSharpFar.App.State;
+using CSharpFar.Core.Abstractions;
+using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Services;
+using CSharpFar.App.Viewer;
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class RenameCommand : IApplicationCommand
+internal sealed class RenameCommand(PanelCommandTargetResolver targetResolver, PanelController controller, DialogService dialogs, FormFieldFactory fields, FilePanelSourceRegistry sourceRegistry, PanelFileOperationWorkflow operations) : IApplicationCommand
 {
     public string CommandId => FunctionKeyCommandIds.Rename;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.HasCapability(context.ResolvePanelTarget(args).State, PanelProviderCapabilities.Rename);
+        FileOperationCommandHelpers.HasCapability(targetResolver.ResolvePanelTarget(args).State, PanelProviderCapabilities.Rename);
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        var target = context.ResolvePanelTarget(args);
-        if (!context.HasCapability(target.State, PanelProviderCapabilities.Rename))
+        var target = targetResolver.ResolvePanelTarget(args);
+        if (!FileOperationCommandHelpers.HasCapability(target.State, PanelProviderCapabilities.Rename))
         {
-            context.ShowReadOnlyPanelMessage("Rename");
+            FileOperationCommandHelpers.ShowReadOnlyPanelMessage(dialogs, "Rename");
             return ApplicationCommandResult.Rendered();
         }
 
-        FilePanelItem? item = ApplicationCommandContext.TryResolveCommittedCurrentItem(
-            target.State, target.ActiveCommitted, context.Controller, out var resolvedItem) ? resolvedItem : null;
+        FilePanelItem? item = PanelCommandTargetResolver.TryResolveCommittedCurrentItem(
+            target.State, target.ActiveCommitted, controller, out var resolvedItem) ? resolvedItem : null;
         if (item is null || item.IsParentDirectory)
             return ApplicationCommandResult.Rendered();
 
         string initialName = item.Name;
-        var dialogResult = new FileOperationDialog(context.Dialogs, context.Fields).ShowRename(
+        var dialogResult = new FileOperationDialog(dialogs, fields).ShowRename(
             item.FullPath,
             initialName,
-            context.BuildFileOperationOptions(),
-            result => DestinationTemplatePreview.Show(context, new FileOperationRequest
+            operations.BuildOptions(),
+            result => operations.Preview(new FileOperationRequest
             {
                 Kind = FileOperationKind.Move,
                 Sources = [item.Location],
                 UseDestinationTemplate = result.UseDestinationTemplate,
-                Destination = BuildDestinationLocation(context, target.State, result.Destination),
+                Destination = BuildDestinationLocation(target.State, result.Destination),
                 Options = result.Options,
             }));
         if (dialogResult is null)
@@ -46,12 +53,12 @@ internal sealed class RenameCommand : IApplicationCommand
 
         try
         {
-            context.ExecuteFileOperation(new FileOperationRequest
+            operations.Execute(new FileOperationRequest
             {
                 Kind = FileOperationKind.Move,
                 Sources = [item.Location],
                 UseDestinationTemplate = dialogResult.UseDestinationTemplate,
-                Destination = BuildDestinationLocation(context, target.State, dialogResult.Destination),
+                Destination = BuildDestinationLocation(target.State, dialogResult.Destination),
                 Options = dialogResult.Options,
             });
 
@@ -60,24 +67,23 @@ internal sealed class RenameCommand : IApplicationCommand
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            context.Dialogs.Message("Rename Error", ex.Message);
+            dialogs.Message("Rename Error", ex.Message);
         }
 
-        context.RefreshPanels();
+        operations.RefreshPanels();
         return ApplicationCommandResult.Rendered();
     }
 
-    private static PanelLocation BuildDestinationLocation(
-        ApplicationCommandContext context,
+    private PanelLocation BuildDestinationLocation(
         FilePanelState state,
         string destination)
     {
         if (state.SourceId == PanelSourceId.Local)
             return PanelLocation.Local(destination);
 
-        string path = context.TryGetSource(state.SourceId, out var source) && source.PathSeparators.Any(destination.Contains)
+        string path = sourceRegistry.TryGetSource(state.SourceId, out var source) && source.PathSeparators.Any(destination.Contains)
             ? destination
-            : context.CombinePanelPath(state, destination);
+            : FileOperationCommandHelpers.CombinePanelPath(sourceRegistry, state, destination);
         return new PanelLocation(state.SourceId, path);
     }
 }

@@ -1,3 +1,5 @@
+using CSharpFar.App.Viewer;
+using CSharpFar.Core.Models;
 using CSharpFar.App.AutoRefresh;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Services;
@@ -42,6 +44,11 @@ internal static class DefaultApplicationCommands
         FilePanelSourceRegistry sourceRegistry,
         PanelSearchResultsService searchResults,
         PanelFileOpener panelFileOpener,
+        FormFieldFactory formFields,
+        PanelFileOperationWorkflow fileOperationWorkflow,
+        Action<HelpTopic> showHelp,
+        IFileMetadataService fileMetadata,
+        Func<IFileAttributesDialog> fileAttributesDialogFactory,
         PanelDirectorySizeCoordinator? directorySizes = null) =>
     [
         new HelpCommand(interactiveSurfaces, session.App),
@@ -53,13 +60,13 @@ internal static class DefaultApplicationCommands
         new CalculateDirectorySizesCommand(directorySizes),
         new EditFileCommand(),
         new OpenCreateFileCommand(),
-        new CopyCommand(),
-        new CopyCommand(toCurrentDirectory: true),
-        new MoveCommand(),
-        new RenameCommand(),
-        new CreateFolderCommand(),
-        new DeleteCommand(),
-        new OpenFileAttributesCommand(),
+        new CopyCommand(targetResolver, panelController, dialogs, formFields, sourceRegistry, fileOperationWorkflow, showHelp),
+        new CopyCommand(targetResolver, panelController, dialogs, formFields, sourceRegistry, fileOperationWorkflow, showHelp, toCurrentDirectory: true),
+        new MoveCommand(targetResolver, panelController, dialogs, formFields, sourceRegistry, fileOperationWorkflow),
+        new RenameCommand(targetResolver, panelController, dialogs, formFields, sourceRegistry, fileOperationWorkflow),
+        new CreateFolderCommand(targetResolver, panelController, dialogs, sourceRegistry, fileOperationWorkflow, panelRefresh),
+        new DeleteCommand(targetResolver, panelController, dialogs, sourceRegistry, fileOperationWorkflow, settings),
+        new OpenFileAttributesCommand(targetResolver, panelController, dialogs, fileMetadata, fileAttributesDialogFactory, panelRefresh, session.Panels),
         new OpenTopMenuCommand(topMenu, targetResolver),
         new QuitCommand(settings, dialogs, session.App),
         new SelectLeftDriveCommand(),

@@ -7,12 +7,12 @@ namespace CSharpFar.App.Commands;
 
 internal static class DestinationTemplatePreview
 {
-    public static void Show(ApplicationCommandContext context, FileOperationRequest request)
+    public static void Show(IFileOperationService fileOperations, DialogService dialogs, FileOperationRequest request)
     {
-        if (context.FileOperations is not IFileOperationPlanBuilder planner)
+        if (fileOperations is not IFileOperationPlanBuilder planner)
             throw new InvalidOperationException("Destination template preview is not available for the active file-operation service.");
 
-        var plan = context.Dialogs.Operation<string, FileOperationPlan, FileOperationPlan?>(
+        var plan = dialogs.Operation<string, FileOperationPlan, FileOperationPlan?>(
             new OperationDialogDefinition<string, FileOperationPlan, FileOperationPlan?>
             {
                 Title = "Preparing destination preview",
@@ -27,6 +27,6 @@ internal static class DestinationTemplatePreview
                 Complete = result => result,
             });
         if (plan is not null)
-            new DestinationTemplatePreviewDialog(context.Dialogs).Show(plan);
+            new DestinationTemplatePreviewDialog(dialogs).Show(plan);
     }
 }

@@ -38,35 +38,35 @@ internal static class SearchResultsDeleteSupport
     }
 
     public static IReadOnlyList<PanelLocation> CollapseNestedLocations(
-        IReadOnlyList<PanelLocation> locations, ApplicationCommandContext context)
+        IReadOnlyList<PanelLocation> locations, FilePanelSourceRegistry sourceRegistry)
     {
         var roots = new List<PanelLocation>();
         foreach (var location in locations)
         {
-            if (roots.Any(root => IsSameOrDescendant(location, root, context)))
+            if (roots.Any(root => IsSameOrDescendant(location, root, sourceRegistry)))
                 continue;
-            roots.RemoveAll(root => IsSameOrDescendant(root, location, context));
+            roots.RemoveAll(root => IsSameOrDescendant(root, location, sourceRegistry));
             roots.Add(location);
         }
         return roots;
     }
 
     public static void ReconcileLocations(FilePanelState state, IReadOnlyList<PanelLocation> roots,
-        FileOperationResult result, ApplicationCommandContext context)
+        FileOperationResult result, FilePanelSourceRegistry sourceRegistry)
     {
         bool clean = !result.Cancelled && result.Errors.Count == 0;
         state.Items.RemoveAll(item =>
-            roots.Any(root => IsSameOrDescendant(item.Location, root, context)) &&
+            roots.Any(root => IsSameOrDescendant(item.Location, root, sourceRegistry)) &&
             (clean || (item.SourceId == PanelSourceId.Local
                 ? !PathExists(item.SourcePath)
-                : context.TryGetSource(item.SourceId, out var source) && source.GetItem(item.SourcePath) is null)));
+                : sourceRegistry.TryGetSource(item.SourceId, out var source) && source.GetItem(item.SourcePath) is null)));
     }
 
-    private static bool IsSameOrDescendant(PanelLocation location, PanelLocation root, ApplicationCommandContext context)
+    private static bool IsSameOrDescendant(PanelLocation location, PanelLocation root, FilePanelSourceRegistry sourceRegistry)
     {
         if (location.SourceId != root.SourceId)
             return false;
-        if (!context.TryGetSource(location.SourceId, out var source))
+        if (!sourceRegistry.TryGetSource(location.SourceId, out var source))
             return location == root;
         string current = source.NormalizePath(location.SourcePath);
         string ancestor = source.NormalizePath(root.SourcePath);
