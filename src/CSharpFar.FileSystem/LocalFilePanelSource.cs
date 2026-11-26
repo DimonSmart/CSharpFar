@@ -29,6 +29,13 @@ public sealed class LocalFilePanelSource : IFilePanelSource
 
     public IReadOnlyCollection<char> PathSeparators => LocalPathSeparators;
 
+    public StringComparer PathComparer => LocalFileSystemPathComparer.Current;
+
+    public string CombinePath(string parent, string name) => Path.Combine(parent, name);
+
+    public string GetFileName(string sourcePath) =>
+        Path.GetFileName(Path.TrimEndingDirectorySeparator(NormalizePath(sourcePath)));
+
     public string NormalizePath(string sourcePath) => _localPathNormalizer.Normalize(sourcePath);
 
     public bool IsRootPath(string sourcePath) =>

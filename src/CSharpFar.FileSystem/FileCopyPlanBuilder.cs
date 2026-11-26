@@ -26,11 +26,11 @@ internal sealed class FileCopyPlanBuilder(
         if (rootTarget is not null && sources.Count != 1)
             throw new ArgumentException("An exact copy target requires one source.", nameof(sources));
 
+        IFilePanelSource destinationSource = _sources.GetSource(destination.SourceId);
         DestinationPattern destinationPattern = useDestinationTemplate
             ? default
-            : DestinationPattern.Parse(destination.SourcePath, destination.SourceId);
+            : DestinationPattern.Parse(destination.SourcePath, destinationSource);
         DestinationTemplate? template = useDestinationTemplate ? DestinationTemplate.Parse(destination.SourcePath) : null;
-        IFilePanelSource destinationSource = _sources.GetSource(destination.SourceId);
         IReadOnlyCollection<char>? destinationPathSeparators = template is null
             ? null
             : destinationSource.PathSeparators;
@@ -53,8 +53,7 @@ internal sealed class FileCopyPlanBuilder(
             string targetPath = rootTarget ?? (template is not null
                 ? template.Evaluate(new DestinationTemplateContext(item.Name, item.IsDirectory, item.LastWriteTime, destinationPathSeparators!))
                 : destinationPattern.HasWildcards
-                    ? FileOperationService.CombineProviderPath(
-                        destination.SourceId,
+                    ? destinationSource.CombinePath(
                         destinationPattern.ParentPath,
                         destinationPattern.TransformName(item.Name))
                     : ResolveProviderCopyTargetPath(
@@ -74,7 +73,7 @@ internal sealed class FileCopyPlanBuilder(
 
             AddMaskedProviderPlanItems(
                 plan, location, source, normalizedSourcePath, item, targetPath, options.FileMask!, options.SymlinkMode, matcher, groups,
-                destination.SourceId,
+                destinationSource,
                 validateTarget: path =>
                 {
                     if (location.SourceId == destination.SourceId)
@@ -96,11 +95,9 @@ internal sealed class FileCopyPlanBuilder(
             var expanded = new List<ProviderOperationPlanItem>(plan.Count);
             foreach (ProviderOperationPlanItem root in plan)
             {
-                var visiting = new HashSet<string>(
-                    root.Location.SourceId == PanelSourceId.Local
-                        ? LocalFileSystemPathComparer.Current : StringComparer.Ordinal);
+                var visiting = new HashSet<string>(root.Source.PathComparer);
                 expanded.Add(ExpandProviderCopyItem(
-                    root, visiting, options.SymlinkMode, reportScanning, ref scannedFiles, ref scannedFolders, ref knownBytes, cancellationToken));
+                    root, destinationSource, visiting, options.SymlinkMode, reportScanning, ref scannedFiles, ref scannedFolders, ref knownBytes, cancellationToken));
             }
             return expanded;
         }
@@ -109,6 +106,7 @@ internal sealed class FileCopyPlanBuilder(
 
     private static ProviderOperationPlanItem ExpandProviderCopyItem(
         ProviderOperationPlanItem item,
+        IFilePanelSource destinationSource,
         HashSet<string> visiting,
         SymlinkCopyMode symlinkMode,
         Action<string, int, int, long>? reportScanning,
@@ -158,13 +156,12 @@ internal sealed class FileCopyPlanBuilder(
                 cancellationToken.ThrowIfCancellationRequested();
                 if (child.IsParentDirectory)
                     continue;
-                string targetPath = FileOperationService.CombineProviderPath(
-                    item.Mapping.Destination.SourceId, item.TargetPath, child.Name);
+                string targetPath = destinationSource.CombinePath(item.TargetPath, child.Name);
                 var childPlan = new ProviderOperationPlanItem(
                     child.Location, item.Source, item.Source.NormalizePath(child.SourcePath),
                     child, targetPath, item.Mapping.Destination.SourceId);
                 children.Add(ExpandProviderCopyItem(
-                    childPlan, visiting, symlinkMode, reportScanning, ref scannedFiles, ref scannedFolders, ref knownBytes,
+                    childPlan, destinationSource, visiting, symlinkMode, reportScanning, ref scannedFiles, ref scannedFolders, ref knownBytes,
                     cancellationToken));
             }
             return item with { Children = children };
@@ -186,7 +183,7 @@ internal sealed class FileCopyPlanBuilder(
         SymlinkCopyMode symlinkMode,
         FarMaskMatcher matcher,
         IReadOnlyDictionary<string, MaskGroup> groups,
-        PanelSourceId destinationSourceId,
+        IFilePanelSource destinationSource,
         Action<string> validateTarget,
         CancellationToken cancellationToken)
     {
@@ -204,7 +201,7 @@ internal sealed class FileCopyPlanBuilder(
             {
                 validateTarget(rootTargetPath);
                 var linkPlan = new ProviderOperationPlanItem(
-                    rootLocation, source, rootSourcePath, rootItem, rootTargetPath, destinationSourceId);
+                    rootLocation, source, rootSourcePath, rootItem, rootTargetPath, destinationSource.SourceId);
                 plan.Add(IsLink(rootItem) && symlinkMode == SymlinkCopyMode.CopyLink
                     ? linkPlan with { Mapping = linkPlan.Mapping with { IsDirectory = false } }
                     : linkPlan);
@@ -213,8 +210,7 @@ internal sealed class FileCopyPlanBuilder(
         }
 
         var files = new List<FilePanelItem>();
-        var visiting = new HashSet<string>(
-            source.SourceId == PanelSourceId.Local ? LocalFileSystemPathComparer.Current : StringComparer.Ordinal);
+        var visiting = new HashSet<string>(source.PathComparer);
         CollectMatchingProviderFiles(source, rootSourcePath, fileMask, symlinkMode, matcher, groups, files, visiting, cancellationToken);
         if (files.Count == 0)
             return;
@@ -223,9 +219,10 @@ internal sealed class FileCopyPlanBuilder(
         foreach (FilePanelItem file in files)
         {
             string sourcePath = source.NormalizePath(file.SourcePath);
-            string relativePath = GetProviderRelativePath(source.SourceId, rootSourcePath, sourcePath);
-            string targetPath = CombineProviderRelativePath(destinationSourceId, rootTargetPath, relativePath);
-            var filePlan = new ProviderOperationPlanItem(file.Location, source, sourcePath, file, targetPath, destinationSourceId);
+            string targetPath = rootTargetPath;
+            foreach (string segment in source.GetRelativePathSegments(rootSourcePath, sourcePath))
+                targetPath = destinationSource.CombinePath(targetPath, segment);
+            var filePlan = new ProviderOperationPlanItem(file.Location, source, sourcePath, file, targetPath, destinationSource.SourceId);
             plan.Add(IsLink(file) && symlinkMode == SymlinkCopyMode.CopyLink
                 ? filePlan with { Mapping = filePlan.Mapping with { IsDirectory = false } }
                 : filePlan);
@@ -329,20 +326,6 @@ internal sealed class FileCopyPlanBuilder(
         return Path.TrimEndingDirectorySeparator(Path.GetFullPath(current));
     }
 
-    private static string GetProviderRelativePath(PanelSourceId sourceId, string rootPath, string childPath)
-    {
-        if (sourceId == PanelSourceId.Local)
-            return Path.GetRelativePath(rootPath, childPath).Replace(Path.DirectorySeparatorChar, '/');
-
-        string normalizedRoot = rootPath.TrimEnd('/');
-        return childPath[(normalizedRoot.Length + 1)..];
-    }
-
-    private static string CombineProviderRelativePath(PanelSourceId sourceId, string rootPath, string relativePath) =>
-        sourceId == PanelSourceId.Local
-            ? Path.Combine(rootPath, relativePath.Replace('/', Path.DirectorySeparatorChar))
-            : rootPath.TrimEnd('/') + "/" + relativePath;
-
     internal static void ValidateCopyTarget(
         IFilePanelSource source,
         string sourcePath,
@@ -364,17 +347,17 @@ internal sealed class FileCopyPlanBuilder(
         CancellationToken cancellationToken)
     {
         if (sourceCount > 1 || item.IsDirectory)
-            return FileOperationService.CombineProviderPath(destinationSource.SourceId, destinationPath, item.Name);
+            return destinationSource.CombinePath(destinationPath, item.Name);
 
         if (destinationSource.SourceId == PanelSourceId.Local && !FileOperationService.IsPath(destinationPath))
-            return FileOperationService.CombineProviderPath(destinationSource.SourceId, destinationPath, item.Name);
+            return destinationSource.CombinePath(destinationPath, item.Name);
 
         if (destinationPath.Length == 0 || destinationSource.PathSeparators.Contains(destinationPath[^1]))
-            return FileOperationService.CombineProviderPath(destinationSource.SourceId, destinationPath, item.Name);
+            return destinationSource.CombinePath(destinationPath, item.Name);
 
         FilePanelItem? destinationItem = destinationSource.GetItem(destinationPath, cancellationToken);
         return destinationItem?.IsDirectory == true
-            ? FileOperationService.CombineProviderPath(destinationSource.SourceId, destinationPath, item.Name)
+            ? destinationSource.CombinePath(destinationPath, item.Name)
             : destinationPath;
     }
 

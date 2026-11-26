@@ -1,3 +1,4 @@
+using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.FileSystem;
@@ -71,6 +72,22 @@ internal static class FarWildcardNameTransformer
 
 internal readonly record struct DestinationPattern(string ParentPath, string NamePattern, bool HasWildcards)
 {
+    public static DestinationPattern Parse(string destination, IFilePanelSource source)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(destination);
+        // This is a raw user expression; do not normalize wildcards as a path.
+        if (source.SourceId == PanelSourceId.Local)
+            return Parse(destination, PanelSourceId.Local);
+
+        int index = destination.LastIndexOfAny(source.PathSeparators.ToArray());
+        string parent = index < 0 ? string.Empty : index == 0 ? destination[..1] : destination[..index];
+        string name = destination[(index + 1)..];
+        if (parent.IndexOfAny(['*', '?']) >= 0)
+            throw new IOException("Wildcards are allowed only in the destination file name.");
+
+        return new DestinationPattern(parent, name, name.IndexOfAny(['*', '?']) >= 0);
+    }
+
     public static DestinationPattern Parse(string destination, PanelSourceId sourceId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(destination);

@@ -1,15 +1,10 @@
 using CSharpFar.Core.Abstractions;
-using CSharpFar.Core.Services;
-using CSharpFar.Core.Models;
 
 namespace CSharpFar.FileSystem;
 
 internal static class ProviderPathRelations
 {
-    private static StringComparer Comparer(IFilePanelSource source) =>
-        source.SourceId == PanelSourceId.Local
-            ? LocalFileSystemPathComparer.Current
-            : StringComparer.Ordinal;
+    private static StringComparer Comparer(IFilePanelSource source) => source.PathComparer;
 
     public static bool PathsEqual(IFilePanelSource source, string left, string right) =>
         Comparer(source).Equals(source.NormalizePath(left), source.NormalizePath(right));
