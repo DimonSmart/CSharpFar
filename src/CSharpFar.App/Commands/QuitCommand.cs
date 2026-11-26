@@ -1,9 +1,12 @@
+using CSharpFar.App.Dialogs;
+using CSharpFar.App.State;
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class QuitCommand : IApplicationCommand
+internal sealed class QuitCommand(AppSettingsAlias settings, DialogService dialogs, ApplicationState state) : IApplicationCommand
 {
     public string CommandId => FunctionKeyCommandIds.Quit;
 
@@ -11,13 +14,13 @@ internal sealed class QuitCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        if (!context.Settings.Application.ConfirmExit)
+        if (!settings.Application.ConfirmExit)
         {
-            context.Running = false;
+            state.Running = false;
             return ApplicationCommandResult.NotRendered();
         }
 
-        ChoiceDialogResult result = context.Dialogs.Choice(new ChoiceDialogOptions
+        ChoiceDialogResult result = dialogs.Choice(new ChoiceDialogOptions
         {
             Title = "Exit CSharpFar",
             Lines = ["Are you sure?"],
@@ -33,7 +36,7 @@ internal sealed class QuitCommand : IApplicationCommand
         if (!string.Equals(result.ButtonId, "exit", StringComparison.Ordinal))
             return ApplicationCommandResult.Rendered();
 
-        context.Running = false;
+        state.Running = false;
         return ApplicationCommandResult.NotRendered();
     }
 }

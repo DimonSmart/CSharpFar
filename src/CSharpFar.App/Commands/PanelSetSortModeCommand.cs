@@ -1,8 +1,9 @@
+using CSharpFar.App.Panels;
 using CSharpFar.Core.Menu;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class PanelSetSortModeCommand : IApplicationCommand
+internal sealed class PanelSetSortModeCommand(PanelWorkspaceController workspace, PanelSortServiceFacade panelSort) : IApplicationCommand
 {
     public string CommandId => MenuCommandIds.PanelSetSortMode;
 
@@ -14,10 +15,10 @@ internal sealed class PanelSetSortModeCommand : IApplicationCommand
         if (args is not SetPanelSortModeArgs sortArgs)
             return ApplicationCommandResult.Failure("Missing panel sort arguments.");
 
-        context.SetPanelSortMode(
-            context.GetPanelState(sortArgs.PanelSide),
+        panelSort.SetPanelSortMode(
+            workspace.GetPanelState(sortArgs.PanelSide),
             sortArgs.SortMode,
-            context.VisibleRows(sortArgs.PanelSide));
+            workspace.VisibleRows(sortArgs.PanelSide));
         return ApplicationCommandResult.Rendered();
     }
 }

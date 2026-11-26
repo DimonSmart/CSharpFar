@@ -1,5 +1,3 @@
-using CSharpFar.App.Panels;
-
 namespace CSharpFar.App.Commands;
 
 internal sealed class ApplicationCommandRegistry
@@ -12,13 +10,6 @@ internal sealed class ApplicationCommandRegistry
     }
 
     public IReadOnlyCollection<string> CommandIds => _commands.Keys.ToArray();
-
-    public static ApplicationCommandRegistry CreateDefault(
-        IEnumerable<IApplicationCommand>? additionalCommands = null,
-        PanelDirectorySizeCoordinator? directorySizes = null) =>
-        new(additionalCommands is null
-            ? DefaultApplicationCommands.Create(directorySizes)
-            : [.. DefaultApplicationCommands.Create(directorySizes), .. additionalCommands]);
 
     public bool TryGetCommand(string commandId, out IApplicationCommand command) =>
         _commands.TryGetValue(commandId, out command!);

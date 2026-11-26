@@ -1,9 +1,10 @@
+using CSharpFar.App.Panels;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class PanelToggleReverseSortCommand : IApplicationCommand
+internal sealed class PanelToggleReverseSortCommand(PanelWorkspaceController workspace, PanelRefreshService panelRefresh, PanelSortServiceFacade panelSort) : IApplicationCommand
 {
     public string CommandId => MenuCommandIds.PanelToggleReverseSort;
 
@@ -15,16 +16,16 @@ internal sealed class PanelToggleReverseSortCommand : IApplicationCommand
         if (args is not PanelCommandArgs panelArgs)
             return ApplicationCommandResult.Failure("Missing panel arguments.");
 
-        var state = context.GetPanelState(panelArgs.PanelSide);
+        var state = workspace.GetPanelState(panelArgs.PanelSide);
         state.SortDescending = !state.SortDescending;
         if (state.ContentKind == PanelContentKind.Source)
         {
-            context.SafeRefresh(state, context.VisibleRows(panelArgs.PanelSide));
+            panelRefresh.SafeRefresh(state, workspace.VisibleRows(panelArgs.PanelSide));
         }
         else
         {
-            int visibleRows = context.VisibleRows(panelArgs.PanelSide);
-            context.SortVirtualPanel(state, visibleRows);
+            int visibleRows = workspace.VisibleRows(panelArgs.PanelSide);
+            panelSort.SortVirtualPanel(state, visibleRows);
         }
 
         return ApplicationCommandResult.Rendered();

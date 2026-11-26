@@ -1,7 +1,10 @@
+using CSharpFar.App.State;
+using CSharpFar.App.Viewer;
+using CSharpFar.Ui;
 using CSharpFar.App.FunctionKeys;
 namespace CSharpFar.App.Commands;
 
-internal sealed class HelpCommand : IApplicationCommand
+internal sealed class HelpCommand(InteractiveSurfaceHost interactiveSurfaces, ApplicationState state) : IApplicationCommand
 {
     public string CommandId => FunctionKeyCommandIds.Help;
 
@@ -9,7 +12,7 @@ internal sealed class HelpCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        context.ShowHelp();
+        new HelpViewer(interactiveSurfaces, state.Palette).Show(HelpTopic.Main);
         return ApplicationCommandResult.Rendered();
     }
 }
