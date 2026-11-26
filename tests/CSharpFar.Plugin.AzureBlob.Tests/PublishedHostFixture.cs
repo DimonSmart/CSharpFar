@@ -26,4 +26,16 @@ public sealed class PublishedHostFixture
         await container.GetBlobClient("folder/nested.txt").UploadAsync(BinaryData.FromString("NESTED_AZURE_PROBE"));
         await container.GetBlobClient("probe-view.txt").UploadAsync(BinaryData.FromString("AZURE_PROBE_VIEW"));
     }
+    [HostFixtureFact]
+    [Trait("Category", "AzureHostVerify")]
+    public async Task VerifyHostMutations()
+    {
+        var profile = new AzureBlobConnection(Guid.NewGuid(), "AzureSmoke", AuthenticationMode.Azurite,
+            null, "csharpfar-smoke", "/", null, false);
+        var (_, container) = AzureBlobClientFactory.Create(profile);
+        var provider = new AzureBlobFilePanelSource(container!, "Smoke", false);
+        Assert.Null(await provider.GetItemAsync("/smoke-created"));
+        Assert.Equal("LOCAL_AZURE_PROBE", (await container!.GetBlobClient("local-upload.txt").DownloadContentAsync()).Value.Content.ToString());
+        await container.DeleteAsync();
+    }
 }

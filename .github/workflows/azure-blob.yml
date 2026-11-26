@@ -62,6 +62,10 @@ jobs:
           curl --fail --location "$base/SHA256SUMS.txt" -o artifacts/azure-host/SHA256SUMS.txt
           (cd artifacts/azure-host; grep "  $asset$" SHA256SUMS.txt | sha256sum --check --strict; mkdir host; tar -xzf "$asset" -C host)
           python3 eng/testing/verify-azure-blob-host.py artifacts/azure-host/host/csharpfar artifacts/azure-blob/azure-blob artifacts/azure-blob/panel.png
+      - name: Verify remote changes made by the host
+        env:
+          CSHARPFAR_AZURE_HOST_FIXTURE: '1'
+        run: dotnet test tests/CSharpFar.Plugin.AzureBlob.Tests -c Release --no-build --filter Category=AzureHostVerify
       - name: Upload installation package
         uses: actions/upload-artifact@v4
         with:
