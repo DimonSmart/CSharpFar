@@ -105,6 +105,66 @@ public static class SafeFileWriteService
         expected.Size == actual.Size && expected.LastWriteTime == actual.LastWriteTime &&
         expected.Attributes == actual.Attributes && expected.IsDirectory == actual.IsDirectory;
 
+    internal static bool UsesBestEffort(IFilePanelSource source, bool overwrite) =>
+        source is not IFileOperationBatch && source is not IFileOperationBatchProvider &&
+        source.SourceId != PanelSourceId.Local &&
+        (overwrite || source is not ISafeNewFilePublicationProvider);
+
+    private static async Task<string?> WriteBestEffortAsync(IFilePanelSource source, string path,
+        FilePanelItem? expected, long? expectedLength, Func<Stream, Task<long>> write,
+        bool keepPartial, CancellationToken cancellationToken)
+    {
+        bool overwrite = expected is not null;
+        string consequence = overwrite
+            ? "The previous destination may be damaged; it was not deleted."
+            : keepPartial
+                ? "Partial data may be retained at the destination."
+                : "Partial data may remain: exclusive ownership of the destination cannot be established.";
+        long written;
+        bool closing = false;
+        try
+        {
+            await using (var stream = await source.AsAsync().OpenWriteAsync(path, overwrite, cancellationToken).ConfigureAwait(false))
+            {
+                written = await write(stream).ConfigureAwait(false);
+                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                closing = true;
+            }
+        }
+        catch (UnknownFilePublicationException) { throw; }
+        catch (Exception error) when (closing)
+        {
+            throw new UnknownFilePublicationException(path, path, consequence, error);
+        }
+        catch (OperationCanceledException error)
+        {
+            throw new OperationCanceledException($"Partial data retained or possibly retained at '{path}'. {consequence}", error, cancellationToken);
+        }
+        catch (Exception error)
+        {
+            throw new IOException($"Write failed for '{path}'. {consequence}", error);
+        }
+
+        if (expectedLength is long length && length != written)
+            throw new IOException($"Incomplete write to '{path}' ({written}/{length} bytes). {consequence}");
+        if (cancellationToken.IsCancellationRequested)
+            throw new OperationCanceledException($"Partial data retained or possibly retained at '{path}'. {consequence}", cancellationToken);
+
+        FilePanelItem? actual;
+        try
+        {
+            actual = await source.AsAsync().GetItemAsync(path, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception error)
+        {
+            throw new UnknownFilePublicationException(path, path, consequence, error);
+        }
+        if (actual is null || actual.IsDirectory || (actual.Size is long size && size != written))
+            throw new IOException($"Destination verification failed: '{path}'. {consequence}");
+        cancellationToken.ThrowIfCancellationRequested();
+        return null;
+    }
+
     internal static async Task<string?> WriteProviderAsync(IFilePanelSource source, string path,
         FilePanelItem? expected, long? expectedLength, Func<Stream, Task<long>> write,
         bool keepPartial, CancellationToken cancellationToken,
@@ -113,8 +173,10 @@ public static class SafeFileWriteService
         bool batch = source is IFileOperationBatch;
         bool local = !batch && source.SourceId == PanelSourceId.Local;
         var safe = source as ISafeNewFilePublicationProvider;
-        if (!batch && !local && (safe is null || expected is not null))
-            throw new NotSupportedException($"Provider '{source.DisplayName}' cannot safely publish {(expected is null ? "a new file" : "a replacement file")}.");
+        if (!source.Capabilities.HasFlag(PanelProviderCapabilities.OpenWrite))
+            throw new NotSupportedException($"Provider '{source.DisplayName}' does not support writing.");
+        if (expected is not null && (expected.IsDirectory || expected.Attributes.HasFlag(FileAttributes.ReadOnly)))
+            throw new IOException("The destination is a directory or read-only.");
         if (!SameDestination(expected, await source.AsAsync().GetItemAsync(path, cancellationToken).ConfigureAwait(false)))
             throw new IOException($"Destination changed before writing: '{path}'.");
 
@@ -130,6 +192,10 @@ public static class SafeFileWriteService
             return await WriteLocalContentsAsync(path, localExpected, expectedLength, write, keepPartial,
                 cancellationToken, replaceLocal, createLocal).ConfigureAwait(false);
         }
+
+        if (!batch && (safe is null || expected is not null))
+            return await WriteBestEffortAsync(source, path, expected, expectedLength, write,
+                keepPartial, cancellationToken).ConfigureAwait(false);
 
         string staging = batch ? path :
             source.CombinePath(source.GetParentPath(path) ?? throw new IOException("No destination directory."),

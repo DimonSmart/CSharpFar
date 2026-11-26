@@ -445,6 +445,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                     DestinationSize = destinationItem.Size,
                     SourceLastWriteTime = sourceItem.LastWriteTime,
                     DestinationLastWriteTime = destinationItem.LastWriteTime,
+                    UnsafeReplacement = SafeFileWriteService.UsesBestEffort(destinationSource, overwrite: true),
                 });
 
             switch (decision.Mode)
@@ -466,8 +467,6 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 case ConflictDecisionMode.Overwrite:
                     if (destinationItem.IsDirectory)
                         throw new IOException("Cannot overwrite a directory with a file.");
-                    if (destinationSource is not IFileOperationBatch && destinationSource.SourceId != PanelSourceId.Local)
-                        throw new NotSupportedException($"Provider '{destinationSource.DisplayName}' cannot safely replace an existing file without transactional batch support.");
                     approvedDestination = destinationItem;
                     break;
                 case ConflictDecisionMode.OnlyNewer:

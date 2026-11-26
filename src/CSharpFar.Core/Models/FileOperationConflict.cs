@@ -4,6 +4,7 @@ public sealed record FileOperationConflict
 {
     public required string SourcePath { get; init; }
     public required string DestinationPath { get; init; }
+    public bool UnsafeReplacement { get; init; }
     public bool SourceIsDirectory { get; init; }
     public bool DestinationIsDirectory { get; init; }
     public long? SourceSize { get; init; }
