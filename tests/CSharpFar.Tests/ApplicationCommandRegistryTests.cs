@@ -410,9 +410,6 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
         var services = ApplicationServicesBuilder.Create(
             new ScreenRenderer(new FakeConsoleDriver()), fs, new NoOpShellService(),
             fileOperations ?? new NoOpFileOperationService(), new InMemoryHistoryStore(), settings);
-        services.Callbacks.ClosePanelQuickSearchForState = _ => { };
-        services.Callbacks.PanelSideForState = state => ReferenceEquals(state, services.Session.Panels.Left) ? PanelSide.Left : PanelSide.Right;
-        services.Callbacks.VisibleRowsForSide = _ => 10;
         return services;
     }
 
@@ -423,7 +420,6 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
         services.KeyboardInputContext.ExecuteRegisteredCommand = Execute;
         services.KeyboardInputContext.SetFunctionKeyLayer = _ => false;
         services.MouseInputContext.ExecuteRegisteredCommand = Execute;
-        services.Callbacks.ClosePanelQuickSearchForState = _ => { };
     }
 
     private static void AddItem(FilePanelState state, string name) => state.Items.Add(new FilePanelItem

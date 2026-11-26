@@ -263,19 +263,28 @@ internal static class ApplicationServicesBuilder
         var effectiveUserMenu = core.UserMenu;
         var effectiveFileMetadata = fileMetadata ?? new FileMetadataService();
         var menuProvider = core.MenuProvider;
-        var callbacks = new ApplicationServiceCallbacks
-        {
-            PanelOptions = () => effectiveSettings.Panels.Options,
-            CanExecuteFunctionKeyCommand = _ => false,
-        };
+        var panelQuickSearch = new PanelQuickSearchController(
+            controller,
+            () => session.Panels.ActiveSide,
+            () => session.App.WorkspaceMode == ApplicationWorkspaceMode.Panels,
+            side => side == PanelSide.Left ? session.Panels.Left : session.Panels.Right,
+            side => PanelWorkspaceController.CalculateVisibleRows(screen,
+                side == PanelSide.Left ? session.Panels.LeftViewMode : session.Panels.RightViewMode,
+                effectiveSettings.Panels.Options));
+        var panelWorkspace = new PanelWorkspaceController(
+            screen,
+            session,
+            panelQuickSearch,
+            () => effectiveSettings.Panels.Options);
+        var callbacks = new ApplicationServiceCallbacks();
         var keyboardInputContext = new KeyboardInputContext
         {
             PanelController = controller,
             CommandLine = session.CommandLine.State,
-            SetActiveSide = side => callbacks.SetActiveSide(side),
+            SetActiveSide = panelWorkspace.SetActiveSide,
             LeftPanel = () => session.Panels.Left,
             RightPanel = () => session.Panels.Right,
-            PanelOptions = () => callbacks.PanelOptions(),
+            PanelOptions = () => effectiveSettings.Panels.Options,
             QuickView = () => session.App.QuickView,
             SetQuickView = quickView =>
             {
@@ -297,9 +306,9 @@ internal static class ApplicationServicesBuilder
             changeWatcher,
             controller,
             locationService,
-            () => callbacks.PanelOptions(),
-            side => callbacks.GetPanelState(side),
-            side => callbacks.VisibleRowsForSide(side),
+            () => effectiveSettings.Panels.Options,
+            panelWorkspace.GetPanelState,
+            panelWorkspace.VisibleRows,
             (state, rows) => callbacks.SafeRefresh(state, rows));
         var pluginUiActions = new PluginUiActionQueue(autoRefresh.WakeInputLoop,
             error => diagnosticLog.WriteException(DiagnosticCategory.Plugin, error, "UI action"));
@@ -314,31 +323,20 @@ internal static class ApplicationServicesBuilder
             autoRefresh.WakeInputLoop);
         var panelSort = new PanelSortServiceFacade(
             controller,
-            () => callbacks.PanelOptions(),
-            state => callbacks.ClosePanelQuickSearchForState(state));
+            () => effectiveSettings.Panels.Options,
+            panelQuickSearch.CloseForState);
         var panelNavigation = new PanelNavigationService(
             controller,
             effectiveHistory,
-            () => callbacks.PanelOptions(),
-            side => callbacks.VisibleRowsForSide(side),
-            side => callbacks.ClosePanelQuickSearchForPanel(side),
-            (state, side) => callbacks.StartWatching(state, side),
+            () => effectiveSettings.Panels.Options,
+            panelWorkspace.VisibleRows,
+            panelQuickSearch.CloseForPanel,
+            autoRefresh.StartWatching,
             effectiveSourceRegistry)
         {
             Loading = panelLoading,
             ResolveSide = state => ReferenceEquals(state, session.Panels.Left) ? PanelSide.Left : PanelSide.Right,
         };
-        var panelQuickSearch = new PanelQuickSearchController(
-            controller,
-            () => callbacks.GetActiveSide(),
-            () => callbacks.IsPanelsMode(),
-            side => callbacks.GetPanelState(side),
-            side => callbacks.VisibleRowsForSide(side));
-        var panelWorkspace = new PanelWorkspaceController(
-            screen,
-            session,
-            panelQuickSearch,
-            () => callbacks.PanelOptions());
         var keyboardInputRouter = new KeyboardInputRouter(keyboardInputContext);
         var mouseInputContext = new MouseInputContext
         {
@@ -346,9 +344,9 @@ internal static class ApplicationServicesBuilder
             CommandLine = session.CommandLine.State,
             Ui = session.Ui,
             Mouse = session.Mouse,
-            PanelOptions = () => callbacks.PanelOptions(),
-            SetActiveSide = side => callbacks.SetActiveSide(side),
-            GetPanelState = side => callbacks.GetPanelState(side),
+            PanelOptions = () => effectiveSettings.Panels.Options,
+            SetActiveSide = panelWorkspace.SetActiveSide,
+            GetPanelState = panelWorkspace.GetPanelState,
         };
         var commandLineInputHandler = new ApplicationCommandLineInputHandler(mouseInputContext);
         var panelInputHandler = new ApplicationPanelInputHandler(mouseInputContext);
@@ -421,7 +419,8 @@ internal static class ApplicationServicesBuilder
             mouseInputContext,
             session,
             controller,
-            callbacks,
+            effectiveSettings,
+            autoRefresh,
             panelWorkspace,
             quickViewDirectorySize,
             fileUsagePanel,
@@ -431,26 +430,27 @@ internal static class ApplicationServicesBuilder
             dialogs,
             controller,
             effectiveHistory,
-            () => callbacks.PanelOptions(),
-            state => callbacks.PanelSideForState(state),
-            side => callbacks.VisibleRowsForSide(side),
-            state => callbacks.ClosePanelQuickSearchForState(state),
-            side => callbacks.ClosePanelQuickSearchForPanel(side),
-            (state, side) => callbacks.StartWatching(state, side))
+            () => effectiveSettings.Panels.Options,
+            panelWorkspace.PanelSideForState,
+            panelWorkspace.VisibleRows,
+            panelQuickSearch.CloseForState,
+            panelQuickSearch.CloseForPanel,
+            autoRefresh.StartWatching)
         {
             Navigation = panelNavigation,
         };
         var panelRefresh = new PanelRefreshService(
             controller,
-            () => callbacks.PanelOptions(),
-            side => callbacks.VisibleRowsForSide(side),
-            state => callbacks.ClosePanelQuickSearchForState(state),
-            state => panelNavigation.EnsureNestedRootParent(state, callbacks.PanelSideForState(state)))
+            () => effectiveSettings.Panels.Options,
+            panelWorkspace.VisibleRows,
+            panelQuickSearch.CloseForState,
+            state => panelNavigation.EnsureNestedRootParent(state, panelWorkspace.PanelSideForState(state)))
         {
             Loading = panelLoading,
-            ResolveSide = state => callbacks.PanelSideForState(state),
+            ResolveSide = panelWorkspace.PanelSideForState,
         };
         panelSort.Refresh = panelRefresh.SafeRefresh;
+        callbacks.SafeRefresh = panelRefresh.SafeRefresh;
         panelRefresh.RefreshRequested = state =>
         {
             if (session.App.FileUsage && ReferenceEquals(state, panelWorkspace.ActiveState))
@@ -467,17 +467,20 @@ internal static class ApplicationServicesBuilder
             formFields,
             effectiveSettings,
             controller,
-            state => callbacks.PanelSideForState(state),
-            side => callbacks.VisibleRowsForSide(side),
-            (state, rows) => callbacks.SafeRefresh(state, rows),
+            panelWorkspace.PanelSideForState,
+            panelWorkspace.VisibleRows,
+            panelRefresh.SafeRefresh,
             effectiveFileLauncher,
             effectiveUriLauncher);
+        var externalConsoleCommandRunner = new ExternalConsoleCommandRunner(
+            screen, terminalSurface, commandLineRenderer, session.App, session.CommandLine.State,
+            () => panelRefresh.RefreshPanels(session.Panels.Left, session.Panels.Right));
         var panelFileOpener = new PanelFileOpener(
             effectiveFileLauncher,
             dialogs,
             () => session.App.Palette,
-            (state, item) => callbacks.ViewPanelFile(state, item),
-            (workDir, displayCommand, execute) => callbacks.ExecuteInCurrentConsole(workDir, displayCommand, execute));
+            panelFileViewer.ViewPanelFile,
+            externalConsoleCommandRunner.Execute);
         var moduleUiServices = new ModuleUiServices
         {
             Screen = screen,
@@ -491,7 +494,9 @@ internal static class ApplicationServicesBuilder
             Ui = moduleUiServices,
             Settings = new ModuleSettingsService(effectiveConfigDirectory),
             Credentials = credentialStore,
-            Panels = new ApplicationModulePanelHost(callbacks),
+            Panels = new ApplicationModulePanelHost(panelWorkspace,
+                (side, panel) => callbacks.OpenModulePanel(side, panel),
+                () => panelRefresh.RefreshPanels(session.Panels.Left, session.Panels.Right)),
         };
 
         var pluginApplication = new ApplicationPluginContext(
@@ -564,10 +569,18 @@ internal static class ApplicationServicesBuilder
                 screen,
                 dialogs,
                 () => session.App.Palette,
-                () => callbacks.PanelOptions(),
+                () => effectiveSettings.Panels.Options,
                 side => side == PanelSide.Left ? session.Panels.Left : session.Panels.Right,
-                side => callbacks.SetActiveSide(side),
-                quickView => callbacks.SetQuickView(quickView),
+                panelWorkspace.SetActiveSide,
+                quickView =>
+                {
+                    if (session.App.FileUsage)
+                    {
+                        session.App.FileUsage = false;
+                        fileUsagePanel.Update(false, PanelSourceId.Local, null);
+                    }
+                    session.App.QuickView = quickView;
+                },
                 pluginUiActions.Post,
                 error => diagnosticLog.WriteException(
                     DiagnosticCategory.Plugin, error, "Rejected plugin panel source cleanup"),
@@ -631,7 +644,10 @@ internal static class ApplicationServicesBuilder
                 highlightState,
                 diagnosticLog,
                 updateCheckService,
-                effectiveApplicationUpdateInstaller);
+                effectiveApplicationUpdateInstaller,
+                externalConsoleCommandRunner);
+            callbacks.OpenModulePanel = modulePanelOpener.OpenPanel;
+            callbacks.CanExecuteFunctionKeyCommand = commandId => commandServices.CommandRegistry.CanExecute(commandId);
             var runtime = ApplicationRuntimeBuilder.Create(
                 composition,
                 screen,

@@ -248,30 +248,11 @@ public sealed class Application
 
     private void BindCallbacks(ApplicationServiceCallbacks callbacks)
     {
-        callbacks.ActiveState = () => _panelWorkspace.ActiveState;
-        callbacks.GetActiveSide = () => _panelWorkspace.ActiveSide;
-        callbacks.SetActiveSide = _panelWorkspace.SetActiveSide;
-        callbacks.SetQuickView = quickView => QuickView = quickView;
-        callbacks.PanelOptions = () => PanelOptions;
-        callbacks.GetPanelState = _panelWorkspace.GetPanelState;
-        callbacks.PanelSideForState = _panelWorkspace.PanelSideForState;
-        callbacks.VisibleRows = _panelWorkspace.VisibleRows;
-        callbacks.VisibleRowsForSide = _panelWorkspace.VisibleRows;
-        callbacks.StartWatching = StartWatching;
-        callbacks.SafeRefresh = SafeRefresh;
-        callbacks.ClosePanelQuickSearchForState = ClosePanelQuickSearchForState;
-        callbacks.ClosePanelQuickSearchForPanel = ClosePanelQuickSearchForPanel;
-        callbacks.IsPanelsMode = () => _panelWorkspace.IsPanelsMode;
-        callbacks.ViewPanelFile = ViewPanelFile;
-        callbacks.ExecuteInCurrentConsole = _externalConsoleCommandRunner.Execute;
-        callbacks.CanExecuteFunctionKeyCommand = CanExecuteFunctionKeyCommand;
         callbacks.ExecuteMenuCommand = ExecuteMenuCommand;
         callbacks.CaptureUnderlay = _terminalSurface.CaptureUnderlay;
         callbacks.StartWatchingInitialPanels = StartWatchingInitialPanels;
         callbacks.RestoreTerminal = _terminalSurface.RestoreTerminal;
         callbacks.HandleApplicationInput = HandleRuntimeApplicationInput;
-        callbacks.RefreshPanels = RefreshPanels;
-        callbacks.OpenModulePanel = OpenModulePanel;
     }
 
     internal ApplicationSession Session => _session;

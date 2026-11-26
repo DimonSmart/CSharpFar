@@ -72,13 +72,15 @@ internal sealed class PanelWorkspaceController
             ? _session.Panels.LeftViewMode
             : _session.Panels.RightViewMode;
 
-    private int VisibleRows(PanelViewMode mode)
+    private int VisibleRows(PanelViewMode mode) => CalculateVisibleRows(_screen, mode, _panelOptions());
+
+    internal static int CalculateVisibleRows(ScreenRenderer screen, PanelViewMode mode, AppSettingsAlias.PanelOptionsSettings options)
     {
-        var size = _screen.GetSize();
+        var size = screen.GetSize();
         int panelHeight = ApplicationLayoutService.PanelHeight(size);
         var bounds = new Rect(0, 0, 0, panelHeight);
         return mode == PanelViewMode.BriefTwoColumns
-            ? BriefTwoColumnsPanelRenderer.VisibleRows(bounds, _panelOptions())
-            : PanelRenderer.VisibleRows(bounds, _panelOptions());
+            ? BriefTwoColumnsPanelRenderer.VisibleRows(bounds, options)
+            : PanelRenderer.VisibleRows(bounds, options);
     }
 }
