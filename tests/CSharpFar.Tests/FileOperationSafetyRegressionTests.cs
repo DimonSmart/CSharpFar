@@ -111,18 +111,6 @@ public sealed class FileOperationSafetyRegressionTests : IDisposable
             ("dest/b.txt", "old-b"));
         var resolver = new SequenceResolver(FileOperationConflictDecision.FromMode(decision));
 
-        if (kind == FileOperationKind.Copy && decision == ConflictDecisionMode.OverwriteAll)
-        {
-            await Assert.ThrowsAsync<NotSupportedException>(() =>
-                ExecuteProvider(provider, kind, ["/src/a.txt", "/src/b.txt"], "/dest", resolver));
-            Assert.Equal(1, resolver.CallCount);
-            Assert.Equal("old-a", await ReadDemo(provider, "/dest/a.txt"));
-            Assert.Equal("old-b", await ReadDemo(provider, "/dest/b.txt"));
-            Assert.Equal("new-a", await ReadDemo(provider, "/src/a.txt"));
-            Assert.Equal("new-b", await ReadDemo(provider, "/src/b.txt"));
-            return;
-        }
-
         FileOperationResult result = await ExecuteProvider(
             provider, kind, ["/src/a.txt", "/src/b.txt"], "/dest", resolver);
 

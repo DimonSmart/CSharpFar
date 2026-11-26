@@ -24,6 +24,7 @@ public sealed class FileOperationContractTests : IDisposable
     [InlineData("local")]
     [InlineData("demo")]
     [InlineData("batch")]
+    [InlineData("basic")]
     public async Task Copy_PreviewMatchesExecutedTargets(string backend)
     {
         ContractFixture fixture = Arrange(backend,
@@ -53,9 +54,11 @@ public sealed class FileOperationContractTests : IDisposable
     [InlineData("local", FileOperationKind.Copy)]
     [InlineData("demo", FileOperationKind.Copy)]
     [InlineData("batch", FileOperationKind.Copy)]
+    [InlineData("basic", FileOperationKind.Copy)]
     [InlineData("local", FileOperationKind.Move)]
     [InlineData("demo", FileOperationKind.Move)]
     [InlineData("batch", FileOperationKind.Move)]
+    [InlineData("basic", FileOperationKind.Move)]
     public async Task SkipAll_OnlyAsksOnceAndPreservesBothTrees(
         string backend, FileOperationKind kind)
     {
@@ -81,6 +84,7 @@ public sealed class FileOperationContractTests : IDisposable
     [InlineData("local")]
     [InlineData("demo")]
     [InlineData("batch")]
+    [InlineData("basic")]
     public async Task OverwriteAll_ReusesDecisionAcrossFiles(string backend)
     {
         ContractFixture fixture = Arrange(backend,
@@ -88,18 +92,6 @@ public sealed class FileOperationContractTests : IDisposable
             ("dest/a.txt", "old-a"), ("dest/b.txt", "old-b"));
         var resolver = new ScriptedResolver(
             FileOperationConflictDecision.FromMode(ConflictDecisionMode.OverwriteAll));
-
-        if (backend == "demo")
-        {
-            await Assert.ThrowsAsync<NotSupportedException>(() =>
-                fixture.Service.ExecuteAsync(
-                    fixture.Request(FileOperationKind.Copy, ["src/a.txt", "src/b.txt"], "dest"),
-                    progress: null, conflictResolver: resolver));
-            Assert.Equal(1, resolver.CallCount);
-            Assert.Equal("old-a", await fixture.ReadAsync("dest/a.txt"));
-            Assert.Equal("old-b", await fixture.ReadAsync("dest/b.txt"));
-            return;
-        }
 
         FileOperationResult result = await fixture.Service.ExecuteAsync(
             fixture.Request(FileOperationKind.Copy, ["src/a.txt", "src/b.txt"], "dest"),
@@ -115,6 +107,7 @@ public sealed class FileOperationContractTests : IDisposable
     [InlineData("local")]
     [InlineData("demo")]
     [InlineData("batch")]
+    [InlineData("basic")]
     public async Task RenameToOccupiedTarget_RechecksConflictBeforeWriting(string backend)
     {
         ContractFixture fixture = Arrange(backend,
@@ -143,6 +136,7 @@ public sealed class FileOperationContractTests : IDisposable
     [InlineData("local")]
     [InlineData("demo")]
     [InlineData("batch")]
+    [InlineData("basic")]
     public void TemplateCollisions_AreRejectedDuringPlanning(string backend)
     {
         ContractFixture fixture = Arrange(backend,
@@ -169,6 +163,7 @@ public sealed class FileOperationContractTests : IDisposable
             "local" => null,
             "demo" => DemoFilePanelSource.ImportFromDirectory(_root),
             "batch" => MakeBatch(files),
+            "basic" => Seed(new MemoryFilePanelView(new PanelSourceId("basic-test")), files),
             _ => throw new ArgumentOutOfRangeException(nameof(backend)),
         };
         return new ContractFixture(_root, provider);
@@ -177,6 +172,12 @@ public sealed class FileOperationContractTests : IDisposable
     private static InMemoryBatchFilePanelSource MakeBatch(IEnumerable<(string Path, string Text)> files)
     {
         var batch = new InMemoryBatchFilePanelSource();
+        Seed(batch, files);
+        return batch;
+    }
+
+    private static MemoryFilePanelView Seed(MemoryFilePanelView batch, IEnumerable<(string Path, string Text)> files)
+    {
         batch.SeedDirectory("/src");
         batch.SeedDirectory("/dest");
         batch.SeedDirectory("/other");
