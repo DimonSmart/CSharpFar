@@ -99,7 +99,7 @@ public sealed class AzuriteTests
             await container.GetBlobClient("nested/two/file").UploadAsync(new BinaryData("data"));
             Assert.Equal(2, (await provider.EnumerateDirectoryAsync("/nested")).Count);
             Assert.All(await provider.EnumerateDirectoryAsync("/nested"), item => Assert.True(item.IsDirectory));
-            await container.GetBlobClient("nested/user-zero").UploadAsync(BinaryData.FromBytes([]));
+            await container.GetBlobClient("nested/user-zero").UploadAsync(BinaryData.FromBytes(Array.Empty<byte>()));
             Assert.Contains(await provider.EnumerateDirectoryAsync("/nested"), item => item.Name == "user-zero" && !item.IsDirectory);
         }
         finally { await container.DeleteIfExistsAsync(); }

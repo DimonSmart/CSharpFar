@@ -1,0 +1,58 @@
+name: Azure Blob extension
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'src/CSharpFar.Plugin.AzureBlob/**'
+      - 'tests/CSharpFar.Plugin.AzureBlob.Tests/**'
+      - 'eng/testing/build-azure-blob-extension.ps1'
+      - 'eng/testing/verify-azure-blob-host.py'
+      - '.github/workflows/azure-blob.yml'
+  pull_request:
+    paths:
+      - 'src/CSharpFar.Plugin.AzureBlob/**'
+      - 'tests/CSharpFar.Plugin.AzureBlob.Tests/**'
+      - 'eng/testing/build-azure-blob-extension.ps1'
+      - 'eng/testing/verify-azure-blob-host.py'
+      - '.github/workflows/azure-blob.yml'
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Run unit tests
+        run: dotnet test tests/CSharpFar.Plugin.AzureBlob.Tests -c Release
+      - name: Start Azurite
+        run: |
+          docker run -d --name csharpfar-azurite -p 10000:10000 mcr.microsoft.com/azure-storage/azurite:3.35.0 azurite-blob --blobHost 0.0.0.0
+          for i in $(seq 1 30); do
+            if curl -s -o /dev/null http://127.0.0.1:10000/devstoreaccount1; then exit 0; fi
+            sleep 1
+          done
+          docker logs csharpfar-azurite
+          exit 1
+      - name: Run real Azurite tests
+        env:
+          CSHARPFAR_AZURE_TEST_CONNECTION: UseDevelopmentStorage=true
+        run: dotnet test tests/CSharpFar.Plugin.AzureBlob.Tests -c Release --no-build --filter Category=AzureIntegration --logger "console;verbosity=normal"
+      - name: Build installable ZIP using published SDK
+        shell: pwsh
+        run: ./eng/testing/build-azure-blob-extension.ps1
+      - name: Upload installation package
+        uses: actions/upload-artifact@v4
+        with:
+          name: CSharpFar-AzureBlob-extension
+          path: |
+            artifacts/azure-blob/*.zip
+            artifacts/azure-blob/*.sha256
+          if-no-files-found: error
