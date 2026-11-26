@@ -125,6 +125,14 @@ def check(host, extension, screenshot):
             wait_text("nested.txt")
             send(b"\x1b[H\r")
             wait_text("probe-view.txt")
+            send(b"\x1b[H")
+            wait_text("/folder/")
+            send(b"\x1b[15~")
+            wait_text("Already existing files:")
+            send(b"\r")
+            wait_for(lambda: (work / "folder" / "nested.txt").exists() and
+                     (work / "folder" / "nested.txt").read_text() == "NESTED_AZURE_PROBE", "downloaded nested directory")
+            wait_for(lambda: "Already existing files:" not in visible() and "Quit" in visible(), "directory copy completed")
             send(b"\x1b[F")  # End: last file in the remote panel
             send(b"\x1bOR")   # F3
             wait_text("AZURE_PROBE_VIEW")
@@ -161,21 +169,33 @@ def check(host, extension, screenshot):
             send(b"\r")
             wait_for(lambda: visible().count("local-upload.txt") >= 2 and "Copy local-upload.txt to:" not in visible(),
                      "uploaded file visible in both panels")
-            print("PASS: standard F5 upload to Azure.")
-            send(b"\x1b[21~")  # F10
-            # Also handle confirmation if the host elects to show one.
-            deadline = time.monotonic() + 15
+            print("PASS: standard F5 upload to Azure.", flush=True)
+            # Allow the asynchronous file operation and refresh to release the input barrier.
+            settle = time.monotonic() + 1
+            while time.monotonic() < settle:
+                pump()
+            deadline = time.monotonic() + 20
+            next_exit_attempt = 0
+            exit_attempt = 0
             while time.monotonic() < deadline:
                 result, status = os.waitpid(pid, os.WNOHANG)
                 if result:
+                    pid = None
                     if status != 0:
                         raise AssertionError(f"CSharpFar exit status {status}")
-                    pid = None
+                    print("PASS: CSharpFar exited cleanly.", flush=True)
                     break
-                if "Exit CSharpFar" in visible():
-                    send(b"e")
-                    # Don't keep sending keys while the process is shutting down.
-                    time.sleep(0.2)
+                if time.monotonic() >= next_exit_attempt:
+                    next_exit_attempt = time.monotonic() + 1
+                    if "Exit CSharpFar" in visible():
+                        send(b"e")
+                    elif "Quit" in screen.display[-1]:
+                        if exit_attempt % 2 == 0:
+                            send(b"\x1b[21~")  # F10
+                        else:
+                            x = screen.display[-1].index("Quit") + 2
+                            send(f"\x1b[<0;{x};35M\x1b[<0;{x};35m".encode())
+                        exit_attempt += 1
                 try:
                     pump()
                 except (OSError, AssertionError):
