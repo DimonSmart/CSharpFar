@@ -237,8 +237,15 @@ cancellation do not silently run the system file association.
 
 A container provider may implement `IFileOperationBatchProvider` in addition to
 `IFilePanelSource`. For multi-file F5 copies, `FileOperationService` writes to
-its staged `IFileOperationBatch` view and commits once. Existing FTP, SFTP,
-and local providers do not have to change. See
+its staged `IFileOperationBatch` view and commits once. A base writable provider does not need this interface: declare OpenWrite and
+the supported operations (e.g. CopyTo), implement OpenWriteAsync with the
+overwrite flag, and surface write, flush and close failures. The host selects
+transactional writes first, then safe publication where applicable, then Best
+Effort. ISafeNewFilePublicationProvider is optional and provides exclusive staging
+and guaranteed no-overwrite rename. Best Effort does not promise atomicity,
+exclusive create or rollback; partial data with unknown ownership is not removed.
+Do not advertise an unsupported operation. Existing SDK 2.x providers need no
+new mandatory interface or manifest version. See
 [archive infrastructure](archive-provider-infrastructure.md) for the
 contracts, ownership and remaining limitations.
 

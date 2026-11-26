@@ -1312,16 +1312,22 @@ retains its format-specific validation and digest check and uses the same local 
 | Destination | New file | Existing file |
 | --- | --- | --- |
 | Local | Exclusive staging, verified size, no-overwrite move | Stage, check revision, File.Replace with backup; recoverable fallback for Windows read-only copy |
-| SFTP | Exclusive SFTP create, verify size, standard SFTP v3 rename (not POSIX overwrite) | Rejected without an independently verified replacement guarantee |
-| FTP/FTPS | Rejected: STOR/RNTO do not provide exclusive creation plus no-overwrite guarantees | Rejected |
+| SFTP | Exclusive SFTP create, verify size, standard SFTP v3 rename (not POSIX overwrite) | Best Effort direct stream replacement |
+| FTP/FTPS | Best Effort (STOR is not exclusive create) | Best Effort direct stream replacement |
 | Archive / transactional provider | Stage inside a batch, then commit | Same batch contract |
-| Other provider | Only with explicit safe-new capability | Only with a transaction / verified safe replacement |
+| Other writable provider | Safe new-file publication if supported, otherwise Best Effort | Best Effort unless a stronger applicable contract exists |
 
 New optional contracts are `ISafeEntryRenameProvider`,
 `ISafeNewFilePublicationProvider`, `IRecoverableEntryRenameProvider`, and
 `IFileOperationBatchDiagnostics`. Existing provider interfaces are not expanded
 with required members. Raw stream and rename APIs alone do not imply safe
-publication. Recovery uses cancellation-independent operations after publication
+publication, but are sufficient for Best Effort. Strategy selection is based on
+capabilities and applicable optional interfaces before mutation; errors never
+trigger a downgrade. Direct writes require explicit overwrite permission and
+recheck the destination before opening. Completion/close errors and inability to
+verify publication prevent success. No cleanup deletes an existing or unowned
+final path; possibly retained partial data and possible damage are reported.
+Best Effort provides neither atomic replacement nor race-free creation. Recovery uses cancellation-independent operations after publication
 starts. Local replacement checks a metadata snapshot immediately before publication;
 this is not an atomic compare-and-swap against an unrelated concurrent writer.
 Archive digest checks also do not prevent an unrelated process racing the final
@@ -1347,4 +1353,4 @@ Local and provider move share the same safety contract: a failed direct rename/m
 
 Existing destinations are never deleted before replacement. File overwrite and directory Replace preserve the old destination under a unique sibling backup until commit; cross-filesystem replacement stages the full new tree before moving the old destination aside. Directory Merge is recursive and non-destructive: skipped or not-yet-moved source items remain at the source.
 
-Provider implementations use rename-to-backup / rename-new / rollback semantics when safe replacement is available. Providers that cannot support the required rename/delete capabilities reject Replace rather than emulate it with delete-before-rename.
+Ordinary rename to a free target uses the strongest available rename contract, or a fresh absence check and base RenameAsync as Best Effort. Provider implementations use rename-to-backup / rename-new / rollback semantics when safe replacement is available. Providers that cannot support the required rename/delete capabilities reject Replace rather than emulate it with delete-before-rename.
