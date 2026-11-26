@@ -36,17 +36,17 @@ internal sealed class PanelNavigationService
     }
 
     internal sealed record ReturnPoint(
-        PanelLocation Location, string ItemName, int CursorIndex, int ScrollOffset,
+        PanelLocation Location, PanelLocation ItemLocation, int CursorIndex, int ScrollOffset,
         string? DisplayTitle, string? DisplayTitleBasePath, bool ShowFullPath,
-        IReadOnlyList<string> SelectedPaths, IReadOnlyList<PanelLocation> SelectedLocations)
+        IReadOnlyList<PanelLocation> SelectedLocations)
     {
         internal IDisposable? Lease { get; init; }
     }
 
     public ReturnPoint CaptureReturnPoint(FilePanelState state, FilePanelItem item) =>
-        new(state.CurrentLocation, item.Name, state.CursorIndex, state.ScrollOffset,
+        new(state.CurrentLocation, item.Location, state.CursorIndex, state.ScrollOffset,
             state.DisplayTitle, state.DisplayTitleBasePath, state.ShowCurrentItemFullPath,
-            state.SelectedPaths.ToArray(), state.SelectedLocations.ToArray());
+            state.SelectedLocations.ToArray());
 
     public void PushReturnPoint(PanelSide side, ReturnPoint point)
     {
@@ -110,13 +110,11 @@ internal sealed class PanelNavigationService
         if (stack.Count == 0)
             _returnPoints.Remove(side);
         _controller.SetSourceDisplay(state, frame.DisplayTitle, frame.ShowFullPath, frame.DisplayTitleBasePath);
-        foreach (string path in frame.SelectedPaths)
-            state.SelectedPaths.Add(path);
-        foreach (PanelLocation location in frame.SelectedLocations)
-            state.SelectedLocations.Add(location);
+        var available = state.Items.Where(item => !item.IsParentDirectory)
+            .Select(item => item.Location).ToHashSet(state.SelectedLocations.Comparer);
+        state.SelectedLocations.UnionWith(frame.SelectedLocations.Where(available.Contains));
         _controller.RefreshSelectionSummary(state);
-        _controller.SetCursorByName(state, frame.ItemName, _visibleRows(side));
-        if (!state.Items.Any(item => string.Equals(item.Name, frame.ItemName, StringComparison.Ordinal)))
+        if (!_controller.SetCursorByLocation(state, frame.ItemLocation, _visibleRows(side)))
             _controller.SetCursorTo(state, frame.CursorIndex, _visibleRows(side));
         state.ScrollOffset = frame.ScrollOffset;
         _controller.NormalizeCursor(state, _visibleRows(side));

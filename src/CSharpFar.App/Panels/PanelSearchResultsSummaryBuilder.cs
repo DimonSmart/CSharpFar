@@ -32,7 +32,7 @@ internal static class PanelSearchResultsSummaryBuilder
                 totalFileSize += item.Size ?? 0;
             }
 
-            if (!state.SelectedPaths.Contains(item.FullPath))
+            if (!state.SelectedLocations.Contains(item.Location))
                 continue;
 
             selectedCount++;

@@ -1,3 +1,4 @@
+using CSharpFar.Core.Services;
 using CSharpFar.Core.Comparison;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
@@ -12,8 +13,8 @@ internal static class ComparisonSelectionApplier
         FilePanelState right,
         PanelController controller)
     {
-        var leftPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var rightPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var leftPaths = new HashSet<PanelLocation>(left.SelectedLocations.Comparer);
+        var rightPaths = new HashSet<PanelLocation>(right.SelectedLocations.Comparer);
 
         foreach (CompareResultRow row in result.Rows)
         {
@@ -45,7 +46,7 @@ internal static class ComparisonSelectionApplier
     private static void AddVisibleMarkers(
         FilePanelState panel,
         IReadOnlyList<FileEntry> entries,
-        HashSet<string> selectedPaths)
+        HashSet<PanelLocation> selectedPaths)
     {
         foreach (FileEntry entry in entries)
         {
@@ -54,31 +55,30 @@ internal static class ComparisonSelectionApplier
                 .OrderByDescending(item => item.FullPath.Length)
                 .FirstOrDefault();
             if (marker is not null)
-                selectedPaths.Add(marker.FullPath);
+                selectedPaths.Add(marker.Location);
         }
     }
 
     private static bool IsSameOrAncestor(string candidate, string path)
     {
-        if (string.Equals(candidate, path, StringComparison.OrdinalIgnoreCase))
+        if (LocalFileSystemPathComparer.Current.Equals(candidate, path))
             return true;
 
         string separatorTerminated = candidate.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
             + Path.DirectorySeparatorChar;
-        return path.StartsWith(separatorTerminated, StringComparison.OrdinalIgnoreCase);
+        return path.Length >= separatorTerminated.Length &&
+            LocalFileSystemPathComparer.Current.Equals(path[..separatorTerminated.Length], separatorTerminated);
     }
 
     private static void ReplaceSelection(
         FilePanelState panel,
-        HashSet<string> paths,
+        HashSet<PanelLocation> paths,
         PanelController controller)
     {
-        panel.SelectedPaths.Clear();
         panel.SelectedLocations.Clear();
 
-        foreach (FilePanelItem item in panel.Items.Where(item => !item.IsParentDirectory && paths.Contains(item.FullPath)))
+        foreach (FilePanelItem item in panel.Items.Where(item => !item.IsParentDirectory && paths.Contains(item.Location)))
         {
-            panel.SelectedPaths.Add(item.FullPath);
             panel.SelectedLocations.Add(item.Location);
         }
 

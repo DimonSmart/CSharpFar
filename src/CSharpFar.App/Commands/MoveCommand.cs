@@ -66,7 +66,6 @@ internal sealed class MoveCommand : IApplicationCommand
                 Options = dialogResult.Options,
             });
 
-            target.State.SelectedPaths.Clear();
             target.State.SelectedLocations.Clear();
         }
         catch (OperationCanceledException) { }

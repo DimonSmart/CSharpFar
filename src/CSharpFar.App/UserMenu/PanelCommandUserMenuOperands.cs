@@ -26,9 +26,9 @@ internal readonly record struct PanelCommandUserMenuOperands(
             ? resolvedItem
             : null;
         string currentFile = item is { IsParentDirectory: false } ? item.FullPath : string.Empty;
-        IReadOnlyList<string> selected = target.State.SelectedPaths.Count > 0
-            ? [.. target.State.SelectedPaths]
-            : [];
+        IReadOnlyList<string> selected = target.State.SelectedLocations
+            .Where(location => location.SourceId == PanelSourceId.Local)
+            .Select(location => location.SourcePath).ToArray();
         operands = new PanelCommandUserMenuOperands(
             currentFile,
             selected,

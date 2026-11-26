@@ -19,18 +19,23 @@ public sealed class PanelLocationComparer : IEqualityComparer<PanelLocation>
         if (x.SourceId != y.SourceId)
             return false;
         if (!_sources.TryGetValue(x.SourceId, out var semantics))
-            return StringComparer.Ordinal.Equals(x.SourcePath, y.SourcePath);
+            return Fallback(x.SourceId).Equals(x.SourcePath, y.SourcePath);
 
         return semantics.Comparer.Equals(
             semantics.Source.NormalizePath(x.SourcePath),
             semantics.Source.NormalizePath(y.SourcePath));
     }
 
+    // Standalone panels without a source registry (including SDK consumers)
+    // still use the host's local policy. Unknown remote identities are exact.
+    private static StringComparer Fallback(PanelSourceId id) =>
+        id == PanelSourceId.Local ? LocalFileSystemPathComparer.Current : StringComparer.Ordinal;
+
     public int GetHashCode(PanelLocation obj)
     {
         int pathHash = _sources.TryGetValue(obj.SourceId, out var semantics)
             ? semantics.Comparer.GetHashCode(semantics.Source.NormalizePath(obj.SourcePath))
-            : StringComparer.Ordinal.GetHashCode(obj.SourcePath);
+            : Fallback(obj.SourceId).GetHashCode(obj.SourcePath);
         return HashCode.Combine(obj.SourceId, pathHash);
     }
 }

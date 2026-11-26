@@ -83,7 +83,6 @@ internal sealed class CopyCommand(bool toCurrentDirectory = false) : IApplicatio
         {
             context.ExecuteFileOperation(CreateRequest(dialogResult));
 
-            target.State.SelectedPaths.Clear();
             target.State.SelectedLocations.Clear();
         }
         catch (OperationCanceledException) { }

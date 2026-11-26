@@ -189,7 +189,7 @@ public sealed class BriefTwoColumnsPanelRenderer
 
         var item = state.Items[itemIdx];
         bool isCursor = isActive && itemIdx == state.CursorIndex;
-        bool isSelected = !item.IsParentDirectory && state.SelectedPaths.Contains(item.FullPath);
+        bool isSelected = !item.IsParentDirectory && state.SelectedLocations.Contains(item.Location);
 
         CellStyle style = isCursor ? cursor
                         : isSelected ? selStyle
