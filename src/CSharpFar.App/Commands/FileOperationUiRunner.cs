@@ -32,7 +32,7 @@ internal sealed class FileOperationUiRunner
         FileOperationProgress? latestProgress = null;
         var state = new FileOperationProgressViewState(null, _showTotalProgress(), FileOperationUiStatus.Running);
         bool cancellationRequested = false;
-        var content = new FileOperationProgressContent(() => state, request.Kind == FileOperationKind.Delete ? null : request.Destination);
+        var content = new FileOperationProgressContent(() => state, request.Kind == FileOperationKind.Delete ? null : request.Destination?.SourcePath);
         var cancel = FormControls.Buttons(new DialogButton("cancel", "Cancel", 'C'));
         var form = new ScrollableFormDialog();
         form.SetRows([], [cancel]);
