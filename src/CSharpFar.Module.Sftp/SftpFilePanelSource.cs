@@ -183,7 +183,7 @@ public sealed class SftpFilePanelSource : IModulePanel, IAsyncFilePanelSource, I
         return await ExecuteSftpOperationAsync<FilePanelItem?>(
             "read item",
             path,
-            client =>
+            async client =>
             {
                 if (!await client.ExistsAsync(path, cancellationToken).ConfigureAwait(false))
                     return null;

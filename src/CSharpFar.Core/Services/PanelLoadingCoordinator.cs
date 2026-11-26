@@ -223,6 +223,10 @@ public sealed class PanelLoadingCoordinator(
                     }
                 }
             }
+            catch (Exception exception)
+            {
+                ReportError(exception);
+            }
             finally
             {
                 request.FinishUi();

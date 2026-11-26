@@ -741,7 +741,7 @@ public sealed class FtpFilePanelSource : IModulePanel, IAsyncFilePanelSource, IR
                 try
                 {
                     await _inner.DisposeAsync().ConfigureAwait(false);
-                    ReadCompletionReply();
+                    await ReadCompletionReplyAsync().ConfigureAwait(false);
                 }
                 catch (Exception ex) when (IsFtpClientException(ex))
                 {
@@ -765,7 +765,7 @@ public sealed class FtpFilePanelSource : IModulePanel, IAsyncFilePanelSource, IR
             try
             {
                 _inner.Dispose();
-                ReadCompletionReply();
+                ReadCompletionReplyAsync().GetAwaiter().GetResult();
             }
             catch (Exception ex) when (IsFtpClientException(ex))
             {
@@ -778,10 +778,10 @@ public sealed class FtpFilePanelSource : IModulePanel, IAsyncFilePanelSource, IR
             }
         }
 
-        private void ReadCompletionReply()
+        private async Task ReadCompletionReplyAsync()
         {
             if (_readCompletionReply)
-                _client.GetReply();
+                await _client.GetReply(CancellationToken.None).ConfigureAwait(false);
         }
     }
 
