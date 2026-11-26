@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Azure.Storage.Sas;
 
 namespace CSharpFar.Plugin.AzureBlob.Tests;
 
@@ -72,6 +73,43 @@ public sealed class AzuriteTests
             Assert.Null(await source.GetItemAsync("/empty"));
         }
         finally { await container.DeleteIfExistsAsync(); }
+    }
+
+    [IntegrationFact]
+    [Trait("Category", "AzureIntegration")]
+    public async Task SasUrlAndTokenConnectToTheSameContainer()
+    {
+        var profile = new AzureBlobConnection(Guid.NewGuid(), "Test", AuthenticationMode.ConnectionString,
+            null, null, "/", "CSHARPFAR_AZURE_TEST_CONNECTION", false);
+        var (service, _) = AzureBlobClientFactory.Create(profile);
+        var container = service!.GetBlobContainerClient("csharpfar-" + Guid.NewGuid().ToString("N"));
+        await container.CreateAsync();
+        string secretName = "CSHARPFAR_TEST_SAS_" + Guid.NewGuid().ToString("N");
+        try
+        {
+            await container.GetBlobClient("file.txt").UploadAsync(BinaryData.FromString("SAS test"));
+            var uri = container.GenerateSasUri(BlobContainerSasPermissions.Read | BlobContainerSasPermissions.List,
+                DateTimeOffset.UtcNow.AddMinutes(30));
+            Environment.SetEnvironmentVariable(secretName, uri.AbsoluteUri);
+            var sasProfile = profile with { AuthenticationMode = AuthenticationMode.SasUrl, CredentialReference = secretName, ReadOnly = true };
+            var (_, sasContainer) = AzureBlobClientFactory.Create(sasProfile);
+            var provider = new AzureBlobFilePanelSource(sasContainer!, "SAS URL", true);
+            Assert.Equal("file.txt", Assert.Single(await provider.EnumerateDirectoryAsync("/")).Name);
+            Environment.SetEnvironmentVariable(secretName, uri.Query);
+            var (_, tokenContainer) = AzureBlobClientFactory.Create(sasProfile with
+            {
+                AuthenticationMode = AuthenticationMode.SasToken, ContainerName = container.Name,
+                AccountEndpoint = service.Uri.GetLeftPart(UriPartial.Path)
+            });
+            var tokenProvider = new AzureBlobFilePanelSource(tokenContainer!, "SAS token", true);
+            Assert.Equal(provider.PhysicalIdentity, tokenProvider.PhysicalIdentity);
+            Assert.Equal("file.txt", Assert.Single(await tokenProvider.EnumerateDirectoryAsync("/")).Name);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(secretName, null);
+            await container.DeleteIfExistsAsync();
+        }
     }
 
     [IntegrationFact]

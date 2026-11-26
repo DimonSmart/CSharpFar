@@ -134,14 +134,25 @@ internal static class AzureErrors
     // Never propagate raw Azure exception messages or inner exceptions, which may contain a SAS URI.
     public static string Message(Exception error) => error switch
     {
-        RequestFailedException failure => $"Azure request failed (HTTP {failure.Status}). Check permissions, connection and object state.",
+        RequestFailedException failure => failure.Status switch
+        {
+            0 => "Azure storage is unreachable or the network operation failed.",
+            401 => "Azure authentication failed (HTTP 401). Check credentials.",
+            403 => "Azure access denied (HTTP 403). Check permissions or SAS expiration.",
+            404 => "Azure container or object was not found (HTTP 404).",
+            409 => "Azure object conflict (HTTP 409). Refresh before retrying.",
+            412 => "Azure object changed concurrently or already exists (HTTP 412).",
+            429 => "Azure storage is throttling requests (HTTP 429).",
+            _ => $"Azure request failed (HTTP {failure.Status}). Check permissions, connection and object state."
+        },
+        Azure.Identity.AuthenticationFailedException => "Azure CLI authentication failed. Run az login and check the account's storage access.",
         OperationCanceledException => "Azure operation cancelled.",
         AzureOperationException => error.Message,
         _ => "Azure operation failed. Check connection settings, path and permissions."
     };
 
-    public static Exception Safe(Exception error) => error is OperationCanceledException
-        ? new OperationCanceledException("Azure operation cancelled.")
+    public static Exception Safe(Exception error) => error is OperationCanceledException cancelled
+        ? new OperationCanceledException("Azure operation cancelled.", cancelled.CancellationToken)
         : new AzureOperationException(Message(error));
 }
 
