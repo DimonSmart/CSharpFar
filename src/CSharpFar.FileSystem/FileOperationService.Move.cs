@@ -1009,7 +1009,7 @@ public sealed partial class FileOperationService
         {
             DestinationPattern pattern = useDestinationTemplate
                 ? default
-                : DestinationPattern.Parse(destination, PanelSourceId.Local);
+                : DestinationPattern.ParseLocal(destination);
             DestinationTemplate? template = useDestinationTemplate ? DestinationTemplate.Parse(destination) : null;
             var plan = new List<LocalMovePlanItem>(sources.Count);
             bool hasMask = HasFileMask(options);

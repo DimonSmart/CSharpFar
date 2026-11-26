@@ -117,6 +117,6 @@ internal sealed class ApplicationPanelInputHandler
         }
 
         item = state.Items[hit.ItemIndex];
-        return item.Location == hit.ItemLocation;
+        return state.SelectedLocations.Comparer.Equals(item.Location, hit.ItemLocation);
     }
 }

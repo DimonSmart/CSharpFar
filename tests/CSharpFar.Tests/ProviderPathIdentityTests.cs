@@ -86,6 +86,46 @@ public sealed class ProviderPathIdentityTests
         Assert.Equal("other", second.ReadText("|File.txt"));
     }
 
+    [Fact]
+    public async Task CustomProvider_RefreshAndCopyPreserveDistinctCaseVariants()
+    {
+        var source = new PathOnlySource("case-sensitive", StringComparer.Ordinal);
+        source.Seed("|File.txt", "one");
+        source.Seed("|file.txt", "two");
+        await source.CreateDirectoryAsync("|target");
+        var registry = new FilePanelSourceRegistry([source]);
+        var controller = new PanelController(
+            new PanelViewBuilder(new FileSystemService(), new PanelSortService(), sources: registry),
+            sources: registry);
+        var state = new FilePanelState();
+        controller.LoadLocation(state, new PanelLocation(source.SourceId, "|"));
+        var upper = source.GetItem("|File.txt")!.Location;
+        var lower = source.GetItem("|file.txt")!.Location;
+        Assert.True(controller.SetCursorByLocation(state, upper, 20));
+        controller.ToggleCurrentSelection(state);
+        Assert.True(controller.SetCursorByLocation(state, lower, 20));
+        controller.ToggleCurrentSelection(state);
+        controller.RefreshDirectory(state, 20);
+        Assert.Contains(upper, state.SelectedLocations);
+        Assert.Contains(lower, state.SelectedLocations);
+        Assert.Equal(2, state.SelectedLocations.Count);
+        controller.ToggleCurrentSelection(state);
+        Assert.Contains(upper, state.SelectedLocations);
+        Assert.DoesNotContain(lower, state.SelectedLocations);
+        controller.ToggleCurrentSelection(state);
+        var service = new FileOperationService(registry);
+        var result = await service.ExecuteAsync(new FileOperationRequest
+        {
+            Kind = FileOperationKind.Copy,
+            Sources = state.SelectedLocations.ToArray(),
+            Destination = new PanelLocation(source.SourceId, "|target"),
+            Options = new FileOperationOptions(),
+        }, null, new NoConflict());
+        Assert.Empty(result.Errors);
+        Assert.Equal("one", source.ReadText("|target|File.txt"));
+        Assert.Equal("two", source.ReadText("|target|file.txt"));
+    }
+
     private sealed class NoConflict : IFileOperationConflictResolver
     {
         public FileOperationConflictDecision Resolve(FileOperationConflict conflict) =>
