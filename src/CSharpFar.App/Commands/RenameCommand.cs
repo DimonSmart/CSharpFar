@@ -1,3 +1,4 @@
+using CSharpFar.Ui;
 using CSharpFar.App.Panels;
 using CSharpFar.App.State;
 using CSharpFar.Core.Abstractions;

@@ -1,3 +1,5 @@
+using CSharpFar.Ui;
+using CSharpFar.App.Files;
 using CSharpFar.App.Modules;
 using CSharpFar.App.Panels;
 using CSharpFar.Core.Controllers;

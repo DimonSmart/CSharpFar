@@ -1,3 +1,4 @@
+using CSharpFar.App.Files;
 using CSharpFar.App.Viewer;
 using CSharpFar.Core.Models;
 using CSharpFar.App.AutoRefresh;
