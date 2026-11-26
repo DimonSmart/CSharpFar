@@ -30,7 +30,6 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
 
     public PanelView Build(PanelViewRequest request)
     {
-        var opts = request.Options;
         var location = request.Location ?? PanelLocation.Local(request.DirectoryPath);
         bool isLocal = location.SourceId == PanelSourceId.Local;
         if (isLocal &&
@@ -48,10 +47,46 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
             ? _fs.ReadDirectory(sourcePath)
             : FromProvider(source!, () => source!.EnumerateDirectory(sourcePath));
 
+        return BuildView(request, location, isLocal, source, sourcePath, raw, CancellationToken.None);
+    }
+
+    // The local filesystem, mount/volume information and sorting can all be slow.
+    // Run the complete preparation off the caller's UI context.
+    public Task<PanelView> BuildAsync(PanelViewRequest request, CancellationToken cancellationToken = default) =>
+        Task.Run(async () =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var location = request.Location ?? PanelLocation.Local(request.DirectoryPath);
+            bool isLocal = location.SourceId == PanelSourceId.Local;
+            if (isLocal &&
+                _sources is not null &&
+                !_sources.TryGetSource(PanelSourceId.Local, out _))
+            {
+                throw new PanelSourceUnavailableException(PanelSourceId.Local);
+            }
+
+            IFilePanelSource? source = isLocal ? null : ResolveSource(location.SourceId);
+            string sourcePath = source is null ? request.DirectoryPath : FromProvider(source, () => source.NormalizePath(location.SourcePath));
+
+            IReadOnlyList<FilePanelItem> raw = isLocal
+                ? _fs.ReadDirectory(sourcePath)
+                : await FromProviderAsync(source!, () => source!.AsAsync().EnumerateDirectoryAsync(sourcePath, cancellationToken))
+                    .ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return BuildView(request, location, isLocal, source, sourcePath, raw, cancellationToken);
+        }, cancellationToken);
+
+    private PanelView BuildView(
+        PanelViewRequest request, PanelLocation location, bool isLocal,
+        IFilePanelSource? source, string sourcePath, IReadOnlyList<FilePanelItem> raw,
+        CancellationToken cancellationToken)
+    {
+        var opts = request.Options;
         // 2. Map + detect mount points
         var items = new List<FilePanelItem>(raw.Count + 1);
         foreach (var item in raw)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (item.IsParentDirectory)
                 continue; // skip any .. that leaked from old fs
 
@@ -123,6 +158,7 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
             KeepParentDirectoryFirst = true,
             DirectoriesFirst = true,
         };
+        cancellationToken.ThrowIfCancellationRequested();
         var sorted = _sort.Sort(items, request.SortMode, request.SortDescending, sortOptions);
 
         // 6. Calculate summary
@@ -134,6 +170,7 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
 
         foreach (var item in sorted)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (item.IsParentDirectory) continue;
             if (item.IsDirectory) dirCount++;
             else { fileCount++; totalBytes += item.Size ?? 0; }
@@ -179,6 +216,18 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
     private static T FromProvider<T>(IFilePanelSource source, Func<T> operation)
     {
         try { return operation(); }
+        catch (Exception error) when (error is not IOException
+            and not UnauthorizedAccessException
+            and not OperationCanceledException
+            and not PanelSourceUnavailableException)
+        {
+            throw new IOException($"Panel provider '{source.SourceId}' failed: {error.Message}", error);
+        }
+    }
+
+    private static async Task<T> FromProviderAsync<T>(IFilePanelSource source, Func<Task<T>> operation)
+    {
+        try { return await operation().ConfigureAwait(false); }
         catch (Exception error) when (error is not IOException
             and not UnauthorizedAccessException
             and not OperationCanceledException
