@@ -15,13 +15,13 @@ internal sealed class CreateFolderCommand(PanelCommandTargetResolver targetResol
 {
     public string CommandId => FunctionKeyCommandIds.CreateFolder;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
+    public bool CanExecute(object? args = null) =>
         FileOperationCommandHelpers.HasCapability(targetResolver.ResolvePanelTarget(args).State, PanelProviderCapabilities.CreateDirectory);
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         var target = targetResolver.ResolvePanelTarget(args);
-        if (!CanExecute(context, args))
+        if (!CanExecute(args))
         {
             FileOperationCommandHelpers.ShowReadOnlyPanelMessage(dialogs, "Create folder");
             return ApplicationCommandResult.Rendered();

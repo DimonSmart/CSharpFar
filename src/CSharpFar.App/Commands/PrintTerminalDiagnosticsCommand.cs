@@ -22,9 +22,9 @@ internal sealed class PrintTerminalDiagnosticsCommand(TerminalSurfaceController 
 {
     public string CommandId => MenuCommandIds.DiagnosticsPrintTerminalInfo;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) => true;
+    public bool CanExecute(object? args = null) => true;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         var snapshot = terminalSurface.GetSnapshot();
         var viewport = snapshot.Viewport;

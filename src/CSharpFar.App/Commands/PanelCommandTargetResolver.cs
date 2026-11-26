@@ -7,6 +7,21 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
 
+internal sealed record ApplicationPanelCommandInvocation(
+    PanelSide Side,
+    int VisibleRows,
+    ApplicationPanelKeyboardFrame ActivePanel,
+    ApplicationPanelKeyboardFrame PassivePanel);
+
+internal readonly record struct ResolvedPanelCommandTarget(
+    PanelSide Side,
+    FilePanelState State,
+    PanelSide PassiveSide,
+    FilePanelState PassiveState,
+    int VisibleRows,
+    ApplicationPanelKeyboardFrame? ActiveCommitted,
+    ApplicationPanelKeyboardFrame? PassiveCommitted);
+
 internal sealed class PanelCommandTargetResolver(PanelWorkspaceController workspace)
 {
     public ResolvedPanelCommandTarget ResolvePanelTarget(object? args)

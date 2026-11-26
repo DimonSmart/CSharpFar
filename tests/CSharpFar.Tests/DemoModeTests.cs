@@ -444,16 +444,14 @@ public sealed class DemoModeTests : IDisposable
     {
         string fixture = CreateFixture(("Projects/SampleApp/file.txt", "value"));
         var services = CreateDemoServices(fixture);
-        var context = services.CommandContext;
-        context.Controller.LoadLocation(context.LeftPanel, PanelLocation.Demo("/Projects/SampleApp"), context.PanelOptions);
+        services.PanelController.LoadLocation(services.Session.Panels.Left, PanelLocation.Demo("/Projects/SampleApp"), services.Settings.Panels.Options);
 
         services.CommandRegistry.Execute(ApplicationCommandIds.NavigateToRoot,
-            context,
             new NavigateToRootArgs(PanelSide.Left, "/Projects/SampleApp"));
-        context.WaitForPanelLoads();
+        services.WaitForPanelLoads();
 
-        Assert.Equal(PanelSourceId.Demo, context.LeftPanel.SourceId);
-        Assert.Equal("/", context.LeftPanel.CurrentDirectory);
+        Assert.Equal(PanelSourceId.Demo, services.Session.Panels.Left.SourceId);
+        Assert.Equal("/", services.Session.Panels.Left.CurrentDirectory);
     }
 
     [Fact]

@@ -28,14 +28,14 @@ internal sealed class CompareCommand(PanelWorkspaceController workspace, PanelSe
         ? ApplicationCommandIds.CompareFileSets
         : ApplicationCommandIds.CompareFolders;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
+    public bool CanExecute(object? args = null) =>
         PanelCommandTargetResolver.CanAccessLocalFileSystem(sourceRegistry, workspace.ActiveState) &&
         PanelCommandTargetResolver.CanAccessLocalFileSystem(sourceRegistry, workspace.PassiveState);
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         string title = kind == CompareCommandKind.FileSets ? "Compare file sets" : "Compare folders";
-        if (!CanExecute(context, args))
+        if (!CanExecute(args))
         {
             dialogs.Message(title, "Comparison is only supported for local panels.");
             return ApplicationCommandResult.Rendered();

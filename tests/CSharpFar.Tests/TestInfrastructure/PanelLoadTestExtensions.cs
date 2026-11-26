@@ -1,5 +1,7 @@
 using CSharpFar.App;
-using CSharpFar.App.Commands;
+using CSharpFar.App.AutoRefresh;
+using CSharpFar.App.Bootstrap;
+using CSharpFar.App.State;
 
 namespace CSharpFar.Tests;
 
@@ -7,22 +9,25 @@ namespace CSharpFar.Tests;
 /// Production input remains responsive while providers are running.</summary>
 internal static class PanelLoadTestExtensions
 {
-    public static void WaitForPanelLoads(this ApplicationCommandContext context)
+    public static void WaitForPanelLoads(this ApplicationServices services) =>
+        WaitForPanelLoads(services.Session.Panels, services.AutoRefresh, services.DrainUiActions);
+
+    private static void WaitForPanelLoads(PanelSessionState panels, PanelAutoRefreshService autoRefresh, Action drain)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        while (context.LeftPanel.IsLoading || context.RightPanel.IsLoading)
+        while (panels.Left.IsLoading || panels.Right.IsLoading)
         {
-            context.ResetUiWakeToken();
-            context.DrainUiActions?.Invoke();
-            if (!context.LeftPanel.IsLoading && !context.RightPanel.IsLoading)
+            autoRefresh.ResetWaitToken();
+            drain();
+            if (!panels.Left.IsLoading && !panels.Right.IsLoading)
                 break;
-            int result = WaitHandle.WaitAny([context.UiWakeToken.WaitHandle, timeout.Token.WaitHandle]);
+            int result = WaitHandle.WaitAny([autoRefresh.WaitToken.WaitHandle, timeout.Token.WaitHandle]);
             if (result == 1)
                 throw new TimeoutException("Panel loading did not complete at the test barrier.");
         }
     }
 
-    public static void WaitForPanelLoads(this Application app) => app.CommandContext.WaitForPanelLoads();
+    public static void WaitForPanelLoads(this Application app) => WaitForPanelLoads(app.Session.Panels, app.AutoRefresh, app.DrainUiActions);
 
     public static void RunWithPanelLoadBarriers(this Application app)
     {

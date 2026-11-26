@@ -21,10 +21,10 @@ internal abstract class SortActivePanelCommand : IApplicationCommand
 
     protected SortMode SortMode { get; }
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
+    public bool CanExecute(object? args = null) =>
         (_targetResolver.ResolvePanelTarget(args).State.ProviderCapabilities & PanelProviderCapabilities.Enumerate) == PanelProviderCapabilities.Enumerate;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         var target = _targetResolver.ResolvePanelTarget(args);
         _panelSort.SetPanelSortMode(target.State, SortMode, target.VisibleRows);

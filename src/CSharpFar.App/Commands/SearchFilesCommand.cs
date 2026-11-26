@@ -17,13 +17,13 @@ internal sealed class SearchFilesCommand(PanelCommandTargetResolver targetResolv
 {
     public string CommandId => FunctionKeyCommandIds.Search;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
+    public bool CanExecute(object? args = null) =>
         PanelCommandTargetResolver.CanAccessLocalFileSystem(sourceRegistry, targetResolver.ResolvePanelTarget(args).State);
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         var target = targetResolver.ResolvePanelTarget(args);
-        if (!CanExecute(context, args))
+        if (!CanExecute(args))
         {
             dialogs.Message(
                 "Search",

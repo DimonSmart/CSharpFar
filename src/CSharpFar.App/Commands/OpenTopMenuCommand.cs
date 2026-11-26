@@ -8,9 +8,9 @@ internal sealed class OpenTopMenuCommand(TopMenu topMenu, PanelCommandTargetReso
 {
     public string CommandId => FunctionKeyCommandIds.TopMenu;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) => true;
+    public bool CanExecute(object? args = null) => true;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null) =>
+    public ApplicationCommandResult Execute(object? args = null) =>
         Open(targetResolver.ResolvePanelTarget(args).Side); 
 
     private ApplicationCommandResult Open(PanelSide side)

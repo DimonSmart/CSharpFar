@@ -19,13 +19,13 @@ internal sealed class OpenCreateFileCommand(PanelCommandTargetResolver targetRes
 {
     public string CommandId => FunctionKeyCommandIds.OpenCreateFile;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
+    public bool CanExecute(object? args = null) =>
         FileOperationCommandHelpers.HasCapability(targetResolver.ResolvePanelTarget(args).State, PanelProviderCapabilities.CreateFile);
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         var target = targetResolver.ResolvePanelTarget(args);
-        if (!CanExecute(context, args))
+        if (!CanExecute(args))
         {
             FileOperationCommandHelpers.ShowReadOnlyPanelMessage(dialogs, "Create file");
             return ApplicationCommandResult.Rendered();

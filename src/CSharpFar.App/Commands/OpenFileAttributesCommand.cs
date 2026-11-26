@@ -18,9 +18,9 @@ internal sealed class OpenFileAttributesCommand(PanelCommandTargetResolver targe
 {
     public string CommandId => FunctionKeyCommandIds.Attributes;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) => true;
+    public bool CanExecute(object? args = null) => true;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         var target = targetResolver.ResolvePanelTarget(args);
         if (target.State.SourceId != PanelSourceId.Local)

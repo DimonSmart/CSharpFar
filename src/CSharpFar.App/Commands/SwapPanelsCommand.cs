@@ -17,10 +17,10 @@ internal sealed class SwapPanelsCommand(PanelWorkspaceController workspace, Pane
 {
     public string CommandId => ApplicationCommandIds.SwapPanels;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
+    public bool CanExecute(object? args = null) =>
         workspace.IsPanelsMode;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         resetTransientNavigationUi();
         (panels.Left, panels.Right) = (panels.Right, panels.Left);

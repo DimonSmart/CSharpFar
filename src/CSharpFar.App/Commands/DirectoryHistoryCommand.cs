@@ -16,9 +16,9 @@ internal sealed class DirectoryHistoryCommand(PanelCommandTargetResolver targetR
 {
     public string CommandId => FunctionKeyCommandIds.DirectoryHistory;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) => true;
+    public bool CanExecute(object? args = null) => true;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         var target = targetResolver.ResolvePanelTarget(args);
         if (!PanelCommandTargetResolver.CanAccessLocalFileSystem(sourceRegistry, target.State))

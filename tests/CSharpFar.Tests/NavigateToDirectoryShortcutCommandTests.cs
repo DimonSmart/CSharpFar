@@ -35,140 +35,130 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
     public void Execute_EmptySlot_DoesNotNavigate()
     {
         var services = CreateServices(out _, out _);
-        var context = services.CommandContext;
 
-        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToDirectoryShortcutArgs(1));
-        context.WaitForPanelLoads();
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, new NavigateToDirectoryShortcutArgs(1));
+        services.WaitForPanelLoads();
 
-        Assert.Equal(_root, context.ActiveState.CurrentDirectory);
+        Assert.Equal(_root, services.PanelWorkspace.ActiveState.CurrentDirectory);
     }
 
     [Fact]
     public void Execute_ExistingPath_NavigatesOnlyActivePanelAndKeepsShortcut()
     {
         var services = CreateServices(out _, out _);
-        var context = services.CommandContext;
-        context.Settings.DirectoryShortcuts.Items.Add(Item(1, _target));
-        string passiveDirectory = context.PassiveState.CurrentDirectory;
+        services.Settings.DirectoryShortcuts.Items.Add(Item(1, _target));
+        string passiveDirectory = services.PanelWorkspace.PassiveState.CurrentDirectory;
 
-        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToDirectoryShortcutArgs(1));
-        context.WaitForPanelLoads();
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, new NavigateToDirectoryShortcutArgs(1));
+        services.WaitForPanelLoads();
 
-        Assert.Equal(_target, context.ActiveState.CurrentDirectory);
-        Assert.Equal(passiveDirectory, context.PassiveState.CurrentDirectory);
-        Assert.Single(context.Settings.DirectoryShortcuts.Items);
+        Assert.Equal(_target, services.PanelWorkspace.ActiveState.CurrentDirectory);
+        Assert.Equal(passiveDirectory, services.PanelWorkspace.PassiveState.CurrentDirectory);
+        Assert.Single(services.Settings.DirectoryShortcuts.Items);
     }
 
     [Fact]
     public void Execute_MissingPath_ShowsMessageAndKeepsShortcut()
     {
         var services = CreateServices(out var driver, out _);
-        var context = services.CommandContext;
         string missingPath = Path.Combine(_root, "missing");
-        context.Settings.DirectoryShortcuts.Items.Add(Item(1, missingPath));
+        services.Settings.DirectoryShortcuts.Items.Add(Item(1, missingPath));
         driver.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
 
-        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToDirectoryShortcutArgs(1));
-        context.WaitForPanelLoads();
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, new NavigateToDirectoryShortcutArgs(1));
+        services.WaitForPanelLoads();
 
-        Assert.Equal(_root, context.ActiveState.CurrentDirectory);
-        Assert.Single(context.Settings.DirectoryShortcuts.Items);
+        Assert.Equal(_root, services.PanelWorkspace.ActiveState.CurrentDirectory);
+        Assert.Single(services.Settings.DirectoryShortcuts.Items);
     }
 
     [Fact]
     public void Execute_CommittedPath_NavigatesRenderedPathWhenSettingsChanged()
     {
         var services = CreateServices(out _, out _);
-        var context = services.CommandContext;
-        context.Settings.DirectoryShortcuts.Items.Add(Item(1, _otherTarget));
+        services.Settings.DirectoryShortcuts.Items.Add(Item(1, _otherTarget));
 
-        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
-        context.WaitForPanelLoads();
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+        services.WaitForPanelLoads();
 
-        Assert.Equal(_target, context.ActiveState.CurrentDirectory);
+        Assert.Equal(_target, services.PanelWorkspace.ActiveState.CurrentDirectory);
     }
 
     [Fact]
     public void Execute_CommittedPath_NavigatesRenderedPathWhenShortcutWasDeleted()
     {
         var services = CreateServices(out _, out _);
-        var context = services.CommandContext;
 
-        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
-        context.WaitForPanelLoads();
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+        services.WaitForPanelLoads();
 
-        Assert.Equal(_target, context.ActiveState.CurrentDirectory);
+        Assert.Equal(_target, services.PanelWorkspace.ActiveState.CurrentDirectory);
     }
 
     [Fact]
     public void Execute_CommittedInvocationIgnoresHiddenWorkspaceMode()
     {
         var services = CreateServices(out _, out _);
-        var context = services.CommandContext;
-        string passiveDirectory = context.PassiveState.CurrentDirectory;
-        context.TogglePanels();
+        string passiveDirectory = services.PanelWorkspace.PassiveState.CurrentDirectory;
+        services.WorkspaceModeController.TogglePanels();
 
-        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
-        context.WaitForPanelLoads();
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+        services.WaitForPanelLoads();
 
-        Assert.Equal(_target, context.LeftPanel.CurrentDirectory);
-        Assert.Equal(passiveDirectory, context.RightPanel.CurrentDirectory);
+        Assert.Equal(_target, services.Session.Panels.Left.CurrentDirectory);
+        Assert.Equal(passiveDirectory, services.Session.Panels.Right.CurrentDirectory);
     }
 
     [Fact]
     public void Execute_CommittedInvocationUsesCommittedSideWhenLiveSideChanged()
     {
         var services = CreateServices(out _, out _);
-        var context = services.CommandContext;
-        string rightDirectory = context.RightPanel.CurrentDirectory;
-        context.ActiveSide = PanelSide.Right;
+        string rightDirectory = services.Session.Panels.Right.CurrentDirectory;
+        services.PanelWorkspace.ActiveSide = PanelSide.Right;
 
-        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
-        context.WaitForPanelLoads();
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+        services.WaitForPanelLoads();
 
-        Assert.Equal(_target, context.LeftPanel.CurrentDirectory);
-        Assert.Equal(rightDirectory, context.RightPanel.CurrentDirectory);
-        Assert.Equal(PanelSide.Right, context.ActiveSide);
+        Assert.Equal(_target, services.Session.Panels.Left.CurrentDirectory);
+        Assert.Equal(rightDirectory, services.Session.Panels.Right.CurrentDirectory);
+        Assert.Equal(PanelSide.Right, services.PanelWorkspace.ActiveSide);
     }
 
     [Fact]
     public void Execute_CurrentSettingsPath_NavigatesLatestPathWhenCommittedPathAbsent()
     {
         var services = CreateServices(out _, out _);
-        var context = services.CommandContext;
-        context.Settings.DirectoryShortcuts.Items.Add(Item(1, _otherTarget));
+        services.Settings.DirectoryShortcuts.Items.Add(Item(1, _otherTarget));
 
-        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToDirectoryShortcutArgs(1));
-        context.WaitForPanelLoads();
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, new NavigateToDirectoryShortcutArgs(1));
+        services.WaitForPanelLoads();
 
-        Assert.Equal(_otherTarget, context.ActiveState.CurrentDirectory);
+        Assert.Equal(_otherTarget, services.PanelWorkspace.ActiveState.CurrentDirectory);
     }
 
     [Fact]
     public void CanExecute_DemoPanel_IsUnavailable()
     {
         var services = CreateServices(out _, out _);
-        var context = services.CommandContext;
-        context.LeftPanel.CurrentLocation = PanelLocation.Demo("/");
+        services.Session.Panels.Left.CurrentLocation = PanelLocation.Demo("/");
 
         Assert.True(services.CommandRegistry.TryGetCommand(DirectoryShortcutCommandIds.Navigate, out var command));
 
-        Assert.False(command.CanExecute(context, new NavigateToDirectoryShortcutArgs(1)));
-        Assert.False(command.CanExecute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left)));
+        Assert.False(command.CanExecute(new NavigateToDirectoryShortcutArgs(1)));
+        Assert.False(command.CanExecute(new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left)));
     }
 
     [Fact]
     public void Execute_CommittedPath_DemoPanel_DoesNotNavigate()
     {
         var services = CreateServices(out _, out _);
-        var context = services.CommandContext;
-        context.LeftPanel.CurrentLocation = PanelLocation.Demo("/");
+        services.Session.Panels.Left.CurrentLocation = PanelLocation.Demo("/");
 
-        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
-        context.WaitForPanelLoads();
+        services.CommandRegistry.Execute(DirectoryShortcutCommandIds.Navigate, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+        services.WaitForPanelLoads();
 
-        Assert.Equal("/", context.LeftPanel.CurrentDirectory);
-        Assert.Equal(PanelSourceId.Demo, context.LeftPanel.SourceId);
+        Assert.Equal("/", services.Session.Panels.Left.CurrentDirectory);
+        Assert.Equal(PanelSourceId.Demo, services.Session.Panels.Left.SourceId);
     }
 
     private ApplicationServices CreateServices(

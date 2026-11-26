@@ -18,7 +18,7 @@ internal sealed class CopyCommand(PanelCommandTargetResolver targetResolver, Pan
         ? FunctionKeyCommandIds.CopyToCurrentDirectory
         : FunctionKeyCommandIds.Copy;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null)
+    public bool CanExecute(object? args = null)
     {
         var target = targetResolver.ResolvePanelTarget(args);
         FilePanelState destination = toCurrentDirectory ? target.State : target.PassiveState;
@@ -26,7 +26,7 @@ internal sealed class CopyCommand(PanelCommandTargetResolver targetResolver, Pan
                FileOperationCommandHelpers.HasCapability(destination, PanelProviderCapabilities.CopyTo);
     }
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         var target = targetResolver.ResolvePanelTarget(args);
         FilePanelState destinationState = toCurrentDirectory ? target.State : target.PassiveState;

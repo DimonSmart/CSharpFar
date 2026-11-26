@@ -591,7 +591,6 @@ internal static class ApplicationServicesBuilder
                 dialogs,
                 shell,
                 fileOps,
-                effectiveFileLauncher,
                 effectiveUriLauncher,
                 effectiveSearchService,
                 effectiveHistory,
@@ -602,7 +601,6 @@ internal static class ApplicationServicesBuilder
                 effectiveSettings,
                 session,
                 menuProvider,
-                callbacks,
                 controller,
                 autoRefresh,
                 directorySizes,
@@ -650,7 +648,7 @@ internal static class ApplicationServicesBuilder
                 modulePanelOpener.CleanupUnusedTemporarySources,
                 () => { quickViewContent.Dispose(); panelLoading.Dispose(); });
 
-            commandServices.CommandContext.DrainUiActions = pluginUiActions.Drain;
+            rendering.RenderContext.BuildMenuDefinition = commandServices.BuildMenuDefinition;
             return new ApplicationServices
             {
                 Screen = screen,
@@ -659,7 +657,11 @@ internal static class ApplicationServicesBuilder
                 CommandCompletionController = commandCompletionController,
                 CommandLineCommandExecutor = commandServices.CommandLineCommandExecutor,
                 ExternalConsoleCommandRunner = commandServices.ExternalConsoleCommandRunner,
-                CommandContext = commandServices.CommandContext,
+                PanelTargetResolver = commandServices.TargetResolver,
+                ExternalPlugins = commandServices.ExternalPlugins,
+                DiagnosticLog = diagnosticLog,
+                History = effectiveHistory,
+                DrainUiActions = pluginUiActions.Drain,
                 Settings = effectiveSettings,
                 Clipboard = effectiveClipboard,
                 Session = session,

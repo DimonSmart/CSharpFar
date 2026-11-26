@@ -10,10 +10,10 @@ internal sealed class ModuleOpenCommand(ModulePanelOpener modulePanelOpener, Pan
 {
     public string CommandId => MenuCommandIds.ModuleOpen;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
+    public bool CanExecute(object? args = null) =>
         args is ModuleOpenCommandArgs;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         if (args is not ModuleOpenCommandArgs moduleArgs)
             return ApplicationCommandResult.Failure("Module command arguments are required.");

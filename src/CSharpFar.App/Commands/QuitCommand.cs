@@ -10,9 +10,9 @@ internal sealed class QuitCommand(AppSettingsAlias settings, DialogService dialo
 {
     public string CommandId => FunctionKeyCommandIds.Quit;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) => true;
+    public bool CanExecute(object? args = null) => true;
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         if (!settings.Application.ConfirmExit)
         {

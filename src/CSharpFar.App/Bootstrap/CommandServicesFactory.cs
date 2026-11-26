@@ -1,4 +1,6 @@
 using CSharpFar.App.Highlighting;
+using CSharpFar.App.Plugins;
+using CSharpFar.Core.Menu;
 using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.CommandLine;
 using CSharpFar.App.Commands;
@@ -39,7 +41,6 @@ internal static class CommandServicesFactory
         DialogService dialogs,
         IShellService shell,
         IFileOperationService fileOperations,
-        IFileLauncher fileLauncher,
         IUriLauncher uriLauncher,
         ISearchService searchService,
         IHistoryStore history,
@@ -50,7 +51,6 @@ internal static class CommandServicesFactory
         AppSettingsAlias settings,
         ApplicationSession session,
         DefaultMenuDefinitionProvider menuProvider,
-        ApplicationServiceCallbacks callbacks,
         PanelController panelController,
         PanelAutoRefreshService autoRefresh,
         PanelDirectorySizeCoordinator directorySizes,
@@ -114,6 +114,7 @@ internal static class CommandServicesFactory
         var fileOperationWorkflow = new PanelFileOperationWorkflow(operationRunner, fileOperations, dialogs,
             settings, panelRefresh, session.Panels);
         var settingsChange = new PanelSettingsChangeService(panelRefresh, session.Panels, saveSettings);
+        var externalPlugins = new ExternalPluginSession();
         var commandRegistry = new ApplicationCommandRegistry(DefaultApplicationCommands.Create(
             interactiveSurfaces, session, dialogs, uriLauncher, updateCheckService, applicationUpdateInstaller,
             clipboard, diagnosticLog, terminalSurface, settings, saveSettings, workspaceModeController,
@@ -125,57 +126,28 @@ internal static class CommandServicesFactory
             () => session.FunctionKeyLayer = CSharpFar.App.FunctionKeys.FunctionKeyLayer.Plain,
             userMenu, commandLineCommandExecutor, externalConsoleCommandRunner, volumeService, moduleCatalog, modalDialogs,
             () => { panelQuickSearch.Close(); commandCompletionController.Hide(temporarily: false); commandHistoryNavigator.Reset(); },
-            directorySizes));
-        var commandContext = new ApplicationCommandContext(
-            interactiveSurfaces,
-            modalDialogs,
-            dialogs,
-            panelController,
-            fileLauncher,
-            uriLauncher,
-            fileOperations,
-            searchService,
-            history,
-            formFields,
-            userMenu,
-            clipboard,
-            sourceRegistry,
-            settings,
-            session,
-            menuProvider,
-            panelWorkspace,
-            autoRefresh,
-            panelRefresh,
-            panelSort,
-            panelNavigation,
-            searchResults,
-            panelQuickSearch,
-            workspaceModeController,
-            panelFileViewer,
-            panelFileOpener,
-            moduleCatalog,
-            modulePanelOpener,
-            commandLineCommandExecutor,
-            externalConsoleCommandRunner,
-            commandCompletionController,
-            commandHistoryNavigator,
-            topMenu,
-            terminalSurface,
-            saveSettings,
-            volumeService,
-            fileMetadata,
-            fileAttributesDialogFactory,
-            highlightState,
-            diagnosticLog,
-            updateCheckService,
-            applicationUpdateInstaller);
+            externalPlugins, directorySizes));
+        MenuBarDefinition BuildMenuDefinition() =>
+            menuProvider.BuildMenu(new MenuBuildContext
+            {
+                ActivePanelSide = panelWorkspace.ActiveSide,
+                LeftPanel = session.Panels.Left,
+                RightPanel = session.Panels.Right,
+                LeftViewMode = session.Panels.LeftViewMode,
+                RightViewMode = session.Panels.RightViewMode,
+                Settings = settings,
+                CanSaveSettings = saveSettings is not null,
+                CanEditLocalUserMenu = PanelCommandUserMenuOperands.CanUseLocalUserMenu(
+                    sourceRegistry, targetResolver.ResolvePanelTarget(new PanelCommandArgs { PanelSide = panelWorkspace.ActiveSide })),
+                ModuleMenuItems = moduleCatalog.MenuItems,
+            });
 
         return new CommandServices(
             commandRegistry,
             changeDirectoryCommandExecutor,
             externalConsoleCommandRunner,
             commandLineCommandExecutor,
-            commandContext);
+            targetResolver, externalPlugins, BuildMenuDefinition);
     }
 }
 
@@ -188,4 +160,6 @@ internal sealed record CommandServices(
     ChangeDirectoryCommandExecutor ChangeDirectoryCommandExecutor,
     ExternalConsoleCommandRunner ExternalConsoleCommandRunner,
     CommandLineCommandExecutor CommandLineCommandExecutor,
-    ApplicationCommandContext CommandContext);
+    PanelCommandTargetResolver TargetResolver,
+    ExternalPluginSession ExternalPlugins,
+    Func<MenuBarDefinition> BuildMenuDefinition);

@@ -36,8 +36,7 @@ public sealed class LocalUserMenuAvailabilityTests : IDisposable
             .Children
             .Single(item => item.Id == "Options.localUserMenu");
         Assert.True(services.CommandRegistry.CanExecute(
-            MenuCommandIds.SettingsOpenLocalUserMenu,
-            services.CommandContext));
+            MenuCommandIds.SettingsOpenLocalUserMenu));
         Assert.True(localMenuItem.IsEnabled);
 
         driver.EnqueueKey(Key(ConsoleKey.A, 'a'));
@@ -46,8 +45,7 @@ public sealed class LocalUserMenuAvailabilityTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
         var result = services.CommandRegistry.Execute(
-            MenuCommandIds.SettingsOpenLocalUserMenu,
-            services.CommandContext);
+            MenuCommandIds.SettingsOpenLocalUserMenu);
 
         Assert.True(result.ShouldRender);
         using JsonDocument savedMenu = JsonDocument.Parse(File.ReadAllText(menuPath));
@@ -60,11 +58,11 @@ public sealed class LocalUserMenuAvailabilityTests : IDisposable
     {
         string rightDirectory = Path.Combine(_root, "rightPanel");
         var services = CreateServices(new FakeConsoleDriver(), PanelDirectory, rightDirectory);
-        FilePanelState rightPanel = services.CommandContext.RightPanel;
+        FilePanelState rightPanel = services.Session.Panels.Right;
 
         AssertAvailability(services, expected: true);
 
-        services.CommandContext.ActiveSide = PanelSide.Right;
+        services.PanelWorkspace.ActiveSide = PanelSide.Right;
         AssertAvailability(services, expected: true);
 
         rightPanel.CurrentLocation = new PanelLocation(new PanelSourceId("archive"), rightDirectory);
@@ -97,7 +95,7 @@ public sealed class LocalUserMenuAvailabilityTests : IDisposable
         rightPanel.CurrentLocation = PanelLocation.Local(rightDirectory);
         AssertAvailability(services, expected: true);
 
-        services.CommandContext.ActiveSide = PanelSide.Left;
+        services.PanelWorkspace.ActiveSide = PanelSide.Left;
         AssertAvailability(services, expected: true);
     }
 
@@ -177,7 +175,6 @@ public sealed class LocalUserMenuAvailabilityTests : IDisposable
     {
         Assert.Equal(expected, LocalMenuItem(services).IsEnabled);
         Assert.Equal(expected, services.CommandRegistry.CanExecute(
-            MenuCommandIds.SettingsOpenLocalUserMenu,
-            services.CommandContext));
+            MenuCommandIds.SettingsOpenLocalUserMenu));
     }
 }

@@ -16,11 +16,11 @@ internal sealed class MoveCommand(PanelCommandTargetResolver targetResolver, Pan
 {
     public string CommandId => FunctionKeyCommandIds.RenameOrMove;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
+    public bool CanExecute(object? args = null) =>
         FileOperationCommandHelpers.HasCapability(targetResolver.ResolvePanelTarget(args).State, PanelProviderCapabilities.MoveFrom) &&
         FileOperationCommandHelpers.HasCapability(targetResolver.ResolvePanelTarget(args).PassiveState, PanelProviderCapabilities.MoveTo);
 
-    public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
+    public ApplicationCommandResult Execute(object? args = null)
     {
         var target = targetResolver.ResolvePanelTarget(args);
         if (!FileOperationCommandHelpers.HasCapability(target.State, PanelProviderCapabilities.MoveFrom))

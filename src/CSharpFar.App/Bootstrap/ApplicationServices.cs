@@ -2,6 +2,7 @@ using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.CommandLine;
 using CSharpFar.App.Commands;
 using CSharpFar.App.Files;
+using CSharpFar.App.Diagnostics;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Input;
 using CSharpFar.App.Menu;
@@ -33,7 +34,11 @@ internal sealed class ApplicationServices
     public required CommandCompletionController CommandCompletionController { get; init; }
     public required CommandLineCommandExecutor CommandLineCommandExecutor { get; init; }
     public required ExternalConsoleCommandRunner ExternalConsoleCommandRunner { get; init; }
-    public required ApplicationCommandContext CommandContext { get; init; }
+    public required PanelCommandTargetResolver PanelTargetResolver { get; init; }
+    public required ExternalPluginSession ExternalPlugins { get; init; }
+    public required IDiagnosticLog DiagnosticLog { get; init; }
+    public required IHistoryStore History { get; init; }
+    public required Action DrainUiActions { get; init; }
     public required AppSettingsAlias Settings { get; init; }
     public required ITextClipboard Clipboard { get; init; }
     public required ApplicationSession Session { get; init; }
