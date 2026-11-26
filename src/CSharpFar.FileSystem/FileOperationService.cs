@@ -1028,6 +1028,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
             return true;
 
         string staging = SafeLocalFilePublisher.CreateStagingPath(destinationPath);
+        bool owned = false;
         try
         {
             if (!_platformOperations.TryCopySymbolicLink(sourcePath, staging, out string? error))
@@ -1035,12 +1036,23 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 state.AddError(sourcePath, error ?? "Cannot copy symbolic link.");
                 return false;
             }
+            owned = true;
             string? leftover = SafeLocalFilePublisher.PublishChecked(staging, destinationPath, target.ExpectedDestination, _dependencies.PublishLocalFile, _dependencies.PublishNewLocalFile);
             if (leftover is not null)
                 state.AddWarning(destinationPath, $"Backup cleanup failed. Backup: {leftover}");
             return true;
         }
-        finally { SafeLocalFilePublisher.DeleteStagingPath(staging); }
+        finally
+        {
+            if (owned)
+            {
+                try { SafeLocalFilePublisher.DeleteStagingPath(staging); }
+                catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException)
+                {
+                    state.AddWarning(staging, $"Symbolic-link staging cleanup failed: {cleanup.Message}");
+                }
+            }
+        }
     }
 
     private void DeletePath(string path, bool useRecycleBin) =>

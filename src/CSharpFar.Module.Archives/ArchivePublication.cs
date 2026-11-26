@@ -83,7 +83,12 @@ internal static class ArchivePublication
         }
         catch (Exception error)
         {
-            if (owned && !published)
+            if (published)
+            {
+                batch.AddWarning($"Archive published, but finalization failed for '{original}': {error.Message}");
+                return;
+            }
+            if (owned)
             {
                 try { File.Delete(temporary); }
                 catch (Exception cleanup)
