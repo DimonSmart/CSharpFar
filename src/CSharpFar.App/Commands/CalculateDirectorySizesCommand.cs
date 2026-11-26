@@ -1,30 +1,33 @@
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
+using CSharpFar.Ui;
+using CSharpFar.Core.Services;
+using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Abstractions;
+using CSharpFar.App.Files;
+using CSharpFar.App.CommandLine;
+using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Panels;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class CalculateDirectorySizesCommand : IApplicationCommand
+internal sealed class CalculateDirectorySizesCommand(PanelCommandTargetResolver targetResolver, PanelDirectorySizeCoordinator? directorySizes = null) : IApplicationCommand
 {
-    private readonly PanelDirectorySizeCoordinator? _directorySizes;
-
-    public CalculateDirectorySizesCommand(PanelDirectorySizeCoordinator? directorySizes = null) =>
-        _directorySizes = directorySizes;
-
     public string CommandId => FunctionKeyCommandIds.CalculateDirectorySizes;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null)
     {
-        var target = context.ResolvePanelTarget(args);
-        return _directorySizes?.CanCalculateAll(target.State) == true;
+        var target = targetResolver.ResolvePanelTarget(args);
+        return directorySizes?.CanCalculateAll(target.State) == true;
     }
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        var target = context.ResolvePanelTarget(args);
-        if (!ApplicationCommandContext.CommittedLocationMatches(target.State, target.ActiveCommitted))
+        var target = targetResolver.ResolvePanelTarget(args);
+        if (!PanelCommandTargetResolver.CommittedLocationMatches(target.State, target.ActiveCommitted))
             return ApplicationCommandResult.Rendered();
 
-        _directorySizes?.CalculateAll(target.Side, target.State);
+        directorySizes?.CalculateAll(target.Side, target.State);
         return ApplicationCommandResult.Rendered();
     }
 }

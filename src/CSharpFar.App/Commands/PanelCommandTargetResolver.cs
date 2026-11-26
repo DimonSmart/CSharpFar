@@ -1,3 +1,4 @@
+using CSharpFar.Core.Services;
 using CSharpFar.App.Panels;
 using CSharpFar.App.Rendering;
 using CSharpFar.Core.Controllers;
@@ -79,6 +80,9 @@ internal sealed class PanelCommandTargetResolver(PanelWorkspaceController worksp
         ApplicationPanelKeyboardFrame? committed) =>
         committed is null ||
         state.SelectedLocations.Comparer.Equals(state.CurrentLocation, committed.CurrentLocation);
+
+    public static bool CanAccessLocalFileSystem(FilePanelSourceRegistry sourceRegistry, FilePanelState state) =>
+        state.SourceId == PanelSourceId.Local && sourceRegistry.TryGetSource(PanelSourceId.Local, out _);
 
     private static PanelSide OtherPanelSide(PanelSide side) =>
         side == PanelSide.Left ? PanelSide.Right : PanelSide.Left;

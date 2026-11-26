@@ -1,3 +1,12 @@
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
+using CSharpFar.Ui;
+using CSharpFar.Core.Services;
+using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Abstractions;
+using CSharpFar.App.Panels;
+using CSharpFar.App.Files;
+using CSharpFar.App.CommandLine;
+using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.Editor;
 using CSharpFar.App.FunctionKeys;
@@ -6,28 +15,28 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class OpenCreateFileCommand : IApplicationCommand
+internal sealed class OpenCreateFileCommand(PanelCommandTargetResolver targetResolver, PanelController controller, PanelFileViewerService viewer, PanelRefreshService panelRefresh, PanelWorkspaceController workspace, DialogService dialogs, FormFieldFactory fields, AppSettingsAlias settings, IHistoryStore history, FilePanelSourceRegistry sourceRegistry) : IApplicationCommand
 {
     public string CommandId => FunctionKeyCommandIds.OpenCreateFile;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.HasCapability(context.ResolvePanelTarget(args).State, PanelProviderCapabilities.CreateFile);
+        FileOperationCommandHelpers.HasCapability(targetResolver.ResolvePanelTarget(args).State, PanelProviderCapabilities.CreateFile);
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        var target = context.ResolvePanelTarget(args);
+        var target = targetResolver.ResolvePanelTarget(args);
         if (!CanExecute(context, args))
         {
-            context.ShowReadOnlyPanelMessage("Create file");
+            FileOperationCommandHelpers.ShowReadOnlyPanelMessage(dialogs, "Create file");
             return ApplicationCommandResult.Rendered();
         }
 
-        if (!ApplicationCommandContext.CommittedLocationMatches(target.State, target.ActiveCommitted))
+        if (!PanelCommandTargetResolver.CommittedLocationMatches(target.State, target.ActiveCommitted))
             return ApplicationCommandResult.Rendered();
 
-        var dialog = new OpenCreateFileDialog(context.Dialogs, context.Fields);
+        var dialog = new OpenCreateFileDialog(dialogs, fields);
         var result = dialog.Show(
-            InitialPath(context, target),
+            InitialPath(target),
             attempt => ValidateLocalPath(target.State.SourcePath, attempt));
 
         if (result is null)
@@ -37,33 +46,36 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
         PanelLocation fileLocation;
         try
         {
-            fileLocation = ResolvePath(context, target.State, result.FilePath);
+            fileLocation = ResolvePath(target.State, result.FilePath);
             filePath = fileLocation.SourcePath;
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or IOException)
         {
-            context.Dialogs.Message("Editor", ex.Message);
+            dialogs.Message("Editor", ex.Message);
             return ApplicationCommandResult.Rendered();
         }
 
-        EditorDocumentFormat newFileFormat = result.CodePage.CreateDocumentFormat(context.Settings.Editor);
-        var outcome = context.EditFileWithNewFileFormat(
-            fileLocation, newFileFormat, PanelCommandEditorContextFactory.Create(context, target));
+        EditorDocumentFormat newFileFormat = result.CodePage.CreateDocumentFormat(settings.Editor);
+        var outcome = viewer.EditFileWithNewFileFormat(
+            fileLocation, newFileFormat, PanelCommandEditorContextFactory.Create(controller, target));
         if (fileLocation.SourceId == PanelSourceId.Local && outcome.ExistsAfter)
-            context.History.AddFile(new FileHistoryItem { Path = filePath });
+            history.AddFile(new FileHistoryItem { Path = filePath });
 
         if (outcome.ExistsAfter && !outcome.ExistedBefore)
-            context.RefreshAndSelect(target.State, target.VisibleRows, fileLocation);
+            panelRefresh.SafeRefresh(target.State, target.VisibleRows, loaded =>
+            {
+                if (loaded) controller.SetCursorByLocation(target.State, fileLocation, workspace.VisibleRows(workspace.PanelSideForState(target.State)));
+            });
         else
-            context.SafeRefresh(target.State, target.VisibleRows);
+            panelRefresh.SafeRefresh(target.State, target.VisibleRows);
 
         return ApplicationCommandResult.Rendered();
     }
 
-    private static string? InitialPath(ApplicationCommandContext context, ResolvedPanelCommandTarget target)
+    private string? InitialPath(ResolvedPanelCommandTarget target)
     {
-        FilePanelItem? item = ApplicationCommandContext.TryResolveCommittedCurrentItem(
-            target.State, target.ActiveCommitted, context.Controller, out var resolvedItem) ? resolvedItem : null;
+        FilePanelItem? item = PanelCommandTargetResolver.TryResolveCommittedCurrentItem(
+            target.State, target.ActiveCommitted, controller, out var resolvedItem) ? resolvedItem : null;
         return item is { IsDirectory: false, IsParentDirectory: false }
             ? item.Name
             : null;
@@ -85,8 +97,7 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
         catch (PathTooLongException ex) { return ex.Message; }
     }
 
-    private static PanelLocation ResolvePath(
-        ApplicationCommandContext context,
+    private PanelLocation ResolvePath(
         FilePanelState state,
         string path)
     {
@@ -95,7 +106,7 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
 
         string combined = path.Contains('/') || path.Contains('\\')
             ? path
-            : context.CombinePanelPath(state, path);
+            : FileOperationCommandHelpers.CombinePanelPath(sourceRegistry, state, path);
         return new PanelLocation(state.SourceId, combined.Replace('\\', '/'));
     }
 

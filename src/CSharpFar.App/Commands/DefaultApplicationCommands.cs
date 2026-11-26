@@ -1,3 +1,4 @@
+using CSharpFar.App.CommandLine;
 using CSharpFar.App.Highlighting;
 using CSharpFar.App.Files;
 using CSharpFar.App.Viewer;
@@ -53,6 +54,12 @@ internal static class DefaultApplicationCommands
         Func<IFileAttributesDialog> fileAttributesDialogFactory,
         PanelSettingsChangeService settingsChange,
         FileHighlightState highlightState,
+        PanelFileViewerService panelFileViewer,
+        IHistoryStore history,
+        ISearchService searchService,
+        CommandCompletionController commandCompletionController,
+        CommandHistoryNavigator commandHistoryNavigator,
+        Action resetFunctionKeyLayer,
         PanelDirectorySizeCoordinator? directorySizes = null) =>
     [
         new HelpCommand(interactiveSurfaces, session.App),
@@ -60,10 +67,10 @@ internal static class DefaultApplicationCommands
         new DiagnosticsCommand(dialogs, clipboard, diagnosticLog, terminalSurface),
         new UserMenuCommand(),
         new UserMenuCommand(globalOnly: true),
-        new ViewFileCommand(directorySizes),
-        new CalculateDirectorySizesCommand(directorySizes),
-        new EditFileCommand(),
-        new OpenCreateFileCommand(),
+        new ViewFileCommand(targetResolver, panelController, panelFileViewer, directorySizes),
+        new CalculateDirectorySizesCommand(targetResolver, directorySizes),
+        new EditFileCommand(targetResolver, panelController, panelFileViewer, panelRefresh, dialogs),
+        new OpenCreateFileCommand(targetResolver, panelController, panelFileViewer, panelRefresh, panelWorkspace, dialogs, formFields, settings, history, sourceRegistry),
         new CopyCommand(targetResolver, panelController, dialogs, formFields, sourceRegistry, fileOperationWorkflow, showHelp),
         new CopyCommand(targetResolver, panelController, dialogs, formFields, sourceRegistry, fileOperationWorkflow, showHelp, toCurrentDirectory: true),
         new MoveCommand(targetResolver, panelController, dialogs, formFields, sourceRegistry, fileOperationWorkflow),
@@ -75,12 +82,12 @@ internal static class DefaultApplicationCommands
         new QuitCommand(settings, dialogs, session.App),
         new SelectLeftDriveCommand(),
         new SelectRightDriveCommand(),
-        new SearchFilesCommand(),
+        new SearchFilesCommand(targetResolver, sourceRegistry, dialogs, formFields, searchService, searchResults, resetFunctionKeyLayer),
         new CompareCommand(CompareCommandKind.Folders),
         new CompareCommand(CompareCommandKind.FileSets),
-        new CommandHistoryCommand(),
-        new FileHistoryCommand(),
-        new DirectoryHistoryCommand(),
+        new CommandHistoryCommand(dialogs, history, session.CommandLine.State, commandCompletionController, commandHistoryNavigator, resetFunctionKeyLayer),
+        new FileHistoryCommand(targetResolver, panelController, panelFileViewer, panelRefresh, dialogs, history, sourceRegistry, resetFunctionKeyLayer),
+        new DirectoryHistoryCommand(targetResolver, dialogs, history, sourceRegistry, panelNavigation, autoRefresh, panelWorkspace, resetFunctionKeyLayer),
         new TogglePanelsCommand(workspaceModeController),
         new SwapPanelsCommand(),
         new SortByNameCommand(targetResolver, panelSort),

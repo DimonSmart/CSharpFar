@@ -1,3 +1,10 @@
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
+using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Abstractions;
+using CSharpFar.App.Panels;
+using CSharpFar.App.Files;
+using CSharpFar.App.CommandLine;
+using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
@@ -5,7 +12,7 @@ using CSharpFar.Ui;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class DirectoryHistoryCommand : IApplicationCommand
+internal sealed class DirectoryHistoryCommand(PanelCommandTargetResolver targetResolver, DialogService dialogs, IHistoryStore history, FilePanelSourceRegistry sourceRegistry, PanelNavigationService navigation, PanelAutoRefreshService autoRefresh, PanelWorkspaceController workspace, Action resetFunctionKeyLayer) : IApplicationCommand
 {
     public string CommandId => FunctionKeyCommandIds.DirectoryHistory;
 
@@ -13,21 +20,21 @@ internal sealed class DirectoryHistoryCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        var target = context.ResolvePanelTarget(args);
-        if (!context.CanAccessLocalFileSystem(target.State))
+        var target = targetResolver.ResolvePanelTarget(args);
+        if (!PanelCommandTargetResolver.CanAccessLocalFileSystem(sourceRegistry, target.State))
             return ApplicationCommandResult.Rendered();
 
-        if (!ApplicationCommandContext.CommittedLocationMatches(target.State, target.ActiveCommitted))
+        if (!PanelCommandTargetResolver.CommittedLocationMatches(target.State, target.ActiveCommitted))
         {
             return ApplicationCommandResult.Rendered();
         }
 
         try
         {
-            var result = context.Dialogs.Select(new SelectionDialogOptions<DirectoryHistoryItem>
+            var result = dialogs.Select(new SelectionDialogOptions<DirectoryHistoryItem>
             {
                 Title = "Directory History",
-                Items = context.History.GetDirectoryHistory().Reverse().ToArray(),
+                Items = history.GetDirectoryHistory().Reverse().ToArray(),
                 ItemText = static item => item.Path,
                 Presentation = SelectionDialogPresentation.Standard,
             });
@@ -40,23 +47,23 @@ internal sealed class DirectoryHistoryCommand : IApplicationCommand
                 basePath: null,
                 out string canonicalPath))
             {
-                context.Dialogs.Message("Directory History", $"Invalid directory path: {path}");
+                dialogs.Message("Directory History", $"Invalid directory path: {path}");
                 return ApplicationCommandResult.Rendered();
             }
 
-            context.NavigatePanel(target.State, PanelLocation.Local(canonicalPath), preserveOnError: true, loaded =>
+            navigation.Navigate(target.State, PanelLocation.Local(canonicalPath), preserveOnError: true, loaded =>
             {
                 if (loaded)
-                    context.StartWatching(target.State, context.SideForState(target.State));
+                    autoRefresh.StartWatching(target.State, workspace.PanelSideForState(target.State));
                 else
-                    context.Dialogs.Message("Directory History", $"Cannot open directory: {canonicalPath}");
+                    dialogs.Message("Directory History", $"Cannot open directory: {canonicalPath}");
             }, requireExistingLocalDirectory: true);
 
             return ApplicationCommandResult.Rendered();
         }
         finally
         {
-            context.ResetFunctionKeyLayer();
+            resetFunctionKeyLayer();
         }
     }
 }
