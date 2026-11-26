@@ -104,6 +104,12 @@ public sealed class AzuriteTests
             var tokenProvider = new AzureBlobFilePanelSource(tokenContainer!, "SAS token", true);
             Assert.Equal(provider.PhysicalIdentity, tokenProvider.PhysicalIdentity);
             Assert.Equal("file.txt", Assert.Single(await tokenProvider.EnumerateDirectoryAsync("/")).Name);
+            var accountUri = service.GenerateAccountSasUri(AccountSasPermissions.Read | AccountSasPermissions.List,
+                DateTimeOffset.UtcNow.AddMinutes(30), AccountSasResourceTypes.Service | AccountSasResourceTypes.Container | AccountSasResourceTypes.Object);
+            Environment.SetEnvironmentVariable(secretName, accountUri.AbsoluteUri);
+            var (accountClient, accountContainer) = AzureBlobClientFactory.Create(sasProfile);
+            Assert.Null(accountContainer);
+            Assert.Contains(container.Name, accountClient!.GetBlobContainers().Select(c => c.Name));
         }
         finally
         {
