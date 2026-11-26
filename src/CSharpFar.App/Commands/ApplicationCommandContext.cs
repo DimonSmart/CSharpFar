@@ -46,6 +46,7 @@ internal sealed class ApplicationCommandContext
 {
     private readonly ApplicationSession _session;
     private readonly PanelWorkspaceController _panelWorkspace;
+    private readonly PanelCommandTargetResolver _targetResolver;
     private readonly PanelAutoRefreshService _autoRefresh;
     private readonly PanelRefreshService _panelRefresh;
     private readonly PanelSortServiceFacade _panelSort;
@@ -136,6 +137,7 @@ internal sealed class ApplicationCommandContext
         _session = session;
         _menuProvider = menuProvider;
         _panelWorkspace = panelWorkspace;
+        _targetResolver = new PanelCommandTargetResolver(panelWorkspace);
         _autoRefresh = autoRefresh;
         _panelRefresh = panelRefresh;
         _panelSort = panelSort;
@@ -386,77 +388,20 @@ internal sealed class ApplicationCommandContext
     public FilePanelState GetPanelState(PanelSide side) =>
         _panelWorkspace.GetPanelState(side);
 
-    public ResolvedPanelCommandTarget ResolvePanelTarget(object? args)
-    {
-        if (args is ApplicationPanelCommandInvocation invocation)
-        {
-            PanelSide passiveSide = OtherPanelSide(invocation.Side);
-            return new ResolvedPanelCommandTarget(
-                invocation.Side,
-                GetPanelState(invocation.Side),
-                passiveSide,
-                GetPanelState(passiveSide),
-                invocation.VisibleRows,
-                invocation.ActivePanel,
-                invocation.PassivePanel);
-        }
-
-        if (args is PanelCommandArgs panelArgs)
-        {
-            PanelSide passiveSide = OtherPanelSide(panelArgs.PanelSide);
-            return new ResolvedPanelCommandTarget(
-                panelArgs.PanelSide,
-                GetPanelState(panelArgs.PanelSide),
-                passiveSide,
-                GetPanelState(passiveSide),
-                VisibleRows(panelArgs.PanelSide),
-                null,
-                null);
-        }
-
-        return new ResolvedPanelCommandTarget(
-            ActiveSide,
-            ActiveState,
-            OtherPanelSide(ActiveSide),
-            PassiveState,
-            VisibleRows(),
-            null,
-            null);
-    }
+    public ResolvedPanelCommandTarget ResolvePanelTarget(object? args) =>
+        _targetResolver.ResolvePanelTarget(args);
 
     public static bool TryResolveCommittedCurrentItem(
         FilePanelState state,
         ApplicationPanelKeyboardFrame? committed,
         PanelController controller,
-        out FilePanelItem item)
-    {
-        if (committed is null)
-        {
-            item = controller.CurrentItem(state)!;
-            return item is not null;
-        }
-
-        item = null!;
-        if (committed.CurrentItemIndex is not { } index ||
-            index < 0 ||
-            index >= state.Items.Count)
-        {
-            return false;
-        }
-
-        FilePanelItem candidate = state.Items[index];
-        if (committed.CurrentItemLocation is not { } location || !state.SelectedLocations.Comparer.Equals(candidate.Location, location))
-            return false;
-
-        item = candidate;
-        return true;
-    }
+        out FilePanelItem item) =>
+        PanelCommandTargetResolver.TryResolveCommittedCurrentItem(state, committed, controller, out item);
 
     public static bool CommittedLocationMatches(
         FilePanelState state,
         ApplicationPanelKeyboardFrame? committed) =>
-        committed is null ||
-        state.SelectedLocations.Comparer.Equals(state.CurrentLocation, committed.CurrentLocation);
+        PanelCommandTargetResolver.CommittedLocationMatches(state, committed);
 
     public void RefreshPanels() => _panelRefresh.RefreshPanels(LeftPanel, RightPanel);
 
@@ -665,7 +610,4 @@ internal sealed class ApplicationCommandContext
             CanEditLocalUserMenu = CanUseLocalUserMenu(ResolvePanelTarget(new PanelCommandArgs { PanelSide = activeSide })),
             ModuleMenuItems = _moduleCatalog.MenuItems,
         });
-
-    private static PanelSide OtherPanelSide(PanelSide side) =>
-        side == PanelSide.Left ? PanelSide.Right : PanelSide.Left;
 }

@@ -80,11 +80,11 @@ internal static class CommandServicesFactory
     {
         var changeDirectoryCommandExecutor = new ChangeDirectoryCommandExecutor(
             panelController,
-            () => callbacks.ActiveState(),
-            () => callbacks.GetActiveSide(),
+            () => panelWorkspace.ActiveState,
+            () => panelWorkspace.ActiveSide,
             () => sourceRegistry.TryGetSource(PanelSourceId.Local, out _),
-            () => callbacks.PanelOptions(),
-            (state, side) => callbacks.StartWatching(state, side),
+            () => settings.Panels.Options,
+            (state, side) => autoRefresh.StartWatching(state, side),
             navigation: panelNavigation);
         var externalConsoleCommandRunner = new ExternalConsoleCommandRunner(
             screen,
@@ -92,7 +92,7 @@ internal static class CommandServicesFactory
             commandLineRenderer,
             session.App,
             session.CommandLine.State,
-            () => callbacks.RefreshPanels());
+            () => panelRefresh.RefreshPanels(session.Panels.Left, session.Panels.Right));
         var commandLineCommandExecutor = new CommandLineCommandExecutor(
             session.CommandLine.State,
             commandHistoryNavigator,
@@ -103,8 +103,8 @@ internal static class CommandServicesFactory
             new ShellInvocationParser(ShellComposition.CreateRegistry()),
             shell,
             externalConsoleCommandRunner,
-            () => callbacks.ActiveState(),
-            () => callbacks.GetActiveSide(),
+            () => panelWorkspace.ActiveState,
+            () => panelWorkspace.ActiveSide,
             panelQuickSearch.Close,
             temporarily => commandCompletionController.Hide(temporarily));
         var commandRegistry = ApplicationCommandRegistry.CreateDefault(directorySizes: directorySizes);
