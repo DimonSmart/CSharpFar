@@ -166,39 +166,45 @@ internal sealed class ModulePanelOpener
             }
         }
 
-        bool loaded = _controller.TryLoadLocation(
-            state,
-            new PanelLocation(source.SourceId, request.InitialDirectory),
-            _panelOptions(),
-            preserveOnError: true);
-        if (!loaded)
-        {
-            if (newlyRegistered && _sourceRegistry.RemoveIfSame(source.SourceId, source))
-                _cleanup.Discard(source);
-            _showMessage("Plugin", "Unable to open plugin panel. The existing panel was not changed.");
-            return;
-        }
-
-        // A previously nested or shared source may have a pending retirement.
-        // It is visible now, before any old navigation leases are released.
-        _sourceRegistry.RetainSource(source.SourceId);
-        if (returnPoint is not null)
-            _navigation!.EnterNestedSource(state, panelSide, returnPoint);
+        var location = new PanelLocation(source.SourceId, request.InitialDirectory);
+        if (_navigation is { } navigation)
+            navigation.Navigate(state, location, preserveOnError: true, Complete);
         else
-            _navigation?.ClearNavigation(panelSide);
+            Complete(_controller.TryLoadLocation(state, location, _panelOptions(), preserveOnError: true));
 
-        _controller.SetSourceDisplay(state, request.Title, showCurrentItemFullPath: true);
-        try
+        void Complete(bool loaded)
         {
-            // Persist opt-in connection settings only after initial panel loading succeeded.
-            (source as IFilePanelSourceActivation)?.OnPanelOpened();
+            if (!loaded)
+            {
+                if (newlyRegistered && _getPanelState(PanelSide.Left).SourceId != source.SourceId &&
+                    _getPanelState(PanelSide.Right).SourceId != source.SourceId)
+                    _sourceRegistry.RetireOwnedSource(source, _cleanup.Discard);
+                _showMessage("Plugin", "Unable to open plugin panel. The existing panel was not changed.");
+                return;
+            }
+
+            panelSide = ReferenceEquals(state, _getPanelState(PanelSide.Left)) ? PanelSide.Left : PanelSide.Right;
+            // A previously nested or shared source may have a pending retirement.
+            // It is visible now, before any old navigation leases are released.
+            _sourceRegistry.RetainSource(source.SourceId);
+            if (returnPoint is not null)
+                _navigation!.EnterNestedSource(state, panelSide, returnPoint);
+            else
+                _navigation?.ClearNavigation(state);
+
+            _controller.SetSourceDisplay(state, request.Title, showCurrentItemFullPath: true);
+            try
+            {
+                // Persist opt-in connection settings only after initial panel loading succeeded.
+                (source as IFilePanelSourceActivation)?.OnPanelOpened();
+            }
+            catch (Exception ex)
+            {
+                _showMessage("Plugin", $"Panel opened, but connection settings could not be saved: {ex.Message}");
+            }
+            _setQuickView(false);
+            _setActiveSide(panelSide);
         }
-        catch (Exception ex)
-        {
-            _showMessage("Plugin", $"Panel opened, but connection settings could not be saved: {ex.Message}");
-        }
-        _setQuickView(false);
-        _setActiveSide(panelSide);
     }
 
     /// <summary>Handles Enter for plugin-owned file types without blocking the UI input loop.</summary>
@@ -394,8 +400,8 @@ internal sealed class ModulePanelOpener
 
         // Callbacks posted before shutdown are abandoned, not executed against dead panels.
         _drainUiActions?.Invoke();
-        _navigation?.ClearNavigation(PanelSide.Left);
-        _navigation?.ClearNavigation(PanelSide.Right);
+        _navigation?.ClearNavigation(_getPanelState(PanelSide.Left));
+        _navigation?.ClearNavigation(_getPanelState(PanelSide.Right));
         _sourceRegistry.DisposeOwnedSources(_cleanup.Discard);
         await _cleanup.AwaitPendingAsync().ConfigureAwait(false);
     }

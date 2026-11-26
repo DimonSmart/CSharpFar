@@ -782,6 +782,7 @@ public sealed class PanelController
         PanelLocation location,
         Exception exception)
     {
+        state.ContentRevision++;
         bool sameSource = state.ContentKind == PanelContentKind.Source && state.SourceId == location.SourceId;
         state.CurrentLocation = location;
         state.Items.Clear();

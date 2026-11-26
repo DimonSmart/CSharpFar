@@ -27,6 +27,9 @@ internal sealed class ApplicationGlobalKeyboardHandler
         if (frame.Mode != ApplicationWorkspaceMode.Panels)
             return ApplicationInputHandlingResult.NotHandled;
 
+        if (key.Key == ConsoleKey.Escape && key.Modifiers == 0 && !frame.Keyboard.CommandLineHasText &&
+            _context.CancelPanelLoad(input.ActiveSide))
+            return Handled(true);
         if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.S, '\u0013'))
             return Handled(_context.ExecuteRegisteredCommand(MenuCommandIds.SettingsOpenPanelSettings, null));
 

@@ -23,6 +23,13 @@ internal static class PanelTitleRenderer
         int titleAreaWidth = Math.Max(0, innerWidth - (touchesRightScreenEdge ? ClockWidth : 0));
         int pathMaxLen = Math.Max(0, titleAreaWidth - 2);
         string label = FormatLabel(state, pathMaxLen);
+        if (state.IsLoadingIndicatorVisible)
+        {
+            const string loading = " [Loading]";
+            label = pathMaxLen >= loading.Length
+                ? FormatLabel(state, pathMaxLen - loading.Length) + loading
+                : "Loading"[..Math.Min(pathMaxLen, "Loading".Length)];
+        }
         if (label.Length == 0)
             return;
 

@@ -48,7 +48,8 @@ public sealed class FilePanelSourceRegistry : IFilePanelSourceRegistry
     {
         lock (_gate)
         {
-            if (!_sources.TryGetValue(sourceId, out var existing) || !ReferenceEquals(existing, source))
+            if (!_sources.TryGetValue(sourceId, out var existing) || !ReferenceEquals(existing, source) ||
+                _activeUses.GetValueOrDefault(sourceId) != 0)
                 return false;
             _pendingRetirement.Remove(sourceId);
             _activeUses.Remove(sourceId);
@@ -69,14 +70,49 @@ public sealed class FilePanelSourceRegistry : IFilePanelSourceRegistry
         {
             foreach (var id in sourceIds.Distinct())
             {
-                if (!_sources.TryGetValue(id, out var source) ||
-                    source is not ITemporaryFilePanelSource { IsTemporary: true })
+                if (!_sources.ContainsKey(id))
                     continue;
                 _activeUses[id] = _activeUses.GetValueOrDefault(id) + 1;
                 held.Add(id);
             }
         }
         return new SourceUsage(this, held);
+    }
+
+    public bool TryAcquireUsage(PanelSourceId id, out IFilePanelSource source, out IDisposable lease)
+    {
+        lock (_gate)
+        {
+            if (!_sources.TryGetValue(id, out source!))
+            {
+                lease = new SourceUsage(this, []);
+                return false;
+            }
+            _activeUses[id] = _activeUses.GetValueOrDefault(id) + 1;
+            lease = new SourceUsage(this, [id]);
+            return true;
+        }
+    }
+
+    /// <summary>Retire a rejected owned source after its last operation finishes.</summary>
+    public void RetireOwnedSource(IFilePanelSource source, Action<IFilePanelSource> dispose)
+    {
+        lock (_gate)
+        {
+            var id = source.SourceId;
+            if (!_ownedSources.Contains(source) || !_sources.TryGetValue(id, out var existing) ||
+                !ReferenceEquals(source, existing))
+                return;
+            if (_activeUses.GetValueOrDefault(id) > 0)
+            {
+                _pendingRetirement[id] = dispose;
+                return;
+            }
+            _pendingRetirement.Remove(id);
+            _sources.Remove(id);
+            _ownedSources.Remove(source);
+        }
+        dispose(source);
     }
 
     /// <summary>
@@ -174,8 +210,7 @@ public sealed class FilePanelSourceRegistry : IFilePanelSourceRegistry
             foreach (var source in _ownedSources.ToArray())
             {
                 var id = source.SourceId;
-                if (source is ITemporaryFilePanelSource { IsTemporary: true } &&
-                    _activeUses.GetValueOrDefault(id) > 0)
+                if (_activeUses.GetValueOrDefault(id) > 0)
                 {
                     _pendingRetirement[id] = dispose;
                     continue;

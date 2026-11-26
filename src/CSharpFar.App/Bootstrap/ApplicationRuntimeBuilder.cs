@@ -25,7 +25,8 @@ internal static class ApplicationRuntimeBuilder
         FileUsagePanelController fileUsagePanel,
         PanelDirectorySizeCoordinator directorySizes,
         PluginUiActionQueue? pluginUiActions = null,
-        Action? cleanupTemporarySources = null)
+        Action? cleanupTemporarySources = null,
+        Action? cancelPanelLoads = null)
     {
         return new ApplicationRuntime(
             composition,
@@ -48,6 +49,7 @@ internal static class ApplicationRuntimeBuilder
                 },
                 DisposeRuntimeState = () =>
                 {
+                    cancelPanelLoads?.Invoke();
                     directorySizes.Dispose();
                     quickViewDirectorySize.Dispose();
                     fileUsagePanel.Dispose();

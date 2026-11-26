@@ -10,7 +10,9 @@ internal sealed class PanelNavigationService
 {
     private readonly PanelController _controller;
     private readonly FilePanelSourceRegistry? _sources;
-    private readonly Dictionary<PanelSide, Stack<ReturnPoint>> _returnPoints = new();
+    private readonly Dictionary<FilePanelState, Stack<ReturnPoint>> _returnPoints = new();
+    public PanelLoadingCoordinator? Loading { get; set; }
+    public Func<FilePanelState, PanelSide>? ResolveSide { get; set; }
     private readonly IHistoryStore _history;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
     private readonly Func<PanelSide, int> _visibleRows;
@@ -48,11 +50,11 @@ internal sealed class PanelNavigationService
             state.DisplayTitle, state.DisplayTitleBasePath, state.ShowCurrentItemFullPath,
             state.SelectedLocations.ToArray());
 
-    public void PushReturnPoint(PanelSide side, ReturnPoint point)
+    private void PushReturnPoint(FilePanelState state, ReturnPoint point)
     {
         var lease = _sources?.AcquireUsage(point.Location.SourceId);
-        if (!_returnPoints.TryGetValue(side, out var stack))
-            _returnPoints[side] = stack = new Stack<ReturnPoint>();
+        if (!_returnPoints.TryGetValue(state, out var stack))
+            _returnPoints[state] = stack = new Stack<ReturnPoint>();
         stack.Push(point with { Lease = lease });
     }
 
@@ -82,50 +84,58 @@ internal sealed class PanelNavigationService
 
     public void EnterNestedSource(FilePanelState state, PanelSide side, ReturnPoint point)
     {
-        PushReturnPoint(side, point);
+        PushReturnPoint(state, point);
         EnsureNestedRootParent(state, side);
     }
 
-    public void ClearNavigation(PanelSide side)
+    public void ClearNavigation(FilePanelState state)
     {
-        if (!_returnPoints.Remove(side, out var stack))
+        if (!_returnPoints.Remove(state, out var stack))
             return;
         while (stack.TryPop(out var frame))
             frame.Lease?.Dispose();
     }
 
-    private bool TryReturn(FilePanelState state, PanelSide side)
+    public void Navigate(FilePanelState state, PanelLocation location, bool preserveOnError, Action<bool> completed)
     {
-        if (!_returnPoints.TryGetValue(side, out var stack) || !stack.TryPeek(out var frame))
-            return false;
-        if (!_controller.TryLoadLocation(state, frame.Location, _panelOptions(), preserveOnError: true))
-            return false;
+        if (Loading is { } loading)
+            loading.Navigate(state, location, _panelOptions(), preserveOnError, completed);
+        else
+            completed(_controller.TryLoadLocation(state, location, _panelOptions(), preserveOnError));
+    }
 
-        // The parent may have been scheduled for retirement while held only
-        // by this navigation frame. It is now visible, so retain it before
-        // releasing its last usage lease.
-        _sources?.RetainSource(frame.Location.SourceId);
-        stack.Pop();
-        frame.Lease?.Dispose();
-        if (stack.Count == 0)
-            _returnPoints.Remove(side);
-        _controller.SetSourceDisplay(state, frame.DisplayTitle, frame.ShowFullPath, frame.DisplayTitleBasePath);
-        var available = state.Items.Where(item => !item.IsParentDirectory)
-            .Select(item => item.Location).ToHashSet(state.SelectedLocations.Comparer);
-        state.SelectedLocations.UnionWith(frame.SelectedLocations.Where(available.Contains));
-        _controller.RefreshSelectionSummary(state);
-        if (!_controller.SetCursorByLocation(state, frame.ItemLocation, _visibleRows(side)))
-            _controller.SetCursorTo(state, frame.CursorIndex, _visibleRows(side));
-        state.ScrollOffset = frame.ScrollOffset;
-        _controller.NormalizeCursor(state, _visibleRows(side));
-        EnsureNestedRootParent(state, side);
-        _startWatching(state, side);
-        return true;
+    private PanelSide CurrentSide(FilePanelState state, PanelSide fallback) => ResolveSide?.Invoke(state) ?? fallback;
+
+    private void TryReturn(FilePanelState state, PanelSide side)
+    {
+        if (!_returnPoints.TryGetValue(state, out var stack) || !stack.TryPeek(out var frame))
+            return;
+        Navigate(state, frame.Location, preserveOnError: true, loaded =>
+        {
+            if (!loaded) return;
+            PanelSide currentSide = CurrentSide(state, side);
+            _sources?.RetainSource(frame.Location.SourceId);
+            stack.Pop();
+            frame.Lease?.Dispose();
+            if (stack.Count == 0)
+                _returnPoints.Remove(state);
+            _controller.SetSourceDisplay(state, frame.DisplayTitle, frame.ShowFullPath, frame.DisplayTitleBasePath);
+            var available = state.Items.Where(item => !item.IsParentDirectory)
+                .Select(item => item.Location).ToHashSet(state.SelectedLocations.Comparer);
+            state.SelectedLocations.UnionWith(frame.SelectedLocations.Where(available.Contains));
+            _controller.RefreshSelectionSummary(state);
+            if (!_controller.SetCursorByLocation(state, frame.ItemLocation, _visibleRows(currentSide)))
+                _controller.SetCursorTo(state, frame.CursorIndex, _visibleRows(currentSide));
+            state.ScrollOffset = frame.ScrollOffset;
+            _controller.NormalizeCursor(state, _visibleRows(currentSide));
+            EnsureNestedRootParent(state, currentSide);
+            _startWatching(state, currentSide);
+        });
     }
 
     private bool CanReturnFromRoot(FilePanelState state, PanelSide side)
     {
-        if (!_returnPoints.TryGetValue(side, out var stack) || stack.Count == 0)
+        if (!_returnPoints.TryGetValue(state, out var stack) || stack.Count == 0)
             return false;
         return _sources?.TryGetSource(state.SourceId, out var source) == true &&
             source.IsRootPath(state.SourcePath);
@@ -142,37 +152,55 @@ internal sealed class PanelNavigationService
             TryReturn(state, side);
             return;
         }
-        bool loaded = item.IsParentDirectory
-            ? _controller.TryGoToParent(state, _visibleRows(side), _panelOptions())
-            : _controller.TryLoadLocation(state, item.Location, _panelOptions());
+        if (item.IsParentDirectory)
+            NavigateParent(state, side);
+        else
+            Navigate(state, item.Location, preserveOnError: false, loaded => AfterNavigation(state, side, loaded));
+    }
 
-        if (!loaded)
+    public void TryGoUp(FilePanelState state, PanelSide side)
+    {
+        if (!HasCapability(state, PanelProviderCapabilities.Enumerate))
             return;
 
+        _closeQuickSearchForPanel(side);
+        if (CanReturnFromRoot(state, side))
+        {
+            TryReturn(state, side);
+            return;
+        }
+        NavigateParent(state, side);
+    }
+
+    private void NavigateParent(FilePanelState state, PanelSide side)
+    {
+        if (Loading is null)
+        {
+            AfterNavigation(state, side, _controller.TryGoToParent(state, _visibleRows(side), _panelOptions()));
+            return;
+        }
+        PanelLocation child = state.CurrentLocation;
+        PanelLocation? parent = state.SourceId == PanelSourceId.Local
+            ? _controller.GetParentLocation(child)
+            : state.Items.FirstOrDefault(item => item.IsParentDirectory)?.Location;
+        if (parent is not { } target || state.SelectedLocations.Comparer.Equals(child, target))
+            return;
+        Navigate(state, target, preserveOnError: false, loaded =>
+        {
+            if (loaded)
+                _controller.SetCursorByLocation(state, child, _visibleRows(CurrentSide(state, side)));
+            AfterNavigation(state, side, loaded);
+        });
+    }
+
+    private void AfterNavigation(FilePanelState state, PanelSide side, bool loaded)
+    {
+        if (!loaded) return;
+        side = CurrentSide(state, side);
         EnsureNestedRootParent(state, side);
         if (state.SourceId == PanelSourceId.Local)
             _history.AddDirectory(new DirectoryHistoryItem { Path = state.CurrentDirectory });
         _startWatching(state, side);
-    }
-
-    public void TryGoUp(FilePanelState activeState, PanelSide activeSide)
-    {
-        if (!HasCapability(activeState, PanelProviderCapabilities.Enumerate))
-            return;
-
-        _closeQuickSearchForPanel(activeSide);
-        if (CanReturnFromRoot(activeState, activeSide))
-        {
-            TryReturn(activeState, activeSide);
-            return;
-        }
-        if (!_controller.TryGoToParent(activeState, _visibleRows(activeSide), _panelOptions()))
-            return;
-        EnsureNestedRootParent(activeState, activeSide);
-
-        if (activeState.SourceId == PanelSourceId.Local)
-            _history.AddDirectory(new DirectoryHistoryItem { Path = activeState.CurrentDirectory });
-        _startWatching(activeState, activeSide);
     }
 
     private static bool HasCapability(FilePanelState state, PanelProviderCapabilities capability) =>

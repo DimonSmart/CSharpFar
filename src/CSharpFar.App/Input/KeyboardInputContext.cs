@@ -19,6 +19,7 @@ internal sealed class KeyboardInputContext
     public required Func<bool> QuickView { get; init; }
     public required Action<bool> SetQuickView { get; init; }
     public required Action<bool> SetRunning { get; init; }
+    public Func<PanelSide, bool> CancelPanelLoad { get; set; } = _ => false;
     public Func<bool> ToggleQuickViewDirectoryMonitor { get; set; } = () => false;
     public Func<bool> ActivateQuickViewDirectoryMonitorChange { get; set; } = () => false;
     public Func<int, bool> MoveQuickViewDirectoryMonitorSelection { get; set; } = _ => false;

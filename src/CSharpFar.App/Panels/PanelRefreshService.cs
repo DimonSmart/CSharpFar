@@ -1,3 +1,4 @@
+using CSharpFar.Core.Services;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
@@ -7,6 +8,8 @@ namespace CSharpFar.App.Panels;
 internal sealed class PanelRefreshService
 {
     public Action<FilePanelState>? RefreshRequested { get; set; }
+    public PanelLoadingCoordinator? Loading { get; set; }
+    public Func<FilePanelState, PanelSide>? ResolveSide { get; set; }
     private readonly PanelController _controller;
     private readonly Action<FilePanelState>? _afterRefresh;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
@@ -50,7 +53,13 @@ internal sealed class PanelRefreshService
         if (state.ContentKind == PanelContentKind.Virtual)
             return;
 
-        if (_controller.TryRefreshDirectory(state, visibleRows, _panelOptions()))
+        if (Loading is { } loading)
+        {
+            loading.Refresh(state, _panelOptions(),
+                () => ResolveSide is null ? visibleRows : _visibleRows(ResolveSide(state)),
+                loaded => { if (loaded) _afterRefresh?.Invoke(state); });
+        }
+        else if (_controller.TryRefreshDirectory(state, visibleRows, _panelOptions()))
             _afterRefresh?.Invoke(state);
     }
 

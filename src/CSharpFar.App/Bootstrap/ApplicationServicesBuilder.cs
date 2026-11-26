@@ -301,6 +301,12 @@ internal static class ApplicationServicesBuilder
             side => callbacks.GetPanelState(side),
             side => callbacks.VisibleRowsForSide(side),
             (state, rows) => callbacks.SafeRefresh(state, rows));
+        var pluginUiActions = new PluginUiActionQueue(autoRefresh.WakeInputLoop,
+            error => diagnosticLog.WriteException(DiagnosticCategory.Plugin, error, "UI action"));
+        var panelLoading = new PanelLoadingCoordinator(controller, effectiveSourceRegistry, pluginUiActions.Post,
+            error => diagnosticLog.WriteException(DiagnosticCategory.Application, error, "Panel loading"));
+        keyboardInputContext.CancelPanelLoad = side => panelLoading.Cancel(
+            side == PanelSide.Left ? session.Panels.Left : session.Panels.Right);
         var directorySizes = new PanelDirectorySizeCoordinator(
             effectiveSourceRegistry,
             session.Panels.Left,
@@ -317,7 +323,11 @@ internal static class ApplicationServicesBuilder
             side => callbacks.VisibleRowsForSide(side),
             side => callbacks.ClosePanelQuickSearchForPanel(side),
             (state, side) => callbacks.StartWatching(state, side),
-            effectiveSourceRegistry);
+            effectiveSourceRegistry)
+        {
+            Loading = panelLoading,
+            ResolveSide = state => ReferenceEquals(state, session.Panels.Left) ? PanelSide.Left : PanelSide.Right,
+        };
         var panelQuickSearch = new PanelQuickSearchController(
             controller,
             () => callbacks.GetActiveSide(),
@@ -431,7 +441,12 @@ internal static class ApplicationServicesBuilder
             () => callbacks.PanelOptions(),
             side => callbacks.VisibleRowsForSide(side),
             state => callbacks.ClosePanelQuickSearchForState(state),
-            state => panelNavigation.EnsureNestedRootParent(state, callbacks.PanelSideForState(state)));
+            state => panelNavigation.EnsureNestedRootParent(state, callbacks.PanelSideForState(state)))
+        {
+            Loading = panelLoading,
+            ResolveSide = state => callbacks.PanelSideForState(state),
+        };
+        panelSort.Refresh = panelRefresh.SafeRefresh;
         panelRefresh.RefreshRequested = state =>
         {
             if (session.App.FileUsage && ReferenceEquals(state, panelWorkspace.ActiveState))
@@ -537,8 +552,6 @@ internal static class ApplicationServicesBuilder
         ApplicationServices Finish()
         {
             var moduleCatalog = new NativeModuleCatalog(pluginRuntime);
-            var pluginUiActions = new PluginUiActionQueue(autoRefresh.WakeInputLoop,
-                error => diagnosticLog.WriteException(DiagnosticCategory.Plugin, error, "Plugin UI action"));
             var modulePanelOpener = new ModulePanelOpener(
                 moduleCatalog,
                 effectiveSourceRegistry,
@@ -629,7 +642,8 @@ internal static class ApplicationServicesBuilder
                 fileUsagePanel,
                 directorySizes,
                 pluginUiActions,
-                modulePanelOpener.CleanupUnusedTemporarySources);
+                modulePanelOpener.CleanupUnusedTemporarySources,
+                panelLoading.Dispose);
 
             return new ApplicationServices
             {

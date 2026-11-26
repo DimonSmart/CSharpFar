@@ -14,7 +14,8 @@ internal sealed class PanelAutoRefreshService
     private readonly Func<PanelSide, FilePanelState> _getPanelState;
     private readonly Func<PanelSide, int> _visibleRows;
     private readonly Action<FilePanelState, int> _safeRefresh;
-    private readonly Queue<FileSystemPanelChanged> _pendingRefreshEvents = new();
+    private readonly Dictionary<PanelSide, FileSystemPanelChanged> _pendingRefreshEvents = new();
+    private readonly object _waitGate = new();
     private CancellationTokenSource _refreshCts = new();
 
     public PanelAutoRefreshService(
@@ -38,7 +39,7 @@ internal sealed class PanelAutoRefreshService
             _watcher.Changed += OnFileSystemChanged;
     }
 
-    public CancellationToken WaitToken => _refreshCts.Token;
+    public CancellationToken WaitToken { get { lock (_waitGate) return _refreshCts.Token; } }
 
     public void StartWatching(FilePanelState state, PanelSide side)
     {
@@ -65,37 +66,41 @@ internal sealed class PanelAutoRefreshService
 
     public void ResetWaitToken()
     {
-        var old = Interlocked.Exchange(ref _refreshCts, new CancellationTokenSource());
-        old.Dispose();
+        lock (_waitGate)
+        {
+            var old = _refreshCts;
+            _refreshCts = new CancellationTokenSource();
+            old.Dispose();
+        }
     }
 
-    public void WakeInputLoop() =>
-        _refreshCts.Cancel();
+    public void WakeInputLoop()
+    {
+        lock (_waitGate) _refreshCts.Cancel();
+    }
 
     public void ProcessPendingRefreshes()
     {
-        while (true)
+        FileSystemPanelChanged[] events;
+        lock (_pendingRefreshEvents)
         {
-            FileSystemPanelChanged? evt;
-            lock (_pendingRefreshEvents)
-            {
-                evt = _pendingRefreshEvents.Count > 0 ? _pendingRefreshEvents.Dequeue() : null;
-            }
-            if (evt is null) break;
-
+            events = [.. _pendingRefreshEvents.Values];
+            _pendingRefreshEvents.Clear();
+        }
+        foreach (var evt in events)
+        {
             var state = _getPanelState(evt.PanelSide);
             if (!string.Equals(state.CurrentDirectory, evt.DirectoryPath, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            if (Directory.Exists(state.CurrentDirectory))
-                _safeRefresh(state, _visibleRows(evt.PanelSide));
+            _safeRefresh(state, _visibleRows(evt.PanelSide));
         }
     }
 
     private void OnFileSystemChanged(object? sender, FileSystemPanelChanged e)
     {
         lock (_pendingRefreshEvents)
-            _pendingRefreshEvents.Enqueue(e);
+            _pendingRefreshEvents[e.PanelSide] = e;
 
         WakeInputLoop();
     }

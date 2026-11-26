@@ -6,6 +6,7 @@ namespace CSharpFar.App.Panels;
 
 internal sealed class PanelSortServiceFacade
 {
+    public Action<FilePanelState, int>? Refresh { get; set; }
     private readonly PanelController _controller;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
     private readonly Action<FilePanelState> _closeQuickSearchForState;
@@ -25,7 +26,19 @@ internal sealed class PanelSortServiceFacade
         _closeQuickSearchForState(state);
         if (state.ContentKind == PanelContentKind.Source)
         {
-            _controller.SetSortMode(state, mode, visibleRows, _panelOptions());
+            if (Refresh is { } refresh)
+            {
+                if (state.SortMode == mode)
+                    state.SortDescending = !state.SortDescending;
+                else
+                {
+                    state.SortMode = mode;
+                    state.SortDescending = false;
+                }
+                refresh(state, visibleRows);
+            }
+            else
+                _controller.SetSortMode(state, mode, visibleRows, _panelOptions());
             return;
         }
 

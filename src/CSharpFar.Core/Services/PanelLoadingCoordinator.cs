@@ -32,6 +32,13 @@ public sealed class PanelLoadingCoordinator(
         {
             // Navigation wins. A refresh arriving during another refresh is
             // represented by one follow-up, not another queue entry.
+            if (panel.SortMode != current.ViewRequest.SortMode ||
+                panel.SortDescending != current.ViewRequest.SortDescending)
+            {
+                RequestLoad(panel, current.Location, options, current.Refresh, current.PreserveOnError,
+                    current.VisibleRows, current.Completed);
+                return;
+            }
             if (current.Refresh)
                 slot.RefreshAgain = () => Refresh(panel, options, visibleRows, completed);
             return;
@@ -46,6 +53,7 @@ public sealed class PanelLoadingCoordinator(
         slot.RefreshAgain = null;
         CancelCurrent(slot);
         panel.IsLoading = false;
+        panel.IsLoadingIndicatorVisible = false;
         return true;
     }
 
@@ -56,7 +64,7 @@ public sealed class PanelLoadingCoordinator(
         if (_disposed)
             return;
         if (!controller.TryNormalizeLocation(location, out var normalized) ||
-            !sources.TryGetSource(normalized.SourceId, out var source))
+            !sources.TryAcquireUsage(normalized.SourceId, out var source, out var lease))
         {
             completed?.Invoke(false);
             return;
@@ -67,7 +75,6 @@ public sealed class PanelLoadingCoordinator(
 
         // Hold the new lease before cancelling the previous request: a temporary
         // source may have been scheduled for retirement while it is not visible.
-        var lease = sources.AcquireUsage(normalized.SourceId);
         var request = new LoadRequest(normalized, source, panel.ContentRevision,
             new PanelViewRequest
             {
@@ -85,10 +92,28 @@ public sealed class PanelLoadingCoordinator(
         CancelCurrent(slot);
         slot.Current = request;
         panel.IsLoading = true;
+        _ = ShowIndicatorAsync(panel, slot, request, request.Token);
         if (slot.Active.Count < 2)
             Start(panel, slot, request);
         else
             slot.Pending = request;
+    }
+
+    private async Task ShowIndicatorAsync(FilePanelState panel, Slot slot, LoadRequest request, CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(120), token).ConfigureAwait(false);
+            if (_disposed || request.WorkerFinished)
+                return;
+            postToUi(() =>
+            {
+                if (!_disposed && ReferenceEquals(slot.Current, request) && !request.WorkerFinished)
+                    panel.IsLoadingIndicatorVisible = true;
+            });
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception exception) { ReportError(exception); }
     }
 
     private static AppSettings.PanelOptionsSettings Snapshot(AppSettings.PanelOptionsSettings options) =>
@@ -161,6 +186,7 @@ public sealed class PanelLoadingCoordinator(
         {
             slot.Current = null;
             panel.IsLoading = false;
+            panel.IsLoadingIndicatorVisible = false;
             var refreshAgain = slot.RefreshAgain;
             slot.RefreshAgain = null;
             try
@@ -230,6 +256,7 @@ public sealed class PanelLoadingCoordinator(
         {
             CancelCurrent(slot);
             panel.IsLoading = false;
+            panel.IsLoadingIndicatorVisible = false;
         }
         _panels.Clear();
         // Do not wait for uncooperative legacy providers at shutdown. Their
@@ -263,6 +290,7 @@ public sealed class PanelLoadingCoordinator(
         public Func<int>? VisibleRows { get; } = visibleRows;
         public Action<bool>? Completed { get; } = completed;
         public CancellationToken Token => _cancellation.Token;
+        public bool WorkerFinished => Volatile.Read(ref _workerFinished) != 0;
 
         public void Cancel() => _ = CancelAsync();
 
