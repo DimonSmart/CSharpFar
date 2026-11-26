@@ -1237,17 +1237,6 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
             yield return destination.SourceId;
     }
 
-    internal static string CombineProviderPath(PanelSourceId sourceId, string directoryPath, string name)
-    {
-        if (sourceId == PanelSourceId.Local)
-            return Path.Combine(directoryPath, name);
-
-        string trimmedDirectory = directoryPath.TrimEnd('/');
-        return trimmedDirectory.Length == 0 || trimmedDirectory == "/"
-            ? "/" + name
-            : trimmedDirectory + "/" + name;
-    }
-
     private static string GenerateProviderName(
         IFilePanelSource source,
         string destinationPath,
@@ -1320,12 +1309,6 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 if (path.IndexOfAny(['*', '?']) >= 0)
                     throw new IOException("Destination pattern produced an invalid file name.");
             });
-    }
-
-    private static string GetProviderParentPath(string path)
-    {
-        int slash = path.LastIndexOf('/');
-        return slash <= 0 ? "/" : path[..slash];
     }
 
     // The canonical item mapping is shared by Local, provider execution and previews.
