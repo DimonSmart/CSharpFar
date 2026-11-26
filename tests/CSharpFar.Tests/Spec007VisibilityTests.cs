@@ -27,7 +27,7 @@ public sealed class Spec007VisibilityTests
             Options = new AppSettings.PanelOptionsSettings { ShowHiddenAndSystemFiles = showHidden },
             SortMode = SortMode.Name,
             SortDescending = false,
-            SelectedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            SelectedLocations = new HashSet<PanelLocation>(),
         };
 
     [Fact]

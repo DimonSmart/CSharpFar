@@ -118,7 +118,7 @@ public sealed partial class ApplicationNavigationTests : IDisposable
         Assert.True(commandLine.HasSelection);
         Assert.Equal(0, commandLine.SelectionStart);
         Assert.Equal(2, commandLine.SelectionLength);
-        Assert.Empty(GetLeftPanel(app).SelectedPaths);
+        Assert.Empty(GetLeftPanel(app).SelectedLocations);
 
         HandleKeyAndRender(app, Key(ConsoleKey.X, keyChar: 'x'));
 

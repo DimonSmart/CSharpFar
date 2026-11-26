@@ -39,7 +39,6 @@ public sealed class Spec060RenameCommandTests : IDisposable
 
         var app = CreateApp(fs, fileOperations, driver);
         GetLeftPanel(app).CursorIndex = 1;
-        GetLeftPanel(app).SelectedPaths.Add(selectedPath);
         GetLeftPanel(app).SelectedLocations.Add(PanelLocation.Local(selectedPath));
 
         ApplicationTestRunBuilder

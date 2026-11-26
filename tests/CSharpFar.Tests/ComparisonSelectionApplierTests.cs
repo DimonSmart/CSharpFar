@@ -21,16 +21,15 @@ public sealed class ComparisonSelectionApplierTests
 
         var left = Panel(leftRoot, Item(leftTop), Item(leftSrc, directory: true));
         var right = Panel(rightRoot, Item(rightTop), Item(rightSrc, directory: true));
-        left.SelectedPaths.Add(leftTop);
-        right.SelectedPaths.Add(rightTop);
+        left.SelectedLocations.Add(PanelLocation.Local(leftTop));
+        right.SelectedLocations.Add(PanelLocation.Local(rightTop));
 
         ComparisonSelectionApplier.Apply(Result(
             Row(CompareStatus.Different, leftTop, rightTop),
             Row(CompareStatus.LeftOnly, leftNested, null)), left, right, Controller());
 
-        Assert.Equal([leftSrc, leftTop], left.SelectedPaths.Order());
-        Assert.Equal([rightTop], right.SelectedPaths);
-        Assert.Equal(left.SelectedPaths.Count, left.SelectedLocations.Count);
+        Assert.Equal([leftSrc, leftTop], left.SelectedLocations.Select(location => location.SourcePath).Order());
+        Assert.Equal([rightTop], right.SelectedLocations.Select(location => location.SourcePath));
         Assert.Equal(2, left.Summary!.SelectedCount);
         Assert.Equal(0, left.CursorIndex);
         Assert.Equal(0, left.ScrollOffset);
@@ -53,8 +52,8 @@ public sealed class ComparisonSelectionApplierTests
             right,
             Controller());
 
-        Assert.Empty(left.SelectedPaths);
-        Assert.Empty(right.SelectedPaths);
+        Assert.Empty(left.SelectedLocations);
+        Assert.Empty(right.SelectedLocations);
     }
 
     private static string P(params string[] parts) => Path.Combine(parts);
