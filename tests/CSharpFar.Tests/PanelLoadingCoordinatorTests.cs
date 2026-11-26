@@ -51,7 +51,7 @@ public sealed class PanelLoadingCoordinatorTests
         newer.Succeed();
         f.PumpUntil(() => !f.Left.IsLoading);
         if (fail) old.Fail(); else old.Succeed();
-        f.PumpUntil(() => f.UiCompletionCount >= 2);
+        f.PumpUntil(() => !f.Loader.HasOutstandingRequests);
         Assert.Equal("/new", f.Left.SourcePath);
         Assert.Null(f.Left.LoadError);
     }
@@ -67,7 +67,7 @@ public sealed class PanelLoadingCoordinatorTests
         Assert.False(f.Left.IsLoading);
         Assert.False(f.Left.IsLoadingIndicatorVisible);
         slow.Succeed();
-        f.PumpUntil(() => f.UiCompletionCount >= 1);
+        f.PumpUntil(() => !f.Loader.HasOutstandingRequests);
         Assert.Equal("/", f.Left.SourcePath);
         Assert.Contains(f.Left.Items, i => i.Name == "initial.txt");
     }
@@ -108,7 +108,7 @@ public sealed class PanelLoadingCoordinatorTests
         last.Succeed();
         f.PumpUntil(() => !f.Left.IsLoading);
         a.Succeed();
-        f.PumpUntil(() => f.UiCompletionCount >= 3);
+        f.PumpUntil(() => !f.Loader.HasOutstandingRequests);
         Assert.Equal("/pending29", f.Left.SourcePath);
         Assert.Equal(3, f.Source.StartCount);
     }
@@ -178,14 +178,13 @@ public sealed class PanelLoadingCoordinatorTests
         public FilePanelState Left { get; } = new();
         public FilePanelState Right { get; } = new();
         public AppSettings.PanelOptionsSettings Options { get; } = new();
-        public int UiCompletionCount { get; private set; }
 
         public Fixture()
         {
             Registry = new FilePanelSourceRegistry([Source]);
             var controller = new PanelController(new PanelViewBuilder(
                 new FakeFileSystemService(), new PanelSortService(), sources: Registry), sources: Registry);
-            Source.SeedFile("/initial.txt", [1]);
+            Source.SeedFile("/initial.txt", "1");
             controller.LoadLocation(Left, new PanelLocation(Source.SourceId, "/"), Options);
             controller.LoadLocation(Right, new PanelLocation(Source.SourceId, "/"), Options);
             Loader = new PanelLoadingCoordinator(controller, Registry, _ui.Enqueue);
@@ -207,12 +206,7 @@ public sealed class PanelLoadingCoordinatorTests
             {
                 while (_ui.TryDequeue(out var action))
                 {
-                    bool loading = Left.IsLoadingIndicatorVisible || Right.IsLoadingIndicatorVisible;
                     action();
-                    // Indicator-only actions do not constitute completion.
-                    if (loading == (Left.IsLoadingIndicatorVisible || Right.IsLoadingIndicatorVisible) ||
-                        !Left.IsLoading || !Right.IsLoading)
-                        UiCompletionCount++;
                 }
                 return condition();
             }, TimeSpan.FromSeconds(10)), "UI completion condition timed out.");

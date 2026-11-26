@@ -17,6 +17,7 @@ public sealed class PanelLoadingCoordinator(
 {
     private readonly Dictionary<FilePanelState, Slot> _panels = new();
     private volatile bool _disposed;
+    internal bool HasOutstandingRequests => _panels.Count != 0;
 
     public void Navigate(FilePanelState panel, PanelLocation location,
         AppSettings.PanelOptionsSettings options, bool preserveOnError = false,
