@@ -67,7 +67,7 @@ public sealed class AzureBlobPanelProvider : IPanelProvider
         string? name = ui.Input("Azure connection", "Display name (not a secret)", old?.DisplayName ?? "Azure");
         if (string.IsNullOrWhiteSpace(name)) return null;
         int? choice = ui.ShowMenu("Authentication", ["Connection string (environment)", "SAS token (environment)",
-            "Container SAS URL (environment)", "Microsoft Entra ID (Azure CLI)", "Azurite"], (int)(old?.AuthenticationMode ?? AuthenticationMode.ConnectionString));
+            "Account or container SAS URL (environment)", "Microsoft Entra ID (Azure CLI)", "Azurite"], (int)(old?.AuthenticationMode ?? AuthenticationMode.ConnectionString));
         if (choice is null) return null;
         var mode = (AuthenticationMode)choice.Value;
         string? endpoint = null, reference = null, container = null;
@@ -85,9 +85,9 @@ public sealed class AzureBlobPanelProvider : IPanelProvider
             if (reference is null || (reference.Length == 0 && mode != AuthenticationMode.Azurite)) return null;
             if (reference.Length == 0) reference = null;
         }
-        if (mode != AuthenticationMode.SasContainerUrl)
         {
-            container = ui.Input("Azure connection", "Container (empty = choose on connect)", old?.ContainerName ?? "");
+            // Also permits an explicit container for an account SAS URL.
+            container = ui.Input("Azure connection", "Container (empty = choose on connect or use SAS URL container)", old?.ContainerName ?? "");
             if (container is null) return null;
             if (container.Length == 0) container = null;
         }
@@ -136,7 +136,7 @@ internal static class AzureErrors
     {
         RequestFailedException failure => $"Azure request failed (HTTP {failure.Status}). Check permissions, connection and object state.",
         OperationCanceledException => "Azure operation cancelled.",
-        IOException when error is AzureOperationException => error.Message,
+        AzureOperationException => error.Message,
         _ => "Azure operation failed. Check connection settings, path and permissions."
     };
 

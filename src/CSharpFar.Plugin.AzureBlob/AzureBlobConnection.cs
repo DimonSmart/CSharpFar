@@ -5,7 +5,7 @@ using Azure.Storage.Blobs;
 
 namespace CSharpFar.Plugin.AzureBlob;
 
-public enum AuthenticationMode { ConnectionString, SasToken, SasContainerUrl, AzureCli, Azurite }
+public enum AuthenticationMode { ConnectionString, SasToken, SasUrl, AzureCli, Azurite }
 
 public sealed record AzureBlobConnection(
     Guid Id, string DisplayName, AuthenticationMode AuthenticationMode,
@@ -84,11 +84,14 @@ public static class AzureBlobClientFactory
             if (!Uri.TryCreate(Secret(), UriKind.Absolute, out var url) ||
                 (url.Scheme != "https" && !(url.Scheme == "http" && url.IsLoopback)) ||
                 url.UserInfo.Length != 0 || url.Fragment.Length != 0 || url.Query.Length == 0)
-                throw new ArgumentException("Expected a container SAS URL in the environment variable.");
+                throw new ArgumentException("Expected an account or container SAS URL in the environment variable.");
             var builder = new BlobUriBuilder(url);
-            if (string.IsNullOrEmpty(builder.BlobContainerName) || !string.IsNullOrEmpty(builder.BlobName))
-                throw new ArgumentException("Expected a container SAS URL, not an account or blob URL.");
-            return (null, new BlobContainerClient(url, options));
+            if (!string.IsNullOrEmpty(builder.BlobName))
+                throw new ArgumentException("Expected an account or container SAS URL, not a blob URL.");
+            if (!string.IsNullOrEmpty(builder.BlobContainerName))
+                return (null, new BlobContainerClient(url, options));
+            var sasService = new BlobServiceClient(url, options);
+            return (sasService, connection.ContainerName is null ? null : sasService.GetBlobContainerClient(connection.ContainerName));
         }
         BlobServiceClient service = connection.AuthenticationMode switch
         {
