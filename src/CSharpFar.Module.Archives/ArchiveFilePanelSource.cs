@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 
 namespace CSharpFar.Module.Archives;
 
@@ -9,7 +10,7 @@ namespace CSharpFar.Module.Archives;
 /// An indexed archive session. Writable local ZIP archives use copy-on-write batches.
 /// Other formats and nested/remote archives retain the read-only v1 behavior.
 /// </summary>
-public sealed class ArchiveFilePanelSource : IFilePanelSource, IFileOperationBatchProvider, IFileProviderPhysicalIdentity, ITemporaryFilePanelSource, IAsyncDisposable
+public sealed class ArchiveFilePanelSource : IAsyncFilePanelSource, IFileOperationBatchProvider, IFileProviderPhysicalIdentity, ITemporaryFilePanelSource, IAsyncDisposable
 {
     public const long MaxTemporaryBytes = 1024L * 1024 * 1024;
     public const int MaxNestingDepth = 3;
@@ -95,9 +96,14 @@ public sealed class ArchiveFilePanelSource : IFilePanelSource, IFileOperationBat
         name.EndsWith(".tgz", StringComparison.OrdinalIgnoreCase) ||
         name.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase);
 
-    public static async Task<ArchiveFilePanelSource> CreateAsync(
+    public static Task<ArchiveFilePanelSource> CreateAsync(
         IFilePanelSource original, PanelLocation location, string name,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        Task.Run(() => CreateCoreAsync(original, location, name, cancellationToken), cancellationToken);
+
+    private static async Task<ArchiveFilePanelSource> CreateCoreAsync(
+        IFilePanelSource original, PanelLocation location, string name,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(original);
         if (!IsSupportedName(name))
@@ -114,7 +120,7 @@ public sealed class ArchiveFilePanelSource : IFilePanelSource, IFileOperationBat
         {
             if (!local)
             {
-                await using var input = await original.OpenReadAsync(location.SourcePath, cancellationToken)
+                await using var input = await original.AsAsync().OpenReadAsync(location.SourcePath, cancellationToken)
                     .ConfigureAwait(false);
                 await using var output = new FileStream(file, FileMode.CreateNew, FileAccess.Write,
                     FileShare.None, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
@@ -167,6 +173,14 @@ public sealed class ArchiveFilePanelSource : IFilePanelSource, IFileOperationBat
     public bool IsRootPath(string sourcePath) => NormalizePath(sourcePath) == "/";
     public string? GetParentPath(string sourcePath) => ArchivePath.Parent(sourcePath);
 
+    public Task<IReadOnlyList<FilePanelItem>> EnumerateDirectoryAsync(
+        string sourcePath, CancellationToken cancellationToken = default) =>
+        FilePanelSourceAsync.RunBlockingAsync(this, () => EnumerateDirectory(sourcePath, cancellationToken), cancellationToken);
+
+    public Task<FilePanelItem?> GetItemAsync(
+        string sourcePath, CancellationToken cancellationToken = default) =>
+        FilePanelSourceAsync.RunBlockingAsync(this, () => GetItem(sourcePath, cancellationToken), cancellationToken);
+
     public IReadOnlyList<FilePanelItem> EnumerateDirectory(
         string sourcePath, CancellationToken cancellationToken = default)
     {
@@ -183,45 +197,37 @@ public sealed class ArchiveFilePanelSource : IFilePanelSource, IFileOperationBat
         return entry is null || entry.Path == "/" ? null : ArchiveEntryIndex.ToItem(entry, SourceId);
     }
 
-    public Task<Stream> OpenReadAsync(string sourcePath, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        EnsureFresh();
-        var entry = _index.Find(sourcePath);
-        if (entry is null || entry.IsDirectory)
-            throw new FileNotFoundException("Archive file not found.", sourcePath);
-
-        return Task.Run<Stream>(
-            () =>
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                EnsureFresh();
-                return SharpCompressArchiveReader.OpenEntry(
-                    _archiveFile, Format, entry, cancellationToken);
-            }, cancellationToken);
-    }
-
-    public async ValueTask<IFileOperationBatch> BeginBatchAsync(
-        FileOperationPlan plan, CancellationToken cancellationToken = default)
-    {
-        if (!_writable)
-            throw ReadOnly();
-        cancellationToken.ThrowIfCancellationRequested();
-        EnsureFresh();
-        if (Format == "ZIP")
-            ArchiveZipSafety.Validate(_archiveFile);
-        else if (Format == "7Z")
-            ArchiveSevenZipSafety.Validate(_archiveFile);
-        else
-            ArchiveTarSafety.Validate(_archiveFile, Format);
-        byte[] originalDigest = await Task.Run(() =>
+    public Task<Stream> OpenReadAsync(string sourcePath, CancellationToken cancellationToken = default) =>
+        FilePanelSourceAsync.RunBlockingAsync<Stream>(this, () =>
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureFresh();
+            var entry = _index.Find(sourcePath);
+            if (entry is null || entry.IsDirectory)
+                throw new FileNotFoundException("Archive file not found.", sourcePath);
+            return SharpCompressArchiveReader.OpenEntry(_archiveFile, Format, entry, cancellationToken);
+        }, cancellationToken);
+
+    public ValueTask<IFileOperationBatch> BeginBatchAsync(
+        FileOperationPlan plan, CancellationToken cancellationToken = default) =>
+        new(FilePanelSourceAsync.RunBlockingAsync<IFileOperationBatch>(this, () =>
+        {
+            if (!_writable)
+                throw ReadOnly();
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureFresh();
+            if (Format == "ZIP")
+                ArchiveZipSafety.Validate(_archiveFile);
+            else if (Format == "7Z")
+                ArchiveSevenZipSafety.Validate(_archiveFile);
+            else
+                ArchiveTarSafety.Validate(_archiveFile, Format);
             using var input = File.OpenRead(_archiveFile);
-            return SHA256.HashData(input);
-        }, cancellationToken).ConfigureAwait(false);
-        EnsureFresh();
-        return new ArchiveMutationBatch(this, originalDigest);
-    }
+            byte[] originalDigest = SHA256.HashData(input);
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureFresh();
+            return new ArchiveMutationBatch(this, originalDigest);
+        }, cancellationToken));
 
     // All archive writes require an explicit batch. A bare stream cannot express
     // rollback after a caller exception, so don't advertise implicit auto-commit.

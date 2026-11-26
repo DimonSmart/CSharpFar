@@ -1,10 +1,11 @@
 using System.Text;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 
 namespace CSharpFar.FileSystem;
 
-public sealed class DemoFilePanelSource : IFilePanelSource, ISafeNewFilePublicationProvider, IRecoverableEntryRenameProvider
+public sealed class DemoFilePanelSource : IAsyncFilePanelSource, ISafeNewFilePublicationProvider, IRecoverableEntryRenameProvider
 {
     private static readonly char[] ProviderPathSeparators = ['/'];
     private const int MaxFileCount = 512;
@@ -96,6 +97,14 @@ public sealed class DemoFilePanelSource : IFilePanelSource, ISafeNewFilePublicat
         int slash = normalized.LastIndexOf('/');
         return slash <= 0 ? "/" : normalized[..slash];
     }
+
+    public Task<IReadOnlyList<FilePanelItem>> EnumerateDirectoryAsync(
+        string sourcePath, CancellationToken cancellationToken = default) =>
+        FilePanelSourceAsync.RunBlockingAsync(this, () => EnumerateDirectory(sourcePath, cancellationToken), cancellationToken);
+
+    public Task<FilePanelItem?> GetItemAsync(
+        string sourcePath, CancellationToken cancellationToken = default) =>
+        FilePanelSourceAsync.RunBlockingAsync(this, () => GetItem(sourcePath, cancellationToken), cancellationToken);
 
     public IReadOnlyList<FilePanelItem> EnumerateDirectory(
         string sourcePath,

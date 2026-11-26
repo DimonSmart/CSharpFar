@@ -4,7 +4,7 @@ using CSharpFar.Core.Services;
 
 namespace CSharpFar.FileSystem;
 
-public sealed class LocalFilePanelSource : IFilePanelSource
+public sealed class LocalFilePanelSource : IAsyncFilePanelSource
 {
     private static readonly char[] LocalPathSeparators = [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar];
     private readonly IFileSystemService _fileSystem;
@@ -45,6 +45,14 @@ public sealed class LocalFilePanelSource : IFilePanelSource
 
     public string? GetParentPath(string sourcePath) =>
         Directory.GetParent(NormalizePath(sourcePath))?.FullName;
+
+    public Task<IReadOnlyList<FilePanelItem>> EnumerateDirectoryAsync(
+        string sourcePath, CancellationToken cancellationToken = default) =>
+        FilePanelSourceAsync.RunBlockingAsync(this, () => EnumerateDirectory(sourcePath, cancellationToken), cancellationToken);
+
+    public Task<FilePanelItem?> GetItemAsync(
+        string sourcePath, CancellationToken cancellationToken = default) =>
+        FilePanelSourceAsync.RunBlockingAsync(this, () => GetItem(sourcePath, cancellationToken), cancellationToken);
 
     public IReadOnlyList<FilePanelItem> EnumerateDirectory(
         string sourcePath,
@@ -98,73 +106,75 @@ public sealed class LocalFilePanelSource : IFilePanelSource
 
     public Task<Stream> OpenReadAsync(
         string sourcePath,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        Stream stream = File.Open(
-            NormalizePath(sourcePath),
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.ReadWrite | FileShare.Delete);
-        return Task.FromResult(stream);
-    }
+        CancellationToken cancellationToken = default) =>
+        FilePanelSourceAsync.RunBlockingAsync(this, () =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Stream stream = new FileStream(
+                NormalizePath(sourcePath),
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.Asynchronous);
+            return stream;
+        }, cancellationToken);
 
     public Task<Stream> OpenWriteAsync(
         string sourcePath,
         bool overwrite,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        string path = NormalizePath(sourcePath);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        Stream stream = File.Open(
-            path,
-            overwrite ? FileMode.Create : FileMode.CreateNew,
-            FileAccess.Write,
-            FileShare.None);
-        return Task.FromResult(stream);
-    }
+        CancellationToken cancellationToken = default) =>
+        FilePanelSourceAsync.RunBlockingAsync(this, () =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string path = NormalizePath(sourcePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            Stream stream = new FileStream(
+                path,
+                overwrite ? FileMode.Create : FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None, 4096, FileOptions.Asynchronous);
+            return stream;
+        }, cancellationToken);
 
     public Task CreateDirectoryAsync(
         string sourcePath,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        Directory.CreateDirectory(NormalizePath(sourcePath));
-        return Task.CompletedTask;
-    }
+        CancellationToken cancellationToken = default) =>
+        FilePanelSourceAsync.RunBlockingAsync(this, () =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Directory.CreateDirectory(NormalizePath(sourcePath));
+        }, cancellationToken);
 
     public Task DeleteAsync(
         string sourcePath,
         bool recursive,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        string path = NormalizePath(sourcePath);
-        if (File.Exists(path))
-            File.Delete(path);
-        else if (Directory.Exists(path))
-            Directory.Delete(path, recursive);
-
-        return Task.CompletedTask;
-    }
+        CancellationToken cancellationToken = default) =>
+        FilePanelSourceAsync.RunBlockingAsync(this, () =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string path = NormalizePath(sourcePath);
+            if (File.Exists(path))
+                File.Delete(path);
+            else if (Directory.Exists(path))
+                Directory.Delete(path, recursive);
+    
+        }, cancellationToken);
 
     public Task RenameAsync(
         string sourcePath,
         string newSourcePath,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        string source = NormalizePath(sourcePath);
-        string target = NormalizePath(newSourcePath);
-
-        if (File.Exists(source))
-            File.Move(source, target);
-        else
-            Directory.Move(source, target);
-
-        return Task.CompletedTask;
-    }
+        CancellationToken cancellationToken = default) =>
+        FilePanelSourceAsync.RunBlockingAsync(this, () =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string source = NormalizePath(sourcePath);
+            string target = NormalizePath(newSourcePath);
+    
+            if (File.Exists(source))
+                File.Move(source, target);
+            else
+                Directory.Move(source, target);
+    
+        }, cancellationToken);
 
     private FilePanelItem DecorateMountPoint(FilePanelItem item)
     {
