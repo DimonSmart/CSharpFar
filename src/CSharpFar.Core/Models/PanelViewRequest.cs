@@ -7,5 +7,5 @@ public sealed class PanelViewRequest
     public required AppSettings.PanelOptionsSettings Options { get; init; }
     public required SortMode SortMode { get; init; }
     public required bool SortDescending { get; init; }
-    public required IReadOnlySet<string> SelectedPaths { get; init; }
+    public required IReadOnlySet<PanelLocation> SelectedLocations { get; init; }
 }

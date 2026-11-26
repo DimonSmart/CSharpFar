@@ -121,7 +121,7 @@ internal sealed class PanelRenderer
                 item.Location));
             bool isCursor = isActive && itemIdx == state.CursorIndex;
             bool isSelected = !item.IsParentDirectory &&
-                              state.SelectedPaths.Contains(item.FullPath);
+                              state.SelectedLocations.Contains(item.Location);
 
             CellStyle style = isCursor ? cursor
                             : isSelected ? selStyle

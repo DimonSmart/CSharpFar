@@ -44,7 +44,8 @@ internal static class CoreServicesFactory
             sources: effectiveSourceRegistry);
         var controller = new PanelController(
             viewBuilder,
-            localPathNormalizer: localPathNormalizer);
+            localPathNormalizer: localPathNormalizer,
+            sources: effectiveSourceRegistry);
         var effectiveHistory = history ?? new InMemoryHistoryStore();
         var session = ApplicationSessionFactory.Create(effectiveSettings, controller, fs, runOptions);
         var effectiveConfigDirectory = configDirectory ?? Path.Combine(

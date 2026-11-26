@@ -63,7 +63,6 @@ internal sealed class DeleteCommand : IApplicationCommand
                     UseRecycleBinForDelete = useRecycleBin,
                 },
             });
-            target.State.SelectedPaths.Clear();
             target.State.SelectedLocations.Clear();
 
             if (searchResults)

@@ -137,7 +137,7 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
             if (item.IsParentDirectory) continue;
             if (item.IsDirectory) dirCount++;
             else { fileCount++; totalBytes += item.Size ?? 0; }
-            if (request.SelectedPaths.Contains(item.FullPath))
+            if (request.SelectedLocations.Contains(item.Location))
             {
                 selCount++;
                 if (!item.IsDirectory) selBytes += item.Size ?? 0;
