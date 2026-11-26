@@ -446,7 +446,7 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
             LastWriteTime = new DateTime(2026, 1, 1),
             Attributes = FileAttributes.Archive,
         });
-        state.SelectedPaths.Clear();
+        state.SelectedLocations.Clear();
         state.CursorIndex = 0;
         state.ScrollOffset = 0;
         state.ProviderCapabilities = PanelProviderCapabilities.SearchResults;

@@ -32,7 +32,7 @@ public sealed class Spec007RootParentTests
             },
             SortMode = SortMode.Name,
             SortDescending = false,
-            SelectedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            SelectedLocations = new HashSet<PanelLocation>(),
         };
 
     // ── Non-root always shows ".." ─────────────────────────────────────────────

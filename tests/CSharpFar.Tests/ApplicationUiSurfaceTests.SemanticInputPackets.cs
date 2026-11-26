@@ -155,8 +155,8 @@ public sealed partial class ApplicationUiSurfaceTests
         Assert.Equal(targetIndex, Assert.IsType<ApplicationPanelInteraction>(packet.PointerInteraction).Action.Item!.Item!.ItemIndex);
         Assert.True(services.Inner.ApplicationInputDispatcher.Handle(packet).ShouldRender);
         Assert.Equal(targetIndex, state.CursorIndex);
-        Assert.True(state.SelectedPaths.SetEquals(
-            state.Items.Skip(2).Take(targetIndex - 1).Select(item => item.FullPath)));
+        Assert.True(state.SelectedLocations.SetEquals(
+            state.Items.Skip(2).Take(targetIndex - 1).Select(item => item.Location)));
         Assert.True(state.SelectedLocations.SetEquals(
             state.Items.Skip(2).Take(targetIndex - 1).Select(item => item.Location)));
     }
@@ -171,7 +171,6 @@ public sealed partial class ApplicationUiSurfaceTests
         AddScrollableItems(right, 12);
         left.CursorIndex = 4;
         right.CursorIndex = 2;
-        left.SelectedPaths.Add(left.Items[0].FullPath);
         left.SelectedLocations.Add(left.Items[0].Location);
         services.Composition.Render();
 
@@ -184,7 +183,7 @@ public sealed partial class ApplicationUiSurfaceTests
 
         Assert.Equal(PanelSide.Right, services.Session.Panels.ActiveSide);
         Assert.Equal(4, left.CursorIndex);
-        Assert.Single(left.SelectedPaths);
+        Assert.Single(left.SelectedLocations);
         Assert.Equal(7, right.CursorIndex);
         Assert.True(right.SelectedLocations.SetEquals(right.Items.Skip(2).Take(6).Select(item => item.Location)));
     }
@@ -207,7 +206,6 @@ public sealed partial class ApplicationUiSurfaceTests
         services.Inner.ApplicationInputDispatcher.Handle(packet);
 
         Assert.Equal(1, state.CursorIndex);
-        Assert.Empty(state.SelectedPaths);
         Assert.Empty(state.SelectedLocations);
     }
 

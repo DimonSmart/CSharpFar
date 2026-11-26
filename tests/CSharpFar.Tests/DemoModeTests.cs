@@ -489,7 +489,6 @@ public sealed class DemoModeTests : IDisposable
             IsDirectory = false,
             Size = 5,
         });
-        state.SelectedPaths.Add("/file.txt");
         state.SelectedLocations.Add(PanelLocation.Demo("/file.txt"));
         PanelLocation originalLocation = state.CurrentLocation;
         PanelSourceId originalSourceId = state.SourceId;
@@ -515,7 +514,6 @@ public sealed class DemoModeTests : IDisposable
         Assert.Single(state.Items);
         Assert.Equal(originalItemPath, state.Items[0].FullPath);
         Assert.Equal(originalItemLocation, state.Items[0].Location);
-        Assert.Contains("/file.txt", state.SelectedPaths);
         Assert.Contains(PanelLocation.Demo("/file.txt"), state.SelectedLocations);
         Assert.DoesNotContain("physical", state.CurrentLocation.SourcePath, StringComparison.OrdinalIgnoreCase);
     }

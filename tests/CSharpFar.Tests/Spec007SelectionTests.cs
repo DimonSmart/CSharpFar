@@ -80,8 +80,8 @@ public sealed class Spec007SelectionTests
 
         ctrl.ToggleSelectAll(state, new AppSettings.PanelOptionsSettings { SelectFolders = true });
 
-        Assert.Contains(Root + @"\SubDir", state.SelectedPaths);
-        Assert.Contains(Root + @"\file.txt", state.SelectedPaths);
+        Assert.Contains(PanelLocation.Local(Root + @"\SubDir"), state.SelectedLocations);
+        Assert.Contains(PanelLocation.Local(Root + @"\file.txt"), state.SelectedLocations);
     }
 
     [Fact]
@@ -92,8 +92,8 @@ public sealed class Spec007SelectionTests
 
         ctrl.ToggleSelectAll(state, opts);
 
-        Assert.DoesNotContain(Root + @"\SubDir", state.SelectedPaths);
-        Assert.Contains(Root + @"\file.txt", state.SelectedPaths);
+        Assert.DoesNotContain(PanelLocation.Local(Root + @"\SubDir"), state.SelectedLocations);
+        Assert.Contains(PanelLocation.Local(Root + @"\file.txt"), state.SelectedLocations);
     }
 
     // ── InvertSelection ───────────────────────────────────────────────────────
@@ -106,8 +106,8 @@ public sealed class Spec007SelectionTests
 
         ctrl.InvertSelection(state, opts);
 
-        Assert.DoesNotContain(Root + @"\SubDir", state.SelectedPaths);
-        Assert.Contains(Root + @"\file.txt", state.SelectedPaths);
+        Assert.DoesNotContain(PanelLocation.Local(Root + @"\SubDir"), state.SelectedLocations);
+        Assert.Contains(PanelLocation.Local(Root + @"\file.txt"), state.SelectedLocations);
     }
 
     [Fact]
@@ -117,8 +117,8 @@ public sealed class Spec007SelectionTests
 
         ctrl.InvertSelection(state, new AppSettings.PanelOptionsSettings { SelectFolders = true });
 
-        Assert.Contains(Root + @"\SubDir", state.SelectedPaths);
-        Assert.Contains(Root + @"\file.txt", state.SelectedPaths);
+        Assert.Contains(PanelLocation.Local(Root + @"\SubDir"), state.SelectedLocations);
+        Assert.Contains(PanelLocation.Local(Root + @"\file.txt"), state.SelectedLocations);
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public sealed class Spec007SelectionTests
         ctrl.ToggleCurrentSelection(state);
 
         Assert.Equal(1, state.CursorIndex);
-        Assert.Contains(Root + @"\b.txt", state.SelectedPaths);
+        Assert.Contains(PanelLocation.Local(Root + @"\b.txt"), state.SelectedLocations);
         Assert.Equal(1, state.Summary?.SelectedCount);
         Assert.Equal(20, state.Summary?.SelectedFileSize);
     }

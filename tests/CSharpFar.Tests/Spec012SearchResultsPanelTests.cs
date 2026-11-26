@@ -137,7 +137,6 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         };
         state.Items.Clear();
         state.Items.Add(previousItem);
-        state.SelectedPaths.Add(previousItem.FullPath);
         state.SelectedLocations.Add(previousItem.Location);
         state.CursorIndex = 5;
         state.ScrollOffset = 5;
@@ -184,7 +183,6 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
 
         Assert.Equal(PanelLocation.SearchResult(_root), state.CurrentLocation);
         Assert.Equal(["folder", "a.txt", "b.txt"], state.Items.Select(item => item.Name));
-        Assert.Empty(state.SelectedPaths);
         Assert.Empty(state.SelectedLocations);
         Assert.Equal(0, state.CursorIndex);
         Assert.Equal(0, state.ScrollOffset);
@@ -366,7 +364,7 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         state.CurrentDirectory = _root;
         state.Items.Clear();
         state.Items.Add(SearchResultPanelItem(fullPath, isDirectory));
-        state.SelectedPaths.Clear();
+        state.SelectedLocations.Clear();
         state.CursorIndex = 0;
         state.ScrollOffset = 0;
         state.ProviderCapabilities = PanelProviderCapabilities.SearchResults;

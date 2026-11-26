@@ -379,7 +379,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
         var left = services.CommandContext.LeftPanel;
         var right = services.CommandContext.RightPanel;
         string sourcePath = Path.Combine(_tempDir, "source.txt");
-        left.SelectedPaths.Add(sourcePath);
+        left.SelectedLocations.Add(PanelLocation.Local(sourcePath));
         var invocation = new ApplicationPanelCommandInvocation(
             PanelSide.Left, 10,
             ApplicationPanelKeyboardSnapshot.Capture(left),
@@ -390,7 +390,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
 
         Assert.True(result.ShouldRender);
         Assert.Empty(operations.Requests);
-        Assert.Contains(sourcePath, left.SelectedPaths);
+        Assert.Contains(PanelLocation.Local(sourcePath), left.SelectedLocations);
     }
 
     private ApplicationCommandContext CreateContext()

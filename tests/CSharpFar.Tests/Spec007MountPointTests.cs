@@ -45,7 +45,7 @@ public sealed class Spec007MountPointTests
             },
             SortMode = SortMode.Name,
             SortDescending = false,
-            SelectedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            SelectedLocations = new HashSet<PanelLocation>(),
         };
 
     // ── Detection enabled ─────────────────────────────────────────────────────
@@ -167,7 +167,7 @@ public sealed class Spec007MountPointTests
             },
             SortMode = SortMode.Name,
             SortDescending = false,
-            SelectedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            SelectedLocations = new HashSet<PanelLocation>(),
         });
 
         Assert.True(view.IsRootDirectory);

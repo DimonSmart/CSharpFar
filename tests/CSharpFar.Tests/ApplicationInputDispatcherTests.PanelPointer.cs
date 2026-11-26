@@ -194,7 +194,7 @@ public sealed partial class ApplicationInputDispatcherTests
         Assert.True(result.Handled);
         Assert.Equal(PanelSide.Right, activeSide);
         Assert.Equal(1, state.CursorIndex);
-        Assert.Equal(selectsFiles, state.SelectedPaths.Contains(@"C:\work\b.txt"));
+        Assert.Equal(selectsFiles, state.SelectedLocations.Contains(PanelLocation.Local(@"C:\work\b.txt")));
     }
 
     [Fact]
@@ -215,7 +215,7 @@ public sealed partial class ApplicationInputDispatcherTests
 
         Assert.True(result.Handled);
         Assert.Equal(0, state.CursorIndex);
-        Assert.Empty(state.SelectedPaths);
+        Assert.Empty(state.SelectedLocations);
     }
 
     [Fact]

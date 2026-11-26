@@ -23,7 +23,6 @@ public sealed partial class ApplicationInputDispatcherTests
     {
         var state = PanelStateWithItems(7);
         state.CursorIndex = 2;
-        state.SelectedPaths.Add(state.Items[0].FullPath);
         state.SelectedLocations.Add(state.Items[0].Location);
         var context = Context(new CommandLineState(), panelState: state);
         context.Mouse.LastLeftPanelItemClick =
@@ -39,8 +38,8 @@ public sealed partial class ApplicationInputDispatcherTests
 
         Assert.Equal(5, state.CursorIndex);
         Assert.Null(context.Mouse.LastLeftPanelItemClick);
-        Assert.True(state.SelectedPaths.SetEquals(
-            state.Items.Where((_, i) => i == 0 || i >= 2 && i <= 5).Select(item => item.FullPath)));
+        Assert.True(state.SelectedLocations.SetEquals(
+            state.Items.Where((_, i) => i == 0 || i >= 2 && i <= 5).Select(item => item.Location)));
 
         handler.Handle(
             RangeMouse(3, MouseEventKind.Down, MouseKeyModifiers.Shift),
@@ -49,7 +48,6 @@ public sealed partial class ApplicationInputDispatcherTests
             ApplicationTargetIds.PanelItem(PanelSide.Left, 3));
 
         Assert.Equal(3, state.CursorIndex);
-        Assert.Equal(5, state.SelectedPaths.Count);
         Assert.Equal(5, state.SelectedLocations.Count);
     }
 
@@ -72,7 +70,7 @@ public sealed partial class ApplicationInputDispatcherTests
 
         Assert.Equal(0, opens);
         Assert.Null(context.Mouse.LastLeftPanelItemClick);
-        Assert.Equal(4, state.SelectedPaths.Count);
+        Assert.Equal(4, state.SelectedLocations.Count);
 
         handler.Handle(RangeMouse(4, MouseEventKind.Down, MouseKeyModifiers.None),
             frame, UiInputRouteKind.HitTarget, target);
@@ -80,7 +78,7 @@ public sealed partial class ApplicationInputDispatcherTests
             frame, UiInputRouteKind.HitTarget, target);
 
         Assert.Equal(1, opens);
-        Assert.Equal(4, state.SelectedPaths.Count);
+        Assert.Equal(4, state.SelectedLocations.Count);
         Assert.Null(context.Mouse.LastLeftPanelItemClick);
     }
 
@@ -94,7 +92,7 @@ public sealed partial class ApplicationInputDispatcherTests
     {
         var state = PanelStateWithItems(6);
         state.CursorIndex = 1;
-        state.SelectedPaths.Add(state.Items[0].FullPath);
+        state.SelectedLocations.Add(state.Items[0].Location);
         var context = Context(new CommandLineState(), panelState: state);
         var handler = new ApplicationPanelInputHandler(context);
 
@@ -104,8 +102,8 @@ public sealed partial class ApplicationInputDispatcherTests
             ApplicationTargetIds.PanelItem(PanelSide.Left, 4));
 
         Assert.Equal(4, state.CursorIndex);
-        Assert.Single(state.SelectedPaths);
-        Assert.Contains(state.Items[0].FullPath, state.SelectedPaths);
+        Assert.Single(state.SelectedLocations);
+        Assert.Contains(state.Items[0].Location, state.SelectedLocations);
     }
 
     [Fact]
@@ -125,7 +123,7 @@ public sealed partial class ApplicationInputDispatcherTests
             ApplicationTargetIds.PanelItem(PanelSide.Left, 4));
 
         Assert.Equal(2, state.CursorIndex);
-        Assert.Empty(state.SelectedPaths);
+        Assert.Empty(state.SelectedLocations);
         Assert.Null(context.Mouse.LastLeftPanelItemClick);
     }
 
@@ -143,7 +141,6 @@ public sealed partial class ApplicationInputDispatcherTests
             ApplicationTargetIds.PanelItem(PanelSide.Left, 4));
 
         Assert.Equal(4, state.CursorIndex);
-        Assert.Empty(state.SelectedPaths);
         Assert.Empty(state.SelectedLocations);
     }
 
@@ -172,9 +169,9 @@ public sealed partial class ApplicationInputDispatcherTests
             ApplicationTargetIds.PanelItem(PanelSide.Left, target));
 
         Assert.Equal(target, state.CursorIndex);
-        Assert.True(state.SelectedPaths.SetEquals(
+        Assert.True(state.SelectedLocations.SetEquals(
             state.Items.Skip(Math.Min(anchor, target)).Take(Math.Abs(anchor - target) + 1)
-                .Select(item => item.FullPath)));
+                .Select(item => item.Location)));
     }
 
 }
