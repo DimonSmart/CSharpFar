@@ -91,15 +91,34 @@ public sealed partial class FileEditorTests
         File.WriteAllText(filePath, "one\ntwo\nthree\nfour\nfive");
 
         var driver = new FakeConsoleDriver(width: 80, height: 5) { FailOnEmptyScript = true };
-        driver.BeforeTryReadInput = current => current.SetSize(80, 8);
+        const string expected = "one\ntwo\nthree\nXfour\nfive";
+        void CloseAfterSave(FakeConsoleDriver current)
+        {
+            if (File.ReadAllText(filePath).ReplaceLineEndings("\n") == expected)
+            {
+                current.BeforeTryReadInput = null;
+                current.BeforeReadInput = null;
+                current.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+                return;
+            }
+            current.BeforeTryReadInput = CloseAfterSave;
+            current.BeforeReadInput = CloseAfterSave;
+        }
+
+        driver.BeforeTryReadInput = current =>
+        {
+            current.SetSize(80, 8);
+            current.BeforeTryReadInput = CloseAfterSave;
+            current.BeforeReadInput = CloseAfterSave;
+        };
         driver.EnqueueInput(LeftMouse(x: 0, y: 4));
         driver.EnqueueKey(new ConsoleKeyInfo('X', ConsoleKey.X, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: false, control: false));
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+        // The close key belongs to the editor, not to the intervening save dialog.
 
         ShowFileEditor(new ScreenRenderer(driver), filePath);
 
-        Assert.Equal("one\ntwo\nthree\nXfour\nfive", File.ReadAllText(filePath).ReplaceLineEndings("\n"));
+        Assert.Equal(expected, File.ReadAllText(filePath).ReplaceLineEndings("\n"));
     }
 
     [Fact]
