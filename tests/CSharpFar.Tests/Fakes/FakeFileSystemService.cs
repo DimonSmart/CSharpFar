@@ -15,11 +15,12 @@ public sealed class FakeFileSystemService : IFileSystemService
     public void AddDirectory(string path, params FilePanelItem[] items) =>
         _dirs[path] = [.. items];
 
-    public int ReadDirectoryCallCount { get; private set; }
+    private int _readDirectoryCallCount;
+    public int ReadDirectoryCallCount => Volatile.Read(ref _readDirectoryCallCount);
 
     public IReadOnlyList<FilePanelItem> ReadDirectory(string path)
     {
-        ReadDirectoryCallCount++;
+        Interlocked.Increment(ref _readDirectoryCallCount);
         return _dirs.TryGetValue(path, out var items) ? items : [];
     }
 
