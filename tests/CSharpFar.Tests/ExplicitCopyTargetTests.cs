@@ -37,8 +37,8 @@ public sealed class ExplicitCopyTargetTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = [source],
-                Destination = target,
+                Sources = [PanelLocation.Local(source)],
+                Destination = PanelLocation.Local(target),
                 Options = new FileOperationOptions
                 {
                     DefaultConflictDecision = ConflictDecisionMode.Overwrite,
@@ -71,8 +71,8 @@ public sealed class ExplicitCopyTargetTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = [source],
-                Destination = target,
+                Sources = [PanelLocation.Local(source)],
+                Destination = PanelLocation.Local(target),
                 Options = new FileOperationOptions
                 {
                     DefaultConflictDecision = ConflictDecisionMode.Ask,
@@ -98,9 +98,8 @@ public sealed class ExplicitCopyTargetTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = [],
-                SourceLocations = [PanelLocation.Demo("/source.txt")],
-                DestinationLocation = PanelLocation.Demo("/renamed.txt"),
+                Sources = [PanelLocation.Demo("/source.txt")],
+                Destination = PanelLocation.Demo("/renamed.txt"),
                 Options = new FileOperationOptions
                 {
                     DefaultConflictDecision = ConflictDecisionMode.Overwrite,
@@ -127,9 +126,8 @@ public sealed class ExplicitCopyTargetTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = [],
-                SourceLocations = [PanelLocation.Demo("/source.txt")],
-                DestinationLocation = PanelLocation.Demo("/renamed.txt"),
+                Sources = [PanelLocation.Demo("/source.txt")],
+                Destination = PanelLocation.Demo("/renamed.txt"),
                 Options = new FileOperationOptions
                 {
                     DefaultConflictDecision = ConflictDecisionMode.Ask,
@@ -155,8 +153,8 @@ public sealed class ExplicitCopyTargetTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = [source],
-                Destination = target,
+                Sources = [PanelLocation.Local(source)],
+                Destination = PanelLocation.Local(target),
                 Options = new FileOperationOptions(),
             },
             progress: null,
@@ -179,8 +177,8 @@ public sealed class ExplicitCopyTargetTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = [first, second],
-                Destination = Path.Combine(_root, "{name} (copy){ext}"),
+                Sources = [PanelLocation.Local(first), PanelLocation.Local(second)],
+                Destination = PanelLocation.Local(Path.Combine(_root, "{name} (copy){ext}")),
                 UseDestinationTemplate = true,
                 Options = new FileOperationOptions(),
             },
@@ -205,8 +203,8 @@ public sealed class ExplicitCopyTargetTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = [source],
-                Destination = Path.Combine(_root, "{name} (copy){ext}"),
+                Sources = [PanelLocation.Local(source)],
+                Destination = PanelLocation.Local(Path.Combine(_root, "{name} (copy){ext}")),
                 UseDestinationTemplate = true,
                 Options = new FileOperationOptions(),
             },
@@ -228,9 +226,8 @@ public sealed class ExplicitCopyTargetTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = [],
-                SourceLocations = [PanelLocation.Demo("/report.txt")],
-                DestinationLocation = PanelLocation.Demo("/report (copy).txt"),
+                Sources = [PanelLocation.Demo("/report.txt")],
+                Destination = PanelLocation.Demo("/report (copy).txt"),
                 Options = new FileOperationOptions(),
             },
             progress: null,

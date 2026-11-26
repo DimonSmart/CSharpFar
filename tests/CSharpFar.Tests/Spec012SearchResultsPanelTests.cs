@@ -44,8 +44,7 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
 
         FileOperationRequest request = Assert.Single(fileOps.Requests);
         Assert.Equal(FileOperationKind.Delete, request.Kind);
-        Assert.Equal([filePath], request.Sources);
-        Assert.Equal([PanelLocation.Local(filePath)], request.SourceLocations);
+        Assert.Equal([PanelLocation.Local(filePath)], request.Sources);
         Assert.True(request.Options.UseRecycleBinForDelete);
         Assert.Empty(state.Items);
         Assert.Equal(0, searchService.Calls);
@@ -96,8 +95,8 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
 
         var request = Assert.Single(fileOps.Requests);
         Assert.Equal(FileOperationKind.Copy, request.Kind);
-        Assert.Equal([foundFile], request.Sources);
-        Assert.Equal(_root, request.Destination);
+        Assert.Equal([PanelLocation.Local(foundFile)], request.Sources);
+        Assert.Equal(_root, request.Destination?.SourcePath);
         Assert.Equal(0, searchService.Calls);
     }
 

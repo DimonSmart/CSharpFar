@@ -27,8 +27,8 @@ internal static class FileOperationServiceTestExtensions
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = sources,
-                Destination = destination,
+                Sources = sources.Select(PanelLocation.Local).ToArray(),
+                Destination = destination is null ? null : PanelLocation.Local(destination),
                 Options = new FileOperationOptions(),
             },
             new Progress<FileOperationProgress>(p => onProgress?.Invoke(Path.GetFileName(p.CurrentPath))),
@@ -47,8 +47,8 @@ internal static class FileOperationServiceTestExtensions
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Move,
-                Sources = sources,
-                Destination = destination,
+                Sources = sources.Select(PanelLocation.Local).ToArray(),
+                Destination = destination is null ? null : PanelLocation.Local(destination),
                 Options = new FileOperationOptions(),
             },
             null,
@@ -65,7 +65,7 @@ internal static class FileOperationServiceTestExtensions
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Delete,
-                Sources = paths,
+                Sources = paths.Select(PanelLocation.Local).ToArray(),
                 Options = new FileOperationOptions { UseRecycleBinForDelete = false },
             },
             null,
@@ -80,7 +80,7 @@ internal static class FileOperationServiceTestExtensions
                 {
                     Kind = FileOperationKind.CreateDirectory,
                     Sources = [],
-                    Destination = path,
+                    Destination = PanelLocation.Local(path),
                     Options = new FileOperationOptions(),
                 },
                 null,

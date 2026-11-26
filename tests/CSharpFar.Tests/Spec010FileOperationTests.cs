@@ -334,8 +334,8 @@ public sealed class Spec010FileOperationTests : IDisposable
             new FileOperationRequest
             {
                 Kind = kind,
-                Sources = sources,
-                Destination = destination,
+                Sources = sources.Select(PanelLocation.Local).ToArray(),
+                Destination = destination is null ? null : PanelLocation.Local(destination),
                 Options = options,
             },
             progress,

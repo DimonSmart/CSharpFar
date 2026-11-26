@@ -172,8 +172,8 @@ public sealed class FileOperationSafetyRegressionTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Move,
-                Sources = [Path.Combine(source, "a.txt"), Path.Combine(source, "b.txt")],
-                Destination = destination,
+                Sources = [PanelLocation.Local(Path.Combine(source, "a.txt")), PanelLocation.Local(Path.Combine(source, "b.txt"))],
+                Destination = destination is null ? null : PanelLocation.Local(destination),
                 Options = new FileOperationOptions(),
             }, null, resolver);
 
@@ -278,9 +278,8 @@ public sealed class FileOperationSafetyRegressionTests : IDisposable
             new FileOperationRequest
             {
                 Kind = kind,
-                Sources = [],
-                SourceLocations = sources.Select(PanelLocation.Demo).ToArray(),
-                DestinationLocation = PanelLocation.Demo(destination),
+                Sources = sources.Select(PanelLocation.Demo).ToArray(),
+                Destination = PanelLocation.Demo(destination),
                 Options = new FileOperationOptions(),
             }, null, resolver);
 
@@ -290,8 +289,8 @@ public sealed class FileOperationSafetyRegressionTests : IDisposable
             new FileOperationRequest
             {
                 Kind = kind,
-                Sources = sources,
-                Destination = destination,
+                Sources = sources.Select(PanelLocation.Local).ToArray(),
+                Destination = destination is null ? null : PanelLocation.Local(destination),
                 Options = new FileOperationOptions(),
             }, null, new SequenceResolver());
 

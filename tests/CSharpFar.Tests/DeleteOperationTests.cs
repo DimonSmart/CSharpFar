@@ -78,7 +78,7 @@ public class DeleteOperationTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Delete,
-                Sources = [f1, f2],
+                Sources = [PanelLocation.Local(f1), PanelLocation.Local(f2)],
                 Options = new FileOperationOptions { UseRecycleBinForDelete = false },
             },
             progress,
@@ -108,7 +108,7 @@ public class DeleteOperationTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Delete,
-                Sources = [_src],
+                Sources = [PanelLocation.Local(_src)],
                 Options = new FileOperationOptions { UseRecycleBinForDelete = false },
             },
             progress,
@@ -165,7 +165,7 @@ public class DeleteOperationTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Delete,
-                Sources = [_src],
+                Sources = [PanelLocation.Local(_src)],
                 Options = new FileOperationOptions { UseRecycleBinForDelete = false },
             },
             progress,

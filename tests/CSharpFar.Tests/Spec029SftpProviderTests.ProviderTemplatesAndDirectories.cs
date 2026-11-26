@@ -79,10 +79,8 @@ public sealed partial class Spec029SftpProviderTests
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = [],
-                SourceLocations = [new PanelLocation(remote.SourceId, "/camera/foo\\bar.jpg")],
-                Destination = Path.Combine(_tempDir, "{name}{ext}"),
-                DestinationLocation = PanelLocation.Local(Path.Combine(_tempDir, "{name}{ext}")),
+                Sources = [new PanelLocation(remote.SourceId, "/camera/foo\\bar.jpg")],
+                Destination = PanelLocation.Local(Path.Combine(_tempDir, "{name}{ext}")),
                 UseDestinationTemplate = true,
                 Options = new FileOperationOptions(),
             },
@@ -150,10 +148,8 @@ public sealed partial class Spec029SftpProviderTests
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = [],
-                SourceLocations = [PanelLocation.Local(sourcePath)],
-                Destination = "/Moved/*_old",
-                DestinationLocation = new PanelLocation(remote.SourceId, "/Moved/*_old"),
+                Sources = [PanelLocation.Local(sourcePath)],
+                Destination = new PanelLocation(remote.SourceId, "/Moved/*_old"),
                 Options = new FileOperationOptions { FileMask = "*.txt" },
             },
             null,
@@ -174,10 +170,8 @@ public sealed partial class Spec029SftpProviderTests
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = [],
-                SourceLocations = [new PanelLocation(remote.SourceId, "/Source")],
-                Destination = destinationPath,
-                DestinationLocation = PanelLocation.Local(destinationPath),
+                Sources = [new PanelLocation(remote.SourceId, "/Source")],
+                Destination = PanelLocation.Local(destinationPath),
                 Options = new FileOperationOptions { FileMask = "*.txt" },
             },
             null,

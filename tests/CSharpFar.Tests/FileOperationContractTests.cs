@@ -204,14 +204,8 @@ public sealed class FileOperationContractTests : IDisposable
             bool useDestinationTemplate = false) => new()
         {
             Kind = kind,
-            Sources = provider is null ? sources.Select(Path).ToArray() : [],
-            SourceLocations = provider is null
-                ? null
-                : sources.Select(path => new PanelLocation(provider.SourceId, Path(path))).ToArray(),
-            Destination = provider is null ? Path(destination) : null,
-            DestinationLocation = provider is null
-                ? null
-                : new PanelLocation(provider.SourceId, Path(destination)),
+            Sources = sources.Select(path => new PanelLocation(provider?.SourceId ?? PanelSourceId.Local, Path(path))).ToArray(),
+            Destination = new PanelLocation(provider?.SourceId ?? PanelSourceId.Local, Path(destination)),
             UseDestinationTemplate = useDestinationTemplate,
             Options = new FileOperationOptions(),
         };

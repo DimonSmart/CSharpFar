@@ -32,8 +32,8 @@ public sealed class LocalCopySharedPipelineTests : IDisposable
         var request = new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            Sources = [source],
-            Destination = destination,
+            Sources = [PanelLocation.Local(source)],
+            Destination = PanelLocation.Local(destination),
             Options = new FileOperationOptions { CopyMode = mode, FileMask = "*.txt" },
         };
         var service = new FileOperationService();
@@ -64,9 +64,8 @@ public sealed class LocalCopySharedPipelineTests : IDisposable
         var request = new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            Sources = [],
-            SourceLocations = [PanelLocation.Local(source)],
-            DestinationLocation = PanelLocation.Local(target),
+            Sources = [PanelLocation.Local(source)],
+            Destination = PanelLocation.Local(target),
             Options = new FileOperationOptions(),
         };
         var service = new FileOperationService();
@@ -97,8 +96,8 @@ public sealed class LocalCopySharedPipelineTests : IDisposable
         var request = new FileOperationRequest
         {
             Kind = FileOperationKind.Move,
-            Sources = [sourceFolder],
-            Destination = destination,
+            Sources = [PanelLocation.Local(sourceFolder)],
+            Destination = PanelLocation.Local(destination),
             Options = new FileOperationOptions(),
         };
 
@@ -131,8 +130,8 @@ public sealed class LocalCopySharedPipelineTests : IDisposable
         var request = new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            Sources = [source],
-            Destination = destination,
+            Sources = [PanelLocation.Local(source)],
+            Destination = PanelLocation.Local(destination),
             Options = new FileOperationOptions(),
         };
         var service = new FileOperationService(registry);
@@ -175,8 +174,8 @@ public sealed class LocalCopySharedPipelineTests : IDisposable
         var request = new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            Sources = [source],
-            Destination = destination,
+            Sources = [PanelLocation.Local(source)],
+            Destination = PanelLocation.Local(destination),
             Options = new FileOperationOptions(),
         };
         FileOperationResult result = await new FileOperationService(LocalRegistry())
@@ -197,8 +196,8 @@ public sealed class LocalCopySharedPipelineTests : IDisposable
         var request = new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            Sources = [path],
-            Destination = path,
+            Sources = [PanelLocation.Local(path)],
+            Destination = PanelLocation.Local(path),
             Options = new FileOperationOptions(),
         };
 
@@ -221,10 +220,8 @@ public sealed class LocalCopySharedPipelineTests : IDisposable
         var request = new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            Sources = [first, second],
-            SourceLocations = [PanelLocation.Local(first), PanelLocation.Local(second)],
-            Destination = dest,
-            DestinationLocation = PanelLocation.Local(dest),
+            Sources = [PanelLocation.Local(first), PanelLocation.Local(second)],
+            Destination = PanelLocation.Local(dest),
             Options = new FileOperationOptions(),
         };
 
