@@ -26,8 +26,8 @@ public sealed class DestinationTemplatePreviewPlanTests : IDisposable
         var request = new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            Sources = [first, second],
-            Destination = Path.Combine(_destination, "{modified:yyyy-MM-dd}", "{name}_OLD{ext}"),
+            Sources = [PanelLocation.Local(first), PanelLocation.Local(second)],
+            Destination = PanelLocation.Local(Path.Combine(_destination, "{modified:yyyy-MM-dd}", "{name}_OLD{ext}")),
             UseDestinationTemplate = true,
             Options = new FileOperationOptions(),
         };

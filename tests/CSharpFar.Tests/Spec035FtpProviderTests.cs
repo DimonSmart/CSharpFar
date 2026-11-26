@@ -179,9 +179,8 @@ public sealed partial class Spec035FtpProviderTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = [],
-                SourceLocations = [new PanelLocation(PanelSourceId.Module(FtpModuleIds.ModuleId, "left"), "/source.txt")],
-                DestinationLocation = new PanelLocation(PanelSourceId.Module(FtpModuleIds.ModuleId, "right"), "/target"),
+                Sources = [new PanelLocation(PanelSourceId.Module(FtpModuleIds.ModuleId, "left"), "/source.txt")],
+                Destination = new PanelLocation(PanelSourceId.Module(FtpModuleIds.ModuleId, "right"), "/target"),
                 Options = new FileOperationOptions(),
             },
             progress: null,

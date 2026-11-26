@@ -488,8 +488,8 @@ public sealed partial class Spec010FileOperationDialogTests
         new()
         {
             Kind = FileOperationKind.Copy,
-            Sources = [@"C:\source\a.txt"],
-            Destination = @"C:\destination",
+            Sources = [PanelLocation.Local(@"C:\source\a.txt")],
+            Destination = PanelLocation.Local(@"C:\destination"),
             Options = new FileOperationOptions(),
         };
 

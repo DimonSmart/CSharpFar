@@ -112,9 +112,8 @@ public sealed class ArchiveWritableTests : IDisposable
         var result = await new FileOperationService(registry).ExecuteAsync(new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            Sources = [file],
-            SourceLocations = [PanelLocation.Local(file)],
-            DestinationLocation = new PanelLocation(archive.SourceId, "/"),
+            Sources = [PanelLocation.Local(file)],
+            Destination = new PanelLocation(archive.SourceId, "/"),
             Options = new FileOperationOptions(),
         }, null, new OverwriteResolver());
 

@@ -277,8 +277,8 @@ public sealed class Spec019ReliableCopyTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = sources,
-                Destination = destination,
+                Sources = sources.Select(PanelLocation.Local).ToArray(),
+                Destination = destination is null ? null : PanelLocation.Local(destination),
                 Options = new FileOperationOptions
                 {
                     CopyMode = CopyMode.Reliable,

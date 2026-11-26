@@ -29,8 +29,8 @@ public sealed partial class Spec010FileOperationDialogTests
         runner.Execute(new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
-            Sources = [@"C:\source\a.txt"],
-            Destination = @"C:\destination",
+            Sources = [PanelLocation.Local(@"C:\source\a.txt")],
+            Destination = PanelLocation.Local(@"C:\destination"),
             Options = new FileOperationOptions(),
         });
 
@@ -87,7 +87,7 @@ public sealed partial class Spec010FileOperationDialogTests
         runner.Execute(new FileOperationRequest
         {
             Kind = FileOperationKind.Delete,
-            Sources = [@"C:\source\folder"],
+            Sources = [PanelLocation.Local(@"C:\source\folder")],
             Options = new FileOperationOptions(),
         });
 
@@ -122,7 +122,7 @@ public sealed partial class Spec010FileOperationDialogTests
         runner.Execute(new FileOperationRequest
         {
             Kind = FileOperationKind.Delete,
-            Sources = [@"C:\source\file.bin"],
+            Sources = [PanelLocation.Local(@"C:\source\file.bin")],
             Options = new FileOperationOptions(),
         });
 

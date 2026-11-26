@@ -24,9 +24,8 @@ public sealed class ArchiveBatchMutationTests
         return new FileOperationService(registry).ExecuteAsync(new FileOperationRequest
         {
             Kind = kind,
-            Sources = [],
-            SourceLocations = paths.Select(path => new PanelLocation(source.SourceId, path)).ToArray(),
-            DestinationLocation = destination is null ? null : new PanelLocation(source.SourceId, destination),
+            Sources = paths.Select(path => new PanelLocation(source.SourceId, path)).ToArray(),
+            Destination = destination is null ? null : new PanelLocation(source.SourceId, destination),
             Options = new FileOperationOptions(),
         }, null, new Resolver());
     }

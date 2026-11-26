@@ -37,10 +37,8 @@ public sealed partial class Spec029SftpProviderTests : IDisposable
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
-                Sources = [],
-                SourceLocations = [new PanelLocation(remote.SourceId, "/hello.txt")],
-                Destination = _tempDir,
-                DestinationLocation = PanelLocation.Local(_tempDir),
+                Sources = [new PanelLocation(remote.SourceId, "/hello.txt")],
+                Destination = PanelLocation.Local(_tempDir),
                 Options = new FileOperationOptions
                 {
                     DefaultConflictDecision = ConflictDecisionMode.Overwrite,
@@ -232,10 +230,8 @@ public sealed partial class Spec029SftpProviderTests : IDisposable
         new()
         {
             Kind = kind,
-            Sources = [],
-            SourceLocations = sourcePaths.Select(path => new PanelLocation(sourceId, path)).ToList(),
-            Destination = destination,
-            DestinationLocation = new PanelLocation(sourceId, destination),
+            Sources = sourcePaths.Select(path => new PanelLocation(sourceId, path)).ToList(),
+            Destination = new PanelLocation(sourceId, destination),
             UseDestinationTemplate = useDestinationTemplate,
             Options = options,
         };
@@ -246,10 +242,8 @@ public sealed partial class Spec029SftpProviderTests : IDisposable
         new()
         {
             Kind = FileOperationKind.Copy,
-            Sources = [],
-            SourceLocations = [new PanelLocation(remoteSourceId, "/hello.txt")],
-            Destination = _tempDir,
-            DestinationLocation = PanelLocation.Local(_tempDir),
+            Sources = [new PanelLocation(remoteSourceId, "/hello.txt")],
+            Destination = PanelLocation.Local(_tempDir),
             Options = options,
         };
 
