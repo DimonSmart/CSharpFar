@@ -1,9 +1,14 @@
+using CSharpFar.App.Panels;
+using CSharpFar.App.State;
+using CSharpFar.Core.Controllers;
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed class PanelSetViewModeCommand : IApplicationCommand
+internal sealed class PanelSetViewModeCommand(PanelSessionState panels, AppSettingsAlias settings, PanelController controller,
+    PanelWorkspaceController workspace, Action? saveSettings) : IApplicationCommand
 {
     public string CommandId => MenuCommandIds.PanelSetViewMode;
 
@@ -17,20 +22,20 @@ internal sealed class PanelSetViewModeCommand : IApplicationCommand
 
         if (viewArgs.PanelSide == PanelSide.Left)
         {
-            context.LeftViewMode = viewArgs.ViewMode;
-            context.Settings.Panels.LeftViewMode = viewArgs.ViewMode.ToString();
+            panels.LeftViewMode = viewArgs.ViewMode;
+            settings.Panels.LeftViewMode = viewArgs.ViewMode.ToString();
         }
         else
         {
-            context.RightViewMode = viewArgs.ViewMode;
-            context.Settings.Panels.RightViewMode = viewArgs.ViewMode.ToString();
+            panels.RightViewMode = viewArgs.ViewMode;
+            settings.Panels.RightViewMode = viewArgs.ViewMode.ToString();
         }
 
-        context.Controller.MoveCursor(
-            context.GetPanelState(viewArgs.PanelSide),
+        controller.MoveCursor(
+            workspace.GetPanelState(viewArgs.PanelSide),
             0,
-            context.VisibleRows(viewArgs.PanelSide));
-        context.SaveSettings();
+            workspace.VisibleRows(viewArgs.PanelSide));
+        saveSettings?.Invoke();
         return ApplicationCommandResult.Rendered();
     }
 }

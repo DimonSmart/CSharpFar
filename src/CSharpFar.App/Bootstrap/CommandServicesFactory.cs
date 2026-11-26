@@ -111,7 +111,8 @@ internal static class CommandServicesFactory
         var commandRegistry = new ApplicationCommandRegistry(DefaultApplicationCommands.Create(
             interactiveSurfaces, session, dialogs, uriLauncher, updateCheckService, applicationUpdateInstaller,
             clipboard, diagnosticLog, terminalSurface, settings, saveSettings, workspaceModeController,
-            modulePanelOpener, panelWorkspace, panelRefresh, panelSort, topMenu, targetResolver, directorySizes));
+            modulePanelOpener, panelWorkspace, panelRefresh, panelSort, topMenu, targetResolver,
+            panelController, panelNavigation, autoRefresh, sourceRegistry, searchResults, panelFileOpener, directorySizes));
         var commandContext = new ApplicationCommandContext(
             interactiveSurfaces,
             modalDialogs,
