@@ -79,7 +79,7 @@ public static class AzureBlobClientFactory
         options.Retry.MaxRetries = 2;
         string Secret() => Environment.GetEnvironmentVariable(connection.CredentialReference ?? "")
             is { Length: > 0 } secret ? secret : throw new ArgumentException("Credential environment variable is missing.");
-        if (connection.AuthenticationMode == AuthenticationMode.SasContainerUrl)
+        if (connection.AuthenticationMode == AuthenticationMode.SasUrl)
         {
             if (!Uri.TryCreate(Secret(), UriKind.Absolute, out var url) ||
                 (url.Scheme != "https" && !(url.Scheme == "http" && url.IsLoopback)) ||
