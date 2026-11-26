@@ -31,23 +31,20 @@ internal sealed class MoveCommand : IApplicationCommand
             !ApplicationCommandContext.CommittedLocationMatches(target.PassiveState, target.PassiveCommitted))
             return ApplicationCommandResult.Rendered();
 
-        var sources = FileOperationCommandHelpers.GetOperationSources(context, target.State, target.ActiveCommitted);
-        var sourceLocations = FileOperationCommandHelpers.GetOperationSourceLocations(context, target.State, target.ActiveCommitted);
+        var sources = FileOperationCommandHelpers.GetOperationSourceLocations(context, target.State, target.ActiveCommitted);
         if (sources.Count == 0)
             return ApplicationCommandResult.Rendered();
 
         var dialogResult = new FileOperationDialog(context.Dialogs, context.Fields).ShowMove(
-            sources,
+            sources.Select(location => location.SourcePath).ToArray(),
             target.PassiveCommitted?.CurrentDirectory ?? target.PassiveState.CurrentDirectory,
             context.BuildFileOperationOptions(),
             result => DestinationTemplatePreview.Show(context, new FileOperationRequest
             {
                 Kind = FileOperationKind.Move,
                 Sources = sources,
-                SourceLocations = sourceLocations,
-                Destination = result.Destination,
                 UseDestinationTemplate = result.UseDestinationTemplate,
-                DestinationLocation = BuildDestinationLocation(context, target.PassiveState, result.Destination, sources.Count),
+                Destination = BuildDestinationLocation(context, target.PassiveState, result.Destination, sources.Count),
                 Options = result.Options,
             }));
         if (dialogResult is null)
@@ -59,10 +56,8 @@ internal sealed class MoveCommand : IApplicationCommand
             {
                 Kind = FileOperationKind.Move,
                 Sources = sources,
-                SourceLocations = sourceLocations,
-                Destination = dialogResult.Destination,
                 UseDestinationTemplate = dialogResult.UseDestinationTemplate,
-                DestinationLocation = BuildDestinationLocation(context, target.PassiveState, dialogResult.Destination, sources.Count),
+                Destination = BuildDestinationLocation(context, target.PassiveState, dialogResult.Destination, sources.Count),
                 Options = dialogResult.Options,
             });
 
@@ -87,7 +82,7 @@ internal sealed class MoveCommand : IApplicationCommand
         if (destinationState.SourceId == PanelSourceId.Local)
             return PanelLocation.Local(destination);
 
-        string path = sourceCount == 1 && !destination.Contains('/')
+        string path = sourceCount == 1 && context.TryGetSource(destinationState.SourceId, out var source) && !source.PathSeparators.Any(destination.Contains)
             ? context.CombinePanelPath(destinationState, destination)
             : destination;
         return new PanelLocation(destinationState.SourceId, path);

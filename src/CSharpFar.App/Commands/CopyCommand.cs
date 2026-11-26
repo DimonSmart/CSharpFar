@@ -44,8 +44,7 @@ internal sealed class CopyCommand(bool toCurrentDirectory = false) : IApplicatio
              !ApplicationCommandContext.CommittedLocationMatches(target.PassiveState, target.PassiveCommitted)))
             return ApplicationCommandResult.Rendered();
 
-        var sources = FileOperationCommandHelpers.GetOperationSources(context, target.State, target.ActiveCommitted);
-        var sourceLocations = FileOperationCommandHelpers.GetOperationSourceLocations(context, target.State, target.ActiveCommitted);
+        var sources = FileOperationCommandHelpers.GetOperationSourceLocations(context, target.State, target.ActiveCommitted);
         if (sources.Count == 0)
             return ApplicationCommandResult.Rendered();
 
@@ -61,17 +60,13 @@ internal sealed class CopyCommand(bool toCurrentDirectory = false) : IApplicatio
         {
             Kind = FileOperationKind.Copy,
             Sources = sources,
-            SourceLocations = sourceLocations,
-            Destination = result.Destination,
             UseDestinationTemplate = result.UseDestinationTemplate,
-            DestinationLocation = destinationState.SourceId == PanelSourceId.Local
-                ? PanelLocation.Local(result.Destination)
-                : new PanelLocation(destinationState.SourceId, result.Destination),
+            Destination = new PanelLocation(destinationState.SourceId, result.Destination),
             Options = result.Options,
         };
 
         var dialogResult = new FileOperationDialog(context.Dialogs, context.Fields, context.ShowHelp).ShowCopy(
-            sources,
+            sources.Select(location => location.SourcePath).ToArray(),
             initialDestination,
             initialOptions,
             result => DestinationTemplatePreview.Show(context, CreateRequest(result)),
@@ -98,13 +93,15 @@ internal sealed class CopyCommand(bool toCurrentDirectory = false) : IApplicatio
     private static (string Destination, bool UseTemplate) BuildSameDirectoryDestination(
         ApplicationCommandContext context,
         FilePanelState state,
-        IReadOnlyList<string> sources)
+        IReadOnlyList<PanelLocation> sources)
     {
         if (sources.Count == 1)
         {
-            string name = Path.GetFileName(sources[0]);
+            string name = context.TryGetSource(sources[0].SourceId, out var source)
+                ? source.GetFileName(sources[0].SourcePath)
+                : throw new InvalidOperationException("Source is unavailable.");
             bool isDirectory = state.Items.Any(item =>
-                item.FullPath == sources[0] && item.IsDirectory);
+                state.SelectedLocations.Comparer.Equals(item.Location, sources[0]) && item.IsDirectory);
             if (!isDirectory)
             {
                 int dot = name.LastIndexOf('.');
