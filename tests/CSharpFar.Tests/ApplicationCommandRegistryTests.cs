@@ -105,6 +105,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
         services.CommandContext.ActiveSide = PanelSide.Right;
         var result = services.CommandRegistry.Execute(
             FunctionKeyCommandIds.SortByName, services.CommandContext, invocation);
+        services.CommandContext.WaitForPanelLoads();
 
         Assert.True(result.ShouldRender);
         Assert.Equal(SortMode.Name, left.SortMode);

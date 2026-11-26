@@ -449,6 +449,7 @@ public sealed class DemoModeTests : IDisposable
         new NavigateToRootCommand().Execute(
             context,
             new NavigateToRootArgs(PanelSide.Left, "/Projects/SampleApp"));
+        context.WaitForPanelLoads();
 
         Assert.Equal(PanelSourceId.Demo, context.LeftPanel.SourceId);
         Assert.Equal("/", context.LeftPanel.CurrentDirectory);

@@ -38,6 +38,7 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
 
         new NavigateToDirectoryShortcutCommand()
             .Execute(context, new NavigateToDirectoryShortcutArgs(1));
+        context.WaitForPanelLoads();
 
         Assert.Equal(_root, context.ActiveState.CurrentDirectory);
     }
@@ -51,6 +52,7 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
 
         new NavigateToDirectoryShortcutCommand()
             .Execute(context, new NavigateToDirectoryShortcutArgs(1));
+        context.WaitForPanelLoads();
 
         Assert.Equal(_target, context.ActiveState.CurrentDirectory);
         Assert.Equal(passiveDirectory, context.PassiveState.CurrentDirectory);
@@ -67,6 +69,7 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
 
         new NavigateToDirectoryShortcutCommand()
             .Execute(context, new NavigateToDirectoryShortcutArgs(1));
+        context.WaitForPanelLoads();
 
         Assert.Equal(_root, context.ActiveState.CurrentDirectory);
         Assert.Single(context.Settings.DirectoryShortcuts.Items);
@@ -80,6 +83,7 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
 
         new NavigateToDirectoryShortcutCommand()
             .Execute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+        context.WaitForPanelLoads();
 
         Assert.Equal(_target, context.ActiveState.CurrentDirectory);
     }
@@ -91,6 +95,7 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
 
         new NavigateToDirectoryShortcutCommand()
             .Execute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+        context.WaitForPanelLoads();
 
         Assert.Equal(_target, context.ActiveState.CurrentDirectory);
     }
@@ -104,6 +109,7 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
 
         new NavigateToDirectoryShortcutCommand()
             .Execute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+        context.WaitForPanelLoads();
 
         Assert.Equal(_target, context.LeftPanel.CurrentDirectory);
         Assert.Equal(passiveDirectory, context.RightPanel.CurrentDirectory);
@@ -118,6 +124,7 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
 
         new NavigateToDirectoryShortcutCommand()
             .Execute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+        context.WaitForPanelLoads();
 
         Assert.Equal(_target, context.LeftPanel.CurrentDirectory);
         Assert.Equal(rightDirectory, context.RightPanel.CurrentDirectory);
@@ -132,6 +139,7 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
 
         new NavigateToDirectoryShortcutCommand()
             .Execute(context, new NavigateToDirectoryShortcutArgs(1));
+        context.WaitForPanelLoads();
 
         Assert.Equal(_otherTarget, context.ActiveState.CurrentDirectory);
     }
@@ -156,6 +164,7 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
 
         new NavigateToDirectoryShortcutCommand()
             .Execute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+        context.WaitForPanelLoads();
 
         Assert.Equal("/", context.LeftPanel.CurrentDirectory);
         Assert.Equal(PanelSourceId.Demo, context.LeftPanel.SourceId);

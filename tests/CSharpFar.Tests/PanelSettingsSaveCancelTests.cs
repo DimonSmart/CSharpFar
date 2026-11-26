@@ -63,7 +63,7 @@ public sealed class PanelSettingsSaveCancelTests : IDisposable
             saveSettings: () => saveCount++);
         int readsBeforeRun = fs.ReadDirectoryCallCount;
 
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         if (save)
         {

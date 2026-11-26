@@ -41,6 +41,7 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
             new ConsoleKeyInfo('\0', ConsoleKey.D1, shift: false, alt: false, control: true));
 
         Assert.True(handled);
+        app.WaitForPanelLoads();
         Assert.Equal(_target, app.ActiveState.CurrentDirectory);
     }
 
@@ -74,6 +75,7 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
                 MouseKeyModifiers.None));
 
         Assert.True(handled);
+        app.WaitForPanelLoads();
         Assert.Equal(_target, app.ActiveState.CurrentDirectory);
     }
 

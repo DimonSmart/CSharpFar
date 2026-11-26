@@ -67,7 +67,7 @@ public sealed partial class ApplicationNavigationTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(fs, driver, childPath);
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         var left = GetLeftPanel(app);
         Assert.Equal(_tempDir, left.CurrentDirectory);
@@ -92,7 +92,7 @@ public sealed partial class ApplicationNavigationTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(fs, driver, _tempDir);
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         var commandLine = GetCommandLine(app);
         Assert.Equal("abXc", commandLine.Text);
@@ -142,7 +142,7 @@ public sealed partial class ApplicationNavigationTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
         var app = CreateApp(fs, driver, _tempDir);
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal("x", GetCommandLine(app).Text);
     }
@@ -167,7 +167,7 @@ public sealed partial class ApplicationNavigationTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(fs, driver, _tempDir);
-        app.Run();
+        app.RunWithPanelLoadBarriers();
     }
 
     private Application CreateApp(

@@ -64,7 +64,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(driver, volService);
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal(volPath, GetLeftPanel(app).CurrentDirectory);
     }
@@ -92,7 +92,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(driver, volService, watcher, new LocalLocationService());
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Contains(watcher.StartRequests,
             r => r.PanelSide == PanelSide.Left &&
@@ -124,7 +124,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(driver, volService);
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal(volPath, GetRightPanel(app).CurrentDirectory);
     }
@@ -167,7 +167,7 @@ public sealed class ApplicationVolumeTests : IDisposable
             settings,
             volumeService: volService);
 
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal(rightSubDirectory, GetLeftPanel(app).CurrentDirectory);
     }
@@ -196,7 +196,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(driver, volService);
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal(_tempDir, GetRightPanel(app).CurrentDirectory);
     }
@@ -224,7 +224,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(driver, volService);
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal(originalDir, GetLeftPanel(app).CurrentDirectory);
     }
@@ -266,7 +266,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(driver, volService);
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal(volDPath, GetLeftPanel(app).CurrentDirectory);
     }
@@ -296,7 +296,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(driver, volService);
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal(_tempDir, GetLeftPanel(app).CurrentDirectory);
     }
@@ -325,7 +325,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(driver, volService);
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal(mountPath, GetLeftPanel(app).CurrentDirectory);
     }
@@ -388,7 +388,7 @@ public sealed class ApplicationVolumeTests : IDisposable
             settings,
             volumeService: volService);
 
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         // Enter with cursor on D: should navigate to dPath (D:'s RootPath)
         Assert.Equal(dPath, GetLeftPanel(app).CurrentDirectory);
@@ -417,7 +417,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(driver, volService);
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         // Cursor falls back to first item (X:), so Enter navigates to volPath
         Assert.Equal(volPath, GetLeftPanel(app).CurrentDirectory);
@@ -449,7 +449,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(driver, volService);
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal(netPath, GetLeftPanel(app).CurrentDirectory);
     }
@@ -478,7 +478,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(driver, volService);
-        app.Run();
+        app.RunWithPanelLoadBarriers();
 
         Assert.Equal(netPath, GetLeftPanel(app).CurrentDirectory);
     }

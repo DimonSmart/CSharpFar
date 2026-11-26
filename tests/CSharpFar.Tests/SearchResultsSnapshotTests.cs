@@ -54,6 +54,7 @@ public sealed class SearchResultsSnapshotTests : IDisposable
         fs.AddDirectory(_root, FileItem(newPath));
 
         app.RefreshPanels();
+        app.WaitForPanelLoads();
 
         Assert.Equal([oldPath], state.Items.Select(item => item.FullPath));
         Assert.DoesNotContain(state.Items, item => item.FullPath == newPath);
@@ -73,6 +74,7 @@ public sealed class SearchResultsSnapshotTests : IDisposable
         fs.AddDirectory(_root, FileItem(newPath));
 
         app.RefreshPanels();
+        app.WaitForPanelLoads();
 
         Assert.Contains(state.Items, item => item.FullPath == newPath);
         Assert.DoesNotContain(state.Items, item => item.FullPath == oldPath);
