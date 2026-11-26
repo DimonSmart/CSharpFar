@@ -34,6 +34,7 @@ foreach ($name in @('plugin.json','CSharpFar.Plugin.AzureBlob.dll','CSharpFar.Pl
 $manifest = Get-Content (Join-Path $folder 'plugin.json') -Raw | ConvertFrom-Json
 if ($manifest.apiVersion -ne 2 -or $manifest.assembly -ne 'CSharpFar.Plugin.AzureBlob.dll') { throw 'Unexpected manifest.' }
 Copy-Item (Join-Path $root 'src/CSharpFar.Plugin.AzureBlob/README.md') $folder
+Copy-Item (Join-Path $root 'src/CSharpFar.Plugin.AzureBlob/sdk-feedback.md') $folder
 Copy-Item (Join-Path $root 'LICENSE') $folder
 $zip = Join-Path $output "CSharpFar.AzureBlobPlugin-$($manifest.version).zip"
 Compress-Archive -Path $folder -DestinationPath $zip
