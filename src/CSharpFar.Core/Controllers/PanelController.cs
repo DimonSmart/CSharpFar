@@ -414,6 +414,20 @@ public sealed class PanelController
         }
     }
 
+    public PanelLocation? GetParentLocation(PanelLocation location)
+    {
+        if (_sources is not null && _sources.TryGetSource(location.SourceId, out var source))
+        {
+            string? parent = source.GetParentPath(location.SourcePath);
+            return parent is null ? null : new PanelLocation(location.SourceId, parent);
+        }
+
+        if (location.SourceId != PanelSourceId.Local)
+            return null;
+        string? localParent = _pathSemantics.GetParentPath(location.SourcePath);
+        return localParent is null ? null : PanelLocation.Local(localParent);
+    }
+
     public bool SetCursorByLocation(FilePanelState state, PanelLocation location, int visibleRows)
     {
         int index = state.Items.FindIndex(item => !item.IsParentDirectory &&
