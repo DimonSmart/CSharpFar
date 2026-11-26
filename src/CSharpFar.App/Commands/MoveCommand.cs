@@ -52,7 +52,7 @@ internal sealed class MoveCommand(PanelCommandTargetResolver targetResolver, Pan
                 Kind = FileOperationKind.Move,
                 Sources = sources,
                 UseDestinationTemplate = result.UseDestinationTemplate,
-                Destination = BuildDestinationLocation(target.PassiveState, result.Destination, sources.Count),
+                Destination = BuildDestinationLocation(target.PassiveState, result, sources),
                 Options = result.Options,
             }));
         if (dialogResult is null)
@@ -65,7 +65,7 @@ internal sealed class MoveCommand(PanelCommandTargetResolver targetResolver, Pan
                 Kind = FileOperationKind.Move,
                 Sources = sources,
                 UseDestinationTemplate = dialogResult.UseDestinationTemplate,
-                Destination = BuildDestinationLocation(target.PassiveState, dialogResult.Destination, sources.Count),
+                Destination = BuildDestinationLocation(target.PassiveState, dialogResult, sources),
                 Options = dialogResult.Options,
             });
 
@@ -83,13 +83,14 @@ internal sealed class MoveCommand(PanelCommandTargetResolver targetResolver, Pan
 
     private PanelLocation BuildDestinationLocation(
         FilePanelState destinationState,
-        string destination,
-        int sourceCount)
+        FileOperationDialogResult result,
+        IReadOnlyList<PanelLocation> sources)
     {
+        string destination = result.Destination;
         if (destinationState.SourceId == PanelSourceId.Local)
-            return PanelLocation.Local(destination);
+            return PanelLocation.Local(FileOperationCommandHelpers.BindLocalDestination(destinationState, sources, result));
 
-        string path = sourceCount == 1 && sourceRegistry.TryGetSource(destinationState.SourceId, out var source) && !source.PathSeparators.Any(destination.Contains)
+        string path = sources.Count == 1 && sourceRegistry.TryGetSource(destinationState.SourceId, out var source) && !source.PathSeparators.Any(destination.Contains)
             ? FileOperationCommandHelpers.CombinePanelPath(sourceRegistry, destinationState, destination)
             : destination;
         return new PanelLocation(destinationState.SourceId, path);

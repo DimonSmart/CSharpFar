@@ -18,6 +18,29 @@ internal static class FileOperationCommandHelpers
     public static string CombinePanelPath(FilePanelSourceRegistry sourceRegistry, FilePanelState state, string name) =>
         sourceRegistry.GetSource(state.SourceId).CombinePath(state.SourcePath, name);
 
+    public static string BindLocalDestination(
+        FilePanelState destinationState,
+        IReadOnlyList<PanelLocation> sources,
+        FileOperationDialogResult result)
+    {
+        string destination = result.Destination;
+        if (destinationState.SourceId != PanelSourceId.Local ||
+            sources.All(source => source.SourceId == PanelSourceId.Local) ||
+            Path.IsPathFullyQualified(destination))
+            return destination;
+
+        if (Path.IsPathRooted(destination))
+            throw new IOException("Use a fully qualified local destination path.");
+
+        // A remote source has no local parent. Anchor its local destination
+        // to the local destination panel, without evaluating the expression.
+        string parent = destinationState.SourcePath;
+        if (result.UseDestinationTemplate)
+            parent = parent.Replace("{", "{{", StringComparison.Ordinal)
+                .Replace("}", "}}", StringComparison.Ordinal);
+        return Path.Combine(parent, destination);
+    }
+
     public static IReadOnlyList<string> GetOperationSources(
         PanelController controller,
         FilePanelState state,

@@ -69,7 +69,8 @@ internal sealed class CopyCommand(PanelCommandTargetResolver targetResolver, Pan
             Kind = FileOperationKind.Copy,
             Sources = sources,
             UseDestinationTemplate = result.UseDestinationTemplate,
-            Destination = new PanelLocation(destinationState.SourceId, result.Destination),
+            Destination = new PanelLocation(destinationState.SourceId,
+                FileOperationCommandHelpers.BindLocalDestination(destinationState, sources, result)),
             Options = result.Options,
         };
 

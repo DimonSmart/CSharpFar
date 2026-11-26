@@ -238,6 +238,102 @@ public sealed class ExplicitCopyTargetTests : IDisposable
         Assert.Equal("original", await ReadAllTextAsync(provider, "/report (copy).txt"));
     }
 
+    [Theory]
+    [InlineData("renamed.txt", "renamed.txt", false)]
+    [InlineData("./renamed.txt", "renamed.txt", false)]
+    [InlineData("../renamed.txt", "../renamed.txt", false)]
+    [InlineData("backup/renamed.txt", "backup/renamed.txt", false)]
+    [InlineData("backup/", "backup/source.txt", false)]
+    [InlineData("*.bak", "source.bak", false)]
+    [InlineData("{name}_copy{ext}", "source_copy.txt", true)]
+    public async Task LocalCopy_RelativeDestination_PreviewAndExecutionUseSourceParent(
+        string destination, string expected, bool useTemplate)
+    {
+        string parent = Path.Combine(_root, "source{literal}");
+        Directory.CreateDirectory(parent);
+        string source = Path.Combine(parent, "source.txt");
+        string target = Path.GetFullPath(expected, parent);
+        await File.WriteAllTextAsync(source, "original");
+        var request = new FileOperationRequest
+        {
+            Kind = FileOperationKind.Copy,
+            Sources = [PanelLocation.Local(source)],
+            Destination = PanelLocation.Local(destination),
+            UseDestinationTemplate = useTemplate,
+            Options = new FileOperationOptions(),
+        };
+        var service = new FileOperationService();
+
+        Assert.Equal(target, Assert.Single(service.BuildPlan(request).Items).Destination.SourcePath);
+        Assert.False(File.Exists(target));
+        var result = await service.ExecuteAsync(request, null,
+            new RecordingConflictResolver(ConflictDecisionMode.Overwrite));
+
+        Assert.Empty(result.Errors);
+        Assert.Equal(1, result.CopiedCount);
+        Assert.Equal("original", await File.ReadAllTextAsync(target));
+        Assert.Equal("original", await File.ReadAllTextAsync(source));
+    }
+
+    [Fact]
+    public async Task LocalCopy_RelativeExistingDirectory_KeepsOriginalName()
+    {
+        string source = Path.Combine(_root, "source.txt");
+        string folder = Path.Combine(_root, "backup");
+        Directory.CreateDirectory(folder);
+        await File.WriteAllTextAsync(source, "original");
+        var request = new FileOperationRequest
+        {
+            Kind = FileOperationKind.Copy,
+            Sources = [PanelLocation.Local(source)],
+            Destination = PanelLocation.Local("backup"),
+            Options = new FileOperationOptions(),
+        };
+        var service = new FileOperationService();
+        string target = Path.Combine(folder, "source.txt");
+        Assert.Equal(target, Assert.Single(service.BuildPlan(request).Items).Destination.SourcePath);
+        var result = await service.ExecuteAsync(request, null,
+            new RecordingConflictResolver(ConflictDecisionMode.Overwrite));
+        Assert.Empty(result.Errors);
+        Assert.Equal("original", await File.ReadAllTextAsync(target));
+    }
+
+    [Theory]
+    [InlineData("renamed.txt", "renamed.txt", false)]
+    [InlineData("./renamed.txt", "renamed.txt", false)]
+    [InlineData("backup/renamed.txt", "backup/renamed.txt", false)]
+    [InlineData("*.bak", "source.bak", false)]
+    [InlineData("{name}_new{ext}", "source_new.txt", true)]
+    public async Task LocalMove_RelativeDestination_PreviewAndExecutionUseSourceParent(
+        string destination, string expected, bool useTemplate)
+    {
+        string parent = Path.Combine(_root, "source{literal}");
+        Directory.CreateDirectory(parent);
+        Directory.CreateDirectory(Path.Combine(parent, "backup"));
+        string source = Path.Combine(parent, "source.txt");
+        string target = Path.GetFullPath(expected, parent);
+        await File.WriteAllTextAsync(source, "original");
+        var request = new FileOperationRequest
+        {
+            Kind = FileOperationKind.Move,
+            Sources = [PanelLocation.Local(source)],
+            Destination = PanelLocation.Local(destination),
+            UseDestinationTemplate = useTemplate,
+            Options = new FileOperationOptions(),
+        };
+        var service = new FileOperationService();
+
+        Assert.Equal(target, Assert.Single(service.BuildPlan(request).Items).Destination.SourcePath);
+        Assert.False(File.Exists(target));
+        var result = await service.ExecuteAsync(request, null,
+            new RecordingConflictResolver(ConflictDecisionMode.Overwrite));
+
+        Assert.Empty(result.Errors);
+        Assert.Equal(1, result.MovedCount);
+        Assert.Equal("original", await File.ReadAllTextAsync(target));
+        Assert.False(File.Exists(source));
+    }
+
     private string CreateFixture(params (string Path, string Content)[] files)
     {
         string fixture = Path.Combine(_root, $"fixture-{Guid.NewGuid():N}");
