@@ -409,11 +409,20 @@ public sealed partial class FileOperationService
                 await source.AsAsync().RenameAsync(sourcePath, destinationPath, cancellationToken).ConfigureAwait(false);
                 return;
             }
-            if (source is not ISafeEntryRenameProvider rename)
-                throw new NotSupportedException($"Provider '{source.DisplayName}' cannot guarantee a non-overwriting rename.");
+            var rename = source as ISafeEntryRenameProvider;
+            if (rename is null)
+            {
+                if (!source.Capabilities.HasFlag(PanelProviderCapabilities.Rename))
+                    throw new NotSupportedException($"Provider '{source.DisplayName}' does not support rename.");
+                if (await source.AsAsync().GetItemAsync(destinationPath, cancellationToken).ConfigureAwait(false) is not null)
+                    throw new IOException($"Rename destination already exists: '{destinationPath}'.");
+            }
             try
             {
-                await rename.RenameWithoutOverwriteAsync(sourcePath, destinationPath, CancellationToken.None).ConfigureAwait(false);
+                if (rename is not null)
+                    await rename.RenameWithoutOverwriteAsync(sourcePath, destinationPath, CancellationToken.None).ConfigureAwait(false);
+                else
+                    await source.AsAsync().RenameAsync(sourcePath, destinationPath, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception error) when (source is not IRecoverableEntryRenameProvider)
             {

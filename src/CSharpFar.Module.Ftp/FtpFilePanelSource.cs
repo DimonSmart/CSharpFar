@@ -269,10 +269,11 @@ public sealed class FtpFilePanelSource : IModulePanel, IAsyncFilePanelSource, IR
         {
             var item = await client.GetObjectInfo(path, token: cancellationToken).ConfigureAwait(false)
                 ?? throw new DirectoryNotFoundException($"FTP rename failed for {path}: path not found.");
-            if (IsDirectory(item))
-                await client.MoveDirectory(path, newPath, FtpRemoteExists.Overwrite, token: cancellationToken).ConfigureAwait(false);
-            else
-                await client.MoveFile(path, newPath, FtpRemoteExists.Overwrite, token: cancellationToken).ConfigureAwait(false);
+            bool moved = IsDirectory(item)
+                ? await client.MoveDirectory(path, newPath, FtpRemoteExists.Skip, token: cancellationToken).ConfigureAwait(false)
+                : await client.MoveFile(path, newPath, FtpRemoteExists.Skip, token: cancellationToken).ConfigureAwait(false);
+            if (!moved)
+                throw new IOException($"FTP rename failed for {path}: destination already exists or rename was refused.");
             return true;
         }, cancellationToken).ConfigureAwait(false);
     }

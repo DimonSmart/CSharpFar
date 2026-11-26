@@ -47,6 +47,11 @@ internal sealed class ConflictDialog
                     FormControls.Value("New", () => BuildInfo(conflict.SourceSize, conflict.SourceLastWriteTime)),
                     FormControls.Value("Existing", () => BuildInfo(conflict.DestinationSize, conflict.DestinationLastWriteTime)),
                     FormControls.Separator(),
+                    .. (conflict.UnsafeReplacement ? new FormRow[]
+                    {
+                        FormControls.Label("Safe replacement is not guaranteed.", TextAlignment.Center),
+                        FormControls.Label("Failure may damage the destination file.", TextAlignment.Center),
+                    } : Array.Empty<FormRow>()),
                     rememberChoice,
                 ]
                 :
@@ -66,7 +71,7 @@ internal sealed class ConflictDialog
                 : FormFooter.ErrorAndButtons(() => renameError, renameActions);
 
         return _dialogs.Form(
-            new FormDialogOptions("Warning", PreferredWidth: 78, PreferredHeight: 14)
+            new FormDialogOptions("Warning", PreferredWidth: 78, PreferredHeight: conflict.UnsafeReplacement ? 16 : 14)
             {
                 Appearance = DialogAppearance.Warning,
                 InitialFocus = chooseActions,
