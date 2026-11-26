@@ -1,6 +1,11 @@
+using CSharpFar.App.Modules;
+using CSharpFar.App.Panels;
+using CSharpFar.Core.Controllers;
 namespace CSharpFar.App.Commands;
 
-internal sealed class OpenCurrentItemCommand : IApplicationCommand
+internal sealed class OpenCurrentItemCommand(PanelController controller, PanelWorkspaceController workspace,
+    PanelSearchResultsService searchResults, PanelNavigationService navigation,
+    ModulePanelOpener modulePanelOpener, PanelFileOpener fileOpener) : IApplicationCommand
 {
     public string CommandId => ApplicationCommandIds.OpenCurrentItem;
 
@@ -8,9 +13,18 @@ internal sealed class OpenCurrentItemCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        var item = context.Controller.CurrentItem(context.ActiveState);
+        var item = controller.CurrentItem(workspace.ActiveState);
         if (item is not null)
-            context.OpenPanelItem(context.ActiveState, context.ActiveSide, item);
+        {
+            var state = workspace.ActiveState;
+            var side = workspace.ActiveSide;
+            if (state.SearchRequest is not null)
+                searchResults.GoToResult(state, side, item);
+            else if (item.IsDirectory)
+                navigation.OpenDirectoryItem(state, side, item);
+            else if (!modulePanelOpener.TryOpenFileItem(state, side, item, fileOpener.OpenFileItem))
+                fileOpener.OpenFileItem(state, item);
+        }
 
         return ApplicationCommandResult.Rendered();
     }

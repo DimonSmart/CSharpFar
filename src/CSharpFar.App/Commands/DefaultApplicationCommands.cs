@@ -1,3 +1,6 @@
+using CSharpFar.App.AutoRefresh;
+using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Services;
 using CSharpFar.App.Panels;
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.Diagnostics;
@@ -33,6 +36,12 @@ internal static class DefaultApplicationCommands
         PanelSortServiceFacade panelSort,
         TopMenu topMenu,
         PanelCommandTargetResolver targetResolver,
+        PanelController panelController,
+        PanelNavigationService panelNavigation,
+        PanelAutoRefreshService autoRefresh,
+        FilePanelSourceRegistry sourceRegistry,
+        PanelSearchResultsService searchResults,
+        PanelFileOpener panelFileOpener,
         PanelDirectorySizeCoordinator? directorySizes = null) =>
     [
         new HelpCommand(interactiveSurfaces, session.App),
@@ -63,13 +72,13 @@ internal static class DefaultApplicationCommands
         new DirectoryHistoryCommand(),
         new TogglePanelsCommand(workspaceModeController),
         new SwapPanelsCommand(),
-        new SortByNameCommand(),
-        new SortByExtensionCommand(),
-        new SortByLastWriteTimeCommand(),
-        new SortBySizeCommand(),
-        new OpenCurrentItemCommand(),
-        new NavigateToRootCommand(),
-        new PanelSetViewModeCommand(),
+        new SortByNameCommand(targetResolver, panelSort),
+        new SortByExtensionCommand(targetResolver, panelSort),
+        new SortByLastWriteTimeCommand(targetResolver, panelSort),
+        new SortBySizeCommand(targetResolver, panelSort),
+        new OpenCurrentItemCommand(panelController, panelWorkspace, searchResults, panelNavigation, modulePanelOpener, panelFileOpener),
+        new NavigateToRootCommand(panelWorkspace, panelNavigation, autoRefresh, sourceRegistry),
+        new PanelSetViewModeCommand(session.Panels, settings, panelController, panelWorkspace, saveSettings),
         new PanelSetSortModeCommand(panelWorkspace, panelSort),
         new PanelToggleReverseSortCommand(panelWorkspace, panelRefresh, panelSort),
         new PanelRefreshCommand(panelWorkspace, panelRefresh),

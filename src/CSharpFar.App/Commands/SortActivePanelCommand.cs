@@ -1,3 +1,4 @@
+using CSharpFar.App.Panels;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 
@@ -5,10 +6,15 @@ namespace CSharpFar.App.Commands;
 
 internal abstract class SortActivePanelCommand : IApplicationCommand
 {
-    protected SortActivePanelCommand(string commandId, SortMode sortMode)
+    private readonly PanelCommandTargetResolver _targetResolver;
+    private readonly PanelSortServiceFacade _panelSort;
+
+    protected SortActivePanelCommand(string commandId, SortMode sortMode, PanelCommandTargetResolver targetResolver, PanelSortServiceFacade panelSort)
     {
         CommandId = commandId;
         SortMode = sortMode;
+        _targetResolver = targetResolver;
+        _panelSort = panelSort;
     }
 
     public string CommandId { get; }
@@ -16,12 +22,12 @@ internal abstract class SortActivePanelCommand : IApplicationCommand
     protected SortMode SortMode { get; }
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.HasCapability(context.ResolvePanelTarget(args).State, PanelProviderCapabilities.Enumerate);
+        (_targetResolver.ResolvePanelTarget(args).State.ProviderCapabilities & PanelProviderCapabilities.Enumerate) == PanelProviderCapabilities.Enumerate;
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        var target = context.ResolvePanelTarget(args);
-        context.SetPanelSortMode(target.State, SortMode, target.VisibleRows);
+        var target = _targetResolver.ResolvePanelTarget(args);
+        _panelSort.SetPanelSortMode(target.State, SortMode, target.VisibleRows);
         return ApplicationCommandResult.Rendered();
     }
 }
