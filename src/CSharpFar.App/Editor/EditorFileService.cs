@@ -2,6 +2,7 @@ using System.Text;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Core.Text;
+using CSharpFar.FileSystem;
 
 namespace CSharpFar.App.Editor;
 
@@ -125,112 +126,45 @@ public sealed class EditorFileService
     public void Save(EditorSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
-        if (session.ReadOnly)
-            throw new IOException("The file is opened read-only.");
-
-        string text = session.Document.Buffer.GetText(session.Document.Format);
-        Encoding encoding = session.Document.Format.CreateSaveEncoding();
-        string? directory = Path.GetDirectoryName(session.FilePath);
-        if (!string.IsNullOrEmpty(directory))
-            Directory.CreateDirectory(directory);
-
-        string tempPath = session.FilePath + ".csharpfar-save-" + Guid.NewGuid().ToString("N") + ".tmp";
-        File.WriteAllText(tempPath, text, encoding);
-        if (File.Exists(session.FilePath))
-        {
-            FileAttributes attributes = File.GetAttributes(session.FilePath);
-            if (attributes.HasFlag(FileAttributes.ReadOnly))
-            {
-                File.Delete(tempPath);
-                throw new IOException("The file is read-only.");
-            }
-
-            File.Replace(tempPath, session.FilePath, destinationBackupFileName: null, ignoreMetadataErrors: true);
-        }
-        else
-        {
-            File.Move(tempPath, session.FilePath);
-        }
-
-        session.Document.MarkClean();
-        session.RaiseSaved();
+        EnsureWritable(session);
+        string? warning = SafeFileWriteService.WriteLocalAsync(session.FilePath, Encode(session))
+            .GetAwaiter().GetResult();
+        CompleteSave(session, warning);
     }
 
-    public void Save(EditorSession session, IFilePanelSource source, string sourcePath)
-    {
-        ArgumentNullException.ThrowIfNull(session);
-        ArgumentNullException.ThrowIfNull(source);
+    public void Save(EditorSession session, IFilePanelSource source, string sourcePath) =>
+        SaveAsync(session, source, sourcePath).GetAwaiter().GetResult();
 
-        if (session.ReadOnly)
-            throw new IOException("The file is opened read-only.");
-
-        byte[] bytes = session.Document.Format.CreateSaveEncoding().GetBytes(
-            session.Document.Buffer.GetText(session.Document.Format));
-
-        // A provider may finalize or reject the write in Dispose. Only publish the
-        // editor's clean state after that finalization has successfully completed.
-        using (var stream = source.OpenWriteAsync(sourcePath, overwrite: true).GetAwaiter().GetResult())
-        {
-            stream.Write(bytes, 0, bytes.Length);
-            stream.Flush();
-        }
-
-        session.Document.MarkClean();
-        session.RaiseSaved();
-    }
-
-    /// <summary>
-    /// Asynchronous provider save, including final stream disposal and optional batch
-    /// commit. Consumers must await this before clearing the dirty indicator.
-    /// </summary>
     public async Task SaveAsync(
         EditorSession session, IFilePanelSource source, string sourcePath,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(source);
-        if (session.ReadOnly)
-            throw new IOException("The file is opened read-only.");
-
-        byte[] bytes = session.Document.Format.CreateSaveEncoding().GetBytes(
-            session.Document.Buffer.GetText(session.Document.Format));
-
-        if (source is IFileOperationBatchProvider batching)
-        {
-            var location = new PanelLocation(source.SourceId, sourcePath);
-            var plan = new FileOperationPlan([new FileOperationPlanItem(location, location, false)]);
-            await using var batch = await batching.BeginBatchAsync(plan, cancellationToken).ConfigureAwait(false);
-            try
-            {
-                await WriteProviderFileAsync(batch, sourcePath, bytes, cancellationToken).ConfigureAwait(false);
-                cancellationToken.ThrowIfCancellationRequested();
-                await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
-            }
-            catch
-            {
-                try { await batch.AbortAsync(CancellationToken.None).ConfigureAwait(false); }
-                catch { /* Keep the original write or commit failure. */ }
-                throw;
-            }
-        }
-        else
-        {
-            await WriteProviderFileAsync(source, sourcePath, bytes, cancellationToken).ConfigureAwait(false);
-        }
-
-        session.Document.MarkClean();
-        session.RaiseSaved();
+        EnsureWritable(session);
+        string? warning = await SafeFileWriteService.WriteDocumentAsync(
+            source, sourcePath, Encode(session), cancellationToken).ConfigureAwait(false);
+        CompleteSave(session, warning);
     }
 
-    private static async Task WriteProviderFileAsync(
-        IFilePanelSource destination, string path, byte[] bytes, CancellationToken cancellationToken)
+    private static void EnsureWritable(EditorSession session)
     {
-        await using (var stream = await destination.OpenWriteAsync(
-            path, overwrite: true, cancellationToken).ConfigureAwait(false))
-        {
-            await stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
-            await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
-        }
+        if (session.ReadOnly)
+            throw new IOException("The file is opened read-only.");
+    }
+
+    private static byte[] Encode(EditorSession session)
+    {
+        Encoding encoding = session.Document.Format.CreateSaveEncoding();
+        byte[] content = encoding.GetBytes(session.Document.Buffer.GetText(session.Document.Format));
+        return [.. encoding.GetPreamble(), .. content];
+    }
+
+    private static void CompleteSave(EditorSession session, string? warning)
+    {
+        session.LastSaveWarning = warning;
+        session.Document.MarkClean();
+        session.RaiseSaved();
     }
 
     public static EditorLineEnding ToEditorLineEnding(TextLineEndingKind kind) =>

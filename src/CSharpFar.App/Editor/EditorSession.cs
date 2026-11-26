@@ -32,6 +32,7 @@ public sealed class EditorSession
     public EditorPosition Cursor { get; private set; } = EditorPosition.Start;
     public EditorSelection? Selection { get; private set; }
     public bool ReadOnly { get; }
+    public string? LastSaveWarning { get; internal set; }
     public EditorUndoHistory UndoHistory { get; }
     public EditorSyntaxHighlightCache SyntaxHighlightCache { get; } = new();
     public bool SyntaxHighlightingEnabled { get; private set; }

@@ -30,6 +30,32 @@ internal static class SafeLocalFilePublisher
         else File.Move(source, target);
     }
 
+    internal readonly record struct DestinationSnapshot(long Length, DateTime LastWriteTimeUtc,
+        DateTime CreationTimeUtc, FileAttributes Attributes);
+
+    internal static DestinationSnapshot? CaptureDestination(string path)
+    {
+        if (!PathExists(path)) return null;
+        var info = new FileInfo(path);
+        var attributes = info.Attributes;
+        return new DestinationSnapshot(
+            (attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0 ? 0 : info.Length,
+            info.LastWriteTimeUtc, info.CreationTimeUtc, attributes);
+    }
+
+    internal static string? PublishChecked(string staging, string destination, DestinationSnapshot? expected,
+        Func<string, string, string?>? replace = null)
+    {
+        if (CaptureDestination(destination) != expected)
+            throw new IOException($"Destination changed before publication: '{destination}'.");
+        if (expected is null)
+        {
+            MoveStagingPath(staging, destination);
+            return null;
+        }
+        return (replace ?? Publish)(staging, destination);
+    }
+
     // A non-null return value is a retained backup that could not be cleaned up.
     internal static string? Publish(string staging, string destination)
     {

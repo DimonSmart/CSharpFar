@@ -288,21 +288,20 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         if (destinationSource is IFileOperationBatchProvider batching)
         {
             var publicPlan = ToPublicPlan(plan, destination.SourceId);
-            await using var batch = await batching.BeginBatchAsync(publicPlan, cancellationToken)
-                .ConfigureAwait(false);
+            int before = state.CopiedCount;
             try
             {
-                await CopyProviderPlanItemsAsync(plan, batch, request.Options,
-                    conflictResolver, state, cancellationToken,
-                    copiedFiles, copiedFolders, useLocalStrategy: useLocalStrategy).ConfigureAwait(false);
-                cancellationToken.ThrowIfCancellationRequested();
-                state.ReportCommitting(destination.SourcePath);
-                await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
+                await SafeFileWriteService.ExecuteBatchAsync(batching, publicPlan, async batch =>
+                {
+                    await CopyProviderPlanItemsAsync(plan, batch, request.Options,
+                        conflictResolver, state, cancellationToken,
+                        copiedFiles, copiedFolders, useLocalStrategy: useLocalStrategy).ConfigureAwait(false);
+                    state.ReportCommitting(destination.SourcePath);
+                }, cancellationToken).ConfigureAwait(false);
             }
             catch
             {
-                try { await batch.AbortAsync(CancellationToken.None).ConfigureAwait(false); }
-                catch { /* DisposeAsync makes the final cleanup attempt. */ }
+                state.CopiedCount = before;
                 throw;
             }
         }
@@ -536,7 +535,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
             Directory.CreateDirectory(Path.GetDirectoryName(target.Path)!);
             if (copyLink)
             {
-                if (!CopyReparsePoint(sourcePath, target.Path, options, state))
+                if (!CopyReparsePoint(sourcePath, target, options, state))
                     return false;
                 state.CopiedCount++;
                 state.AddBytes(file.Size);
@@ -632,7 +631,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         CancellationToken cancellationToken)
     {
         string destinationPath = file.DestinationPath;
-        while (File.Exists(destinationPath) || Directory.Exists(destinationPath))
+        while (SafeLocalFilePublisher.CaptureDestination(destinationPath) is { } snapshot)
         {
             ConflictDecisionMode mode = state.Conflicts.Current(options.DefaultConflictDecision);
             string? newDestination = null;
@@ -647,7 +646,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 case ConflictDecisionMode.Overwrite:
                     if (Directory.Exists(destinationPath))
                         throw new IOException("Cannot overwrite a directory with a file.");
-                    return new CopyDestination(destinationPath, CopyDestinationAction.CreateOrOverwrite);
+                    return new CopyDestination(destinationPath, CopyDestinationAction.CreateOrOverwrite, ExpectedDestination: snapshot);
                 case ConflictDecisionMode.Skip:
                     state.SkippedCount++;
                     state.CompleteItem();
@@ -660,7 +659,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 case ConflictDecisionMode.OnlyNewer:
                     if (File.Exists(destinationPath) && IsSourceNewer(file.SourcePath, destinationPath))
                     {
-                        return new CopyDestination(destinationPath, CopyDestinationAction.CreateOrOverwrite);
+                        return new CopyDestination(destinationPath, CopyDestinationAction.CreateOrOverwrite, ExpectedDestination: snapshot);
                     }
                     state.SkippedCount++;
                     state.CompleteItem();
@@ -819,7 +818,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 throw new IOException($"Incomplete copy from '{file.SourcePath}' to '{destination}'.");
             _platformOperations.PreserveFileMetadata(file.SourcePath, staging, options, state);
             cancellationToken.ThrowIfCancellationRequested();
-            string? leftover = _dependencies.PublishLocalFile(staging, destination);
+            string? leftover = SafeLocalFilePublisher.PublishChecked(staging, destination, initialTarget.ExpectedDestination, _dependencies.PublishLocalFile);
             if (leftover is not null)
                 state.AddError(destination, $"Backup cleanup failed after publishing '{destination}'. Backup: {leftover}");
             state.CopiedCount++;
@@ -1013,10 +1012,11 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
 
     private bool CopyReparsePoint(
         string sourcePath,
-        string destinationPath,
+        CopyDestination target,
         FileOperationOptions options,
         OperationState state)
     {
+        string destinationPath = target.Path;
         if (options.SymlinkMode == SymlinkCopyMode.CopyTargetContents)
             return true;
 
@@ -1028,7 +1028,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                 state.AddError(sourcePath, error ?? "Cannot copy symbolic link.");
                 return false;
             }
-            string? leftover = _dependencies.PublishLocalFile(staging, destinationPath);
+            string? leftover = SafeLocalFilePublisher.PublishChecked(staging, destinationPath, target.ExpectedDestination, _dependencies.PublishLocalFile);
             if (leftover is not null)
                 state.AddError(destinationPath, $"Backup cleanup failed. Backup: {leftover}");
             return true;
@@ -1346,7 +1346,8 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         string Path,
         CopyDestinationAction Action,
         long ResumeOffset = 0,
-        long ResumeRollbackBytes = 0)
+        long ResumeRollbackBytes = 0,
+        SafeLocalFilePublisher.DestinationSnapshot? ExpectedDestination = null)
     {
         public static CopyDestination Skip { get; } = new(string.Empty, CopyDestinationAction.CreateOrOverwrite);
     }
