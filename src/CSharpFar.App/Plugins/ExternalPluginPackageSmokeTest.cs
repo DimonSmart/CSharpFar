@@ -10,11 +10,11 @@ public static class ExternalPluginPackageSmokeTest
     {
         // A release-tag version belongs to the executable host, not to the SDK.
         // This probes the real assemblies loaded by the published single-file app.
-        var expectedSdkVersion = new Version(1, 0, 0, 0);
+        var expectedSdkVersion = new Version(2, 0, 0, 0);
         if (typeof(ICSharpFarPlugin).Assembly.GetName().Version != expectedSdkVersion ||
             typeof(CSharpFar.Core.Abstractions.IFilePanelSource).Assembly.GetName().Version != expectedSdkVersion)
         {
-            System.Console.Error.WriteLine("Published host changed the v1 SDK assembly identity.");
+            System.Console.Error.WriteLine("Published host changed the v2 SDK assembly identity.");
             return 1;
         }
 
