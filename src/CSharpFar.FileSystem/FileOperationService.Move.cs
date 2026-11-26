@@ -384,7 +384,7 @@ public sealed partial class FileOperationService
 
             foreach (FilePanelItem child in children)
             {
-                string childTarget = CombineProviderPath(source.SourceId, destinationPath, child.Name);
+                string childTarget = source.CombinePath(destinationPath, child.Name);
                 await MoveProviderItemAsync(
                         source,
                         child.SourcePath,
@@ -1091,7 +1091,7 @@ public sealed partial class FileOperationService
         {
             DestinationPattern destinationPattern = useDestinationTemplate
                 ? default
-                : DestinationPattern.Parse(destinationPath, source.SourceId);
+                : DestinationPattern.Parse(destinationPath, source);
             DestinationTemplate? template = useDestinationTemplate ? DestinationTemplate.Parse(destinationPath) : null;
             IReadOnlyCollection<char>? destinationPathSeparators = template is null ? null : source.PathSeparators;
             var plan = new List<ProviderOperationPlanItem>(sources.Count);
@@ -1112,10 +1112,9 @@ public sealed partial class FileOperationService
                 string targetPath = template is not null
                     ? template.Evaluate(new DestinationTemplateContext(item.Name, item.IsDirectory, item.LastWriteTime, destinationPathSeparators!))
                     : destinationPattern.HasWildcards
-                    ? CombineProviderPath(
-                        source.SourceId,
+                    ? source.CombinePath(
                         string.IsNullOrEmpty(destinationPattern.ParentPath)
-                            ? GetProviderParentPath(normalizedSourcePath)
+                            ? source.GetParentPath(normalizedSourcePath) ?? throw new IOException("Source has no parent directory.")
                             : destinationPattern.ParentPath,
                         destinationPattern.TransformName(item.Name))
                     : ResolveProviderMoveTargetPath(source, item, normalizedSourcePath, destinationPath, sources.Count, cancellationToken);
@@ -1129,7 +1128,7 @@ public sealed partial class FileOperationService
 
                 FileCopyPlanBuilder.AddMaskedProviderPlanItems(
                     plan, location, source, normalizedSourcePath, item, targetPath, options.FileMask!, options.SymlinkMode, matcher, groups,
-                    source.SourceId,
+                    source,
                     validateTarget: path => ValidateProviderMoveTarget(source, normalizedSourcePath, path, item.IsDirectory),
                     cancellationToken);
             }
@@ -1161,11 +1160,11 @@ public sealed partial class FileOperationService
             CancellationToken cancellationToken)
         {
             if (sourceCount > 1)
-                return CombineProviderPath(source.SourceId, destinationPath, item.Name);
+                return source.CombinePath(destinationPath, item.Name);
 
             FilePanelItem? destinationItem = source.GetItem(destinationPath, cancellationToken);
             if (destinationItem?.IsDirectory == true)
-                return CombineProviderPath(source.SourceId, destinationPath, item.Name);
+                return source.CombinePath(destinationPath, item.Name);
 
             return destinationPath;
         }

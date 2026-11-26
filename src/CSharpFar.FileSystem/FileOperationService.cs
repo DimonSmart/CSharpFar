@@ -1288,9 +1288,9 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         }
         else
         {
-            int slash = destinationPath.LastIndexOf('/');
-            directory = slash <= 0 ? "/" : destinationPath[..slash];
-            string name = slash < 0 ? destinationPath : destinationPath[(slash + 1)..];
+            directory = source.GetParentPath(destinationPath)
+                ?? throw new IOException("Destination has no parent directory.");
+            string name = source.GetFileName(destinationPath);
             int dot = name.LastIndexOf('.');
             if (dot <= 0)
             {
@@ -1306,7 +1306,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
 
         for (int i = 2; ; i++)
         {
-            string candidate = CombineProviderPath(source.SourceId, directory, $"{fileName} ({i}){extension}");
+            string candidate = source.CombinePath(directory, $"{fileName} ({i}){extension}");
             if (source.GetItem(candidate, cancellationToken) is null)
                 return candidate;
         }
@@ -1337,7 +1337,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
         FileOperationPlanPreflight.ValidateDistinctTargets(
             targetPaths.Where(path => !string.IsNullOrEmpty(path)),
             destinationSource.NormalizePath,
-            sourceId == PanelSourceId.Local ? LocalFileSystemPathComparer.Current : StringComparer.Ordinal,
+            destinationSource.PathComparer,
             path =>
             {
                 if (path.IndexOfAny(['*', '?']) >= 0)

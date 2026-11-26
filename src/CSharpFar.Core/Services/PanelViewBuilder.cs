@@ -55,7 +55,7 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
             if (item.IsParentDirectory)
                 continue; // skip any .. that leaked from old fs
 
-            if (opts.DetectVolumeMountPoints && item.IsDirectory && _mountPoints != null)
+            if (isLocal && opts.DetectVolumeMountPoints && item.IsDirectory && _mountPoints != null)
             {
                 var mp = TryGetMountPoint(item.FullPath);
                 if (mp is not null)
