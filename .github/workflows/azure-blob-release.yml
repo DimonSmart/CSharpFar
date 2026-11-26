@@ -1,0 +1,62 @@
+name: Azure Blob plugin release
+
+on:
+  push:
+    branches: [main]
+    paths: [eng/packaging/azure-blob-release-request.txt]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: azure-blob-release
+  cancel-in-progress: false
+
+jobs:
+  verify-package:
+    uses: ./.github/workflows/azure-blob.yml
+
+  platform-tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest, macos-15-intel]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet test tests/CSharpFar.Plugin.AzureBlob.Tests -c Release
+
+  release:
+    needs: [verify-package, platform-tests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: CSharpFar-AzureBlob-extension
+          path: artifacts/release
+      - name: Publish extension without changing the latest host release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '\r\n' < eng/packaging/azure-blob-release-request.txt)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          manifest="$(jq -r .version src/CSharpFar.Plugin.AzureBlob/plugin.json)"
+          [[ "$version" == "$manifest" ]]
+          tag="azure-blob-v$version"
+          zip="CSharpFar.AzureBlobPlugin-$version.zip"
+          (cd artifacts/release; sha256sum --check "$zip.sha256")
+          gh release create "$tag" \
+            "artifacts/release/$zip" "artifacts/release/$zip.sha256" \
+            "artifacts/release/panel.png" \
+            --target "$GITHUB_SHA" --latest=false \
+            --title "CSharpFar Azure Blob Storage plugin $version" \
+            --notes-file src/CSharpFar.Plugin.AzureBlob/README.md

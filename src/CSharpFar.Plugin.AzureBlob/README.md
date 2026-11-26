@@ -43,6 +43,20 @@ Independent package build against published SDK and NuGet dependencies: from rep
 
 To run the provider integration tests against an isolated Azurite instance, set `CSHARPFAR_AZURE_TEST_CONNECTION=UseDevelopmentStorage=true` and run `dotnet test tests/CSharpFar.Plugin.AzureBlob.Tests`. An explicitly designated non-production Azure account can also be used; tests create and remove uniquely named disposable containers. Never supply a production account.
 
+## Validation
+
+The [Azure Blob extension workflow](https://github.com/DimonSmart/CSharpFar/actions/workflows/azure-blob.yml) runs unit tests, actual Azurite integration, the independent SDK build, and an installed-plugin PTY smoke test using the released Linux executable. Successful workflow artifacts include an actual terminal screen capture (`panel.png`) and the installable ZIP.
+
+Additional manual validation for a production-like account and Windows/macOS terminal sessions:
+1. Install the complete ZIP, confirm the Plugins and disk menus show Azure Blob Storage, and run `azure:`.
+2. Create a saved connection and a quick connection, close/reopen the panel, and verify only the saved profile persists.
+3. Browse directories, F3 a file, F5 upload/download files and nested directories, F7 create a folder, F8 remove it, and verify F6/rename without replacement.
+4. Try an upload to an existing name and check that its original bytes are unchanged; verify ReadOnly denies mutations.
+5. Close the application, replace the extension directory and check settings survived; disable and re-enable via Options → Plugins with a restart after each; confirm `--no-extensions` suppresses the plugin and uninstall removes it.
+6. Use an isolated account for expired SAS, limited permissions, network interruption, and Microsoft Entra ID verification. Never run mutation tests against production data.
+
+A plugin-only release uses an `azure-blob-vMAJOR.MINOR.PATCH` tag and does not replace the latest application release. Future host releases also include the verified extension ZIP.
+
 ## Updates and removal
 
 Close CSharpFar, replace the entire extension folder (do not merge DLLs from older versions), and restart. The settings directory is unaffected. Options → Plugins can disable or re-enable the extension, with restart required. Use `--no-extensions` to start without any external extensions. To uninstall, remove the installation folder while CSharpFar is closed; optionally remove the separate settings directory.

@@ -88,6 +88,41 @@ public sealed class ContractTests
         Assert.Null(error.InnerException);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SavedAndTemporaryConnections(bool save)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            // Azurite client construction is local; an explicit container avoids a network list call.
+            var ui = new ConnectionUi(save ? [1, 4, 1, 0, 0] : [0, 4, 1],
+                ["Profile", "", "container", "/"]);
+            var result = await new AzureBlobPanelProvider().ExecuteAsync(ui, new SettingsDirectory(directory), default);
+            Assert.Equal(PluginCommandResultKind.OpenPanel, result.Kind);
+            Assert.IsType<AzureBlobFilePanelSource>(result.Panel!.Source);
+            Assert.False(result.Panel.Source.Capabilities.HasFlag(PanelProviderCapabilities.Delete));
+            Assert.Equal(save, File.Exists(Path.Combine(directory, "connections.json")));
+            if (save) Assert.Equal("Profile", Assert.Single(new AzureBlobConnectionStore(directory).Load()).DisplayName);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    private sealed class SettingsDirectory(string directory) : IPluginSettingsService
+    {
+        public string GetSettingsDirectory(string pluginId) => directory;
+    }
+
+    private sealed class ConnectionUi(IEnumerable<int> selections, IEnumerable<string> values) : IPluginUiService
+    {
+        private readonly Queue<int> menu = new(selections);
+        private readonly Queue<string> input = new(values);
+        public void ShowMessage(string title, string message) => throw new InvalidOperationException(message);
+        public string? Input(string title, string prompt, string? initialText = null) => input.Dequeue();
+        public int? ShowMenu(string title, IReadOnlyList<string> items, int selected) => menu.Dequeue();
+    }
+
     private sealed class Host : IPluginHost
     {
         public List<PluginCommandDescriptor> Commands { get; } = [];
