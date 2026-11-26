@@ -515,8 +515,8 @@ public sealed partial class FileOperationService
                         request with
                         {
                             Kind = FileOperationKind.Copy,
-                            Sources = [item.SourcePath],
-                            Destination = Path.GetDirectoryName(item.TargetPath)!,
+                            Sources = [PanelLocation.Local(item.SourcePath)],
+                            Destination = PanelLocation.Local(Path.GetDirectoryName(item.TargetPath)!),
                             UseDestinationTemplate = false,
                         },
                         conflictResolver,
