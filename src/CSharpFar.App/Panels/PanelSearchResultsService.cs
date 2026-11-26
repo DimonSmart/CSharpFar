@@ -134,6 +134,7 @@ internal sealed class PanelSearchResultsService
         {
             Name = item.Name,
             FullPath = item.FullPath,
+            SourceId = item.SourceId,
             IsDirectory = item.Kind == SearchResultItemKind.Directory,
             Size = item.Size,
             LastWriteTime = item.LastWriteTime,

@@ -33,7 +33,7 @@ internal static class SearchResultsDeleteSupport
 
         bool operationCompletedCleanly = !result.Cancelled && result.Errors.Count == 0;
         state.Items.RemoveAll(item =>
-            requestedRoots.Any(root => IsSameOrDescendant(item.FullPath, root)) &&
+            item.SourceId == PanelSourceId.Local && requestedRoots.Any(root => IsSameOrDescendant(item.FullPath, root)) &&
             (operationCompletedCleanly || !PathExists(item.FullPath)));
     }
 
