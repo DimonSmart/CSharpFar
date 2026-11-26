@@ -222,7 +222,7 @@ public sealed class AboutAndUpdateTests
     [Fact]
     public void DefaultCommandRegistry_ContainsAbout()
     {
-        var registry = ApplicationCommandRegistry.CreateDefault();
+        var registry = CommandRegistryTestFactory.Create();
 
         Assert.True(
             registry.TryGetCommand(ApplicationCommandIds.About, out IApplicationCommand command));

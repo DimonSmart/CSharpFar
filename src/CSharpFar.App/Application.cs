@@ -279,6 +279,7 @@ public sealed class Application
 
     internal ApplicationSession Session => _session;
     internal ApplicationCommandContext CommandContext => _commandContext;
+    internal ApplicationCommandRegistry CommandRegistry => _commandRegistry;
 
     internal event Action? ApplicationInputRequested
     {

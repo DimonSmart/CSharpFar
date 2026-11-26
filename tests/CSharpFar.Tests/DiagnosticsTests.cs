@@ -222,7 +222,7 @@ public sealed class DiagnosticsTests
     [Fact]
     public void DiagnosticsCommand_IsRegisteredAndHelpMenuKeepsTerminalDiagnosticsSeparate()
     {
-        var registry = ApplicationCommandRegistry.CreateDefault();
+        var registry = CommandRegistryTestFactory.Create();
         Assert.True(registry.TryGetCommand(
             ApplicationCommandIds.Diagnostics,
             out IApplicationCommand command));
