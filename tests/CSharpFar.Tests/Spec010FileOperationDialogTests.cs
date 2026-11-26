@@ -95,6 +95,23 @@ public sealed partial class Spec010FileOperationDialogTests
         Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Process multiple destinations", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ShowCopy_OverwritePolicyWarnsOnlyForBestEffortReplacement(bool unsafeReplacement)
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 32);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var result = new FileOperationDialog(new DialogService(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).ShowCopy(
+            ["source.txt"], "/destination",
+            new FileOperationOptions { DefaultConflictDecision = ConflictDecisionMode.Overwrite },
+            unsafeReplacement: unsafeReplacement);
+        Assert.NotNull(result);
+        Assert.Equal(ConflictDecisionMode.Overwrite, result.Options.DefaultConflictDecision);
+        Assert.Equal(unsafeReplacement, driver.WriteRecords.Any(r => r.Text.Contains("Failure may damage the destination file.", StringComparison.Ordinal)));
+    }
+
     [Fact]
     public void ShowCopy_EnterConfirmsDialog()
     {

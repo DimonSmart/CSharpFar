@@ -1,4 +1,5 @@
 using CSharpFar.Ui;
+using CSharpFar.FileSystem;
 using CSharpFar.App.Panels;
 using CSharpFar.App.State;
 using CSharpFar.Core.Abstractions;
@@ -79,7 +80,9 @@ internal sealed class CopyCommand(PanelCommandTargetResolver targetResolver, Pan
             initialDestination,
             initialOptions,
             result => operations.Preview(CreateRequest(result)),
-            initialUseTemplate: initialUseTemplate);
+            initialUseTemplate: initialUseTemplate,
+            unsafeReplacement: sourceRegistry.TryGetSource(destinationState.SourceId, out var writeTarget) &&
+                SafeFileWriteService.UsesBestEffort(writeTarget, overwrite: true));
         if (dialogResult is null)
             return ApplicationCommandResult.Rendered();
 
