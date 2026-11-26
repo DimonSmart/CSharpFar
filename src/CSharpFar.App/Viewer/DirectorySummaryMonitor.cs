@@ -57,6 +57,7 @@ internal sealed class DirectorySummaryMonitor : IDisposable
         }
     }
 
+    internal long ContentVersion { get { lock (_gate) return _version; } }
     internal long CurrentGeneration => Interlocked.Read(ref _generation);
     public IReadOnlyList<DirectoryChange> GetRecentChanges()
     {

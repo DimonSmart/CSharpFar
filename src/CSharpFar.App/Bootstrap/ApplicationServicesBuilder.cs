@@ -363,6 +363,7 @@ internal static class ApplicationServicesBuilder
             functionKeyBarInputHandler,
             directoryShortcutBarInputHandler,
             new ApplicationQuickViewInputHandler(mouseInputContext));
+        var quickViewContent = new QuickViewContentLoader(effectiveSourceRegistry, pluginUiActions.Post);
         var rendering = RenderingServicesFactory.Create(
             screen,
             terminalScreenMode,
@@ -377,7 +378,7 @@ internal static class ApplicationServicesBuilder
             callbacks,
             effectiveSettings,
             highlightService,
-            fileUsage ?? new UnsupportedFileUsagePlatformService());
+            fileUsage ?? new UnsupportedFileUsagePlatformService(), quickViewContent);
         var terminalSurface = rendering.TerminalSurface;
         var commandLineRenderer = rendering.CommandLineRenderer;
         var renderCoordinator = rendering.RenderCoordinator;
@@ -524,6 +525,7 @@ internal static class ApplicationServicesBuilder
             applicationUiLayers.Dispose();
             directorySizes.Dispose();
             quickViewDirectorySize.Dispose();
+            quickViewContent.Dispose();
             fileUsagePanel.Dispose();
         }
 
@@ -646,7 +648,7 @@ internal static class ApplicationServicesBuilder
                 directorySizes,
                 pluginUiActions,
                 modulePanelOpener.CleanupUnusedTemporarySources,
-                panelLoading.Dispose);
+                () => { quickViewContent.Dispose(); panelLoading.Dispose(); });
 
             commandServices.CommandContext.DrainUiActions = pluginUiActions.Drain;
             return new ApplicationServices

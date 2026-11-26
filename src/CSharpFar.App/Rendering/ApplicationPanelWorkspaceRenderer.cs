@@ -17,19 +17,22 @@ internal sealed class ApplicationPanelWorkspaceRenderer
     private readonly Func<IFileHighlightService?> _highlightService;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
     private readonly PanelDirectorySizeCoordinator? _directorySizes;
+    private readonly QuickViewContentLoader? _quickViewContent;
 
     public ApplicationPanelWorkspaceRenderer(
         Func<CSharpFarPalette> palette,
         PanelController controller,
         Func<IFileHighlightService?> highlightService,
         Func<AppSettingsAlias.PanelOptionsSettings> panelOptions,
-        PanelDirectorySizeCoordinator? directorySizes = null)
+        PanelDirectorySizeCoordinator? directorySizes = null,
+        QuickViewContentLoader? quickViewContent = null)
     {
         _palette = palette;
         _controller = controller;
         _highlightService = highlightService;
         _panelOptions = panelOptions;
         _directorySizes = directorySizes;
+        _quickViewContent = quickViewContent;
     }
 
     public ApplicationPanelWorkspaceFrame Render(
@@ -74,6 +77,7 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         ApplicationQuickViewFrame? quickViewFrame = null;
         ApplicationFileUsageFrame? fileUsageFrame = null;
 
+        if (!quickView || fileUsage) _quickViewContent?.Update(null);
         if (fileUsage)
         {
             var renderer = new FileUsageRenderer(canvas, palette, renderHoverMarquee);
@@ -112,6 +116,16 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         return new ApplicationPanelWorkspaceFrame(leftBounds, rightBounds, panelHeight, leftFrame, rightFrame, quickViewFrame, fileUsageFrame);
     }
 
+    private QuickViewContent? GetQuickViewContent(FilePanelItem? item, DirectorySummaryMonitor? monitor, long revision)
+    {
+        if (monitor is { IsEnabled: true, HistoryRoot: { } root })
+        {
+            item = new FilePanelItem { Name = Path.GetFileName(root), FullPath = root, IsDirectory = true };
+            revision = monitor.ContentVersion;
+        }
+        return _quickViewContent?.Update(item, revision);
+    }
+
     private (ApplicationPanelFrame? Left, ApplicationPanelFrame? Right, ApplicationQuickViewFrame? QuickView) RenderQuickView(
         PanelRenderer panelRenderer,
         QuickViewRenderer quickViewRenderer,
@@ -142,7 +156,8 @@ internal sealed class ApplicationPanelWorkspaceRenderer
                 quickViewDirState,
                 monitor,
                 selectedChangeId,
-                quickViewIsBackgroundUpdating, firstVisibleQuickViewChangeIndex, recentChanges);
+                quickViewIsBackgroundUpdating, firstVisibleQuickViewChangeIndex, recentChanges,
+                GetQuickViewContent(item, monitor, left.ContentRevision));
         }
         else
         {
@@ -153,7 +168,8 @@ internal sealed class ApplicationPanelWorkspaceRenderer
                 quickViewDirState,
                 monitor,
                 selectedChangeId,
-                quickViewIsBackgroundUpdating, firstVisibleQuickViewChangeIndex, recentChanges);
+                quickViewIsBackgroundUpdating, firstVisibleQuickViewChangeIndex, recentChanges,
+                GetQuickViewContent(item, monitor, right.ContentRevision));
             rightFrame = panelRenderer.Render(rightBounds, right, true, PanelSide.Right, rightViewMode);
         }
 

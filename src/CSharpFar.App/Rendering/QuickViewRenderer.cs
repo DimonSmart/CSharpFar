@@ -39,7 +39,8 @@ internal sealed class QuickViewRenderer
         long? selectedChangeId = null,
         bool isBackgroundUpdating = false,
         int firstVisibleChangeIndex = 0,
-        RoutedScrollableList<DirectoryChange>? recentChanges = null)
+        RoutedScrollableList<DirectoryChange>? recentChanges = null,
+        QuickViewContent? content = null)
     {
         _screen.FillRegion(bounds, _fillStyle);
         _screen.DrawDoubleBox(bounds, _borderStyle);
@@ -68,9 +69,9 @@ internal sealed class QuickViewRenderer
         }
 
         if (item.IsDirectory)
-            return RenderDirectory(item, bounds.X + 1, contentTop, innerWidth, visRows, dirSizeState, monitor, selectedChangeId, isBackgroundUpdating, firstVisibleChangeIndex, recentChanges);
+            return RenderDirectory(item, bounds.X + 1, contentTop, innerWidth, visRows, dirSizeState, monitor, selectedChangeId, isBackgroundUpdating, firstVisibleChangeIndex, recentChanges, content);
         else
-            RenderFile(item, bounds.X + 1, contentTop, innerWidth, visRows);
+            RenderFile(content, bounds.X + 1, contentTop, innerWidth, visRows);
         return new ApplicationQuickViewFrame(bounds, null, []);
     }
 
@@ -87,9 +88,10 @@ internal sealed class QuickViewRenderer
         long? selectedChangeId,
         bool isBackgroundUpdating,
         int firstVisibleChangeIndex,
-        RoutedScrollableList<DirectoryChange>? recentChanges)
+        RoutedScrollableList<DirectoryChange>? recentChanges,
+        QuickViewContent? content)
     {
-        var (summaryRows, errorRows) = BuildDirectoryRows(item, w, dirSizeState, isBackgroundUpdating);
+        var (summaryRows, errorRows) = BuildDirectoryRows(item, w, dirSizeState, isBackgroundUpdating, content);
         var hits = new List<ApplicationQuickViewChangeHit>();
         int rowIndex = 0;
         foreach (string row in summaryRows.Take(visRows))
@@ -105,6 +107,7 @@ internal sealed class QuickViewRenderer
 
         Rect? monitorToggleBounds = null;
         long? normalizedSelectedChangeId = null;
+        if (item.SourceId != PanelSourceId.Local) monitor = null;
         bool showRecentChanges = monitor is not null && (monitor.IsEnabled || monitor.IsHistoryFor(item.FullPath));
         if (monitor is not null && rowIndex < visRows)
         {
@@ -170,43 +173,33 @@ internal sealed class QuickViewRenderer
             : visibleChangeIds.Count > 0 ? visibleChangeIds[^1] : null;
 
     private static (List<string> Rows, List<string> ErrorRows) BuildDirectoryRows(
-        FilePanelItem item, int w, DirectorySizeState? dirSizeState, bool isBackgroundUpdating)
+        FilePanelItem item, int w, DirectorySizeState? dirSizeState, bool isBackgroundUpdating, QuickViewContent? content)
     {
         var rows = new List<string>();
 
-        DirectoryInfo? di = null;
-        try { di = new DirectoryInfo(item.FullPath); } catch { }
 
         rows.Add(TruncatePath(item.FullPath, w));
         rows.Add(string.Empty);
 
-        if (di != null && di.Exists)
+        if (content is { Error: null })
         {
-            rows.Add(Label("Created", di.CreationTime.ToString("yyyy-MM-dd  HH:mm:ss"), w));
-            rows.Add(Label("Modified", di.LastWriteTime.ToString("yyyy-MM-dd  HH:mm:ss"), w));
-            rows.Add(Label("Accessed", di.LastAccessTime.ToString("yyyy-MM-dd  HH:mm:ss"), w));
+            rows.Add(Label("Created", content.Created?.ToString("yyyy-MM-dd  HH:mm:ss") ?? "—", w));
+            rows.Add(Label("Modified", content.Modified?.ToString("yyyy-MM-dd  HH:mm:ss") ?? "—", w));
+            rows.Add(Label("Accessed", content.Accessed?.ToString("yyyy-MM-dd  HH:mm:ss") ?? "—", w));
             rows.Add(string.Empty);
 
-            int files = 0, dirs = 0;
-            try
-            {
-                files = Directory.GetFiles(item.FullPath).Length;
-                dirs = Directory.GetDirectories(item.FullPath).Length;
-            }
-            catch { }
-
-            rows.Add(Label("Files", files.ToString(), w));
-            rows.Add(Label("Directories", dirs.ToString(), w));
+            rows.Add(Label("Files", content.Files.ToString(), w));
+            rows.Add(Label("Directories", content.Directories.ToString(), w));
             rows.Add(string.Empty);
 
-            string sizeText = dirSizeState is null
+            string sizeText = item.SourceId != PanelSourceId.Local ? "Not calculated" : dirSizeState is null
                 ? "Calculating\u2026"
                 : dirSizeState.IsCompleted
                     ? FormatSize(dirSizeState.Size) + (isBackgroundUpdating ? "  (updating…)" : string.Empty)
                     : FormatSize(dirSizeState.Size) + "  (scanning\u2026)";
             rows.Add(Label("Total size", sizeText, w));
 
-            string attrs = FormatAttributes(di.Attributes);
+            string attrs = FormatAttributes(content.Attributes);
             if (attrs.Length > 0)
             {
                 rows.Add(string.Empty);
@@ -215,7 +208,7 @@ internal sealed class QuickViewRenderer
         }
         else
         {
-            rows.Add("Access denied");
+            rows.Add(content?.Error ?? "Loading…");
         }
 
         var errorRows = new List<string>();
@@ -262,40 +255,21 @@ internal sealed class QuickViewRenderer
 
     // ── file ──────────────────────────────────────────────────────────────────
 
-    private void RenderFile(FilePanelItem item, int x, int y, int w, int visRows)
+    private void RenderFile(QuickViewContent? content, int x, int y, int w, int visRows)
     {
-        long size;
-        try { size = new FileInfo(item.FullPath).Length; }
-        catch { size = 0; }
-
-        bool isText = TextFileInfo.IsTextFile(item.FullPath);
-
-        // Reserve bottom section (separator + info rows) for text files
-        const int infoRows = 2; // BOM/line-ending row + (app row on the separator line itself)
-        int textRows = (isText && visRows > infoRows + 1) ? visRows - infoRows - 1 : visRows;
-
-        if (size > TextFileReader.MaxFileSizeBytes)
+        if (content is null || content.Error is not null)
         {
-            WriteRow(x, y, "File is too large to preview", w);
+            WriteRow(x, y, content?.Error ?? "Loading…", w);
+            return;
         }
-        else
-        {
-            string[] lines;
-            try { lines = TextFileReader.ReadLines(item.FullPath); }
-            catch { lines = ["Cannot read file"]; }
-
-            for (int i = 0; i < textRows; i++)
-            {
-                string text = i < lines.Length ? RenderableLine(lines[i], w) : string.Empty;
-                WriteRow(x, y + i, text, w);
-            }
-        }
-
-        if (!isText || visRows <= infoRows + 1) return;
-
-        TextFileInfo info;
-        try { info = TextFileInfo.Read(item.FullPath); }
-        catch { return; }
+        const int infoRows = 2;
+        bool showInfo = content.TextInfo is not null && visRows > infoRows + 1;
+        int textRows = showInfo ? visRows - infoRows - 1 : visRows;
+        var lines = content.Lines ?? [];
+        for (int i = 0; i < textRows; i++)
+            WriteRow(x, y + i, i < lines.Length ? RenderableLine(lines[i], w) : string.Empty, w);
+        if (!showInfo) return;
+        TextFileInfo info = content.TextInfo!;
 
         // Separator with associated app name centred on it
         int sepY = y + textRows;

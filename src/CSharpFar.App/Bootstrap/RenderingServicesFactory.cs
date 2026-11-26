@@ -33,14 +33,14 @@ internal static class RenderingServicesFactory
         ApplicationServiceCallbacks callbacks,
         AppSettingsAlias settings,
         IFileHighlightService? highlightService,
-        IFileUsagePlatformService fileUsage)
+        IFileUsagePlatformService fileUsage, QuickViewContentLoader quickViewContent)
     {
         var panelWorkspaceRenderer = new ApplicationPanelWorkspaceRenderer(
             () => session.App.Palette,
             controller,
             () => highlightService,
             () => callbacks.PanelOptions(),
-            directorySizes);
+            directorySizes, quickViewContent);
         var clockRenderer = new ClockRenderer(() => session.App.Palette);
         var functionKeyBarRenderer = new ApplicationFunctionKeyBarRenderer(
             functionKeyBindingProvider.GetBindings(),

@@ -76,7 +76,7 @@ public class QuickViewRendererTests : IDisposable
                 new Rect(0, 0, 40, 16),
                 item,
                 new DirectorySizeState(100, true, []),
-                isBackgroundUpdating: true));
+                isBackgroundUpdating: true, content: QuickViewContent.ReadLocal(item)));
 
         Assert.Contains("100 bytes", ContentRow(9));
         Assert.Contains("updating", ContentRow(9));
@@ -127,7 +127,7 @@ public class QuickViewRendererTests : IDisposable
         ApplicationQuickViewFrame? tallFrame = null;
 
         UiTestRender.Render(tallScreen, canvas =>
-            tallFrame = new QuickViewRenderer(canvas).Render(new Rect(0, 0, 40, 40), item, monitor: monitor));
+            tallFrame = new QuickViewRenderer(canvas).Render(new Rect(0, 0, 40, 40), item, content: QuickViewContent.ReadLocal(item), monitor: monitor));
 
         Assert.NotNull(tallFrame);
         Assert.True(tallFrame.ChangeHits.Count > 10);
@@ -135,7 +135,7 @@ public class QuickViewRendererTests : IDisposable
 
         ApplicationQuickViewFrame? smallFrame = null;
         UiTestRender.Render(_screen, canvas =>
-            smallFrame = new QuickViewRenderer(canvas).Render(_bounds, item, monitor: monitor));
+            smallFrame = new QuickViewRenderer(canvas).Render(_bounds, item, content: QuickViewContent.ReadLocal(item), monitor: monitor));
 
         Assert.NotNull(smallFrame);
         Assert.True(smallFrame.ChangeHits.Count < tallFrame.ChangeHits.Count);
@@ -153,7 +153,7 @@ public class QuickViewRendererTests : IDisposable
         ApplicationQuickViewFrame? frame = null;
 
         UiTestRender.Render(_screen, canvas =>
-            frame = new QuickViewRenderer(canvas).Render(new Rect(0, 0, 40, 16), item, monitor: monitor, firstVisibleChangeIndex: 10));
+            frame = new QuickViewRenderer(canvas).Render(new Rect(0, 0, 40, 16), item, content: QuickViewContent.ReadLocal(item), monitor: monitor, firstVisibleChangeIndex: 10));
 
         Assert.NotNull(frame);
         Assert.NotEmpty(frame.ChangeHits);
@@ -177,7 +177,7 @@ public class QuickViewRendererTests : IDisposable
         var item = new FilePanelItem { Name = "directory", FullPath = _tempDir, IsDirectory = true };
 
         UiTestRender.Render(_screen, canvas =>
-            new QuickViewRenderer(canvas).Render(new Rect(0, 0, 40, 24), item, monitor: monitor));
+            new QuickViewRenderer(canvas).Render(new Rect(0, 0, 40, 24), item, content: QuickViewContent.ReadLocal(item), monitor: monitor));
 
         Assert.Contains("M×5", _driver.GetRegionText(new Rect(0, 0, 40, 24)));
         Assert.Contains("M  single.txt", _driver.GetRegionText(new Rect(0, 0, 40, 24)));
@@ -238,6 +238,7 @@ public class QuickViewRendererTests : IDisposable
             frame = new QuickViewRenderer(canvas).Render(
                 new Rect(0, 0, 40, 16),
                 item,
+                content: QuickViewContent.ReadLocal(item),
                 monitor: monitor,
                 selectedChangeId: controller.SelectedMonitorChangeId));
 
@@ -282,7 +283,7 @@ public class QuickViewRendererTests : IDisposable
         UiTestRender.Render(_screen, canvas =>
         {
             var renderer = new QuickViewRenderer(canvas);
-            renderer.Render(bounds ?? _bounds, item);
+            renderer.Render(bounds ?? _bounds, item, content: item is null || item.IsParentDirectory ? null : QuickViewContent.ReadLocal(item));
         });
     }
 }

@@ -65,7 +65,7 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
             if (_monitor.IsEnabled)
                 return;
 
-            if (item is null || !DirectoryTraversalPolicy.IsEligibleDirectory(item))
+            if (item is null || item.SourceId != PanelSourceId.Local || !DirectoryTraversalPolicy.IsEligibleDirectory(item))
             {
                 LeaveDirectoryView();
                 return;
