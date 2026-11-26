@@ -173,7 +173,7 @@ public sealed class FileOperationSafetyRegressionTests : IDisposable
             {
                 Kind = FileOperationKind.Move,
                 Sources = [PanelLocation.Local(Path.Combine(source, "a.txt")), PanelLocation.Local(Path.Combine(source, "b.txt"))],
-                Destination = destination is null ? null : PanelLocation.Local(destination),
+                Destination = PanelLocation.Local(destination),
                 Options = new FileOperationOptions(),
             }, null, resolver);
 

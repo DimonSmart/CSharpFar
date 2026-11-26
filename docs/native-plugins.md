@@ -158,7 +158,7 @@ Manifest API version 2 requires the SDK 2.x assemblies (assembly version 2.0.0.0
 
 The CI check `eng/testing/verify-plugin-sdk-compatibility.ps1` builds the
 initial SDK contract from the pinned Git commit
-`354507c74d299d23a71e9092671634c8476ec333` (SDK 2; SDK 1 baseline remains `6d9873abc0c855d93325d5227b34fe6f8eabadb8`) and compares both assemblies
+`d36124662dc578fcb7110a3f35bbec249f9e2246` (SDK 2; SDK 1 baseline remains `6d9873abc0c855d93325d5227b34fe6f8eabadb8`) and compares both assemblies
 with `Microsoft.DotNet.ApiCompat.Tool`. This is an API compatibility check,
 not a guarantee about every runtime behavior. Keep the old baseline intact for
 binary-compatible releases; do not suppress breaking changes by silently moving
