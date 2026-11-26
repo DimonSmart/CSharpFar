@@ -39,7 +39,7 @@ internal sealed partial class FileEditor
     private bool _persistentSelection;
     private IFilePanelSource? _activeSource;
     private string? _activeSourcePath;
-    private Task? _pendingProviderSave;
+    private Task<EditorFileService.SaveResult>? _pendingProviderSave;
     private bool _closeAfterProviderSave;
 
     internal FileEditor(
@@ -121,43 +121,71 @@ internal sealed partial class FileEditor
             return;
         }
 
-        var source = _sourceRegistry?.GetSource(location.SourceId)
-                     ?? throw new InvalidOperationException($"Panel source '{location.SourceId}' is not registered.");
-
-        if (_fileService.RequiresSizeWarning(source, location.SourcePath) &&
-            !_dialogs.Confirm(
-                "Editor",
-                $"File is larger than the editor warning limit ({_settings.FileSizeLimitBytes / 1024 / 1024} MB).",
-                "Open anyway?"))
+        if (_sourceRegistry is null ||
+            !_sourceRegistry.TryAcquireUsage(location.SourceId, out var source, out var sessionLease))
         {
+            _dialogs.Message("Editor", $"Panel source '{location.SourceId}' is not registered.");
             return;
         }
 
-        EditorSession session;
-        try
+        using (sessionLease)
         {
-            session = _fileService.Load(source, location.SourcePath, location.SourcePath, newFileFormat);
-        }
-        catch (Exception ex)
-        {
-            _dialogs.Message("Editor", ex.Message);
-            return;
-        }
+            EditorSession? session;
+            try
+            {
+                var warning = RunOpenOperation("Reading file metadata", async ct =>
+                {
+                    using var lease = _sourceRegistry.AcquireUsage(location.SourceId);
+                    return await _fileService.RequiresSizeWarningAsync(source, location.SourcePath, ct).ConfigureAwait(false);
+                });
+                if (warning && !_dialogs.Confirm("Editor",
+                        $"File is larger than the editor warning limit ({_settings.FileSizeLimitBytes / 1024 / 1024} MB).",
+                        "Open anyway?"))
+                    return;
 
-        _activeSource = source;
-        _activeSourcePath = location.SourcePath;
-        try
-        {
-            session.RaiseOpened();
-            RunLoop(session);
-        }
-        finally
-        {
-            session.RaiseClosed();
-            _activeSource = null;
-            _activeSourcePath = null;
+                session = RunOpenOperation("Opening editor", async ct =>
+                {
+                    using var lease = _sourceRegistry.AcquireUsage(location.SourceId);
+                    return await _fileService.LoadAsync(source, location.SourcePath, location.SourcePath, newFileFormat, ct).ConfigureAwait(false);
+                });
+            }
+            catch (OperationCanceledException) { return; }
+            catch (Exception ex)
+            {
+                _dialogs.Message("Editor", ex.Message);
+                return;
+            }
+
+            _activeSource = source;
+            _activeSourcePath = location.SourcePath;
+            try
+            {
+                session.RaiseOpened();
+                RunLoop(session);
+            }
+            finally
+            {
+                session.RaiseClosed();
+                _activeSource = null;
+                _activeSourcePath = null;
+            }
         }
     }
+
+    private T RunOpenOperation<T>(string title, Func<CancellationToken, Task<T>> operation) =>
+        _dialogs.Operation<string, T, T>(new OperationDialogDefinition<string, T, T>
+        {
+            Title = title,
+            PreferredWidth = 54,
+            PreferredHeight = 8,
+            MinWidth = 30,
+            MinHeight = 8,
+            Operation = operation,
+            Synchronize = () => new OperationDialogState<string>(status: title + "... (Esc to cancel)"),
+            HandleCancel = () => throw new OperationCanceledException(),
+            HandleOperationCompleted = value => OperationDialogOutcome<T>.Complete(value),
+            Complete = value => value,
+        });
 
     private void RunLoop(EditorSession session)
     {
@@ -198,11 +226,12 @@ internal sealed partial class FileEditor
                     if (completed.IsFaulted || completed.IsCanceled)
                     {
                         string message = completed.Exception?.GetBaseException().Message ??
-                            "The archive save was cancelled.";
+                            "The file save was cancelled.";
                         _dialogs.Message("Save Error", message);
                     }
                     else
                     {
+                        EditorFileService.ApplySaveResult(session, completed.GetAwaiter().GetResult());
                         if (session.LastSaveWarning is { } warning)
                             _dialogs.Message("Save Warning", warning);
                         if (close)
@@ -653,16 +682,8 @@ internal sealed partial class FileEditor
         {
             if (_activeSource is not null && _activeSourcePath is not null)
             {
-                if (_activeSource is IFileOperationBatchProvider)
-                {
-                    // A modal surface cannot synchronously wait for lengthy archive
-                    // compression. Run the existing async save and observe its
-                    // completion on the surface wake callback, without blocking UI.
-                    _pendingProviderSave = _fileService.SaveAsync(
-                        session, _activeSource, _activeSourcePath);
-                    return false;
-                }
-                _fileService.Save(session, _activeSource, _activeSourcePath);
+                _pendingProviderSave = _fileService.WriteAsync(session, _activeSource, _activeSourcePath);
+                return false;
             }
             else
             {
