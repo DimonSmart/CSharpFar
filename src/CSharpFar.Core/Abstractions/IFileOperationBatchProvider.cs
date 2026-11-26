@@ -19,6 +19,8 @@ public interface IFileOperationBatchProvider
 /// </summary>
 public interface IFileOperationBatch : IFilePanelSource, IAsyncDisposable
 {
+    /// <summary>Observe cancellation before final publication. Once publication begins,
+    /// finish it or recover; do not report cancellation after a successful commit.</summary>
     Task CommitAsync(CancellationToken cancellationToken = default);
     Task AbortAsync(CancellationToken cancellationToken = default);
 }

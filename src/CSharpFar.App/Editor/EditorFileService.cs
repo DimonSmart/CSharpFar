@@ -40,12 +40,14 @@ public sealed class EditorFileService
 
     public EditorSession Load(string filePath, EditorDocumentFormat? newFileFormat = null)
     {
+        var destinationVersion = SafeLocalFilePublisher.CaptureDestination(Path.GetFullPath(filePath));
         if (!File.Exists(filePath))
         {
             var initialFormat = newFileFormat ?? CreateDefaultNewFileFormat(_settings);
             var newFileDocument = new EditorDocument(EditorTextBuffer.FromText(string.Empty), initialFormat);
             newFileDocument.MarkClean();
-            return new EditorSession(filePath, newFileDocument, _settings, readOnly: false);
+            return new EditorSession(filePath, newFileDocument, _settings, readOnly: false)
+            { HasDestinationVersion = true, LocalDestinationVersion = destinationVersion };
         }
 
         byte[] sample = ReadSample(filePath);
@@ -69,7 +71,10 @@ public sealed class EditorFileService
 
         bool readOnly = File.GetAttributes(filePath).HasFlag(FileAttributes.ReadOnly) &&
             _settings.OpenReadOnlyFilesReadOnly;
-        return new EditorSession(filePath, document, _settings, readOnly);
+        if (SafeLocalFilePublisher.CaptureDestination(Path.GetFullPath(filePath)) != destinationVersion)
+            throw new IOException("The file changed while being opened.");
+        return new EditorSession(filePath, document, _settings, readOnly)
+        { HasDestinationVersion = true, LocalDestinationVersion = destinationVersion };
     }
 
     public EditorSession Load(
@@ -86,7 +91,8 @@ public sealed class EditorFileService
             var initialFormat = newFileFormat ?? CreateDefaultNewFileFormat(_settings);
             var newFileDocument = new EditorDocument(EditorTextBuffer.FromText(string.Empty), initialFormat);
             newFileDocument.MarkClean();
-            return new EditorSession(displayPath, newFileDocument, _settings, readOnly: false);
+            return new EditorSession(displayPath, newFileDocument, _settings, readOnly: false)
+            { HasDestinationVersion = true, ProviderDestinationVersion = null };
         }
 
         if (item.IsDirectory)
@@ -120,16 +126,20 @@ public sealed class EditorFileService
 
         bool readOnly = item.Attributes.HasFlag(FileAttributes.ReadOnly) &&
             _settings.OpenReadOnlyFilesReadOnly;
-        return new EditorSession(displayPath, document, _settings, readOnly);
+        return new EditorSession(displayPath, document, _settings, readOnly)
+        { HasDestinationVersion = true, ProviderDestinationVersion = item };
     }
 
     public void Save(EditorSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
         EnsureWritable(session);
-        string? warning = SafeFileWriteService.WriteLocalAsync(session.FilePath, Encode(session))
+        var expected = session.HasDestinationVersion ? session.LocalDestinationVersion :
+            SafeLocalFilePublisher.CaptureDestination(Path.GetFullPath(session.FilePath));
+        string? warning = SafeFileWriteService.WriteLocalAsync(session.FilePath, Encode(session), expected)
             .GetAwaiter().GetResult();
-        CompleteSave(session, warning);
+        CompleteSave(session, warning, () => session.LocalDestinationVersion =
+            SafeLocalFilePublisher.CaptureDestination(Path.GetFullPath(session.FilePath)));
     }
 
     public void Save(EditorSession session, IFilePanelSource source, string sourcePath) =>
@@ -142,15 +152,20 @@ public sealed class EditorFileService
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(source);
         EnsureWritable(session);
+        var expected = session.HasDestinationVersion ? session.ProviderDestinationVersion :
+            source.GetItem(sourcePath, cancellationToken);
         string? warning = await SafeFileWriteService.WriteDocumentAsync(
-            source, sourcePath, Encode(session), cancellationToken).ConfigureAwait(false);
-        CompleteSave(session, warning);
+            source, sourcePath, Encode(session), expected, cancellationToken).ConfigureAwait(false);
+        CompleteSave(session, warning, () => session.ProviderDestinationVersion =
+            source.GetItem(sourcePath, CancellationToken.None));
     }
 
     private static void EnsureWritable(EditorSession session)
     {
         if (session.ReadOnly)
             throw new IOException("The file is opened read-only.");
+        if (session.DestinationVersionInvalid)
+            throw new IOException("Cannot verify the saved file version. Reopen the document before saving again.");
     }
 
     private static byte[] Encode(EditorSession session)
@@ -160,8 +175,20 @@ public sealed class EditorFileService
         return [.. encoding.GetPreamble(), .. content];
     }
 
-    private static void CompleteSave(EditorSession session, string? warning)
+    private static void CompleteSave(EditorSession session, string? warning, Action refreshVersion)
     {
+        try
+        {
+            refreshVersion();
+            session.HasDestinationVersion = true;
+        }
+        catch (Exception refresh)
+        {
+            session.DestinationVersionInvalid = true;
+            warning = string.Join(Environment.NewLine, new[] { warning,
+                "File saved, but the destination version could not be refreshed: " + refresh.Message }
+                .Where(message => message is not null));
+        }
         session.LastSaveWarning = warning;
         session.Document.MarkClean();
         session.RaiseSaved();

@@ -60,7 +60,16 @@ public static class SafeLocalFilePublisher
     }
 
     // A non-null return value is a retained backup that could not be cleaned up.
-    internal static string? Publish(string staging, string destination)
+    internal sealed record PublicationOperations
+    {
+        internal Action<string, string, string> Replace { get; init; } = (source, target, backup) => File.Replace(source, target, backup);
+        internal Action<string, string> Move { get; init; } = File.Move;
+        internal Action<string> Delete { get; init; } = File.Delete;
+    }
+
+    internal static string? Publish(string staging, string destination) => Publish(staging, destination, new PublicationOperations());
+
+    internal static string? Publish(string staging, string destination, PublicationOperations operations)
     {
         if (Directory.Exists(destination) ||
             (PathExists(destination) && (File.GetAttributes(destination) & FileAttributes.Directory) != 0))
@@ -83,14 +92,14 @@ public static class SafeLocalFilePublisher
         // original stays at the known backup path until commit succeeds.
         if (OperatingSystem.IsWindows() &&
             (File.GetAttributes(destination) & FileAttributes.ReadOnly) != 0)
-            return PublishReadOnlyWindowsFile(staging, destination, backup);
+            return PublishReadOnlyWindowsFile(staging, destination, backup, operations);
 
-        try { File.Replace(staging, destination, backup); }
+        try { operations.Replace(staging, destination, backup); }
         catch (Exception error)
         {
             if (PathExists(backup))
             {
-                try { File.Move(backup, destination); }
+                try { operations.Move(backup, destination); }
                 catch (Exception rollback)
                 {
                     throw new IOException($"Publication and rollback failed for '{destination}'. Original backup: '{backup}'.",
@@ -100,20 +109,20 @@ public static class SafeLocalFilePublisher
             throw new IOException($"Publication failed for '{destination}'; previous destination preserved.", error);
         }
 
-        try { File.Delete(backup); return null; }
+        try { operations.Delete(backup); return null; }
         catch (IOException) { return backup; }
         catch (UnauthorizedAccessException) { return backup; }
     }
-    private static string? PublishReadOnlyWindowsFile(string staging, string destination, string backup)
+    private static string? PublishReadOnlyWindowsFile(string staging, string destination, string backup, PublicationOperations operations)
     {
-        File.Move(destination, backup);
+        operations.Move(destination, backup);
         try
         {
-            File.Move(staging, destination);
+            operations.Move(staging, destination);
         }
         catch (Exception error)
         {
-            try { File.Move(backup, destination); }
+            try { operations.Move(backup, destination); }
             catch (Exception restoreError)
             {
                 throw new IOException(
@@ -131,7 +140,7 @@ public static class SafeLocalFilePublisher
         try
         {
             File.SetAttributes(backup, File.GetAttributes(backup) & ~FileAttributes.ReadOnly);
-            File.Delete(backup);
+            operations.Delete(backup);
             return null;
         }
         catch (IOException) { return backup; }

@@ -6,33 +6,48 @@ namespace CSharpFar.FileSystem;
 /// <summary>Shared publication boundary for complete file contents and provider batches.</summary>
 public static class SafeFileWriteService
 {
-    public static async Task<string?> WriteLocalAsync(string path, byte[] bytes,
-        CancellationToken cancellationToken = default)
+    public static Task<string?> WriteLocalAsync(string path, byte[] bytes,
+        CancellationToken cancellationToken = default) =>
+        WriteLocalAsync(path, bytes, SafeLocalFilePublisher.CaptureDestination(Path.GetFullPath(path)), cancellationToken);
+
+    public static Task<string?> WriteLocalAsync(string path, byte[] bytes,
+        SafeLocalFilePublisher.DestinationSnapshot? expected, CancellationToken cancellationToken = default)
     {
         path = Path.GetFullPath(path);
-        var expected = SafeLocalFilePublisher.CaptureDestination(path);
         if (expected is { } existing && (existing.Attributes & FileAttributes.ReadOnly) != 0)
             throw new IOException("The file is read-only.");
+        return WriteLocalContentsAsync(path, expected, bytes.LongLength,
+            stream => WriteBytesAsync(stream, bytes, cancellationToken), false, cancellationToken);
+    }
+
+    private static async Task<string?> WriteLocalContentsAsync(string path,
+        SafeLocalFilePublisher.DestinationSnapshot? expected, long? expectedLength,
+        Func<Stream, Task<long>> write, bool keepPartial, CancellationToken cancellationToken,
+        Func<string, string, string?>? replaceLocal = null, Action<string, string>? createLocal = null)
+    {
+        if (SafeLocalFilePublisher.CaptureDestination(path) != expected)
+            throw new IOException($"Destination changed before writing: '{path}'.");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         string staging = SafeLocalFilePublisher.CreateStagingPath(path);
         bool owned = false;
         try
         {
+            long written;
             await using (var stream = new FileStream(staging, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
                 owned = true;
-                await stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
+                written = await write(stream).ConfigureAwait(false);
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
-            if (new FileInfo(staging).Length != bytes.LongLength)
+            if ((expectedLength is long length && length != written) || new FileInfo(staging).Length != written)
                 throw new IOException($"Incomplete write to '{staging}'.");
             cancellationToken.ThrowIfCancellationRequested();
-            string? backup = SafeLocalFilePublisher.PublishChecked(staging, path, expected);
-            return backup is null ? null : $"File saved, but backup cleanup failed: {backup}";
+            string? backup = SafeLocalFilePublisher.PublishChecked(staging, path, expected, replaceLocal, createLocal);
+            return backup is null ? null : $"File published, but backup cleanup failed: {backup}";
         }
         catch (Exception error)
         {
-            if (owned)
+            if (owned && !keepPartial)
             {
                 try { SafeLocalFilePublisher.DeleteStagingPath(staging); }
                 catch (Exception cleanup)
@@ -41,15 +56,26 @@ public static class SafeFileWriteService
                         new AggregateException(error, cleanup));
                 }
             }
+            if (owned && keepPartial)
+                throw PartialFailure(staging, error, cancellationToken);
             throw;
         }
     }
 
+    private static Exception PartialFailure(string staging, Exception error, CancellationToken cancellationToken) =>
+        error is OperationCanceledException
+            ? new OperationCanceledException($"Partial data retained at '{staging}'.", error, cancellationToken)
+            : new IOException($"Write failed; partial data retained at '{staging}'.", error);
+
+    public static Task<string?> WriteDocumentAsync(IFilePanelSource source, string path,
+        byte[] bytes, CancellationToken cancellationToken = default) =>
+        WriteDocumentAsync(source, path, bytes, source.GetItem(path, cancellationToken), cancellationToken);
+
     public static async Task<string?> WriteDocumentAsync(IFilePanelSource source, string path,
-        byte[] bytes, CancellationToken cancellationToken = default)
+        byte[] bytes, FilePanelItem? expected, CancellationToken cancellationToken = default)
     {
-        if (source.SourceId == PanelSourceId.Local)
-            return await WriteLocalAsync(source.NormalizePath(path), bytes, cancellationToken).ConfigureAwait(false);
+        if (expected is not null && (expected.IsDirectory || expected.Attributes.HasFlag(FileAttributes.ReadOnly)))
+            throw new IOException("The destination is a directory or read-only.");
 
         Task<long> Write(Stream stream) => WriteBytesAsync(stream, bytes, cancellationToken);
         if (source is IFileOperationBatchProvider batching)
@@ -58,15 +84,12 @@ public static class SafeFileWriteService
             var plan = new FileOperationPlan([new FileOperationPlanItem(location, location, false)]);
             return await ExecuteBatchAsync(batching, plan, async batch =>
             {
-                var existing = batch.GetItem(path, cancellationToken);
-                if (existing is not null && (existing.IsDirectory || existing.Attributes.HasFlag(FileAttributes.ReadOnly)))
-                    throw new IOException("The destination is a directory or read-only.");
-                await WriteProviderAsync(batch, path, existing, bytes.LongLength, Write,
+                await WriteProviderAsync(batch, path, expected, bytes.LongLength, Write,
                     keepPartial: false, cancellationToken).ConfigureAwait(false);
             }, cancellationToken).ConfigureAwait(false);
         }
 
-        return await WriteProviderAsync(source, path, source.GetItem(path, cancellationToken),
+        return await WriteProviderAsync(source, path, expected,
             bytes.LongLength, Write, keepPartial: false, cancellationToken).ConfigureAwait(false);
     }
 
@@ -84,7 +107,7 @@ public static class SafeFileWriteService
     internal static async Task<string?> WriteProviderAsync(IFilePanelSource source, string path,
         FilePanelItem? expected, long? expectedLength, Func<Stream, Task<long>> write,
         bool keepPartial, CancellationToken cancellationToken,
-        Func<string, string, string?>? replaceLocal = null)
+        Func<string, string, string?>? replaceLocal = null, Action<string, string>? createLocal = null)
     {
         bool batch = source is IFileOperationBatch;
         bool local = !batch && source.SourceId == PanelSourceId.Local;
@@ -94,8 +117,20 @@ public static class SafeFileWriteService
         if (!SameDestination(expected, source.GetItem(path, cancellationToken)))
             throw new IOException($"Destination changed before writing: '{path}'.");
 
-        var localExpected = local ? SafeLocalFilePublisher.CaptureDestination(path) : null;
-        string staging = batch ? path : local ? SafeLocalFilePublisher.CreateStagingPath(path) :
+        if (local)
+        {
+            path = source.NormalizePath(path);
+            var localExpected = SafeLocalFilePublisher.CaptureDestination(path);
+            if ((expected is null) != (localExpected is null) ||
+                (expected is not null && localExpected is { } version &&
+                    (expected.Size != version.Length || expected.LastWriteTime.ToUniversalTime() != version.LastWriteTimeUtc ||
+                     expected.Attributes != version.Attributes)))
+                throw new IOException($"Destination changed before writing: '{path}'.");
+            return await WriteLocalContentsAsync(path, localExpected, expectedLength, write, keepPartial,
+                cancellationToken, replaceLocal, createLocal).ConfigureAwait(false);
+        }
+
+        string staging = batch ? path :
             source.CombinePath(source.GetParentPath(path) ?? throw new IOException("No destination directory."),
                 $".{source.GetFileName(path)}.csharpfar-{Guid.NewGuid():N}.tmp");
         bool owned = false;
@@ -103,7 +138,7 @@ public static class SafeFileWriteService
         try
         {
             long written;
-            await using (var stream = batch || local
+            await using (var stream = batch
                 ? await source.OpenWriteAsync(staging, batch && expected is not null, cancellationToken).ConfigureAwait(false)
                 : await safe!.OpenStagingWriteAsync(staging, cancellationToken).ConfigureAwait(false))
             {
@@ -119,11 +154,6 @@ public static class SafeFileWriteService
                 throw new IOException($"Staged file verification failed: '{staging}'.");
             cancellationToken.ThrowIfCancellationRequested();
             if (batch) return null;
-            if (local)
-            {
-                string? backup = SafeLocalFilePublisher.PublishChecked(staging, path, localExpected, replaceLocal);
-                return backup is null ? null : $"File published, but backup cleanup failed: {backup}";
-            }
 
             publishing = true;
             await safe!.RenameWithoutOverwriteAsync(staging, path, CancellationToken.None).ConfigureAwait(false);
@@ -156,8 +186,7 @@ public static class SafeFileWriteService
             {
                 try
                 {
-                    if (local) SafeLocalFilePublisher.DeleteStagingPath(staging);
-                    else if (source.GetItem(staging, CancellationToken.None) is not null)
+                    if (source.GetItem(staging, CancellationToken.None) is not null)
                         await source.DeleteAsync(staging, recursive: false, CancellationToken.None).ConfigureAwait(false);
                 }
                 catch (Exception cleanup)
@@ -166,10 +195,8 @@ public static class SafeFileWriteService
                         new AggregateException(error, cleanup));
                 }
             }
-            if (owned && keepPartial && error is OperationCanceledException)
-                throw new OperationCanceledException($"Partial data retained at '{staging}'.", error, cancellationToken);
             if (owned && keepPartial)
-                throw new IOException($"Write failed; partial data retained at '{staging}'.", error);
+                throw PartialFailure(staging, error, cancellationToken);
             throw;
         }
     }
@@ -182,7 +209,7 @@ public static class SafeFileWriteService
         {
             await prepare(batch).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await batch.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+            await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (Exception error)
         {

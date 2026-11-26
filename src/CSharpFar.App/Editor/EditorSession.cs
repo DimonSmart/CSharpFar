@@ -1,4 +1,5 @@
 using CSharpFar.Core.Models;
+using CSharpFar.FileSystem;
 
 namespace CSharpFar.App.Editor;
 
@@ -33,6 +34,10 @@ public sealed class EditorSession
     public EditorSelection? Selection { get; private set; }
     public bool ReadOnly { get; }
     public string? LastSaveWarning { get; internal set; }
+    internal bool HasDestinationVersion { get; set; }
+    internal bool DestinationVersionInvalid { get; set; }
+    internal SafeLocalFilePublisher.DestinationSnapshot? LocalDestinationVersion { get; set; }
+    internal FilePanelItem? ProviderDestinationVersion { get; set; }
     public EditorUndoHistory UndoHistory { get; }
     public EditorSyntaxHighlightCache SyntaxHighlightCache { get; } = new();
     public bool SyntaxHighlightingEnabled { get; private set; }

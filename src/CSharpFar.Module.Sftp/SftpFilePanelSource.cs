@@ -421,6 +421,7 @@ public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource
         private readonly SftpClient _client;
         private readonly Stream _inner;
         private readonly Func<Exception, Exception> _translateException;
+        private bool _disposed;
 
         public ClientOwnedStream(
             SftpClient client,
@@ -506,10 +507,11 @@ public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing)
+            if (disposing && !_disposed)
             {
-                _inner.Dispose();
-                _client.Dispose();
+                _disposed = true;
+                try { _inner.Dispose(); }
+                finally { _client.Dispose(); }
             }
 
             base.Dispose(disposing);
@@ -517,8 +519,10 @@ public sealed class SftpFilePanelSource : IModulePanel, IReusableFilePanelSource
 
         public override async ValueTask DisposeAsync()
         {
-            await _inner.DisposeAsync().ConfigureAwait(false);
-            _client.Dispose();
+            if (_disposed) return;
+            _disposed = true;
+            try { await _inner.DisposeAsync().ConfigureAwait(false); }
+            finally { _client.Dispose(); }
             await base.DisposeAsync().ConfigureAwait(false);
         }
     }

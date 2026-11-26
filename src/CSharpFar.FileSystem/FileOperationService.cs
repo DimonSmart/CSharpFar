@@ -491,7 +491,7 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
                     state.Report(sourcePath, destinationPath, done, sourceItem.Size ?? 0);
                 }
                 return done;
-            }, options.KeepPartialFilesOnError, cancellationToken, _dependencies.PublishLocalFile).ConfigureAwait(false);
+            }, options.KeepPartialFilesOnError, cancellationToken, _dependencies.PublishLocalFile, _dependencies.PublishNewLocalFile).ConfigureAwait(false);
         if (warning is not null) state.AddWarning(destinationPath, warning);
 
         copiedFiles?.Add(sourcePath);
@@ -907,7 +907,11 @@ public sealed partial class FileOperationService : IFileOperationService, IFileO
             state.Report(file.SourcePath, publishedDestination, currentBytes, file.Size);
         }
 
-        await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+        try { await destination.FlushAsync(cancellationToken).ConfigureAwait(false); }
+        catch (Exception ex) when (wrapSourceReadFailures && IsFileAccessException(ex))
+        {
+            throw new CopyRetryableIOException("Write failed", ex);
+        }
         return new CopyAttemptResult(sourceInfo, sourceAttributes);
     }
 
