@@ -13,7 +13,7 @@ namespace CSharpFar.Tests;
 public sealed partial class ApplicationNavigationTests
 {
     [Fact]
-    public void SlowProviderDoesNotBlockOtherPanelResizeOrLogicalPanelSwap()
+    public async Task SlowProviderDoesNotBlockOtherPanelResizeOrLogicalPanelSwap()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir,
@@ -33,9 +33,10 @@ public sealed partial class ApplicationNavigationTests
         var initial = slowPanel.CurrentLocation;
         try
         {
+            int uiThread = Environment.CurrentManagedThreadId;
             app.PanelNavigation.Navigate(slowPanel, new PanelLocation(source.SourceId, "/slow"), true, _ => { });
-            Assert.True(source.Started.Task.Wait(TimeSpan.FromSeconds(10)));
-            Assert.NotEqual(Environment.CurrentManagedThreadId, source.WorkerThread);
+            await source.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.NotEqual(uiThread, source.WorkerThread);
             Assert.True(SpinWait.SpinUntil(() =>
             {
                 app.DrainUiActions();

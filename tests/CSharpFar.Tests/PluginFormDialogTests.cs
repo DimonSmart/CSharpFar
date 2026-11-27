@@ -113,8 +113,8 @@ public sealed class PluginFormDialogTests
         {
             driver.BeforeReadInput = current =>
             {
-                int y = Assert.Single(Enumerable.Range(0, current.GetSize().Height)
-                    .Where(row => current.GetRow(row).Contains("[ Browse ]", StringComparison.Ordinal)));
+                int y = Assert.Single(Enumerable.Range(0, current.GetSize().Height),
+                    row => current.GetRow(row).Contains("[ Browse ]", StringComparison.Ordinal));
                 int x = current.GetRow(y).IndexOf("[ Browse ]", StringComparison.Ordinal) + 4;
                 current.EnqueueInput(new MouseConsoleInputEvent(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
                 current.EnqueueInput(new MouseConsoleInputEvent(x, y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
