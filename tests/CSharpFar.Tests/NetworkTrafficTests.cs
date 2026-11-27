@@ -155,7 +155,7 @@ public sealed class NetworkTrafficTests
         }
         if (tcp && existingSockets) await ConnectTcp();
         var monitor = new WindowsNetworkTrafficMonitor();
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(45));
         var running = Task.Run(() => OperatingSystem.IsWindows() ? monitor.RunAsync(stop.Token) : Task.CompletedTask);
         try
         {
@@ -194,11 +194,20 @@ public sealed class NetworkTrafficTests
                 }
                 await Task.Delay(4, stop.Token);
             }
-            await Task.Delay(8500, stop.Token);
+            // ETW finalizes data after its delivery lag. Poll for the actual
+            // expected result instead of assuming a fixed delay on a loaded runner.
+            var delivery = System.Diagnostics.Stopwatch.StartNew();
             var s = monitor.Snapshot;
+            var own = s.Applications.Where(a => a.Processes.Any(p => p.StartsWith($"{Environment.ProcessId} /"))).ToArray();
+            while (!s.IsDegraded && delivery.Elapsed < TimeSpan.FromSeconds(20) &&
+                (s.ObservedBytes < 2 * 1048576 || own.Sum(a => a.ReceivedBytes + a.SentBytes) < 2 * 1048576))
+            {
+                await Task.Delay(200, stop.Token);
+                s = monitor.Snapshot;
+                own = s.Applications.Where(a => a.Processes.Any(p => p.StartsWith($"{Environment.ProcessId} /"))).ToArray();
+            }
             Assert.False(s.IsDegraded, s.Status);
             Assert.True(s.ObservedBytes >= 2 * 1048576, $"Observed {s.ObservedBytes}: {s.Status}");
-            var own = s.Applications.Where(a => a.Processes.Any(p => p.StartsWith($"{Environment.ProcessId} /"))).ToArray();
             Assert.NotEmpty(own);
             Assert.True(own.Sum(a => a.ReceivedBytes + a.SentBytes) >= 2 * 1048576, $"Attributed {own.Sum(a => a.ReceivedBytes + a.SentBytes)}, Unknown {s.UnknownBytes}");
         }
