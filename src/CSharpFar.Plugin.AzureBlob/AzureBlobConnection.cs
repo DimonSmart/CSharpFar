@@ -66,7 +66,7 @@ internal static class AzureCliSupport
             directories.Insert(0, directory);
             added = true;
         }
-        return new(string.Join(':', directories), executable, added);
+        return new(string.Join(":", directories), executable, added);
     }
 
     internal static AzureCliPathInfo InspectCurrentPath() =>
