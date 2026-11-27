@@ -14,8 +14,8 @@ internal sealed record ExternalPluginDiscovery(
 /// <summary>Only manifested extensions are loaded, after metadata and enablement checks.</summary>
 internal static class ExternalPluginLoader
 {
-    public static ExternalPluginDiscovery Discover(string configDirectory, bool noExtensions = false) =>
-        new ExternalPluginManager(configDirectory, noExtensions).Discover();
+    public static ExternalPluginDiscovery Discover(string configDirectory, bool noExtensions = false, string? developmentRoot = null) =>
+        new ExternalPluginManager(configDirectory, noExtensions, developmentRoot).Discover();
 
     internal static (PluginDescriptor Descriptor, ICSharpFarPlugin Plugin) Load(ExternalPluginEntry entry)
     {

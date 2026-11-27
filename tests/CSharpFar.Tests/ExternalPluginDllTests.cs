@@ -249,6 +249,50 @@ public sealed class ExternalPluginDllTests : IDisposable
         Assert.Contains("temporarily-absent", state);
     }
 
+    [Fact]
+    public void GlobalDisable_PersistsWithoutLosingIndividualChoicesOrLoadingAssemblies()
+    {
+        WriteManifest("one", "one", "Missing", "Missing.Plugin", assemblyName: "Missing.dll");
+        WriteManifest("two", "two", "Missing", "Missing.Plugin", assemblyName: "Missing.dll");
+        var manager = ExternalPluginLoader.Discover(_root, noExtensions: true).Manager;
+        Assert.True(manager.TrySetEnabled(manager.Entries[0], false, out _));
+        Assert.True(manager.TrySetExternalPluginsEnabled(false, out _));
+        Assert.True(manager.GlobalRestartRequired);
+
+        var disabled = ExternalPluginLoader.Discover(_root);
+        Assert.Empty(disabled.Plugins);
+        Assert.Empty(disabled.Errors); // Missing DLLs were not opened.
+        Assert.All(disabled.Manager.Entries, entry => Assert.Equal(ExternalPluginStatus.Disabled, entry.Status));
+        Assert.False(disabled.Manager.ExternalPluginsEnabled);
+        Assert.True(disabled.Manager.TrySetExternalPluginsEnabled(true, out _));
+
+        var restored = ExternalPluginLoader.Discover(_root);
+        Assert.Equal(ExternalPluginStatus.Disabled, restored.Manager.Entries[0].Status);
+        Assert.Equal(ExternalPluginStatus.Error, restored.Manager.Entries[1].Status);
+        Assert.Single(restored.Errors);
+    }
+
+    [Fact]
+    public void DevelopmentPackages_AreDiscoveredWithoutOverwritingUserPackages()
+    {
+        string development = Path.Combine(_root, "development-extensions");
+        WriteManifest("same", "user", "Missing", "Missing.Plugin", assemblyName: "Missing.dll");
+        WriteManifest("other", "other", "Missing", "Missing.Plugin", assemblyName: "Missing.dll");
+        Directory.CreateDirectory(development);
+        Directory.Move(Path.Combine(_root, "extensions", "other"), Path.Combine(development, "other"));
+        Directory.CreateDirectory(Path.Combine(development, "same"));
+        File.WriteAllText(Path.Combine(development, "same", "plugin.json"), "{}");
+
+        var manager = ExternalPluginLoader.Discover(_root, true, development).Manager;
+        Assert.Equal(2, manager.Entries.Count);
+        Assert.Equal("user", manager.Entries.Single(entry => entry.FolderName == "same").Id);
+        var other = manager.Entries.Single(entry => entry.FolderName == "other");
+        Assert.True(manager.TrySetEnabled(other, false, out _));
+        var restarted = ExternalPluginLoader.Discover(_root, false, development);
+        Assert.Equal(ExternalPluginStatus.Disabled,
+            restarted.Manager.Entries.Single(entry => entry.FolderName == "other").Status);
+    }
+
     private NativePluginRuntime CreateRuntime(RecordingUi ui) => new(
         new ApplicationContext(),
         _ => new Settings(_root),
