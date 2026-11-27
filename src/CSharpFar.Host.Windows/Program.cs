@@ -21,6 +21,8 @@ try
 
     if (args is ["--self-test-extensions", var extensionConfig])
         return await ExternalPluginPackageSmokeTest.VerifyAsync(extensionConfig);
+    if (args is ["--self-test-bundled-extensions", var bundledConfig, .. var expectedIds] && expectedIds.Length > 0)
+        return await ExternalPluginPackageSmokeTest.VerifyBundledAsync(bundledConfig, expectedIds);
 
     if (args is ["--self-test"])
     {

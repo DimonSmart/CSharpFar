@@ -37,18 +37,20 @@ internal sealed class ExternalPluginManager
     private readonly string _statePath;
     private readonly bool _noExtensions;
     private readonly string? _developmentRoot;
+    private readonly string? _bundledRoot;
     private readonly List<ExternalPluginEntry> _entries = [];
     private readonly List<string> _errors = [];
     private HashSet<string> _disabled = new(StringComparer.OrdinalIgnoreCase);
     private bool _stateUnavailable;
     private bool _externalPluginsEnabled = true;
 
-    public ExternalPluginManager(string configDirectory, bool noExtensions = false, string? developmentRoot = null)
+    public ExternalPluginManager(string configDirectory, bool noExtensions = false, string? developmentRoot = null, string? bundledRoot = null)
     {
         _configDirectory = configDirectory;
         _statePath = Path.Combine(configDirectory, "extensions-state.json");
         _noExtensions = noExtensions;
         _developmentRoot = developmentRoot;
+        _bundledRoot = bundledRoot;
         try { ReadState(); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
         {
@@ -70,12 +72,17 @@ internal sealed class ExternalPluginManager
     {
         var plugins = new List<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>();
         string root = Path.Combine(_configDirectory, "extensions");
-        // User-installed packages take precedence over development copies with the same folder name.
+        // Higher-priority roots shadow lower ones by folder or manifest ID.
+        // Preserve existing duplicate diagnostics within a single root.
         var directories = GetDirectories(root).ToList();
-        if (_developmentRoot is not null)
+        foreach (string? lowerRoot in new[] { _developmentRoot, _bundledRoot })
         {
-            var installed = directories.Select(path => Path.GetFileName(path)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            directories.AddRange(GetDirectories(_developmentRoot).Where(path => !installed.Contains(Path.GetFileName(path))));
+            if (lowerRoot is null) continue;
+            var folders = directories.Select(path => Path.GetFileName(path)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var ids = directories.Select(TryReadId).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
+            directories.AddRange(GetDirectories(lowerRoot).Where(path =>
+                !folders.Contains(Path.GetFileName(path)) &&
+                (TryReadId(path) is not string id || !ids.Contains(id))));
         }
 
         foreach (string directory in directories.OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
@@ -124,6 +131,20 @@ internal sealed class ExternalPluginManager
             }
         }
         return new(plugins, _errors, this);
+    }
+
+    private static string? TryReadId(string directory)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "plugin.json")));
+            return ExternalPluginLoader.RequiredString(document.RootElement, "id");
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidDataException or InvalidOperationException)
+        {
+            // The selected manifest is validated and reported by Discover.
+            return null;
+        }
     }
 
     private string[] GetDirectories(string root)

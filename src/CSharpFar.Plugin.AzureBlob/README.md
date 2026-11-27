@@ -4,7 +4,7 @@ An external CSharpFar API v2 file-panel extension for Azure Blob Storage. The so
 
 ## Installation
 
-Download the Azure Blob plugin ZIP from a CSharpFar release containing the extension (or a successful Azure Blob CI artifact). Extract the entire `azure-blob` folder into `<CSharpFar config>/extensions/` and restart a CSharpFar host implementing SDK 2.1 forms (API v2; host v1.0.129 is not compatible with plugin 1.1). Do not copy DLLs into the application installation directory. No SDK is needed to install the extension.
+Official distributions supporting bundled extensions include Azure Blob Storage automatically. For an independent install or manual override, download the Azure Blob plugin ZIP from a CSharpFar release containing the extension (or a successful Azure Blob CI artifact). Extract the entire `azure-blob` folder into `<CSharpFar config>/extensions/` and restart a CSharpFar host implementing SDK 2.1 forms (API v2; host v1.0.129 is not compatible with plugin 1.1). Do not copy DLLs into the application installation directory. No SDK is needed to install the extension.
 
 Open Plugins → Azure Blob Storage, the disk-selection menu, or type `azure:` in the command line. Select a saved connection, Quick connect or New connection. Settings live in `<config>/plugins/azure-blob/connections.json`; they contain only connection metadata and environment variable names. The normal application config folder is the platform application-data directory; portable mode uses `CSharpFar.config` beside the executable.
 

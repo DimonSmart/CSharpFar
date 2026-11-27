@@ -103,6 +103,10 @@ New-Item -ItemType Directory -Force -Path $macOsDir, $resourcesDir, $iconSetDir 
 $binaryTarget = Join-Path $resourcesDir 'csharpfar'
 Copy-Item -LiteralPath $binarySource -Destination $binaryTarget
 chmod +x $binaryTarget
+$extensionsSource = Join-Path $publishDirPath 'bundled-extensions'
+if (Test-Path -LiteralPath $extensionsSource -PathType Container) {
+    Copy-Item -LiteralPath $extensionsSource -Destination $resourcesDir -Recurse
+}
 
 # Build the native AppKit/PTY host on the target macOS architecture. The
 # portable CLI remains byte-for-byte unchanged in Contents/Resources.

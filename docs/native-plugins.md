@@ -10,7 +10,13 @@ every discovered plugin goes through the existing `ICSharpFarPlugin` /
 The directory is `<config-directory>/extensions/<extension-name>/`. Each immediate
 child folder may contain a `plugin.json` manifest, the entry DLL, its
 `.deps.json`, and its private dependencies. A missing extensions directory is
-valid; CSharpFar does not create or download plugins automatically.
+valid; CSharpFar does not download plugins automatically. Official distributions can also contain bundled external plugins.
+
+## Bundled extensions
+
+Official distributions place `bundled-extensions/<id>/` next to the real executable (inside `Contents/Resources` in the macOS app). They are loaded through the same SDK and loader as user-installed plugins, enabled by default, and replaced by application updates. Settings remain in the user config directory. User-installed copies take precedence over Debug development copies, which take precedence over bundled copies; matching folder names or manifest IDs (case-insensitive) shadow lower-priority roots. Remove a manual override to return to the app-supplied version. Disable choices are stored by folder as before; use the manifest ID as the folder name. `--no-extensions` and Options → Plugins apply to all external sources.
+
+The release pipeline stages verified independent plugin ZIPs with `eng/packaging/stage-bundled-extensions.ps1`. It does not link extensions into the host or copy them into user configuration.
 
 ```text
 <config-directory>/

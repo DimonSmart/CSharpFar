@@ -14,6 +14,8 @@ try
     if (args is ["--version"]) { PrintVersion(); return 0; }
     if (args is ["--self-test-extensions", var extensionConfig])
         return await ExternalPluginPackageSmokeTest.VerifyAsync(extensionConfig);
+    if (args is ["--self-test-bundled-extensions", var bundledConfig, .. var expectedIds] && expectedIds.Length > 0)
+        return await ExternalPluginPackageSmokeTest.VerifyBundledAsync(bundledConfig, expectedIds);
 
     if (args is ["--self-test"]) { using var startup = ApplicationStartupContext.Create(ApplicationRunOptions.Normal, MacOsPlatformServices.CreateDefaultSettings, ValidateShellSettings); return RunSelfTest(startup.SettingsStore); }
     if (args is ["--check-system-git"]) return RunSystemGitCheck();
