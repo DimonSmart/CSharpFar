@@ -4,7 +4,7 @@ An external CSharpFar API v2 file-panel extension for Azure Blob Storage. The so
 
 ## Installation
 
-Download the Azure Blob plugin ZIP from a CSharpFar release containing the extension (or a successful Azure Blob CI artifact). Extract the entire `azure-blob` folder into `<CSharpFar config>/extensions/` and restart CSharpFar 1.0.129 or newer with API v2. Do not copy DLLs into the application installation directory. No SDK is needed to install the extension.
+Download the Azure Blob plugin ZIP from a CSharpFar release containing the extension (or a successful Azure Blob CI artifact). Extract the entire `azure-blob` folder into `<CSharpFar config>/extensions/` and restart a CSharpFar host implementing SDK 2.1 forms (API v2; host v1.0.129 is not compatible with plugin 1.1). Do not copy DLLs into the application installation directory. No SDK is needed to install the extension.
 
 Open Plugins → Azure Blob Storage, the disk-selection menu, or type `azure:` in the command line. Select a saved connection, Quick connect or New connection. Settings live in `<config>/plugins/azure-blob/connections.json`; they contain only connection metadata and environment variable names. The normal application config folder is the platform application-data directory; portable mode uses `CSharpFar.config` beside the executable.
 
@@ -18,7 +18,7 @@ Open Plugins → Azure Blob Storage, the disk-selection menu, or type `azure:` i
 | Microsoft Entra ID | Run `az login` before starting CSharpFar; enter the storage endpoint. Azure CLI must be accessible to the application process. |
 | Azurite | Choose Azurite with an empty credential reference for UseDevelopmentStorage=true; for a custom emulator endpoint, use an environment variable containing its connection string. |
 
-For example, on Windows PowerShell, set `$env:AZURE_STORAGE_CONNECTION = '<connection string>'` in a private shell session, then launch CSharpFar from that shell. Do not paste secrets into the application's input fields or command line. Azure CLI authorization needs a suitable Storage Blob Data role. You can choose a container after connecting or enter its name directly when listing containers is not permitted. Quick connect never writes a saved profile.
+For example, on Windows PowerShell, set `$env:AZURE_STORAGE_CONNECTION = '<connection string>'` in a private shell session, then launch CSharpFar from that shell. Do not paste secrets into the application's input fields or command line. Azure CLI authorization needs a suitable Storage Blob Data role. The connection form groups connection name, authentication and storage settings. Use Browse to select a container, or type its name directly when account-level listing is not permitted. Test connection performs a read-only account or blob listing without closing the form; it does not verify write access. Save stores a profile without contacting Azure. Connect opens the panel and saves only if the checkbox is selected (off by default for Quick connect, on for New connection and existing profiles). Selecting a saved profile opens the same form directly. Delete is available only for saved profiles and requires confirmation. Cancel discards all edits.
 
 ## Operations
 
@@ -39,17 +39,17 @@ Directory markers are zero-byte blobs named `.csharpfar-directory` within the pr
 
 Normal repository build: `dotnet build CSharpFar.slnx -c Release`. For local development use `dotnet build CSharpFar.slnx -c Debug` or build the solution in Visual Studio. The plugin build stages the full extension under each host's standard Debug output in `development-extensions/azure-blob/`; no ZIP installation is needed for Debug. User-installed extensions with the same folder name take precedence. Both copies use the same persisted enable/disable choice.
 
-Independent package build against published SDK and NuGet dependencies: from repository root run `pwsh ./eng/testing/build-azure-blob-extension.ps1`. The resulting ZIP and SHA-256 are under `artifacts/azure-blob/`. The two shared SDK contract DLLs are deliberately absent from the installation package.
+Independent package build against published SDK and NuGet dependencies: from repository root run `pwsh ./eng/pack-plugin-sdk.ps1` followed by `pwsh ./eng/testing/build-azure-blob-extension.ps1 -SdkFeed artifacts/plugin-sdk`. For a published compatible host use `-SdkRelease <tag>` instead; the script verifies downloaded SDK checksums. The resulting ZIP and SHA-256 are under `artifacts/azure-blob/`. The two shared SDK contract DLLs are deliberately absent from the installation package.
 
 To run the provider integration tests against an isolated Azurite instance, set `CSHARPFAR_AZURE_TEST_CONNECTION=UseDevelopmentStorage=true` and run `dotnet test tests/CSharpFar.Plugin.AzureBlob.Tests`. An explicitly designated non-production Azure account can also be used; tests create and remove uniquely named disposable containers. Never supply a production account.
 
 ## Validation
 
-The [Azure Blob extension workflow](https://github.com/DimonSmart/CSharpFar/actions/workflows/azure-blob.yml) runs unit tests, actual Azurite integration, the independent SDK build, and an installed-plugin PTY smoke test using the released Linux executable, including disabling and re-enabling the installed extension with restarts. Successful workflow artifacts include an actual terminal screen capture (`panel.png`) and the installable ZIP.
+The [Azure Blob extension workflow](https://github.com/DimonSmart/CSharpFar/actions/workflows/azure-blob.yml) runs unit tests, actual Azurite integration, the independent SDK build, and an installed-plugin PTY smoke test using a single-file Linux executable published from the matching source commit, including disabling and re-enabling the installed extension with restarts. Successful workflow artifacts include actual terminal screen captures (`connection-form.png` and `panel.png`) and the installable ZIP.
 
 Additional manual validation for a production-like account and Windows/macOS terminal sessions:
 1. Install the complete ZIP, confirm the Plugins and disk menus show Azure Blob Storage, and run `azure:`.
-2. Create a saved connection and a quick connection, close/reopen the panel, and verify only the saved profile persists.
+2. Create a saved connection and a quick connection with saving unchecked, test and browse a container, close/reopen the panel, and verify only the saved profile persists.
 3. Browse directories, F3 a file, F5 upload/download files and nested directories, F7 create a folder, F8 remove it, and verify F6/rename without replacement.
 4. Try an upload to an existing name and check that its original bytes are unchanged; verify ReadOnly denies mutations.
 5. Close the application, replace the extension directory and check settings survived; disable and re-enable via Options → Plugins with a restart after each; confirm `--no-extensions` suppresses the plugin and uninstall removes it.

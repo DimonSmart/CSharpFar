@@ -1,12 +1,12 @@
 # Azure Blob extension: SDK feedback
 
-This report distinguishes public-contract analysis from observed runtime behavior. The extension uses only CSharpFar.Plugin.Abstractions and CSharpFar.Core; the repository location is not a runtime dependency. The binary package script targets SDK 2.0.0 from v1.0.129.
+This report distinguishes public-contract analysis from observed runtime behavior. The extension uses only CSharpFar.Plugin.Abstractions and CSharpFar.Core; the repository location is not a runtime dependency. The binary package script targets SDK 2.1.0; the connection editor uses its public semantic form API.
 
 | Area | Classification | Observation and reproduction | Workaround / recommendation |
 |---|---|---|---|
-| UI | Limitation | IPluginUiService.Input has no masked-input parameter. Inspect the public signature. | Environment variable references and Azure CLI. Add a secret-input contract with no history. |
-| UI | Developer Experience | The public UI facade offers simple menu/input/choice calls, not editable multi-field forms. Reproduce by creating a saved connection. | Sequential prompts; consider a generic form descriptor. |
-| UI threading | Limitation | Public modal dialogs must execute on the input thread; no public modal UI dispatch/progress contract is exposed. | Synchronous account-level container selection; actual panel enumeration uses IAsyncFilePanelSource. Provide UI-safe continuation/progress. |
+| UI | Supported | SDK 2.1 semantic forms support masked inputs without history. | Continue using environment variable references and Azure CLI; do not persist secrets. |
+| UI | Supported | The connection editor uses SDK 2.1 forms, conditional rows, validation, auxiliary actions and a fixed footer. | Container selection uses a temporary host menu; manual input remains on the form. |
+| UI threading | Limitation | Public modal dialogs must execute on the input thread; no public modal UI dispatch/progress contract is exposed. | Bounded synchronous Browse/Test callbacks (20-second network cancellation budget); actual panel enumeration uses IAsyncFilePanelSource. Provide UI-safe continuation/progress. |
 | File provider | Limitation | Flat namespace prefixes cannot guarantee atomic directory moves or recoverable replacement. ISafeNewFilePublicationProvider allows staging without replacement; IRecoverableEntryRenameProvider is deliberately not implemented. | Conditional uploads and ETag deletion; no overwrite; surface partial or unknown outcomes. |
 | Settings | Supported | IPluginSettingsService.GetSettingsDirectory supplies a plugin-owned directory separate from deployment. | Versioned metadata JSON; never store connection secrets. |
 | Credentials | Limitation | The public credential service does not itself specify an OS-backed secure persistence guarantee. | Do not assume protected persistence; use environment variables or Azure CLI. |
