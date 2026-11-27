@@ -76,7 +76,11 @@ public static class ApplicationBootstrap
 
         try
         {
-        var discovery = ExternalPluginLoader.Discover(settingsStore.ConfigDirectory, runOptions.NoExtensions);
+        string? developmentRoot = null;
+#if DEBUG
+        developmentRoot = Path.Combine(AppContext.BaseDirectory, "development-extensions");
+#endif
+        var discovery = ExternalPluginLoader.Discover(settingsStore.ConfigDirectory, runOptions.NoExtensions, developmentRoot);
         var application = await ApplicationFactory.CreateAsync(
             renderer,
             fs,

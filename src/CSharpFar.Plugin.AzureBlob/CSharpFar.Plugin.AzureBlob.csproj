@@ -6,6 +6,7 @@
     <Version>1.0.0</Version>
     <IsPackable>false</IsPackable>
     <EnableDynamicLoading>true</EnableDynamicLoading>
+    <CSharpFarDevelopmentExtensionId Condition="'$(AzureBlobBinarySdk)' != 'true'">azure-blob</CSharpFarDevelopmentExtensionId>
   </PropertyGroup>
   <ItemGroup Condition="'$(AzureBlobBinarySdk)' != 'true'">
     <ProjectReference Include="../CSharpFar.Plugin.Abstractions/CSharpFar.Plugin.Abstractions.csproj" Private="false" />

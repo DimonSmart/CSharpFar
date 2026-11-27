@@ -35,4 +35,37 @@
       <FileWrites Include="$(HuskyRoot).husky/_/install.stamp" />
     </ItemGroup>
   </Target>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug' and '$(CSharpFarDevelopmentExtensionId)' != ''">
+    <!-- A deleted staged copy must be restored by the next Visual Studio build. -->
+    <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
+  </PropertyGroup>
+
+  <!-- Repository development deployment only; independent SDK/release packaging is unchanged. -->
+  <Target Name="StageDevelopmentExtension" AfterTargets="Build"
+          Condition="'$(Configuration)' == 'Debug' and '$(CSharpFarDevelopmentExtensionId)' != '' and '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <_DevelopmentHost Include="$(MSBuildThisFileDirectory)src/CSharpFar.Host.Windows;$(MSBuildThisFileDirectory)src/CSharpFar.Host.Linux;$(MSBuildThisFileDirectory)src/CSharpFar.Host.MacOs" />
+      <_DevelopmentFile Include="$(TargetDir)**/*"
+                        Exclude="$(TargetDir)CSharpFar.Core.*;$(TargetDir)CSharpFar.Plugin.Abstractions.*" />
+    </ItemGroup>
+    <!-- These are build-owned directories, never the user configuration directory. -->
+    <PropertyGroup>
+      <_DevelopmentHostSuffix>bin/$(Configuration)/$(TargetFramework)/development-extensions/$(CSharpFarDevelopmentExtensionId)</_DevelopmentHostSuffix>
+    </PropertyGroup>
+    <RemoveDir Directories="@(_DevelopmentHost->'%(FullPath)/$(_DevelopmentHostSuffix)')" />
+    <Copy SourceFiles="@(_DevelopmentFile)"
+          DestinationFiles="@(_DevelopmentFile->'$(MSBuildThisFileDirectory)src/CSharpFar.Host.Windows/$(_DevelopmentHostSuffix)/%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Copy SourceFiles="@(_DevelopmentFile)"
+          DestinationFiles="@(_DevelopmentFile->'$(MSBuildThisFileDirectory)src/CSharpFar.Host.Linux/$(_DevelopmentHostSuffix)/%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Copy SourceFiles="@(_DevelopmentFile)"
+          DestinationFiles="@(_DevelopmentFile->'$(MSBuildThisFileDirectory)src/CSharpFar.Host.MacOs/$(_DevelopmentHostSuffix)/%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+
+  <Target Name="CleanDevelopmentExtension" AfterTargets="Clean"
+          Condition="'$(Configuration)' == 'Debug' and '$(CSharpFarDevelopmentExtensionId)' != ''">
+    <ItemGroup>
+      <_StagedDevelopmentExtension Include="$(MSBuildThisFileDirectory)src/CSharpFar.Host.Windows;$(MSBuildThisFileDirectory)src/CSharpFar.Host.Linux;$(MSBuildThisFileDirectory)src/CSharpFar.Host.MacOs" />
+    </ItemGroup>
+    <RemoveDir Directories="@(_StagedDevelopmentExtension->'%(FullPath)/bin/$(Configuration)/$(TargetFramework)/development-extensions/$(CSharpFarDevelopmentExtensionId)')" />
+  </Target>
 </Project>

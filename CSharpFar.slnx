@@ -15,9 +15,15 @@
     <Project Path="src/CSharpFar.DemoRecorder/CSharpFar.DemoRecorder.csproj" />
     <Project Path="src/CSharpFar.Core/CSharpFar.Core.csproj" />
     <Project Path="src/CSharpFar.FileSystem/CSharpFar.FileSystem.csproj" />
-    <Project Path="src/CSharpFar.Host.Linux/CSharpFar.Host.Linux.csproj" />
-    <Project Path="src/CSharpFar.Host.MacOs/CSharpFar.Host.MacOs.csproj" />
-    <Project Path="src/CSharpFar.Host.Windows/CSharpFar.Host.Windows.csproj" />
+    <Project Path="src/CSharpFar.Host.Linux/CSharpFar.Host.Linux.csproj">
+      <BuildDependency Project="src/CSharpFar.Plugin.AzureBlob/CSharpFar.Plugin.AzureBlob.csproj" />
+    </Project>
+    <Project Path="src/CSharpFar.Host.MacOs/CSharpFar.Host.MacOs.csproj">
+      <BuildDependency Project="src/CSharpFar.Plugin.AzureBlob/CSharpFar.Plugin.AzureBlob.csproj" />
+    </Project>
+    <Project Path="src/CSharpFar.Host.Windows/CSharpFar.Host.Windows.csproj">
+      <BuildDependency Project="src/CSharpFar.Plugin.AzureBlob/CSharpFar.Plugin.AzureBlob.csproj" />
+    </Project>
     <Project Path="src/CSharpFar.Module.Abstractions/CSharpFar.Module.Abstractions.csproj" />
     <Project Path="src/CSharpFar.Plugin.Abstractions/CSharpFar.Plugin.Abstractions.csproj" />
     <Project Path="src/CSharpFar.Module.Ftp/CSharpFar.Module.Ftp.csproj" />

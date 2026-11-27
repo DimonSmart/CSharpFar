@@ -14,6 +14,7 @@ internal sealed class ExternalPluginEntry(string folderName, string installation
     public string? Id { get; internal set; }
     public string? Name { get; internal set; }
     public string? Version { get; internal set; }
+    public int? ApiVersion { get; internal set; }
     internal string? AssemblyName { get; set; }
     internal string? EntryType { get; set; }
     internal PluginDescriptor? Descriptor { get; set; }
@@ -35,52 +36,50 @@ internal sealed class ExternalPluginManager
     private readonly string _configDirectory;
     private readonly string _statePath;
     private readonly bool _noExtensions;
+    private readonly string? _developmentRoot;
     private readonly List<ExternalPluginEntry> _entries = [];
     private readonly List<string> _errors = [];
     private HashSet<string> _disabled = new(StringComparer.OrdinalIgnoreCase);
     private bool _stateUnavailable;
+    private bool _externalPluginsEnabled = true;
 
-    public ExternalPluginManager(string configDirectory, bool noExtensions = false)
+    public ExternalPluginManager(string configDirectory, bool noExtensions = false, string? developmentRoot = null)
     {
         _configDirectory = configDirectory;
         _statePath = Path.Combine(configDirectory, "extensions-state.json");
         _noExtensions = noExtensions;
+        _developmentRoot = developmentRoot;
         try { ReadState(); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
         {
             _stateUnavailable = true;
             _errors.Add("Extension configuration: " + Clean(error.Message));
         }
+        ExternalPluginsEnabledAtStartup = _externalPluginsEnabled;
     }
 
     public IReadOnlyList<ExternalPluginEntry> Entries => _entries;
     public bool NoExtensions => _noExtensions;
+    public bool ExternalPluginsEnabled => _externalPluginsEnabled;
+    public bool ExternalPluginsEnabledAtStartup { get; }
+    public bool GlobalRestartRequired => ExternalPluginsEnabled != ExternalPluginsEnabledAtStartup;
+    public bool WillLoad(ExternalPluginEntry entry) => ExternalPluginsEnabled && entry.Enabled;
     public IReadOnlyList<string> Errors => _errors;
 
     public ExternalPluginDiscovery Discover()
     {
         var plugins = new List<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>();
         string root = Path.Combine(_configDirectory, "extensions");
-        if (!Directory.Exists(root))
-            return new(plugins, _errors, this);
-
-        string[] directories;
-        try
+        // User-installed packages take precedence over development copies with the same folder name.
+        var directories = GetDirectories(root).ToList();
+        if (_developmentRoot is not null)
         {
-            directories = Directory.GetDirectories(root);
-            Array.Sort(directories, (left, right) =>
-            {
-                int c = StringComparer.OrdinalIgnoreCase.Compare(Path.GetFileName(left), Path.GetFileName(right));
-                return c != 0 ? c : StringComparer.Ordinal.Compare(left, right);
-            });
-        }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-        {
-            _errors.Add("Cannot enumerate extensions: " + Clean(error.Message));
-            return new(plugins, _errors, this);
+            var installed = directories.Select(path => Path.GetFileName(path)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            directories.AddRange(GetDirectories(_developmentRoot).Where(path => !installed.Contains(Path.GetFileName(path))));
         }
 
-        foreach (string directory in directories)
+        foreach (string directory in directories.OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(path => Path.GetFileName(path), StringComparer.Ordinal))
         {
             if (!File.Exists(Path.Combine(directory, "plugin.json")))
                 continue;
@@ -92,7 +91,7 @@ internal sealed class ExternalPluginManager
             try { ReadManifest(entry); }
             catch (Exception error)
             {
-                Fail(entry, "manifest", error, reportAtStartup: entry.Enabled && !_noExtensions && !_stateUnavailable);
+                Fail(entry, "manifest", error, reportAtStartup: WillLoad(entry) && !_noExtensions && !_stateUnavailable);
             }
 
             // Even malformed manifests must be manageable by folder name.
@@ -102,7 +101,7 @@ internal sealed class ExternalPluginManager
                 continue;
             }
 
-            if (_noExtensions || _stateUnavailable)
+            if (_noExtensions || _stateUnavailable || !ExternalPluginsEnabledAtStartup)
             {
                 if (entry.Error is null)
                     entry.Status = ExternalPluginStatus.Disabled;
@@ -125,6 +124,22 @@ internal sealed class ExternalPluginManager
             }
         }
         return new(plugins, _errors, this);
+    }
+
+    private string[] GetDirectories(string root)
+    {
+        if (!Directory.Exists(root)) return [];
+        try
+        {
+            return Directory.GetDirectories(root)
+                .Where(directory => File.Exists(Path.Combine(directory, "plugin.json")))
+                .ToArray();
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            _errors.Add("Cannot enumerate extensions: " + Clean(error.Message));
+            return [];
+        }
     }
 
     public void Complete(NativePluginRuntime? runtime, IReadOnlyList<string> startupErrors)
@@ -169,12 +184,44 @@ internal sealed class ExternalPluginManager
         if (enabled) updated.Remove(entry.FolderName);
         else updated.Add(entry.FolderName);
 
+        if (!TrySaveState(updated, _externalPluginsEnabled, out error))
+            return false;
+
+        _disabled = updated;
+        entry.Enabled = enabled;
+        return true;
+    }
+
+    public bool TrySetExternalPluginsEnabled(bool enabled, out string? error)
+    {
+        if (enabled == _externalPluginsEnabled)
+        {
+            error = null;
+            return true;
+        }
+
+        if (!TrySaveState(_disabled, enabled, out error))
+            return false;
+
+        _externalPluginsEnabled = enabled;
+        return true;
+    }
+
+    private bool TrySaveState(HashSet<string> updated, bool enabled, out string? error)
+    {
+        if (_stateUnavailable)
+        {
+            error = "Extension configuration is unavailable; repair extensions-state.json first.";
+            return false;
+        }
+
         string temporary = _statePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             Directory.CreateDirectory(_configDirectory);
             string content = JsonSerializer.Serialize(new
             {
+                enabled,
                 disabled = updated.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray()
             }, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(temporary, content);
@@ -192,8 +239,6 @@ internal sealed class ExternalPluginManager
             catch (UnauthorizedAccessException) { }
         }
 
-        _disabled = updated;
-        entry.Enabled = enabled;
         error = null;
         return true;
     }
@@ -217,6 +262,12 @@ internal sealed class ExternalPluginManager
                 throw new InvalidDataException("Invalid extension directory name in disabled list.");
             values.Add(folder);
         }
+        if (document.RootElement.TryGetProperty("enabled", out var enabled))
+        {
+            if (enabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                throw new InvalidDataException("extensions-state.json enabled must be a boolean.");
+            _externalPluginsEnabled = enabled.GetBoolean();
+        }
         _disabled = values;
     }
 
@@ -238,6 +289,7 @@ internal sealed class ExternalPluginManager
         if (!root.TryGetProperty("apiVersion", out var apiVersion) ||
             apiVersion.ValueKind != JsonValueKind.Number || !apiVersion.TryGetInt32(out int api))
             throw new InvalidDataException("apiVersion must be an integer.");
+        entry.ApiVersion = api;
         if (api != 2)
             throw new NotSupportedException($"Unsupported plugin API version {api}; expected 2; rebuild the plugin against SDK 2.x.");
 

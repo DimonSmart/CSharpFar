@@ -40,6 +40,15 @@ and writes `disposed.marker` when the session shuts down.
 
 External extensions are **not loaded in demo mode**.
 
+## Repository development builds
+
+A Debug solution build stages repository-owned external extensions in
+`development-extensions/` beside the host executable. They are discovered
+only by Debug application builds, without changing the user's config directory.
+A manually installed folder of the same name takes precedence. Do not install
+third-party extensions into this build-owned directory. The normal Release
+build and independent SDK packaging remain separate. Repository extensions opt in by setting the `CSharpFarDevelopmentExtensionId` MSBuild property and adding a solution-level build dependency from each host; no host assembly reference is added.
+
 ## Manifest (API version 2)
 
 ```json
@@ -256,7 +265,7 @@ manifests), see installation paths and errors, and enable or disable by folder.
 **Enter** toggles, **F4** shows details, and **Esc** closes. Changes are saved
 immediately in `<config>/extensions-state.json` but take effect only after
 restarting CSharpFar. A plugin already loaded into the current process remains
-active until restart. Built-in plugins are not affected.
+active until restart. Built-in plugins are not affected. **All on/off** saves a global switch without changing individual choices; the list and details show current and next-startup state. Legacy state files without an `enabled` property default to true.
 
 If an installed extension prevents normal startup, launch
 `csharpfar --no-extensions`. This skips all external DLLs for that session
