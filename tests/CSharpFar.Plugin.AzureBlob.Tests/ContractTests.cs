@@ -76,6 +76,70 @@ public sealed class ContractTests
     }
 
     [Fact]
+    public void MacAzureCliPathAddsHomebrewWhenFinderPathOmitsIt()
+    {
+        var info = AzureCliSupport.InspectPath(
+            "/usr/bin:/bin",
+            candidate => candidate == "/opt/homebrew/bin/az",
+            isMacOS: true);
+
+        Assert.Equal("/opt/homebrew/bin/az", info.ExecutablePath);
+        Assert.StartsWith("/opt/homebrew/bin:", info.EffectivePath, StringComparison.Ordinal);
+        Assert.True(info.AddedStandardPath);
+    }
+
+    [Fact]
+    public void ExistingAzureCliPathIsPreservedWithoutDuplication()
+    {
+        var info = AzureCliSupport.InspectPath(
+            "/opt/homebrew/bin:/usr/bin:/bin",
+            candidate => candidate == "/opt/homebrew/bin/az",
+            isMacOS: true);
+
+        Assert.Equal("/opt/homebrew/bin/az", info.ExecutablePath);
+        Assert.Equal("/opt/homebrew/bin:/usr/bin:/bin", info.EffectivePath);
+        Assert.False(info.AddedStandardPath);
+    }
+
+    [Theory]
+    [InlineData("Azure CLI not installed", "Azure CLI was not found")]
+    [InlineData("Please run 'az login' to set up account", "Azure CLI is not signed in")]
+    [InlineData("Azure CLI authentication timed out.", "Azure CLI token request timed out")]
+    [InlineData("AADSTS50076: multi-factor authentication is required", "Azure CLI needs re-authentication or MFA")]
+    public void AzureCliErrorsAreActionable(string detail, string expected)
+    {
+        var error = new InvalidOperationException("Azure CLI authentication failed.", new InvalidOperationException(detail));
+
+        var diagnostic = AzureErrors.Describe(error);
+
+        Assert.Contains(expected, diagnostic.Summary, StringComparison.Ordinal);
+        Assert.Contains(diagnostic.Details, line => line.Contains(detail, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void DiagnosticLogRedactsSecrets()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            var error = new InvalidOperationException(
+                "Request failed at https://example.blob.core.windows.net/data?sv=1&sig=VERY_SECRET client_secret=ALSO_SECRET");
+            var diagnostic = AzureErrors.Describe(error);
+
+            AzureBlobDiagnostics.Write(directory, diagnostic);
+
+            string log = File.ReadAllText(Path.Combine(directory, "azure-blob-diagnostics.log"));
+            Assert.DoesNotContain("VERY_SECRET", log, StringComparison.Ordinal);
+            Assert.DoesNotContain("ALSO_SECRET", log, StringComparison.Ordinal);
+            Assert.Contains("<redacted>", log, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
     public async Task NetworkFailureIsSanitized()
     {
         var options = new BlobClientOptions();
