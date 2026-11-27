@@ -41,6 +41,77 @@ public sealed class AzureBlobConnectionStore(string directory)
     }
 }
 
+internal sealed record AzureCliPathInfo(string EffectivePath, string? ExecutablePath, bool AddedStandardPath);
+
+internal static class AzureCliSupport
+{
+    private static readonly object EnvironmentSync = new();
+    private static readonly string[] MacOsStandardDirectories = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"];
+
+    internal static AzureCliPathInfo InspectPath(string? inheritedPath, Func<string, bool> fileExists, bool isMacOS)
+    {
+        ArgumentNullException.ThrowIfNull(fileExists);
+        string original = inheritedPath ?? "";
+        if (!isMacOS)
+            return new(original, FindOnPath(original, Path.PathSeparator, fileExists), false);
+
+        var directories = original.Split(':', StringSplitOptions.RemoveEmptyEntries).ToList();
+        string? executable = FindInDirectories(directories, fileExists);
+        bool added = false;
+        foreach (string directory in MacOsStandardDirectories)
+        {
+            if (!fileExists(Path.Combine(directory, "az"))) continue;
+            executable ??= Path.Combine(directory, "az");
+            if (directories.Contains(directory, StringComparer.Ordinal)) continue;
+            directories.Insert(0, directory);
+            added = true;
+        }
+        return new(string.Join(':', directories), executable, added);
+    }
+
+    internal static AzureCliPathInfo InspectCurrentPath() =>
+        InspectPath(Environment.GetEnvironmentVariable("PATH"), File.Exists, OperatingSystem.IsMacOS());
+
+    internal static AzureCliCredential CreateCredential()
+    {
+        var options = new AzureCliCredentialOptions { ProcessTimeout = TimeSpan.FromSeconds(20) };
+        if (!OperatingSystem.IsMacOS())
+            return new AzureCliCredential(options);
+
+        // AzureCliCredential captures PATH in its constructor but has no executable-path option.
+        // Finder/Dock applications commonly omit Homebrew from PATH, so temporarily expose a
+        // discovered standard Homebrew directory only while the credential captures its environment.
+        lock (EnvironmentSync)
+        {
+            string? original = Environment.GetEnvironmentVariable("PATH");
+            var info = InspectPath(original, File.Exists, isMacOS: true);
+            try
+            {
+                if (info.EffectivePath != (original ?? ""))
+                    Environment.SetEnvironmentVariable("PATH", info.EffectivePath);
+                return new AzureCliCredential(options);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("PATH", original);
+            }
+        }
+    }
+
+    private static string? FindOnPath(string path, char separator, Func<string, bool> fileExists) =>
+        FindInDirectories(path.Split(separator, StringSplitOptions.RemoveEmptyEntries), fileExists);
+
+    private static string? FindInDirectories(IEnumerable<string> directories, Func<string, bool> fileExists)
+    {
+        foreach (string directory in directories)
+        {
+            string candidate = Path.Combine(directory, "az");
+            if (fileExists(candidate)) return candidate;
+        }
+        return null;
+    }
+}
+
 public static class AzureBlobClientFactory
 {
     public static void Validate(AzureBlobConnection connection)
@@ -105,7 +176,7 @@ public static class AzureBlobClientFactory
             AuthenticationMode.SasToken => new BlobServiceClient(Endpoint(connection.AccountEndpoint),
                 new AzureSasCredential(Secret().TrimStart('?')), options),
             AuthenticationMode.AzureCli => new BlobServiceClient(Endpoint(connection.AccountEndpoint),
-                new AzureCliCredential(), options),
+                AzureCliSupport.CreateCredential(), options),
             _ => throw new ArgumentException("Unknown authentication mode.")
         };
         return (service, connection.ContainerName is null ? null : service.GetBlobContainerClient(connection.ContainerName));
