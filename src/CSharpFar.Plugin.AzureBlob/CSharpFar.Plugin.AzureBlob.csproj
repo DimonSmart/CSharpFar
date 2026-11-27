@@ -16,6 +16,9 @@
     <PackageReference Include="CSharpFar.Core" Version="2.1.0" ExcludeAssets="runtime" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="CSharpFar.Plugin.AzureBlob.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Azure.Storage.Blobs" Version="12.30.2" />
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
     <None Update="plugin.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
