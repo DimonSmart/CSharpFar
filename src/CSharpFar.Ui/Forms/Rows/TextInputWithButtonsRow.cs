@@ -109,16 +109,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormFocusTarget, IFormCu
         DialogButtonBarInputResult buttonResult = _buttonBar.HandleMouse(mouse, layout.ButtonLayout, _buttonState);
         _buttonState = buttonResult.State;
         if (buttonResult.IsHandled)
-        {
-            return buttonResult.ButtonId is null
-                ? new FormInputResult(FormInputResultKind.Handled, MouseCapture: buttonResult.MouseCapture)
-                : new FormInputResult(
-                    buttonResult.ButtonRole == DialogButtonRole.Cancel
-                        ? FormInputResultKind.Cancel
-                        : FormInputResultKind.Submit,
-                    buttonResult.ButtonId,
-                    buttonResult.MouseCapture);
-        }
+            return ButtonResult(buttonResult);
 
         if (mouse.Button != MouseButton.Left ||
             mouse.Kind != MouseEventKind.Down ||
