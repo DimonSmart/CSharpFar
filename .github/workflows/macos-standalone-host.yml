@@ -5,6 +5,15 @@ on:
     branches:
       - main
       - codex/macos-standalone-host-spec
+  pull_request:
+    paths:
+      - 'src/CSharpFar.App/Plugins/**'
+      - 'src/CSharpFar.App/Bootstrap/ApplicationBootstrap.cs'
+      - 'src/CSharpFar.Host.MacOs/**'
+      - 'src/CSharpFar.Plugin.AzureBlob/**'
+      - 'eng/packaging/**'
+      - 'eng/testing/verify-bundled-*.ps1'
+      - '.github/workflows/macos-standalone-host.yml'
   workflow_dispatch:
 
 permissions:
@@ -40,6 +49,11 @@ jobs:
         shell: pwsh
         run: |
           dotnet publish src/CSharpFar.Host.MacOs/CSharpFar.Host.MacOs.csproj --configuration Release --runtime ${{ matrix.rid }} --self-contained true --output "${{ runner.temp }}/publish" /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:DebugType=None /p:DebugSymbols=false /p:Version=1.0.0
+          if ($LASTEXITCODE -ne 0) { throw 'macOS publish failed' }
+          ./eng/pack-plugin-sdk.ps1
+          ./eng/testing/build-azure-blob-extension.ps1 -SdkFeed artifacts/plugin-sdk
+          $packages = @(Get-ChildItem artifacts/azure-blob -Filter '*.zip' -File)
+          ./eng/packaging/stage-bundled-extensions.ps1 -PublishDir "${{ runner.temp }}/publish" -Packages $packages.FullName
           ./eng/packaging/build-macos-app.ps1 -PublishDir "${{ runner.temp }}/publish" -Version "1.0.0" -OutputDir "${{ runner.temp }}/bundle"
       - name: Assert architecture, identity, CLI parity, diagnostics
         shell: bash
@@ -58,3 +72,18 @@ jobs:
           bash ./eng/packaging/verify-macos-app.sh "$app" "${{ matrix.arch }}"
           "$bundled" --version
           "$bundled" --check-system-git
+      - name: Verify packaged macOS app and Homebrew-style CLI installation
+        shell: pwsh
+        run: |
+          $app = Join-Path $env:RUNNER_TEMP 'bundle/CSharpFar.app'
+          $archive = Join-Path $env:RUNNER_TEMP 'test-app.zip'
+          & /usr/bin/ditto -c -k --sequesterRsrc --keepParent $app $archive
+          if ($LASTEXITCODE -ne 0) { throw 'macOS ZIP creation failed' }
+          ./eng/testing/verify-bundled-distribution.ps1 -Archive $archive -Binary 'CSharpFar.app/Contents/Resources/csharpfar'
+          $prefix = Join-Path $env:RUNNER_TEMP 'formula'
+          New-Item -ItemType Directory -Force -Path "$prefix/bin", "$prefix/libexec" | Out-Null
+          Copy-Item (Join-Path $env:RUNNER_TEMP 'publish/csharpfar') "$prefix/libexec/"
+          Copy-Item (Join-Path $env:RUNNER_TEMP 'publish/bundled-extensions') "$prefix/libexec/" -Recurse
+          & /bin/ln -s ../libexec/csharpfar "$prefix/bin/csharpfar"
+          if ($LASTEXITCODE -ne 0) { throw 'Formula symlink creation failed' }
+          ./eng/testing/verify-bundled-extensions.ps1 -Executable "$prefix/bin/csharpfar"
