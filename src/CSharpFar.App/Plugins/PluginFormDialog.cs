@@ -53,8 +53,9 @@ internal static class PluginFormDialog
                     return FormDialogOutcome<string?>.Complete(null);
 
                 string? changed = null;
-                foreach (var binding in bindings)
-                    if (binding.Model.Visible && binding.Pull()) changed ??= binding.Model.Id;
+                if (e.IsValueChanged || e.IsSubmitted || e.IsAuxiliary)
+                    foreach (var binding in bindings)
+                        if (binding.Model.Visible && binding.Pull()) changed ??= binding.Model.Id;
 
                 PluginFormEvent? evt = null;
                 if (e.IsSubmitted)

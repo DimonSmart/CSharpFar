@@ -9,6 +9,8 @@ public sealed class PluginAbstractionsContractTests
     {
         IPluginUiService ui = new LegacyUi();
 
+        Assert.False(ui.SupportsForms);
+        Assert.Throws<NotSupportedException>(() => ui.ShowForm(new PluginForm("Form", [])));
         Assert.True(ui.Confirm("Confirm", "Continue?", "item"));
         Assert.Equal(0, ui.ShowChoice("Choice", "Choose", ["Yes", "No"]));
         ui.ShowHelp("Help", ["line 1", "line 2"]);

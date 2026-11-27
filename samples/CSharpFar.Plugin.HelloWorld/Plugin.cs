@@ -34,6 +34,30 @@ public sealed class Plugin : ICSharpFarPlugin, IAsyncDisposable
             Placement = PluginMenuPlacement.Plugins,
         });
         host.RegisterCommandPrefix("hello", "greet");
+        host.RegisterCommand(new PluginCommandDescriptor
+        {
+            Id = "form",
+            Title = "Form example",
+            ExecuteAsync = (context, token) =>
+            {
+                if (!context.Ui.SupportsForms)
+                    return ValueTask.FromResult(PluginCommandResult.Completed());
+                var name = new PluginFormText("name", "Name:");
+                var enabled = new PluginFormCheckBox("enabled", "Enable greeting", true);
+                var form = new PluginForm("Hello form", [name, enabled])
+                {
+                    OnEvent = e => e.Kind == PluginFormEventKind.Submit && enabled.Value &&
+                        string.IsNullOrWhiteSpace(name.Value)
+                        ? new PluginFormFeedback("Enter a name.", name.Id) : null
+                };
+                if (context.Ui.ShowForm(form, token) is null)
+                    return ValueTask.FromResult(PluginCommandResult.Cancelled());
+                if (enabled.Value)
+                    context.Ui.ShowMessage("Hello form", "Hello " + name.Value);
+                return ValueTask.FromResult(PluginCommandResult.Completed());
+            }
+        });
+        host.RegisterCommandPrefix("helloform", "form");
         return ValueTask.CompletedTask;
     }
 
