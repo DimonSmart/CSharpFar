@@ -144,6 +144,26 @@ jobs:
           dotnet $dll $directory verify
           if ($LASTEXITCODE -ne 0) { throw "Cross-process history verification failed." }
 
+      - name: Verify independently packaged bundled extension on the published host
+        shell: pwsh
+        run: |
+          $rid = switch ($env:RUNNER_OS) {
+            'Windows' { 'win-x64' }
+            'Linux' { 'linux-x64' }
+            'macOS' { if ($env:RUNNER_ARCH -eq 'ARM64') { 'osx-arm64' } else { 'osx-x64' } }
+          }
+          ./eng/pack-plugin-sdk.ps1
+          ./eng/testing/build-azure-blob-extension.ps1 -SdkFeed artifacts/plugin-sdk
+          $published = "artifacts/external-singlefile/$rid/published"
+          $packages = @(Get-ChildItem artifacts/azure-blob -Filter '*.zip' -File)
+          ./eng/packaging/stage-bundled-extensions.ps1 -PublishDir $published -Packages $packages.FullName
+          $binary = if ($env:RUNNER_OS -eq 'Windows') { 'CSharpFar.exe' } else { 'csharpfar' }
+          ./eng/testing/verify-bundled-extensions.ps1 -Executable (Join-Path $published $binary)
+          if ($env:RUNNER_OS -eq 'Linux') {
+            $deb = ./eng/packaging/build-deb.ps1 -PublishDir $published -Version 1.0.0 -OutputDir $env:RUNNER_TEMP
+            ./eng/testing/verify-bundled-distribution.ps1 -Archive $deb -Binary 'usr/bin/csharpfar'
+          }
+
       - name: Verify reusable packages
         shell: pwsh
         run: ./eng/verify-reusable-packages.ps1

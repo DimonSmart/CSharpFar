@@ -47,8 +47,17 @@ try {
     $docDir = Join-Path $packageRoot "usr/share/doc/csharpfar"
     New-Item -ItemType Directory -Force -Path $controlDir, $binDir, $docDir | Out-Null
 
-    $installedBinary = Join-Path $binDir "csharpfar"
+    $appDir = Join-Path $packageRoot "usr/lib/csharpfar"
+    New-Item -ItemType Directory -Force -Path $appDir | Out-Null
+    $installedBinary = Join-Path $appDir "csharpfar"
     Copy-Item -LiteralPath $binaryPath -Destination $installedBinary
+    $extensionsSource = Join-Path $publishPath "bundled-extensions"
+    if (Test-Path -LiteralPath $extensionsSource -PathType Container) {
+        Copy-Item -LiteralPath $extensionsSource -Destination $appDir -Recurse
+    }
+    # Relative symlink keeps the executable and its resources relocatable.
+    & ln -s ../lib/csharpfar/csharpfar (Join-Path $binDir "csharpfar")
+    if ($LASTEXITCODE -ne 0) { throw "Creating CLI symlink failed." }
 
     $control = @"
 Package: csharpfar
@@ -102,6 +111,7 @@ Consult the upstream repository for current copyright and licensing information.
     }
 
     $md5Lines = Get-ChildItem -LiteralPath (Join-Path $packageRoot "usr") -File -Recurse |
+        Where-Object { $_.LinkType -ne 'SymbolicLink' } |
         Sort-Object FullName |
         ForEach-Object {
             $relativePath = [System.IO.Path]::GetRelativePath($packageRoot, $_.FullName).Replace('\', '/')

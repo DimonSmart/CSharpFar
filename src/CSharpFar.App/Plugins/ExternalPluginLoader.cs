@@ -14,8 +14,19 @@ internal sealed record ExternalPluginDiscovery(
 /// <summary>Only manifested extensions are loaded, after metadata and enablement checks.</summary>
 internal static class ExternalPluginLoader
 {
-    public static ExternalPluginDiscovery Discover(string configDirectory, bool noExtensions = false, string? developmentRoot = null) =>
-        new ExternalPluginManager(configDirectory, noExtensions, developmentRoot).Discover();
+    public static ExternalPluginDiscovery Discover(string configDirectory, bool noExtensions = false, string? developmentRoot = null, string? bundledRoot = null) =>
+        new ExternalPluginManager(configDirectory, noExtensions, developmentRoot, bundledRoot).Discover();
+
+    // All official packages place the executable and bundled extensions together.
+    internal static ExternalPluginDiscovery DiscoverForApplication(string configDirectory, bool noExtensions = false)
+    {
+        string? developmentRoot = null;
+#if DEBUG
+        developmentRoot = Path.Combine(AppContext.BaseDirectory, "development-extensions");
+#endif
+        return Discover(configDirectory, noExtensions, developmentRoot,
+            Path.Combine(AppContext.BaseDirectory, "bundled-extensions"));
+    }
 
     internal static (PluginDescriptor Descriptor, ICSharpFarPlugin Plugin) Load(ExternalPluginEntry entry)
     {

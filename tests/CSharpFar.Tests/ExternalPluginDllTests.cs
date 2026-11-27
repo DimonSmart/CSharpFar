@@ -297,6 +297,34 @@ public sealed class ExternalPluginDllTests : IDisposable
             restarted.Manager.Entries.Single(entry => entry.FolderName == "other").Status);
     }
 
+    [Fact]
+    public void BundledPackages_RespectPrecedenceAndPersistDisableState()
+    {
+        string bundled = Path.Combine(_root, "bundled-extensions");
+        string development = Path.Combine(_root, "development-extensions");
+        WriteManifest("azure", "azure-blob", "Missing", "Missing.Plugin", assemblyName: "Missing.dll");
+        Directory.CreateDirectory(bundled);
+        Directory.Move(Path.Combine(_root, "extensions", "azure"), Path.Combine(bundled, "azure"));
+
+        var first = ExternalPluginLoader.Discover(_root, noExtensions: true, bundledRoot: bundled).Manager;
+        var entry = Assert.Single(first.Entries);
+        Assert.Equal("azure-blob", entry.Id);
+        Assert.True(first.TrySetEnabled(entry, false, out _));
+        var disabled = ExternalPluginLoader.Discover(_root, bundledRoot: bundled);
+        Assert.Empty(disabled.Errors);
+        Assert.Equal(ExternalPluginStatus.Disabled, Assert.Single(disabled.Manager.Entries).Status);
+
+        WriteManifest("azure", "azure-blob", "Missing", "Missing.Plugin", assemblyName: "Missing.dll");
+        Directory.CreateDirectory(development);
+        Directory.Move(Path.Combine(_root, "extensions", "azure"), Path.Combine(development, "azure"));
+        var debug = ExternalPluginLoader.Discover(_root, true, development, bundled).Manager;
+        Assert.Equal(Path.Combine(development, "azure"), Assert.Single(debug.Entries).InstallationPath);
+
+        WriteManifest("manual", "AZURE-BLOB", "Missing", "Missing.Plugin", assemblyName: "Missing.dll");
+        var manual = ExternalPluginLoader.Discover(_root, true, development, bundled).Manager;
+        Assert.Equal(Path.Combine(_root, "extensions", "manual"), Assert.Single(manual.Entries).InstallationPath);
+    }
+
     private NativePluginRuntime CreateRuntime(RecordingUi ui) => new(
         new ApplicationContext(),
         _ => new Settings(_root),

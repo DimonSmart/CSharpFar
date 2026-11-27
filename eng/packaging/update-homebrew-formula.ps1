@@ -56,7 +56,9 @@ class Csharpfar < Formula
   end
 
   def install
-    bin.install "csharpfar"
+    libexec.install "csharpfar"
+    libexec.install "bundled-extensions" if File.directory?("bundled-extensions")
+    bin.install_symlink libexec/"csharpfar"
   end
 
   test do
