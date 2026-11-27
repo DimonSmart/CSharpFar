@@ -177,7 +177,7 @@ public sealed class ContractTests
         string directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         try
         {
-            var ui = new ConnectionUi([1, 0, 1], form =>
+            var ui = new ConnectionUi([1], form =>
             {
                 Field<PluginFormText>(form, "name").Value = "Saved";
                 Assert.Null(form.OnEvent!(new(PluginFormEventKind.Submit, "save")));
@@ -206,19 +206,57 @@ public sealed class ContractTests
         finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
     }
 
+    [IntegrationFact]
+    [Trait("Category", "AzureIntegration")]
+    public async Task BrowseAndTestConnectionKeepFormOpenAndDoNotModifyStorage()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var profile = new AzureBlobConnection(Guid.NewGuid(), "Test", AuthenticationMode.ConnectionString,
+            null, null, "/", "CSHARPFAR_AZURE_TEST_CONNECTION", true);
+        var (service, _) = AzureBlobClientFactory.Create(profile);
+        var container = service!.GetBlobContainerClient("csharpfar-" + Guid.NewGuid().ToString("N"));
+        await container.CreateAsync();
+        try
+        {
+            var ui = new ConnectionUi([0], form =>
+            {
+                Field<PluginFormText>(form, "reference").Value = profile.CredentialReference!;
+                Assert.Null(form.OnEvent!(new(PluginFormEventKind.Action, "browse")));
+                Assert.Equal(container.Name, Field<PluginFormText>(form, "container").Value);
+                Assert.Null(form.OnEvent!(new(PluginFormEventKind.Action, "test")));
+                Assert.Contains("Blob listing succeeded.", form.Status);
+                Assert.Null(form.OnEvent!(new(PluginFormEventKind.Submit, "connect")));
+                return "connect";
+            }) { ContainerToSelect = container.Name };
+            var result = await new AzureBlobPanelProvider().ExecuteAsync(ui, new SettingsDirectory(directory), default);
+            Assert.Equal(PluginCommandResultKind.OpenPanel, result.Kind);
+            Assert.Contains(container.Name, result.Panel!.Title);
+            Assert.Empty(container.GetBlobs());
+            Assert.False(File.Exists(Path.Combine(directory, "connections.json")));
+        }
+        finally
+        {
+            await container.DeleteIfExistsAsync();
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
     private static T Field<T>(PluginForm form, string id) where T : PluginFormRow =>
         Assert.IsType<T>(Assert.Single(form.Rows, row => row.Id == id));
 
     private sealed class ConnectionUi(IEnumerable<int> selections, Func<PluginForm, string?> edit) : IPluginUiService
     {
         private readonly Queue<int> menu = new(selections);
+        public string? ContainerToSelect { get; init; }
         public bool SupportsForms => true;
         public string? ShowForm(PluginForm form, CancellationToken cancellationToken = default) => edit(form);
         public void ShowMessage(string title, string message) => throw new InvalidOperationException(message);
         public string? Input(string title, string prompt, string? initialText = null) =>
             throw new InvalidOperationException("Connection editing must use the form.");
         public int? ShowMenu(string title, IReadOnlyList<string> items, int selected) =>
-            menu.TryDequeue(out int value) ? value : null;
+            title == "Azure containers" && ContainerToSelect is not null
+                ? Array.IndexOf(items.ToArray(), ContainerToSelect)
+                : menu.TryDequeue(out int value) ? value : null;
     }
 
     private sealed class Host : IPluginHost

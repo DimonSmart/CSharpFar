@@ -125,7 +125,10 @@ def check(host, extension, screenshot):
             x = screen.display[y].index("[ Test connection ]") + 4
             send(f"\x1b[<0;{x+1};{y+1}M\x1b[<0;{x+1};{y+1}m".encode())
             wait_text("Blob listing succeeded.")
-            send(b"\x1b[21~")  # F10 accepts the default Connect action.
+            # Click the default Connect button explicitly after testing.
+            y = next(i for i, row in enumerate(screen.display) if "{ Connect }" in row)
+            x = screen.display[y].index("{ Connect }") + 4
+            send(f"\x1b[<0;{x+1};{y+1}M\x1b[<0;{x+1};{y+1}m".encode())
             wait_text("probe-view.txt")
             wait_text("folder")
             capture()

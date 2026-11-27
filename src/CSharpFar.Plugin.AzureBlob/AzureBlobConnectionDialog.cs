@@ -1,5 +1,6 @@
 using Azure;
 using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using CSharpFar.Plugin.Abstractions;
 
 namespace CSharpFar.Plugin.AzureBlob;
@@ -145,7 +146,7 @@ internal static class AzureBlobConnectionDialog
                     }
                     else
                     {
-                        _ = selectedContainer.GetBlobs(prefix: AzureBlobPath.Prefix(connection.InitialDirectory),
+                        _ = selectedContainer.GetBlobs(BlobTraits.None, BlobStates.None, prefix: AzureBlobPath.Prefix(connection.InitialDirectory),
                             cancellationToken: timeout.Token).AsPages(pageSizeHint: 1).FirstOrDefault();
                         container.Value = selectedContainer.Name;
                         form.Status = "Blob listing succeeded. Write permissions were not tested.";
