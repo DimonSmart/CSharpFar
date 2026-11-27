@@ -16,7 +16,7 @@ internal static class AzureBlobConnectionDialog
         "Azurite"
     ];
 
-    internal sealed record Result(AzureBlobConnection Connection, bool Save, PluginPanelOpenRequest? Panel);
+    internal sealed record Result(AzureBlobConnection Connection, bool Save, PluginPanelOpenRequest? Panel, bool Delete = false);
 
     public static Result? Show(IPluginUiService ui, AzureBlobConnection? old, bool saveByDefault, CancellationToken token)
     {
@@ -117,6 +117,11 @@ internal static class AzureBlobConnectionDialog
                 RefreshMode();
                 return null;
             }
+            if (e.Kind == PluginFormEventKind.Submit && e.Id == "delete" && old is not null)
+            {
+                accepted = new(old, false, null, Delete: true);
+                return null;
+            }
             if (Read(out var connection) is { } validation) return validation;
             if (e.Kind == PluginFormEventKind.Submit && e.Id == "save")
             {
@@ -129,12 +134,12 @@ internal static class AzureBlobConnectionDialog
             timeout.CancelAfter(TimeSpan.FromSeconds(20));
             try
             {
-                if (e.Kind == PluginFormEventKind.Action && e.Id == "browse")
-                    return ChooseContainer(connection, timeout.Token);
-
                 if (connection.CredentialReference is { } variable &&
                     string.IsNullOrEmpty(Environment.GetEnvironmentVariable(variable)))
                     return new("Credential environment variable is missing.", reference.Id);
+
+                if (e.Kind == PluginFormEventKind.Action && e.Id == "browse")
+                    return ChooseContainer(connection, timeout.Token);
 
                 var (service, selectedContainer) = AzureBlobClientFactory.Create(connection);
                 if (e.Kind == PluginFormEventKind.Action && e.Id == "test")
@@ -199,6 +204,7 @@ internal static class AzureBlobConnectionDialog
                 new("test", "Test connection", 'T', PluginFormButtonRole.Auxiliary),
                 new("save", "Save", 'S'),
                 new("connect", "Connect", 'O', IsDefault: true),
+                .. (old is null ? Array.Empty<PluginFormButton>() : new[] { new PluginFormButton("delete", "Delete", 'D') }),
                 new("cancel", "Cancel", 'C', PluginFormButtonRole.Cancel)
             ],
             OnEvent = Handle

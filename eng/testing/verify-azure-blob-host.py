@@ -114,12 +114,18 @@ def check(host, extension, screenshot):
             send(b"azure:\r")
             wait_text("Quick connect")
             send(b"\r")
-            wait_text("Edit connection")
-            send(b"\r")
             wait_text("Azure Blob connection")
             wait_text("Test connection")
             wait_text("csharpfar-smoke")
             capture(screenshot.with_name("connection-form.png"))
+            # Browse uses a temporary selection list and returns to the same draft.
+            y = next(i for i, row in enumerate(screen.display) if "[ Browse... ]" in row)
+            x = screen.display[y].index("[ Browse... ]") + 4
+            send(f"\x1b[<0;{x+1};{y+1}M\x1b[<0;{x+1};{y+1}m".encode())
+            wait_text("Azure containers")
+            send(b"\r")
+            wait_for(lambda: "Azure containers" not in visible() and "Azure Blob connection" in visible(), "return to connection form")
+            wait_text("csharpfar-smoke")
             # Click Test connection in the actual rendered footer; it must keep the form open.
             y = next(i for i, row in enumerate(screen.display) if "[ Test connection ]" in row)
             x = screen.display[y].index("[ Test connection ]") + 4

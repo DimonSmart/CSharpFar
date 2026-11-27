@@ -54,27 +54,23 @@ public sealed class AzureBlobPanelProvider : IPanelProvider
             }
 
             var selected = connections[index.Value];
-            switch (ui.ShowMenu(selected.DisplayName, ["Connect", "Edit connection...", "Delete connection..."], 0))
+            var edited = AzureBlobConnectionDialog.Show(ui, selected, true, token);
+            if (edited is null) continue;
+            if (edited.Delete)
             {
-                case 0:
-                case 1:
-                    var edited = AzureBlobConnectionDialog.Show(ui, selected, true, token);
-                    if (edited is null) break;
-                    if (edited.Save)
-                    {
-                        connections[index.Value] = edited.Connection;
-                        store.Save(connections);
-                    }
-                    if (edited.Panel is not null) return edited.Panel;
-                    break;
-                case 2:
-                    if (ui.Confirm("Delete connection", "Remove saved settings?", selected.DisplayName))
-                    {
-                        connections.RemoveAt(index.Value);
-                        store.Save(connections);
-                    }
-                    break;
+                if (ui.Confirm("Delete connection", "Remove saved settings?", selected.DisplayName))
+                {
+                    connections.RemoveAt(index.Value);
+                    store.Save(connections);
+                }
+                continue;
             }
+            if (edited.Save)
+            {
+                connections[index.Value] = edited.Connection;
+                store.Save(connections);
+            }
+            if (edited.Panel is not null) return edited.Panel;
         }
     }
 }

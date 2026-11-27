@@ -186,7 +186,7 @@ public sealed class ContractTests
             var store = new AzureBlobConnectionStore(directory);
             await new AzureBlobPanelProvider().ExecuteAsync(ui, new SettingsDirectory(directory), default);
             var saved = Assert.Single(store.Load());
-            var edit = new ConnectionUi([0, 1], form =>
+            var edit = new ConnectionUi([0], form =>
             {
                 Assert.Equal("Saved", Field<PluginFormText>(form, "name").Value);
                 Field<PluginFormText>(form, "name").Value = "Renamed";
@@ -202,6 +202,34 @@ public sealed class ContractTests
             Assert.Equal(saved.Id, updated.Id);
             Assert.Equal("Renamed", updated.DisplayName);
             Assert.Null(updated.CredentialReference);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Fact]
+    public async Task DeletingProfileRequiresConfirmationAndDoesNotValidateDraft()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new AzureBlobConnectionStore(directory);
+            var profile = new AzureBlobConnection(Guid.NewGuid(), "Saved", AuthenticationMode.Azurite,
+                null, null, "/", null, false);
+            store.Save([profile]);
+            foreach (bool confirm in new[] { false, true })
+            {
+                var ui = new ConnectionUi([0], form =>
+                {
+                    Assert.Contains(form.Buttons, button => button.Id == "delete");
+                    Field<PluginFormText>(form, "name").Value = "";
+                    Assert.Null(form.OnEvent!(new(PluginFormEventKind.Submit, "delete")));
+                    return "delete";
+                }) { ConfirmDelete = confirm };
+                var result = await new AzureBlobPanelProvider().ExecuteAsync(ui, new SettingsDirectory(directory), default);
+                Assert.Equal(PluginCommandResultKind.Cancelled, result.Kind);
+                if (confirm) Assert.Empty(store.Load());
+                else Assert.Equal(profile, Assert.Single(store.Load()));
+            }
         }
         finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
     }
@@ -231,7 +259,7 @@ public sealed class ContractTests
             var result = await new AzureBlobPanelProvider().ExecuteAsync(ui, new SettingsDirectory(directory), default);
             Assert.Equal(PluginCommandResultKind.OpenPanel, result.Kind);
             Assert.Contains(container.Name, result.Panel!.Title);
-            Assert.Empty(container.GetBlobs());
+            Assert.Empty(container.GetBlobs(Azure.Storage.Blobs.Models.BlobTraits.None, Azure.Storage.Blobs.Models.BlobStates.None, prefix: null, cancellationToken: default));
             Assert.False(File.Exists(Path.Combine(directory, "connections.json")));
         }
         finally
@@ -248,6 +276,8 @@ public sealed class ContractTests
     {
         private readonly Queue<int> menu = new(selections);
         public string? ContainerToSelect { get; init; }
+        public bool ConfirmDelete { get; init; }
+        public bool Confirm(string title, string question, string itemName) => ConfirmDelete;
         public bool SupportsForms => true;
         public string? ShowForm(PluginForm form, CancellationToken cancellationToken = default) => edit(form);
         public void ShowMessage(string title, string message) => throw new InvalidOperationException(message);
