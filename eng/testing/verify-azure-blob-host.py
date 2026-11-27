@@ -212,7 +212,7 @@ def check(host, extension, screenshot):
             os.close(terminal)
 
 
-def check_lifecycle(host):
+def check_lifecycle(host, development=False):
     """Verify the actual published host's persisted enable/disable UI and restart."""
     host = host.resolve(strict=True)
     config = host.parent / "CSharpFar.config"
@@ -220,7 +220,7 @@ def check_lifecycle(host):
     original_profiles = json.loads(profiles.read_text())
     state = config / "extensions-state.json"
 
-    def session(expected, toggle=None, no_extensions=False):
+    def session(expected, toggle=None, no_extensions=False, global_toggle=None, all_enabled=None):
         with tempfile.TemporaryDirectory(prefix="azure-blob-lifecycle-") as work:
             screen = pyte.Screen(120, 35)
             stream = pyte.ByteStream(screen)
@@ -270,6 +270,15 @@ def check_lifecycle(host):
                 wait_text("Enable/Disable")
                 wait_for(lambda: any("Azure Blob Storage" in row and expected in row for row in screen.display),
                          "Azure extension status " + expected)
+                if all_enabled is not None:
+                    wait_text(("[X]" if all_enabled else "[ ]") + " Enable external plugins (all)")
+                if global_toggle is not None:
+                    send(b"\x1b[F")  # End selects the global row.
+                    send(b"\r")
+                    wait_text("are now " + ("enabled" if global_toggle else "disabled"))
+                    send(b"\r")
+                    wait_text("Enable/Disable")
+                    assert json.loads(state.read_text())["enabled"] is global_toggle
                 if toggle:
                     send(b"\r")
                     wait_text("is now " + toggle)
@@ -278,7 +287,7 @@ def check_lifecycle(host):
                     assert ("azure-blob" in json.loads(state.read_text())["disabled"]) == (toggle == "disabled")
                 send(b"\x1b")
                 wait_for(lambda: "Enable/Disable" not in visible() and "Quit" in visible(), "main panel")
-                if expected == "Loaded" and toggle is None:
+                if expected == "Loaded" and toggle is None and global_toggle is None:
                     send(b"\x1b[20~")
                     wait_text("Plugins")
                     send(b"p")
@@ -324,11 +333,27 @@ def check_lifecycle(host):
     session("Disabled", toggle="enabled")
     session("Loaded")
     session("Disabled", no_extensions=True)
+    if development:
+        session("Loaded", global_toggle=False, all_enabled=True)
+        session("Disabled", global_toggle=True, all_enabled=False)
+        session("Loaded", all_enabled=True)
     assert json.loads(profiles.read_text()) == original_profiles
     assert "azure-blob" not in json.loads(state.read_text())["disabled"]
     print("PASS: actual Options > Plugins disable/re-enable with restarts, plugin menu, saved profile preservation, --no-extensions.", flush=True)
 
 
 if __name__ == "__main__":
-    check(*(pathlib.Path(value) for value in sys.argv[1:]))
-    check_lifecycle(pathlib.Path(sys.argv[1]))
+    if len(sys.argv) == 4 and sys.argv[1] == "--debug-lifecycle":
+        host = pathlib.Path(sys.argv[2]).resolve(strict=True)
+        source_config = pathlib.Path(sys.argv[3])
+        (host.parent / "CSharpFar.portable").touch()
+        config = host.parent / "CSharpFar.config"
+        if config.exists():
+            raise AssertionError("Debug lifecycle test requires an unused host.")
+        # Copy settings only, not the installed package: discovery must use the staged build output.
+        shutil.copytree(source_config / "plugins", config / "plugins")
+        shutil.copy2(source_config / "settings.json", config / "settings.json")
+        check_lifecycle(host, development=True)
+    else:
+        check(*(pathlib.Path(value) for value in sys.argv[1:]))
+        check_lifecycle(pathlib.Path(sys.argv[1]))

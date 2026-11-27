@@ -47,7 +47,7 @@ A Debug solution build stages repository-owned external extensions in
 only by Debug application builds, without changing the user's config directory.
 A manually installed folder of the same name takes precedence. Do not install
 third-party extensions into this build-owned directory. The normal Release
-build and independent SDK packaging remain separate.
+build and independent SDK packaging remain separate. Repository extensions opt in by setting the `CSharpFarDevelopmentExtensionId` MSBuild property and adding a solution-level build dependency from each host; no host assembly reference is added.
 
 ## Manifest (API version 2)
 

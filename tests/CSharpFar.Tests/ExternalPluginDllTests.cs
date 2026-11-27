@@ -230,6 +230,10 @@ public sealed class ExternalPluginDllTests : IDisposable
         Assert.False(string.IsNullOrWhiteSpace(error));
         Assert.True(item.Enabled);
         Assert.False(item.RequiresRestart);
+        Assert.False(discovery.Manager.TrySetExternalPluginsEnabled(false, out error));
+        Assert.False(string.IsNullOrWhiteSpace(error));
+        Assert.True(discovery.Manager.ExternalPluginsEnabled);
+        Assert.False(discovery.Manager.GlobalRestartRequired);
     }
 
     [Fact]
