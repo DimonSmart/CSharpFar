@@ -12,7 +12,19 @@ public sealed class PluginFormDialogTests
     [Fact]
     public void ValidationKeepsFormOpenAndFocusesField()
     {
-        var driver = Driver(Key(ConsoleKey.F10), new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false), Key(ConsoleKey.F10));
+        var driver = Driver(Key(ConsoleKey.F10));
+        // Inspect complete committed frames, not the driver's incremental write chunks.
+        driver.BeforeReadInput = current =>
+        {
+            Assert.DoesNotContain("hidden-value", ScreenText(current));
+            Assert.Contains("************", ScreenText(current));
+            current.BeforeReadInput = next =>
+            {
+                Assert.Contains("Required name", ScreenText(next));
+                next.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
+                next.EnqueueKey(Key(ConsoleKey.F10));
+            };
+        };
         var name = new PluginFormText("name", "Name:");
         var secret = new PluginFormText("secret", "Password:", "hidden-value") { Masked = true };
         int submits = 0;
@@ -32,7 +44,6 @@ public sealed class PluginFormDialogTests
         Assert.Equal("x", name.Value);
         Assert.Equal("hidden-value", secret.Value);
         Assert.DoesNotContain(driver.WriteRecords, record => record.Text.Contains("hidden-value", StringComparison.Ordinal));
-        Assert.Contains(driver.WriteRecords, record => record.Text.Contains("Required name", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -102,10 +113,11 @@ public sealed class PluginFormDialogTests
         {
             driver.BeforeReadInput = current =>
             {
-                var record = current.WriteRecords.Last(item => item.Text.Contains("Browse", StringComparison.Ordinal) &&
-                    item.Text.Contains("[", StringComparison.Ordinal));
-                current.EnqueueInput(new MouseConsoleInputEvent(record.X + 2, record.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
-                current.EnqueueInput(new MouseConsoleInputEvent(record.X + 2, record.Y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
+                int y = Assert.Single(Enumerable.Range(0, current.GetSize().Height)
+                    .Where(row => current.GetRow(row).Contains("[ Browse ]", StringComparison.Ordinal)));
+                int x = current.GetRow(y).IndexOf("[ Browse ]", StringComparison.Ordinal) + 4;
+                current.EnqueueInput(new MouseConsoleInputEvent(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+                current.EnqueueInput(new MouseConsoleInputEvent(x, y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
                 current.EnqueueKey(Key(ConsoleKey.F10));
             };
         }
@@ -151,6 +163,9 @@ public sealed class PluginFormDialogTests
         });
         return ui.ShowForm(form, token);
     }
+
+    private static string ScreenText(FakeConsoleDriver driver) =>
+        string.Join('\n', Enumerable.Range(0, driver.GetSize().Height).Select(driver.GetRow));
 
     private static FakeConsoleDriver Driver(params ConsoleKeyInfo[] keys)
     {
