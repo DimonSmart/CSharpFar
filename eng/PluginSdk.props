@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <!-- Version of the independently distributed public plugin SDK, not the app release. -->
-    <PluginSdkVersion>2.0.0</PluginSdkVersion>
+    <PluginSdkVersion>2.1.0</PluginSdkVersion>
     <!-- Keep the assembly identity stable across binary-compatible 2.x SDK releases. -->
     <PluginSdkAssemblyVersion>2.0.0.0</PluginSdkAssemblyVersion>
   </PropertyGroup>

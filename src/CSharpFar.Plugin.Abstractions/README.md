@@ -13,3 +13,5 @@ for packaging, manifest format, lifecycle and binary compatibility.
 Writable file-panel providers may implement the base `IFilePanelSource` contract
 and appropriate capabilities. Transaction and safe-publication interfaces are
 optional guarantees; see the native plugin guide for Best Effort semantics.
+
+SDK 2.1 adds semantic modal forms via `IPluginUiService.ShowForm`. See the native plugin guide for an example, callback semantics and compatibility notes.

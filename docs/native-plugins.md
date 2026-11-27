@@ -97,9 +97,9 @@ from GitHub Releases or generated locally using:
 ./eng/pack-plugin-sdk.ps1
 ```
 
-This creates `artifacts/plugin-sdk/CSharpFar.Core.2.0.0.nupkg`,
-`CSharpFar.Plugin.Abstractions.2.0.0.nupkg`, and
-`CSharpFar.Plugin.Templates.2.0.0.nupkg`. Public NuGet.org publishing is
+This creates `artifacts/plugin-sdk/CSharpFar.Core.2.1.0.nupkg`,
+`CSharpFar.Plugin.Abstractions.2.1.0.nupkg`, and
+`CSharpFar.Plugin.Templates.2.1.0.nupkg`. Public NuGet.org publishing is
 not automated: a maintainer must publish explicitly, with credentials stored
 outside source control. Do not attempt to push a package version that already
 exists in the feed.
@@ -107,7 +107,7 @@ exists in the feed.
 To generate a working plugin from the versioned template package:
 
 ```sh
-dotnet new install artifacts/plugin-sdk/CSharpFar.Plugin.Templates.2.0.0.nupkg
+dotnet new install artifacts/plugin-sdk/CSharpFar.Plugin.Templates.2.1.0.nupkg
 dotnet new csharpfar-plugin -n MyExtension --PluginId my-extension --PluginTitle "My Extension"
 dotnet restore MyExtension.csproj --source /path/to/plugin-sdk
 dotnet publish MyExtension.csproj -c Release -o ./extension
@@ -119,7 +119,7 @@ folder. For a plain class library without the template:
 ```sh
 dotnet new classlib -n MyExtension -f net10.0
 cd MyExtension
-dotnet add package CSharpFar.Plugin.Abstractions --version 2.0.0 --source /path/to/plugin-sdk
+dotnet add package CSharpFar.Plugin.Abstractions --version 2.1.0 --source /path/to/plugin-sdk
 ```
 
 A minimal `Plugin.cs` can be written as:
@@ -309,3 +309,35 @@ legacy adapter without replacing the provider's registered identity or optional
 interfaces. No manifest API version change is needed for this additive contract.
 See [asynchronous file panel sources](architecture/async-file-panel-sources.md)
 for scheduling, lifetime and cancellation details.
+
+## Multi-field modal forms (SDK 2.1)
+
+Use `context.Ui.ShowForm` on the terminal-owning thread. The host renders the form using its existing UI, palette, keyboard and mouse navigation, and scrolling. No reference to CSharpFar.Ui is needed.
+
+```csharp
+var name = new PluginFormText("name", "Name:", "Example");
+var mode = new PluginFormSelect("mode", "Mode:", ["Local", "Remote"], "Local");
+var endpoint = new PluginFormText("endpoint", "Endpoint:") { Visible = false };
+var readOnly = new PluginFormCheckBox("readonly", "Read-only");
+var form = new PluginForm("Connection",
+    [name, new PluginFormSeparator("section"), mode, endpoint, readOnly])
+{
+    PreferredWidth = 72,
+    OnEvent = e =>
+    {
+        endpoint.Visible = mode.Value == "Remote";
+        return e.Kind == PluginFormEventKind.Submit && endpoint.Visible &&
+            string.IsNullOrWhiteSpace(endpoint.Value)
+            ? new PluginFormFeedback("Endpoint is required.", endpoint.Id)
+            : null;
+    }
+};
+if (context.Ui.ShowForm(form, token) is not null)
+{
+    // Commit the validated draft values here.
+}
+```
+
+Set `Masked = true` for secret fields; no form input uses host history. Do not put secrets into status, labels or exception messages. An auxiliary button (including one in a text field's Actions) invokes the callback without closing the form. A submit closes only when the callback returns null. Feedback displays an error in the footer and optionally focuses a visible enabled field; update form.Status to display informational feedback. Keep row identities and the button list fixed; toggle Visible and Enabled rather than reconstructing controls. Draft values may change even when cancelled; Escape or Cancel returns null. The cancellation token cancels the modal call, not arbitrary synchronous plugin code. Callbacks run on the terminal thread; do not block on unbounded network operations or invoke the modal API from a worker thread.
+
+SDK 2.1 is an additive revision of SDK 2; the manifest apiVersion and assembly version remain 2 and 2.0.0.0. A plugin compiled against 2.1 that uses these members requires a host shipping 2.1 or later; old host binaries cannot resolve new SDK types. SupportsForms is false by default for compatible test doubles or other implementations of the new interface. Existing 2.0 plugins do not need rebuilding.
