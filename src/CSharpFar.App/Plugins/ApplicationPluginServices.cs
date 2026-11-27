@@ -29,6 +29,14 @@ internal sealed class ApplicationPluginUi(ModuleUiServices ui) : IPluginUiServic
                 "During asynchronous initialization, defer dialogs until a command runs.");
     }
 
+    public bool SupportsForms => true;
+
+    public string? ShowForm(PluginForm form, CancellationToken cancellationToken = default)
+    {
+        EnsureUiThread();
+        return PluginFormDialog.Show(ui.Dialogs, ui.Fields, form, cancellationToken);
+    }
+
     public void ShowMessage(string title, string message)
     {
         EnsureUiThread();

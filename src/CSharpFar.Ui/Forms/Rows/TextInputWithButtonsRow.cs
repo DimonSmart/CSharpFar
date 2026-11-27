@@ -83,6 +83,18 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormFocusTarget, IFormCu
 
     internal override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
+        if (!Enabled)
+            return FormInputResult.NotHandled;
+        if (key.Modifiers == ConsoleModifiers.Alt && key.KeyChar > ' ')
+        {
+            var action = _buttonBar.HandleKey(key, _buttonState);
+            if (action.ButtonId is not null)
+            {
+                _buttonState = action.State;
+                return ButtonResult(action);
+            }
+        }
+
         FormInputResult result = _field.HandleKey(key, context);
         return result.Kind == FormInputResultKind.OverlayChanged && SubmitOnEnter
             ? FormInputResult.Submit()
@@ -97,16 +109,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormFocusTarget, IFormCu
         DialogButtonBarInputResult buttonResult = _buttonBar.HandleMouse(mouse, layout.ButtonLayout, _buttonState);
         _buttonState = buttonResult.State;
         if (buttonResult.IsHandled)
-        {
-            return buttonResult.ButtonId is null
-                ? new FormInputResult(FormInputResultKind.Handled, MouseCapture: buttonResult.MouseCapture)
-                : new FormInputResult(
-                    buttonResult.ButtonRole == DialogButtonRole.Cancel
-                        ? FormInputResultKind.Cancel
-                        : FormInputResultKind.Submit,
-                    buttonResult.ButtonId,
-                    buttonResult.MouseCapture);
-        }
+            return ButtonResult(buttonResult);
 
         if (mouse.Button != MouseButton.Left ||
             mouse.Kind != MouseEventKind.Down ||
@@ -122,6 +125,16 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormFocusTarget, IFormCu
             : _field.HandleMouse(mouse, context, layout.InputBounds);
     }
 
+
+    private static FormInputResult ButtonResult(DialogButtonBarInputResult result) =>
+        result.ButtonId is null
+            ? new FormInputResult(FormInputResultKind.Handled, MouseCapture: result.MouseCapture)
+            : new FormInputResult(result.ButtonRole switch
+            {
+                DialogButtonRole.Cancel => FormInputResultKind.Cancel,
+                DialogButtonRole.Auxiliary => FormInputResultKind.Auxiliary,
+                _ => FormInputResultKind.Submit
+            }, result.ButtonId, result.MouseCapture);
 
     private TextInputWithButtonsLayout CalculateLayout(FormRowLayout rowLayout)
     {

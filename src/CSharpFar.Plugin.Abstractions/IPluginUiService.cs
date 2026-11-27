@@ -2,6 +2,13 @@ namespace CSharpFar.Plugin.Abstractions;
 
 public interface IPluginUiService
 {
+    /// <summary>Whether this host implements semantic modal forms (SDK 2.1).</summary>
+    bool SupportsForms => false;
+
+    /// <summary>Returns the accepted submit button ID, or null on user cancellation.</summary>
+    string? ShowForm(PluginForm form, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This host does not support plugin forms.");
+
     void ShowMessage(string title, string message);
 
     string? Input(string title, string prompt, string? initialText = null);

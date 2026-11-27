@@ -14,3 +14,5 @@ Copy `plugin.json` to `artifacts/hello-world`, then copy the entire directory to
 loads it automatically. Use the Plugins menu or enter `hello` in its command line.
 Counter and disposal marker live in `<config-directory>/plugins/hello-world/`.
 See [the native plugin guide](../../docs/native-plugins.md).
+
+With an SDK 2.1 host, type `helloform:` to exercise the multi-field modal form example.
