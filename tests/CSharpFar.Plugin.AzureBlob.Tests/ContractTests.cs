@@ -110,8 +110,19 @@ public sealed class ContractTests
         try
         {
             // Azurite client construction is local; an explicit container avoids a network list call.
-            var ui = new ConnectionUi(save ? [1, 4, 1, 0, 0] : [0, 4, 1],
-                ["Profile", "", "container", "/"]);
+            var ui = new ConnectionUi([save ? 1 : 0], form =>
+            {
+                Assert.Equal(save, Field<PluginFormCheckBox>(form, "save-profile").Value);
+                Field<PluginFormText>(form, "name").Value = "Profile";
+                var mode = Field<PluginFormSelect>(form, "mode");
+                mode.Value = "Azurite";
+                Assert.Null(form.OnEvent!(new(PluginFormEventKind.ValueChanged, mode.Id)));
+                Assert.Equal("", Field<PluginFormText>(form, "reference").Value);
+                Field<PluginFormText>(form, "container").Value = "container";
+                Field<PluginFormCheckBox>(form, "readonly").Value = true;
+                Assert.Null(form.OnEvent!(new(PluginFormEventKind.Submit, "connect")));
+                return "connect";
+            });
             var result = await new AzureBlobPanelProvider().ExecuteAsync(ui, new SettingsDirectory(directory), default);
             Assert.Equal(PluginCommandResultKind.OpenPanel, result.Kind);
             Assert.IsType<AzureBlobFilePanelSource>(result.Panel!.Source);
@@ -127,13 +138,87 @@ public sealed class ContractTests
         public string GetSettingsDirectory(string pluginId) => directory;
     }
 
-    private sealed class ConnectionUi(IEnumerable<int> selections, IEnumerable<string> values) : IPluginUiService
+    [Fact]
+    public async Task FormValidatesAndNeverPersistsCancelledDraftOrHiddenCredentials()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            var ui = new ConnectionUi([1], form =>
+            {
+                var mode = Field<PluginFormSelect>(form, "mode");
+                var endpoint = Field<PluginFormText>(form, "endpoint");
+                var reference = Field<PluginFormText>(form, "reference");
+                Assert.False(endpoint.Visible);
+                mode.Value = "SAS token (environment)";
+                Assert.Null(form.OnEvent!(new(PluginFormEventKind.ValueChanged, mode.Id)));
+                Assert.True(endpoint.Visible);
+                endpoint.Value = "https://example.blob.core.windows.net?sig=secret";
+                Assert.Equal(endpoint.Id, form.OnEvent!(new(PluginFormEventKind.Submit, "save"))!.FocusFieldId);
+                endpoint.Value = "https://example.blob.core.windows.net";
+                reference.Value = "sig=secret";
+                Assert.Equal(reference.Id, form.OnEvent!(new(PluginFormEventKind.Submit, "save"))!.FocusFieldId);
+                mode.Value = "Microsoft Entra ID (Azure CLI)";
+                Assert.Null(form.OnEvent!(new(PluginFormEventKind.ValueChanged, mode.Id)));
+                Assert.False(reference.Visible);
+                Field<PluginFormText>(form, "name").Value = "Cancelled";
+                return null;
+            });
+            var result = await new AzureBlobPanelProvider().ExecuteAsync(ui, new SettingsDirectory(directory), default);
+            Assert.Equal(PluginCommandResultKind.Cancelled, result.Kind);
+            Assert.False(File.Exists(Path.Combine(directory, "connections.json")));
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Fact]
+    public async Task SaveDoesNotRequireNetworkAndEditingKeepsProfileIdentity()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            var ui = new ConnectionUi([1, 0, 1], form =>
+            {
+                Field<PluginFormText>(form, "name").Value = "Saved";
+                Assert.Null(form.OnEvent!(new(PluginFormEventKind.Submit, "save")));
+                return "save";
+            });
+            var store = new AzureBlobConnectionStore(directory);
+            await new AzureBlobPanelProvider().ExecuteAsync(ui, new SettingsDirectory(directory), default);
+            var saved = Assert.Single(store.Load());
+            var edit = new ConnectionUi([0, 1], form =>
+            {
+                Assert.Equal("Saved", Field<PluginFormText>(form, "name").Value);
+                Field<PluginFormText>(form, "name").Value = "Renamed";
+                var mode = Field<PluginFormSelect>(form, "mode");
+                mode.Value = "Microsoft Entra ID (Azure CLI)";
+                Assert.Null(form.OnEvent!(new(PluginFormEventKind.ValueChanged, mode.Id)));
+                Field<PluginFormText>(form, "endpoint").Value = "https://example.blob.core.windows.net";
+                Assert.Null(form.OnEvent!(new(PluginFormEventKind.Submit, "save")));
+                return "save";
+            });
+            await new AzureBlobPanelProvider().ExecuteAsync(edit, new SettingsDirectory(directory), default);
+            var updated = Assert.Single(store.Load());
+            Assert.Equal(saved.Id, updated.Id);
+            Assert.Equal("Renamed", updated.DisplayName);
+            Assert.Null(updated.CredentialReference);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    private static T Field<T>(PluginForm form, string id) where T : PluginFormRow =>
+        Assert.IsType<T>(Assert.Single(form.Rows, row => row.Id == id));
+
+    private sealed class ConnectionUi(IEnumerable<int> selections, Func<PluginForm, string?> edit) : IPluginUiService
     {
         private readonly Queue<int> menu = new(selections);
-        private readonly Queue<string> input = new(values);
+        public bool SupportsForms => true;
+        public string? ShowForm(PluginForm form, CancellationToken cancellationToken = default) => edit(form);
         public void ShowMessage(string title, string message) => throw new InvalidOperationException(message);
-        public string? Input(string title, string prompt, string? initialText = null) => input.Dequeue();
-        public int? ShowMenu(string title, IReadOnlyList<string> items, int selected) => menu.Dequeue();
+        public string? Input(string title, string prompt, string? initialText = null) =>
+            throw new InvalidOperationException("Connection editing must use the form.");
+        public int? ShowMenu(string title, IReadOnlyList<string> items, int selected) =>
+            menu.TryDequeue(out int value) ? value : null;
     }
 
     private sealed class Host : IPluginHost

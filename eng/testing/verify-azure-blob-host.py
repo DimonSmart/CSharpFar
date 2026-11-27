@@ -82,9 +82,9 @@ def check(host, extension, screenshot):
         def send(data):
             os.write(terminal, data)
 
-        def capture():
+        def capture(target=screenshot):
             # Render the actual VT screen cells; not a fabricated UI image.
-            screenshot.parent.mkdir(parents=True, exist_ok=True)
+            target.parent.mkdir(parents=True, exist_ok=True)
             colors = {"black":"#000000", "red":"#aa0000", "green":"#00aa00",
                       "brown":"#aa5500", "yellow":"#aaaa00", "blue":"#0000aa",
                       "magenta":"#aa00aa", "cyan":"#00aaaa", "white":"#aaaaaa",
@@ -104,7 +104,7 @@ def check(host, extension, screenshot):
                         foreground, background = background, foreground
                     draw.rectangle((x*9,y*19,x*9+8,y*19+18), fill=background)
                     draw.text((x*9,y*19), cell.data, font=font, fill=foreground)
-            image.save(screenshot)
+            image.save(target)
 
         try:
             fcntl.ioctl(terminal, termios.TIOCSWINSZ, struct.pack("HHHH", 35, 120, 0, 0))
@@ -116,6 +116,16 @@ def check(host, extension, screenshot):
             send(b"\r")
             wait_text("Edit connection")
             send(b"\r")
+            wait_text("Azure Blob connection")
+            wait_text("Test connection")
+            wait_text("csharpfar-smoke")
+            capture(screenshot.with_name("connection-form.png"))
+            # Click Test connection in the actual rendered footer; it must keep the form open.
+            y = next(i for i, row in enumerate(screen.display) if "[ Test connection ]" in row)
+            x = screen.display[y].index("[ Test connection ]") + 4
+            send(f"\x1b[<0;{x+1};{y+1}M\x1b[<0;{x+1};{y+1}m".encode())
+            wait_text("Blob listing succeeded.")
+            send(b"\x1b[21~")  # F10 accepts the default Connect action.
             wait_text("probe-view.txt")
             wait_text("folder")
             capture()

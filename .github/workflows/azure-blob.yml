@@ -5,6 +5,9 @@ on:
     branches: ['**']
     paths:
       - 'src/CSharpFar.Plugin.AzureBlob/**'
+      - 'src/CSharpFar.Plugin.Abstractions/**'
+      - 'eng/PluginSdk.props'
+      - 'eng/pack-plugin-sdk.ps1'
       - 'tests/CSharpFar.Plugin.AzureBlob.Tests/**'
       - 'eng/testing/build-azure-blob-extension.ps1'
       - 'eng/testing/verify-azure-blob-host.py'
@@ -12,6 +15,9 @@ on:
   pull_request:
     paths:
       - 'src/CSharpFar.Plugin.AzureBlob/**'
+      - 'src/CSharpFar.Plugin.Abstractions/**'
+      - 'eng/PluginSdk.props'
+      - 'eng/pack-plugin-sdk.ps1'
       - 'tests/CSharpFar.Plugin.AzureBlob.Tests/**'
       - 'eng/testing/build-azure-blob-extension.ps1'
       - 'eng/testing/verify-azure-blob-host.py'
@@ -45,22 +51,22 @@ jobs:
         env:
           CSHARPFAR_AZURE_TEST_CONNECTION: UseDevelopmentStorage=true
         run: dotnet test tests/CSharpFar.Plugin.AzureBlob.Tests -c Release --no-build --filter Category=AzureIntegration --logger "console;verbosity=normal"
-      - name: Build installable ZIP using published SDK
+      - name: Pack matching public SDK
         shell: pwsh
-        run: ./eng/testing/build-azure-blob-extension.ps1
+        run: ./eng/pack-plugin-sdk.ps1
+      - name: Build installable ZIP using only binary SDK packages
+        shell: pwsh
+        run: ./eng/testing/build-azure-blob-extension.ps1 -SdkFeed artifacts/plugin-sdk
       - name: Seed disposable published-host fixture
         env:
           CSHARPFAR_AZURE_HOST_FIXTURE: '1'
         run: dotnet test tests/CSharpFar.Plugin.AzureBlob.Tests -c Release --no-build --filter Category=AzureHostFixture
+      - name: Publish matching Linux host
+        run: |
+          dotnet publish src/CSharpFar.Host.Linux -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/azure-host/host
       - name: Verify real published Linux host
         run: |
           python3 -m pip install --break-system-packages pyte==0.8.2 Pillow==12.2.0
-          mkdir -p artifacts/azure-host
-          base=https://github.com/DimonSmart/CSharpFar/releases/download/v1.0.129
-          asset=CSharpFar-v1.0.129-linux-x64.tar.gz
-          curl --fail --location "$base/$asset" -o "artifacts/azure-host/$asset"
-          curl --fail --location "$base/SHA256SUMS.txt" -o artifacts/azure-host/SHA256SUMS.txt
-          (cd artifacts/azure-host; grep "  $asset$" SHA256SUMS.txt | sha256sum --check --strict; mkdir host; tar -xzf "$asset" -C host)
           python3 eng/testing/verify-azure-blob-host.py artifacts/azure-host/host/csharpfar artifacts/azure-blob/azure-blob artifacts/azure-blob/panel.png
       - name: Verify Debug host finds staged extension and persists global switch
         run: |
@@ -78,4 +84,5 @@ jobs:
             artifacts/azure-blob/*.zip
             artifacts/azure-blob/*.sha256
             artifacts/azure-blob/panel.png
+            artifacts/azure-blob/connection-form.png
           if-no-files-found: error
