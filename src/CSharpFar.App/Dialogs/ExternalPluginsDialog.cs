@@ -7,11 +7,16 @@ internal sealed class ExternalPluginsDialog(DialogService dialogs, ExternalPlugi
 {
     public void Show()
     {
+        // Keep a global row even when no extensions are installed; real entries stay first.
+        var global = new ExternalPluginEntry(string.Empty, string.Empty, true);
         dialogs.List(new ListDialogOptions<ExternalPluginEntry, bool>
         {
             Title = manager.NoExtensions ? "Plugins (--no-extensions)" : "Plugins (restart to apply changes)",
-            Items = () => manager.Entries,
-            ItemText = Format,
+            Items = () => manager.Entries.Append(global).ToArray(),
+            ItemText = entry => ReferenceEquals(entry, global)
+                ? $"[{(manager.ExternalPluginsEnabled ? 'X' : ' ')}] Enable external plugins (all)" +
+                  (manager.GlobalRestartRequired ? " (restart)" : "")
+                : Format(entry),
             EmptyText = "No external extensions installed.",
             DialogWidth = 88,
             MinDialogWidth = 44,
@@ -31,7 +36,8 @@ internal sealed class ExternalPluginsDialog(DialogService dialogs, ExternalPlugi
                 if (action.ActionId == "close")
                     return DialogOutcome<bool>.Complete(false);
 
-                if (action.ActionId == "global")
+                if (action.ActionId == "global" ||
+                    (action.ActionId == "toggle" && ReferenceEquals(action.SelectedItem, global)))
                 {
                     bool enableAll = !manager.ExternalPluginsEnabled;
                     if (!manager.TrySetExternalPluginsEnabled(enableAll, out string? globalError))
@@ -43,7 +49,7 @@ internal sealed class ExternalPluginsDialog(DialogService dialogs, ExternalPlugi
                     return DialogOutcome<bool>.RefreshOpen(action.SelectedIndex);
                 }
 
-                if (action.SelectedItem is not { } entry)
+                if (action.SelectedItem is not { } entry || ReferenceEquals(entry, global))
                     return DialogOutcome<bool>.ContinueOpen();
 
                 if (action.ActionId == "details")

@@ -19,4 +19,24 @@
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
     <None Update="plugin.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
   </ItemGroup>
+  <!-- Repository development deployment only; independent SDK/release packaging is unchanged. -->
+  <Target Name="StageDevelopmentExtension" AfterTargets="Build"
+          Condition="'$(Configuration)' == 'Debug' and '$(AzureBlobBinarySdk)' != 'true' and '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <_DevelopmentHost Include="$(MSBuildProjectDirectory)/../CSharpFar.Host.Windows;$(MSBuildProjectDirectory)/../CSharpFar.Host.Linux;$(MSBuildProjectDirectory)/../CSharpFar.Host.MacOs" />
+      <_DevelopmentFile Include="$(TargetDir)**/*"
+                        Exclude="$(TargetDir)CSharpFar.Core.*;$(TargetDir)CSharpFar.Plugin.Abstractions.*" />
+    </ItemGroup>
+    <!-- These are build-owned directories, never the user configuration directory. -->
+    <PropertyGroup>
+      <_DevelopmentHostSuffix>bin/$(Configuration)/$(TargetFramework)/development-extensions/azure-blob</_DevelopmentHostSuffix>
+    </PropertyGroup>
+    <RemoveDir Directories="@(_DevelopmentHost->'%(FullPath)/$(_DevelopmentHostSuffix)')" />
+    <Copy SourceFiles="@(_DevelopmentFile)"
+          DestinationFiles="@(_DevelopmentFile->'$(MSBuildProjectDirectory)/../CSharpFar.Host.Windows/$(_DevelopmentHostSuffix)/%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Copy SourceFiles="@(_DevelopmentFile)"
+          DestinationFiles="@(_DevelopmentFile->'$(MSBuildProjectDirectory)/../CSharpFar.Host.Linux/$(_DevelopmentHostSuffix)/%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Copy SourceFiles="@(_DevelopmentFile)"
+          DestinationFiles="@(_DevelopmentFile->'$(MSBuildProjectDirectory)/../CSharpFar.Host.MacOs/$(_DevelopmentHostSuffix)/%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
 </Project>

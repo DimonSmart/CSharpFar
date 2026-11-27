@@ -71,13 +71,15 @@ internal sealed class ExternalPluginManager
         var plugins = new List<(PluginDescriptor Descriptor, ICSharpFarPlugin Plugin)>();
         string root = Path.Combine(_configDirectory, "extensions");
         // User-installed packages take precedence over development copies with the same folder name.
-        var directories = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        AddDirectories(root, directories);
+        var directories = GetDirectories(root).ToList();
         if (_developmentRoot is not null)
-            AddDirectories(_developmentRoot, directories);
+        {
+            var installed = directories.Select(path => Path.GetFileName(path)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            directories.AddRange(GetDirectories(_developmentRoot).Where(path => !installed.Contains(Path.GetFileName(path))));
+        }
 
-        foreach (string directory in directories.Values.OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
-                     .ThenBy(Path.GetFileName, StringComparer.Ordinal))
+        foreach (string directory in directories.OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(path => Path.GetFileName(path), StringComparer.Ordinal))
         {
             if (!File.Exists(Path.Combine(directory, "plugin.json")))
                 continue;
@@ -124,18 +126,19 @@ internal sealed class ExternalPluginManager
         return new(plugins, _errors, this);
     }
 
-    private void AddDirectories(string root, Dictionary<string, string> directories)
+    private string[] GetDirectories(string root)
     {
-        if (!Directory.Exists(root)) return;
+        if (!Directory.Exists(root)) return [];
         try
         {
-            foreach (string directory in Directory.GetDirectories(root).OrderBy(path => path, StringComparer.Ordinal))
-                if (File.Exists(Path.Combine(directory, "plugin.json")))
-                    directories.TryAdd(Path.GetFileName(directory), directory);
+            return Directory.GetDirectories(root)
+                .Where(directory => File.Exists(Path.Combine(directory, "plugin.json")))
+                .ToArray();
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
             _errors.Add("Cannot enumerate extensions: " + Clean(error.Message));
+            return [];
         }
     }
 

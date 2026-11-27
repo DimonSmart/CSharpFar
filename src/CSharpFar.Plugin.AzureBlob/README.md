@@ -37,7 +37,7 @@ Directory markers are zero-byte blobs named `.csharpfar-directory` within the pr
 
 ## Build
 
-Normal repository build: `dotnet build CSharpFar.slnx -c Release`.
+Normal repository build: `dotnet build CSharpFar.slnx -c Release`. For local development use `dotnet build CSharpFar.slnx -c Debug` or build the solution in Visual Studio. The plugin build stages the full extension under each host's standard Debug output in `development-extensions/azure-blob/`; no ZIP installation is needed for Debug. User-installed extensions with the same folder name take precedence. Both copies use the same persisted enable/disable choice.
 
 Independent package build against published SDK and NuGet dependencies: from repository root run `pwsh ./eng/testing/build-azure-blob-extension.ps1`. The resulting ZIP and SHA-256 are under `artifacts/azure-blob/`. The two shared SDK contract DLLs are deliberately absent from the installation package.
 

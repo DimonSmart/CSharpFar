@@ -41,6 +41,10 @@ jobs:
       - name: Build
         run: dotnet build CSharpFar.slnx --configuration Release --no-restore
 
+      - name: Verify development extension deployment
+        shell: pwsh
+        run: ./eng/testing/verify-development-extensions.ps1
+
       - name: Verify plugin SDK binary compatibility
         if: runner.os == 'Linux'
         shell: pwsh
