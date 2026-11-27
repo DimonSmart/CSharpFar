@@ -13,7 +13,7 @@ namespace CSharpFar.Tests;
 public sealed partial class ApplicationNavigationTests
 {
     [Fact]
-    public async Task SlowProviderDoesNotBlockOtherPanelResizeOrLogicalPanelSwap()
+    public void SlowProviderDoesNotBlockOtherPanelResizeOrLogicalPanelSwap()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir,
@@ -35,13 +35,13 @@ public sealed partial class ApplicationNavigationTests
         {
             int uiThread = Environment.CurrentManagedThreadId;
             app.PanelNavigation.Navigate(slowPanel, new PanelLocation(source.SourceId, "/slow"), true, _ => { });
-            await source.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.NotEqual(uiThread, source.WorkerThread);
+            // Drive the UI queue on the original thread throughout the scenario.
             Assert.True(SpinWait.SpinUntil(() =>
             {
                 app.DrainUiActions();
-                return slowPanel.IsLoadingIndicatorVisible;
+                return source.WorkerThread != 0 && slowPanel.IsLoadingIndicatorVisible;
             }, TimeSpan.FromSeconds(10)));
+            Assert.NotEqual(uiThread, source.WorkerThread);
             Render(app);
             Assert.Contains("Loading", string.Join(Environment.NewLine,
                 Enumerable.Range(0, driver.GetSize().Height).Select(driver.GetRow)));
@@ -82,13 +82,12 @@ public sealed partial class ApplicationNavigationTests
 
     private sealed class DelayedNavigationSource() : MemoryFilePanelView(new PanelSourceId("delayed-navigation")), IAsyncFilePanelSource
     {
-        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _workerThread;
         public TaskCompletionSource<IReadOnlyList<FilePanelItem>> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public int WorkerThread { get; private set; }
+        public int WorkerThread => Volatile.Read(ref _workerThread);
         public Task<IReadOnlyList<FilePanelItem>> EnumerateDirectoryAsync(string path, CancellationToken token = default)
         {
-            WorkerThread = Environment.CurrentManagedThreadId;
-            Started.TrySetResult();
+            Volatile.Write(ref _workerThread, Environment.CurrentManagedThreadId);
             return Completion.Task;
         }
 

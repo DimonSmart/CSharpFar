@@ -102,6 +102,31 @@ public sealed class ContractTests
     }
 
     [Theory]
+    [InlineData("/custom/bin", "/custom/bin/az")]
+    [InlineData("/custom/bin/", "/custom/bin/az")]
+    [InlineData("/", "/az")]
+    public void MacAzureCliPathUsesMacSeparatorsRegardlessOfHost(string directory, string expected)
+    {
+        var info = AzureCliSupport.InspectPath(directory, candidate => candidate == expected, isMacOS: true);
+
+        Assert.Equal(expected, info.ExecutablePath);
+        Assert.Equal(directory, info.EffectivePath);
+        Assert.False(info.AddedStandardPath);
+    }
+
+    [Fact]
+    public void NativeAzureCliPathUsesHostSeparators()
+    {
+        string directory = Path.Combine("custom", "bin");
+        string expected = Path.Combine(directory, "az");
+        var info = AzureCliSupport.InspectPath(directory, candidate => candidate == expected, isMacOS: false);
+
+        Assert.Equal(expected, info.ExecutablePath);
+        Assert.Equal(directory, info.EffectivePath);
+        Assert.False(info.AddedStandardPath);
+    }
+
+    [Theory]
     [InlineData("Azure CLI not installed", "Azure CLI was not found")]
     [InlineData("Please run 'az login' to set up account", "Azure CLI is not signed in")]
     [InlineData("Azure CLI authentication timed out.", "Azure CLI token request timed out")]

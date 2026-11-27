@@ -56,12 +56,13 @@ internal static class AzureCliSupport
             return new(original, FindOnPath(original, Path.PathSeparator, fileExists), false);
 
         var directories = original.Split(':', StringSplitOptions.RemoveEmptyEntries).ToList();
-        string? executable = FindInDirectories(directories, fileExists);
+        string? executable = FindInDirectories(directories, fileExists, MacExecutablePath);
         bool added = false;
         foreach (string directory in MacOsStandardDirectories)
         {
-            if (!fileExists(Path.Combine(directory, "az"))) continue;
-            executable ??= Path.Combine(directory, "az");
+            string candidate = MacExecutablePath(directory);
+            if (!fileExists(candidate)) continue;
+            executable ??= candidate;
             if (directories.Contains(directory, StringComparer.Ordinal)) continue;
             directories.Insert(0, directory);
             added = true;
@@ -99,13 +100,18 @@ internal static class AzureCliSupport
     }
 
     private static string? FindOnPath(string path, char separator, Func<string, bool> fileExists) =>
-        FindInDirectories(path.Split(separator, StringSplitOptions.RemoveEmptyEntries), fileExists);
+        FindInDirectories(path.Split(separator, StringSplitOptions.RemoveEmptyEntries), fileExists,
+            directory => Path.Combine(directory, "az"));
 
-    private static string? FindInDirectories(IEnumerable<string> directories, Func<string, bool> fileExists)
+    private static string MacExecutablePath(string directory) =>
+        directory.EndsWith('/') ? directory + "az" : directory + "/az";
+
+    private static string? FindInDirectories(IEnumerable<string> directories, Func<string, bool> fileExists,
+        Func<string, string> executablePath)
     {
         foreach (string directory in directories)
         {
-            string candidate = Path.Combine(directory, "az");
+            string candidate = executablePath(directory);
             if (fileExists(candidate)) return candidate;
         }
         return null;
