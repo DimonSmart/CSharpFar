@@ -58,7 +58,7 @@ public static class AzureBlobClientFactory
         _ = AzureBlobPath.Normalize(connection.InitialDirectory);
     }
 
-    private static Uri Endpoint(string? value)
+    internal static Uri Endpoint(string? value)
     {
         if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
             (uri.Scheme != "https" && !(uri.Scheme == "http" && uri.IsLoopback)) ||
