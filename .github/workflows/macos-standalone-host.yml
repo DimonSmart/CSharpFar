@@ -1,19 +1,6 @@
 name: macOS standalone host
 
 on:
-  push:
-    branches:
-      - main
-      - codex/macos-standalone-host-spec
-  pull_request:
-    paths:
-      - 'src/CSharpFar.App/Plugins/**'
-      - 'src/CSharpFar.App/Bootstrap/ApplicationBootstrap.cs'
-      - 'src/CSharpFar.Host.MacOs/**'
-      - 'src/CSharpFar.Plugin.AzureBlob/**'
-      - 'eng/packaging/**'
-      - 'eng/testing/verify-bundled-*.ps1'
-      - '.github/workflows/macos-standalone-host.yml'
   workflow_dispatch:
 
 permissions:

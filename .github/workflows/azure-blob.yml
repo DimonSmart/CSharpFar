@@ -1,27 +1,6 @@
 name: Azure Blob extension
 
 on:
-  push:
-    branches: ['**']
-    paths:
-      - 'src/CSharpFar.Plugin.AzureBlob/**'
-      - 'src/CSharpFar.Plugin.Abstractions/**'
-      - 'eng/PluginSdk.props'
-      - 'eng/pack-plugin-sdk.ps1'
-      - 'tests/CSharpFar.Plugin.AzureBlob.Tests/**'
-      - 'eng/testing/build-azure-blob-extension.ps1'
-      - 'eng/testing/verify-azure-blob-host.py'
-      - '.github/workflows/azure-blob.yml'
-  pull_request:
-    paths:
-      - 'src/CSharpFar.Plugin.AzureBlob/**'
-      - 'src/CSharpFar.Plugin.Abstractions/**'
-      - 'eng/PluginSdk.props'
-      - 'eng/pack-plugin-sdk.ps1'
-      - 'tests/CSharpFar.Plugin.AzureBlob.Tests/**'
-      - 'eng/testing/build-azure-blob-extension.ps1'
-      - 'eng/testing/verify-azure-blob-host.py'
-      - '.github/workflows/azure-blob.yml'
   workflow_dispatch:
   workflow_call:
 
