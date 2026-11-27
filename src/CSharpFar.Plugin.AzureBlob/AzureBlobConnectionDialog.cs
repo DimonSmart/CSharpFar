@@ -1,4 +1,3 @@
-using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using CSharpFar.Plugin.Abstractions;
@@ -18,7 +17,7 @@ internal static class AzureBlobConnectionDialog
 
     internal sealed record Result(AzureBlobConnection Connection, bool Save, PluginPanelOpenRequest? Panel, bool Delete = false);
 
-    public static Result? Show(IPluginUiService ui, AzureBlobConnection? old, bool saveByDefault, CancellationToken token)
+    public static Result? Show(IPluginUiService ui, AzureBlobConnection? old, bool saveByDefault, string diagnosticsDirectory, CancellationToken token)
     {
         Guid id = old?.Id ?? Guid.NewGuid();
         var name = new PluginFormText("name", "Display name:", old?.DisplayName ?? "Azure");
@@ -38,6 +37,7 @@ internal static class AzureBlobConnectionDialog
         if (old is not null) reference.Value = old.CredentialReference ?? "";
         references[activeMode] = reference.Value;
         Result? accepted = null;
+        AzureErrorInfo? lastError = null;
         PluginForm form = null!;
 
         void RefreshMode()
@@ -53,7 +53,7 @@ internal static class AzureBlobConnectionDialog
             reference.Visible = activeMode != AuthenticationMode.AzureCli;
             hint.Text = activeMode switch
             {
-                AuthenticationMode.AzureCli => "Run az login before starting CSharpFar.",
+                AuthenticationMode.AzureCli => "Uses az login; standard Homebrew locations are detected on macOS.",
                 AuthenticationMode.Azurite => "Empty variable = default local Azurite.",
                 _ => "Enter the variable name, never the secret itself."
             };
@@ -93,15 +93,7 @@ internal static class AzureBlobConnectionDialog
                 container.Value = fixedContainer.Name;
                 return null;
             }
-            string[] names;
-            try
-            {
-                names = service!.GetBlobContainers(cancellationToken: operationToken).Select(item => item.Name).ToArray();
-            }
-            catch (RequestFailedException error) when (error.Status is 401 or 403)
-            {
-                return new("Cannot list containers. Enter the container name directly.", container.Id);
-            }
+            string[] names = service!.GetBlobContainers(cancellationToken: operationToken).Select(item => item.Name).ToArray();
             if (names.Length == 0) return new("No containers found. Enter the container name directly.", container.Id);
             int? index = ui.ShowMenu("Azure containers", names, Math.Max(0, Array.IndexOf(names, container.Value)));
             if (index is not null) container.Value = names[index.Value];
@@ -122,6 +114,11 @@ internal static class AzureBlobConnectionDialog
                 accepted = new(old, false, null, Delete: true);
                 return null;
             }
+            if (e.Kind == PluginFormEventKind.Action && e.Id == "error-details")
+            {
+                ui.ShowHelp("Azure Blob error details", lastError?.Details ?? ["No connection error has been recorded."]);
+                return null;
+            }
             if (Read(out var connection) is { } validation) return validation;
             if (e.Kind == PluginFormEventKind.Submit && e.Id == "save")
             {
@@ -131,7 +128,7 @@ internal static class AzureBlobConnectionDialog
 
             // Keep synchronous SDK callbacks bounded; the user can edit and retry after an error.
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-            timeout.CancelAfter(TimeSpan.FromSeconds(20));
+            timeout.CancelAfter(TimeSpan.FromSeconds(30));
             try
             {
                 if (connection.CredentialReference is { } variable &&
@@ -183,7 +180,12 @@ internal static class AzureBlobConnectionDialog
                 return null;
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
-            catch (Exception error) { return new(AzureErrors.Message(error)); }
+            catch (Exception error)
+            {
+                lastError = AzureErrors.Describe(error);
+                AzureBlobDiagnostics.Write(diagnosticsDirectory, lastError);
+                return new(lastError.Summary);
+            }
         }
 
         RefreshMode();
@@ -204,6 +206,7 @@ internal static class AzureBlobConnectionDialog
                 new("test", "Test connection", 'T', PluginFormButtonRole.Auxiliary),
                 new("save", "Save", 'S'),
                 new("connect", "Connect", 'O', IsDefault: true),
+                new("error-details", "Error details", 'E', PluginFormButtonRole.Auxiliary),
                 .. (old is null ? Array.Empty<PluginFormButton>() : new[] { new PluginFormButton("delete", "Delete", 'D') }),
                 new("cancel", "Cancel", 'C', PluginFormButtonRole.Cancel)
             ],
